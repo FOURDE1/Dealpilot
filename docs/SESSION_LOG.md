@@ -22,6 +22,34 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [AHMAD] — Repo genesis + monorepo scaffold (A-01 local scope complete)
+
+**Done:** A-01 local scope. `git init -b main` in main-project; genesis commit
+0ab88a1 (CLAUDE.md, docs/, .claude/, .mcp.json, README, .gitignore, .env.example);
+`develop` branched; scaffold built on `ahmad/monorepo-scaffold` and squash-merged
+to develop as **d4235a2**: pnpm+Turborepo workspace — apps/{web,api,workers,intake},
+packages/{db,schemas,contracts,core,ui,i18n,ai} as compiling stubs; TS 5.9 strict
+base (noUncheckedIndexedAccess, verbatimModuleSyntax); ESLint 9 flat +
+typescript-eslint; Prettier; vitest; pnpm catalog pins typescript; .gitattributes
+LF; repo-local git identity Hassan <hassan@readycar.ca>.
+**Test/build status (evidence):** `pnpm install` clean (17.3s, pnpm 10.26.1, install
+scripts blocked by default per CLAUDE.md); `pnpm turbo run build typecheck` →
+22/22 tasks successful; `pnpm lint` exit 0; `pnpm test` exit 0 (--passWithNoTests;
+no tests exist yet — stubs only).
+**Blocked / open questions:** A-01 remainder needs the OWNER: `gh auth login`
+(gh 2.95 installed, not authenticated), GitHub org/repo name, push approval,
+then branch protection on `main`. Board row set BLOCKED accordingly.
+**Note for HUSSEIN:** the Stitch MCP **is now connected** (user-scope, verified
+HTTP 200 with real key; tools build_site/get_screen_code/get_screen_image) — the
+H-01 "not yet connected" note is stale; you can start H-01 in any fresh session.
+Until A-01 push is done, no repo clone for you (per TEAM-WORKFLOW §3) — H-01
+needs no repo. Also: `../kia-tracker-specs` is readable without permission
+prompts (additionalDirectories) and TEAM-WORKFLOW gained §2.1 onboarding +
+§2.2 async-mode sections — read them at bootstrap.
+**Next steps:** 1) Owner unblocks GitHub → finish A-01 (push, protect, verify
+clone). 2) A-02 CI pipeline. 3) A-03 schemas/contracts baseline (publication
+unblocks H-03).
+
 ## 2026-07-24 — DB platform switch: Supabase → Amazon RDS; docs aligned
 
 **Done:** Owner decision (2026-07-24) recorded and propagated: the database moves

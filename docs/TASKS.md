@@ -28,7 +28,7 @@
 
 | ID | Task | Owner | Status | Depends on | Notes |
 |---|---|---|---|---|---|
-| A-01 | Git init + GitHub repo + branch protection + pnpm/Turborepo monorepo scaffold (strict TS) | AHMAD | CLAIMED(AHMAD, 2026-07-24) | — | Unblocks everything; do first |
+| A-01 | Git init + GitHub repo + branch protection + pnpm/Turborepo monorepo scaffold (strict TS) | AHMAD | BLOCKED(needs GitHub org/repo name + push approval from OWNER) | — | Local scope DONE, merged to develop d4235a2 (build+typecheck 22/22, lint+test green); remaining: gh auth login, create repo, push, protect main |
 | A-02 | CI pipeline: lint/typecheck/test on PR, frozen lockfile | AHMAD | BACKLOG | A-01 | i18n parity step stubbed until H-04 |
 | A-03 | packages/schemas + packages/contracts baseline (tenant, store, user, lead) | AHMAD | BACKLOG | A-01 | Publishes the interface HUSSEIN codes against |
 | A-04 | packages/db + local Docker Postgres (dev) + first migration (tenants/orgs/stores/users + RLS); staging = RDS via IaC | AHMAD | BACKLOG | A-01, A-03 | RDS over Supabase (D-013); staging RDS provisioned with the A-07 IaC baseline (owner approval before any AWS apply); dev needs no cloud resources |
