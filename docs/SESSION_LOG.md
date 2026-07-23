@@ -22,6 +22,29 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [AHMAD] — overnight continuation: CI all green; A-06 money math DONE (5a47cfd); AHMAD track exhausted
+
+**Done:** (1) **CI verified**: every develop merge tonight is GREEN on GitHub
+(F-01 backend, A-05.1, docs commits, HUSSEIN's pushes). (2) **A-06 DONE
+(5a47cfd)**: @dealpilot/core ships tax engine (13 provinces, split GST/QST/
+PST/HST, Section 87, per-province trade-in credit), amortization + lease
+math, desking computeDeal, and the corrected CommissionEngine — all INTEGER
+CENTS (ADR-009), ported from the canonical legacy engines with the audited
+bug corrections built in: F6/D-12 post-tax rebates, F2 cents pad, F4 all
+overriders paid, pad-before-rate, strict-> tier. **21 golden tests** (values
+hand-verified pre-implementation); whole tree **180/180**, lint 0, 22/22
+build+typecheck. Coverage tooling (@vitest/coverage-v8) NOT added — new dep
+needs owner ask-first; suite covers all public functions.
+**Track status:** AHMAD owner-independent work is EXHAUSTED. Remaining needs:
+A-07 (AWS — owner account/credentials + apply approvals), A-09 (low-value doc
+sweep, deliberately skipped overnight — 300+ reference files of name churn),
+F-01 integration (waits on HUSSEIN's screens), email verification (waits on
+owner's Resend key).
+**Next steps:** 1) HUSSEIN lands F-01 UI → both halves INTEGRATED → write
+owner test steps → AWAITING-OWNER-TEST. 2) Desking/commission API slices can
+now build on @dealpilot/core. 3) A-07 IaC when owner is ready for AWS.
+**Blockers:** none in my zone; all remaining items wait on HUSSEIN or OWNER.
+
 ## 2026-07-24 [AHMAD] — A-05.1 DONE overnight: auth hardening merged; owner asleep, morning stack unchanged +1 item
 
 **Done:** A-05.1 squash-merged to develop. Explicit session TTLs (7d,

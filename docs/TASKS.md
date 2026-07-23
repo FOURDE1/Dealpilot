@@ -56,7 +56,7 @@
 
 | ID | Task | Owner | Status | Depends on | Notes |
 |---|---|---|---|---|---|
-| A-06 | packages/core money math port + golden tests (tax/desking, commissions, amortization; ≥90% cov) | AHMAD | CLAIMED(AHMAD, 2026-07-24) | A-01 | ROADMAP 0.6; legacy code = executable spec (now at reference/kia-tracker-specs) |
+| A-06 | packages/core money math port + golden tests (tax/desking, commissions, amortization; ≥90% cov) | AHMAD | DONE(2026-07-24, 5a47cfd) | A-01 | ROADMAP 0.6; legacy code = executable spec (now at reference/kia-tracker-specs) |
 | A-08 | GitHub adoption + Dealpilot rebrand + reference import | AHMAD | DONE(2026-07-24, see merge) | A-01 | origin = github.com/FOURDE1/Dealpilot; @dealpilot/* packages; plan+legacy in reference/; new-machine setup in README |
 | A-09 | Doc sweep: propagate names + D-020 client answers through reference/docs/new plan docs | AHMAD | BACKLOG | A-08 | Low priority; plan docs currently say ReadyLoans (noted in README/§2.1). Scope-rename question RESOLVED by owner (D-027, 2026-07-24): KEEP `@dealpilot/*` internal scope; "1Dealer" is user-facing only |
 | A-07 | AWS IaC baseline + first deploy, minimal-footprint cost ramp | AHMAD | BACKLOG | A-01, A-02 | ROADMAP 0.7 (incl. staging RDS db.t4g.small Single-AZ, VPC-private — D-013); every apply needs owner approval |
