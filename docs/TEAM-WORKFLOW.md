@@ -74,10 +74,17 @@ bootstrap (§2) + claim protocol (§6) make every ordering safe.
 
 ## 3. Working copies — never share a checkout
 
-The two agents must **never run in the same working directory**. After A-01 pushes
-the repo to GitHub:
+The two agents must **never run in the same working directory**.
 - **AHMAD** works in `main-project` (this directory).
 - **HUSSEIN** works in a dedicated sibling clone: `main-project-hussein`.
+
+**Remote (owner decision 2026-07-24 — git-only, no GitHub yet):** `origin` is the
+local bare repository `../readyloans.git` (i.e. `Archive/readyloans.git`). All
+push/pull flows through it exactly as they would through GitHub. HUSSEIN creates
+his working copy with:
+`git clone "<path-to>/Archive/readyloans.git" main-project-hussein` (inside
+`Archive/`). When GitHub is adopted later, we add it as the new origin and push —
+nothing else changes.
 
 Coordination files (TASKS.md, SESSION_LOG.md) are read/written through git — pull
 before reading, push immediately after writing (§7). Until A-01 (git init + push)
