@@ -133,6 +133,23 @@ session; layout+routing on @dealpilot/ui tokens, auth screens against the A-05
 Better Auth contract. 2) H-04 (i18n scaffold) parallel-safe. 3) H-05 primitives
 (adds @base-ui/react after cooldown re-check).
 
+**Addendum (same session):** owner deferred F-01 confirmation ("continue") →
+claimed H-03 and merged **increment 1 as 734e5f8**: Vite 6 + React 19 SPA,
+react-router v7 (lazy routes; RequireAuth/RedirectIfAuthed with tested
+open-redirect-safe returnTo), Better Auth client (same-origin dev proxy /api →
+:3001, first-party cookies), ts-rest client on @dealpilot/contracts, app
+layout + FR-first auth screens on the H-02 tokens. Evidence: typecheck clean,
+5/5 guard tests, vite build 121KB gzip main (budget 350KB, route-split),
+/login screenshot-verified on the built bundle; full turbo green except the
+pre-existing HO-02 root-test failure. **Remaining for H-03 DoD:** live
+sign-up→me→sign-out round-trip + Playwright e2e — blocked on THIS laptop
+(no Docker → no local Postgres → API can't boot); next session on either
+machine finishes it. Also this session: fixed AHMAD's HO-01 same-day
+(pathToFileURL, 081c546); commit identity corrected to FOURDE1
+<hossienraad321@gmail.com> (owner). Auth-screen forms use controlled inputs
+deliberately — the react-hook-form+zod Form primitive is H-05's deliverable
+and these screens migrate onto it (noted to avoid duplicate form plumbing).
+
 ## 2026-07-24 [AHMAD] — A-05 DONE (269dfdd): Fastify API + Better Auth; Sprint-0 foundation COMPLETE
 
 **Done:** A-05 merged to develop as **269dfdd**. `@dealpilot/api`: Fastify 5 app
