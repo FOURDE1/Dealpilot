@@ -126,6 +126,45 @@ describe('api skeleton', () => {
     expect(meAfter.statusCode).toBe(401);
   });
 
+  it('session cookie carries the hardened 7-day TTL (A-05.1)', async (ctx) => {
+    if (!dbUp || !app) return ctx.skip();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-in/email',
+      payload: { email: EMAIL, password: PASSWORD },
+    });
+    expect(res.statusCode).toBe(200);
+    const cookies = String(res.headers['set-cookie']);
+    expect(cookies).toMatch(/Max-Age=604800/);
+  });
+
+  it('CORS preflight is cached and headers are restricted (A-05.1)', async (ctx) => {
+    if (!dbUp || !app) return ctx.skip();
+    const res = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/v1/me',
+      headers: {
+        origin: 'http://localhost:5173',
+        'access-control-request-method': 'GET',
+        'access-control-request-headers': 'content-type',
+      },
+    });
+    expect(res.headers['access-control-max-age']).toBe('86400');
+    expect(String(res.headers['access-control-allow-headers']).toLowerCase()).toContain('content-type');
+  });
+
+  it('a spoofed Host header cannot redirect auth URLs (A-05.1: baseURL host)', async (ctx) => {
+    if (!dbUp || !app) return ctx.skip();
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-in/email',
+      headers: { host: 'evil.example' },
+      payload: { email: EMAIL, password: PASSWORD },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(String(res.headers['set-cookie'])).not.toContain('evil.example');
+  });
+
   it('sign-in works for an existing account and rejects a wrong password', async (ctx) => {
     if (!dbUp || !app) return ctx.skip();
     const bad = await app.inject({

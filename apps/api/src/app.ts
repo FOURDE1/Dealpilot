@@ -34,8 +34,10 @@ const FASTIFY_CODE_MAP: Record<string, string> = {
   FST_ERR_CTP_BODY_TOO_LARGE: 'payload_too_large',
 };
 
-async function toWebRequest(request: FastifyRequest): Promise<Request> {
-  const url = `${request.protocol}://${request.host}${request.url}`;
+async function toWebRequest(request: FastifyRequest, baseUrl: string): Promise<Request> {
+  // A-05.1: the origin comes from BETTER_AUTH_URL, never the Host header —
+  // a spoofed Host can no longer influence auth-generated URLs.
+  const url = new URL(request.url, baseUrl).toString();
   const headers = new Headers();
   for (const [key, value] of Object.entries(request.headers)) {
     if (typeof value === 'string') headers.append(key, value);
@@ -68,6 +70,9 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(cors, {
     origin: [env.WEB_ORIGIN],
     credentials: true,
+    // A-05.1: restrict request headers and cache preflights for a day.
+    allowedHeaders: ['content-type', 'authorization'],
+    maxAge: 86400,
   });
 
   // --- canonical error envelope everywhere -------------------------------
@@ -104,7 +109,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     const routedPath = request.routeOptions.url ?? '';
     if (PUBLIC_ROUTES.includes(routedPath)) return;
-    const webReq = await toWebRequest(request);
+    const webReq = await toWebRequest(request, env.BETTER_AUTH_URL);
     const session = await auth.api.getSession({ headers: webReq.headers });
     if (!session) {
       return reply
@@ -119,7 +124,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
     method: ['GET', 'POST'],
     url: '/api/auth/*',
     async handler(request, reply) {
-      const response = await auth.handler(await toWebRequest(request));
+      const response = await auth.handler(await toWebRequest(request, env.BETTER_AUTH_URL));
       reply.status(response.status);
       response.headers.forEach((value, key) => {
         if (key.toLowerCase() === 'set-cookie') reply.header('set-cookie', value);

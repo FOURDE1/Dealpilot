@@ -19,6 +19,13 @@ export function createAuth(env: Env, pool: Pool) {
     baseURL: env.BETTER_AUTH_URL,
     basePath: '/api/auth',
     trustedOrigins: [env.WEB_ORIGIN],
+    session: {
+      // Explicit (A-05.1, D-025 item 3): 7-day sessions, refreshed daily.
+      // cookieCache was tried and REJECTED: a cached cookie outlives sign-out,
+      // breaking the round-trip test's instant-revocation requirement.
+      expiresIn: 60 * 60 * 24 * 7,
+      updateAge: 60 * 60 * 24,
+    },
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 12,
