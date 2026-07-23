@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyError, type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import { createPool } from '@dealpilot/db';
-import type { ErrorEnvelopeT } from '@dealpilot/schemas';
 import { createAuth, type Auth } from './auth.js';
 import { loadEnv, type Env } from './env.js';
+import { AppError, envelope } from './errors.js';
+import { registerF01Routes } from './f01-routes.js';
 
 /**
  * Dealpilot API (A-05): Fastify 5 skeleton.
@@ -32,10 +33,6 @@ const FASTIFY_CODE_MAP: Record<string, string> = {
   FST_ERR_CTP_INVALID_MEDIA_TYPE: 'unsupported_media_type',
   FST_ERR_CTP_BODY_TOO_LARGE: 'payload_too_large',
 };
-
-function envelope(code: string, message: string, requestId: string, details?: { path?: string; code: string; message: string }[]): ErrorEnvelopeT {
-  return { error: { code, message, ...(details ? { details } : {}), request_id: requestId } };
-}
 
 async function toWebRequest(request: FastifyRequest): Promise<Request> {
   const url = `${request.protocol}://${request.host}${request.url}`;
@@ -76,6 +73,11 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   // --- canonical error envelope everywhere -------------------------------
   app.setErrorHandler((err: FastifyError, request, reply) => {
     const requestId = String(request.id);
+    if (err instanceof AppError) {
+      return reply
+        .status(err.statusCode)
+        .send(envelope(err.apiCode, err.message, requestId, err.details));
+    }
     const status = err.statusCode && err.statusCode >= 400 ? err.statusCode : 500;
     if (status >= 500) {
       request.log.error({ err }, 'unhandled error');
@@ -148,6 +150,8 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
       session: { expires_at: session.expiresAt },
     };
   });
+
+  registerF01Routes(app, pool);
 
   app.addHook('onClose', async () => {
     await pool.end();

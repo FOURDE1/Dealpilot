@@ -25,6 +25,16 @@ const orgSlug = z
   .min(3)
   .max(40);
 
+/**
+ * The slug drives subdomains + intake URLs (multi-tenancy.md §7): platform
+ * namespaces are reserved, and the slug is IMMUTABLE after creation — it is
+ * deliberately absent from UpdateOrganizationInput.
+ */
+const RESERVED_SLUGS = new Set(['www', 'api', 'app', 'admin', 'in', 'status']);
+const orgSlugInput = orgSlug.refine((s) => !RESERVED_SLUGS.has(s), {
+  message: 'This slug is reserved',
+});
+
 export const Organization = z.object({
   id: Uuid,
   name: orgName,
@@ -38,20 +48,21 @@ export const Organization = z.object({
   deleted_at: IsoDateTime.nullable(),
 });
 
-/** Create carries the defaults; update never does (see common.ts header). */
+/**
+ * Create carries the defaults; update never does (see common.ts header).
+ * `status` and `plan_tier` are PLATFORM authority (billing/suspension —
+ * admin-console.md §4): tenants never set them; the server defaults apply
+ * (review 2026-07-24 — an owner must not self-un-suspend or self-upgrade).
+ */
 export const CreateOrganizationInput = z.strictObject({
   name: orgName,
-  slug: orgSlug,
-  status: OrganizationStatus.default('active'),
-  plan_tier: PlanTier.default('core'),
+  slug: orgSlugInput,
   default_locale: Locale.default('fr-CA'),
 });
 
+/** No `slug` (immutable), no `status`/`plan_tier` (platform authority). */
 export const UpdateOrganizationInput = z.strictObject({
   name: orgName.optional(),
-  slug: orgSlug.optional(),
-  status: OrganizationStatus.optional(),
-  plan_tier: PlanTier.optional(),
   default_locale: Locale.optional(),
 });
 

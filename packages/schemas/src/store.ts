@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IsoDateTime, Locale, PhoneE164, PostalCodeCA, ProvinceCA, Uuid } from './common.js';
+import { CursorQuery, IsoDateTime, Locale, PhoneE164, PostalCodeCA, ProvinceCA, Uuid } from './common.js';
 
 export const StoreStatus = z.enum(['active', 'paused', 'closed']);
 
@@ -55,6 +55,15 @@ export const UpdateStoreInput = z.strictObject({
   default_locale: Locale.optional(),
   timezone: z.string().min(1).optional(),
   status: StoreStatus.optional(),
+});
+
+/**
+ * Store list is org-scoped (F-01). `organization_id` is a SELECTOR the server
+ * verifies against the caller's memberships — never an authority claim
+ * (api-design.md §1). Optional: with exactly one org it defaults to it.
+ */
+export const StoreListQuery = CursorQuery.extend({
+  organization_id: Uuid.optional(),
 });
 
 export type StoreT = z.infer<typeof Store>;

@@ -12,6 +12,7 @@ import {
   Membership,
   Organization,
   Store,
+  StoreListQuery,
   UpdateLeadInput,
   UpdateMembershipInput,
   UpdateOrganizationInput,
@@ -48,11 +49,13 @@ const crudRouter = <
   Entity extends z.ZodType,
   CreateInput extends z.ZodType,
   UpdateInput extends z.ZodType,
+  ListQuery extends z.ZodType = typeof CursorQuery,
 >(
   path: string,
   entity: Entity,
   createInput: CreateInput,
   updateInput: UpdateInput,
+  listQuery?: ListQuery,
 ) =>
   c.router({
     create: {
@@ -70,7 +73,7 @@ const crudRouter = <
     list: {
       method: 'GET',
       path: `/api/v1/${path}`,
-      query: CursorQuery,
+      query: listQuery ?? CursorQuery,
       responses: { 200: paginated(entity), ...errorResponses },
     },
     update: {
@@ -106,7 +109,9 @@ export const apiV1 = c.router({
     },
   }),
   organizations: crudRouter('organizations', Organization, CreateOrganizationInput, UpdateOrganizationInput),
-  stores: crudRouter('stores', Store, CreateStoreInput, UpdateStoreInput),
+  // Store list is org-scoped (F-01): the selector is verified against the
+  // caller's memberships server-side — never an authority claim.
+  stores: crudRouter('stores', Store, CreateStoreInput, UpdateStoreInput, StoreListQuery),
   users: crudRouter('users', User, CreateUserInput, UpdateUserInput),
   memberships: crudRouter('memberships', Membership, CreateMembershipInput, UpdateMembershipInput),
   leads: crudRouter('leads', Lead, CreateLeadInput, UpdateLeadInput),

@@ -37,20 +37,32 @@ export function resolveDatabaseUrl(explicit?: string): string {
   );
 }
 
+/** Transaction-local RLS context. At least one of the two must be set. */
+export interface TxnContext {
+  /** Tenant key for the 0001 isolation policies (`app.org_id`). */
+  orgId?: string;
+  /** Caller key for the 0003 user-scoped read policies (`app.user_id`). */
+  userId?: string;
+}
+
 /**
- * Run `fn` inside a transaction scoped to one tenant. set_config(..., true)
- * is transaction-local — it evaporates on COMMIT/ROLLBACK. `orgId` is bound
- * as a parameter — never interpolated.
+ * Run `fn` inside a transaction with the RLS context GUCs set.
+ * set_config(..., true) evaporates on COMMIT/ROLLBACK, so pooled connections
+ * can never leak context. Values are bound as parameters — never interpolated.
  */
-export async function withTenant<T>(
+export async function withContext<T>(
   pool: pg.Pool,
-  orgId: string,
+  ctx: TxnContext,
   fn: (client: pg.PoolClient) => Promise<T>,
 ): Promise<T> {
+  if (!ctx.orgId && !ctx.userId) {
+    throw new Error('withContext requires orgId and/or userId — a contextless transaction sees nothing');
+  }
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    await client.query("SELECT set_config('app.org_id', $1, true)", [orgId]);
+    if (ctx.orgId) await client.query("SELECT set_config('app.org_id', $1, true)", [ctx.orgId]);
+    if (ctx.userId) await client.query("SELECT set_config('app.user_id', $1, true)", [ctx.userId]);
     const result = await fn(client);
     await client.query('COMMIT');
     client.release();
@@ -67,6 +79,29 @@ export async function withTenant<T>(
     client.release();
     throw err;
   }
+}
+
+/** Tenant-scoped transaction: all RLS tenant policies key on `app.org_id`. */
+export async function withTenant<T>(
+  pool: pg.Pool,
+  orgId: string,
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  return withContext(pool, { orgId }, fn);
+}
+
+/**
+ * User-scoped READ transaction (F-01): the 0003 policies let a signed-in user
+ * see the organizations/stores/memberships they belong to (and their own
+ * users row) before any tenant is picked. Reads only — writes still require
+ * tenant context.
+ */
+export async function withUser<T>(
+  pool: pg.Pool,
+  userId: string,
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  return withContext(pool, { userId }, fn);
 }
 
 export { migrate, reset } from './migrate.js';

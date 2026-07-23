@@ -150,7 +150,32 @@ describe('CreateOrganizationInput', () => {
   it('enforces kebab-case slug and FR-first defaults', () => {
     const org = CreateOrganizationInput.parse({ name: 'Kia Mont-Laurier', slug: 'kia-mont-laurier' });
     expect(org.default_locale).toBe('fr-CA');
-    expect(org.plan_tier).toBe('core');
+    // plan_tier/status defaults moved server-side (platform authority, D-028).
     expect(() => CreateOrganizationInput.parse({ name: 'X', slug: 'Kia ML' })).toThrow();
+  });
+
+  it('rejects reserved slugs (subdomain/intake namespace collisions)', () => {
+    for (const slug of ['www', 'api', 'app', 'admin', 'status']) {
+      expect(() => CreateOrganizationInput.parse({ name: 'X', slug })).toThrow();
+    }
+  });
+
+  it('status and plan_tier are platform authority — not accepted from clients', () => {
+    expect(() =>
+      CreateOrganizationInput.parse({ name: 'X', slug: 'x-y-z', plan_tier: 'enterprise' }),
+    ).toThrow();
+    expect(() =>
+      CreateOrganizationInput.parse({ name: 'X', slug: 'x-y-z', status: 'active' }),
+    ).toThrow();
+    expect(() => UpdateOrganizationInput.parse({ status: 'active' })).toThrow();
+    expect(() => UpdateOrganizationInput.parse({ plan_tier: 'scale' })).toThrow();
+  });
+});
+
+describe('UpdateOrganizationInput', () => {
+  it('slug is immutable after creation — update rejects it', () => {
+    // multi-tenancy.md §7: the slug drives subdomains + intake URLs, never renamed.
+    expect(() => UpdateOrganizationInput.parse({ slug: 'new-slug' })).toThrow();
+    expect(UpdateOrganizationInput.parse({ name: 'Renamed' })).toEqual({ name: 'Renamed' });
   });
 });
