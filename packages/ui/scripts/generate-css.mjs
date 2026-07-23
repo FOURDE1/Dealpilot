@@ -4,10 +4,12 @@
  * writes the artifact. Runs as part of `pnpm build`, after tsc.
  */
 import { writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
-const { buildTokensCss } = await import(join(pkgRoot, 'dist/theme/build-css.js'));
+// pathToFileURL: a raw absolute Windows path ("C:\...") is read by the ESM
+// loader as a URL with protocol "c:" and crashes (HO-01).
+const { buildTokensCss } = await import(pathToFileURL(join(pkgRoot, 'dist/theme/build-css.js')).href);
 
 writeFileSync(join(pkgRoot, 'dist/tokens.css'), buildTokensCss());
