@@ -1,5 +1,5 @@
 /**
- * @readyloans/intake — minimal compiling stub (A-01).
+ * @dealpilot/intake — minimal compiling stub (A-01).
  * Real implementation lands in its own task; see docs/TASKS.md.
  */
-export const PACKAGE = '@readyloans/intake' as const;
+export const PACKAGE = '@dealpilot/intake' as const;

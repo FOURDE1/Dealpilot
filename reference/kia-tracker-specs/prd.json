@@ -1,0 +1,509 @@
+{
+  "project": "kia-deal-tracker",
+  "version": "2.0",
+  "lastUpdated": "2026-04-06",
+  "specDirectory": "discussions/",
+  "foundationSpec": "docs/KIA-DEAL-TRACKER-FOUNDATION-PLAN.md",
+  "tiers": [
+    {
+      "id": "tier-0",
+      "name": "Foundation Rebuild",
+      "description": "Enterprise-grade foundation: tooling, contacts, auth, RBAC, validation, audit trail. Must complete before feature modules.",
+      "status": "completed",
+      "stories": [
+        {
+          "id": "F-001",
+          "title": "Project tooling — ESLint + Vitest + root .gitignore",
+          "priority": "P0",
+          "module": "tooling",
+          "effort": "S",
+          "status": "completed",
+          "specFile": null,
+          "acceptanceCriteria": [
+            "ESLint configured for client/ with eslint-plugin-react and eslint-plugin-react-hooks (flat config)",
+            "ESLint configured for server/ with Node.js rules (flat config)",
+            "Vitest configured for client/ with jsdom environment and @testing-library/react",
+            "Vitest configured for server/ with node environment",
+            "package.json scripts added: 'test' and 'lint' in both client/ and server/",
+            "One smoke test per side to prove tooling works (e.g., health endpoint returns 200, utility function test)",
+            "Pre-existing code passes lint with zero errors (fix issues or add targeted ignores)",
+            "bash ralph.sh verify passes: lint + test + build all green",
+            "Coverage reporting enabled (initially 0% threshold — raised per module later)"
+          ]
+        },
+        {
+          "id": "F-002",
+          "title": "Secure .env files + create .env.example templates",
+          "priority": "P0",
+          "module": "security",
+          "effort": "S",
+          "status": "completed",
+          "specFile": null,
+          "acceptanceCriteria": [
+            ".env files removed from git tracking (git rm --cached)",
+            "Root .gitignore covers .env, .env.local, .env.*.local",
+            "client/.env.example created with placeholder values for VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_URL",
+            "server/.env.example created with placeholder values for SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, PORT, email recipients",
+            "README section added documenting required environment variables",
+            "Actual .env files remain on disk (not deleted) so dev environment keeps working"
+          ]
+        },
+        {
+          "id": "F-003",
+          "title": "Contacts table — independent customer records",
+          "priority": "P0",
+          "module": "data-model",
+          "effort": "L",
+          "status": "completed",
+          "specFile": "docs/KIA-DEAL-TRACKER-FOUNDATION-PLAN.md",
+          "acceptanceCriteria": [
+            "contacts table created via migration: id, first_name, last_name, email, phone, address, city, province, postal_code, driver_license, employer, preferred_language (default 'fr'), source, customer_since, lifetime_deals, lifetime_value, marketing_consent, consent_date, search_vector, created_at, updated_at, deleted_at",
+            "deal_parties join table created: deal_id, contact_id, role (buyer/cosigner)",
+            "deals.contact_id FK column added pointing to contacts",
+            "CRUD API: POST/GET/PUT/DELETE /api/contacts with proper error handling",
+            "Duplicate detection on phone + email before create (return existing match)",
+            "Full-text search endpoint: GET /api/contacts/search?q= using search_vector",
+            "Frontend: Contacts page with filter bar, search, and contact cards",
+            "Frontend: Contact detail page with properties | timeline | deals layout",
+            "Data migration: existing customer_name on deals parsed into first_name/last_name on contacts",
+            "All new UI strings added to both en.json and fr.json",
+            "Tests: CRUD operations, duplicate detection, search, migration script"
+          ]
+        },
+        {
+          "id": "F-004",
+          "title": "Stores table — multi-store scoping",
+          "priority": "P0",
+          "module": "data-model",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "docs/KIA-DEAL-TRACKER-FOUNDATION-PLAN.md",
+          "acceptanceCriteria": [
+            "stores table created via migration: id, name, province, tax_rate, address, phone, hours, holiday_calendar, aging_threshold, safety_overdue_days, funding_overdue_days, bill_of_sale_system, esign_platform, created_at, updated_at",
+            "Kia Mont-Laurier seeded as store #1 with Quebec tax rate (14.975%)",
+            "store_id column added to deals, salespeople, commissions, delivery_checklists, dispatch, sourced_units",
+            "All existing records backfilled with store_id = store #1 via migration",
+            "scopeToStore() middleware auto-filters queries by user's assigned store",
+            "Owner role bypasses store scoping (sees all stores)",
+            "API: GET /api/stores, GET /api/stores/:id",
+            "Tests: store scoping middleware, data isolation between stores"
+          ]
+        },
+        {
+          "id": "F-005",
+          "title": "Supabase Auth + RBAC with 10 roles",
+          "priority": "P0",
+          "module": "security",
+          "effort": "L",
+          "status": "completed",
+          "specFile": "docs/KIA-DEAL-TRACKER-FOUNDATION-PLAN.md",
+          "acceptanceCriteria": [
+            "Login page uses Supabase Auth (email + password) instead of plain text email",
+            "JWT tokens with automatic refresh replace localStorage-only session",
+            "users table has role column: owner, gm, sales_manager, fi_manager, salesperson, bdc_agent, service_advisor, driver, accounting, admin",
+            "authenticateUser middleware validates JWT on every API call (except health check)",
+            "requireRole(...roles) middleware enforces role-based access per route",
+            "Salesperson can only see own deals, own commissions, own tasks",
+            "GM/Owner can see all data within their store",
+            "Admin can create user accounts (no self-registration)",
+            "Existing Login.jsx component updated to use Supabase Auth flow",
+            "Tests: auth flow, role enforcement, unauthorized access blocked"
+          ]
+        },
+        {
+          "id": "F-006",
+          "title": "Input validation with Zod schemas",
+          "priority": "P1",
+          "module": "security",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "docs/KIA-DEAL-TRACKER-FOUNDATION-PLAN.md",
+          "acceptanceCriteria": [
+            "Zod installed as dependency in server/",
+            "Zod schemas created for all existing API endpoints: deals, contacts, salespeople, deliveryChecklists, dispatch, sourcedUnits, email, upload",
+            "VIN validation: 17 chars, no I/O/Q, check digit algorithm",
+            "Phone normalization: strip formatting, validate 10-11 digits",
+            "Postal code: Canadian format validation (A1A 1A1)",
+            "Money fields: non-negative integers (cents after F-007, dollars until then)",
+            "validate() middleware created and applied to all mutation routes (POST/PUT/PATCH)",
+            "Clear, user-friendly error messages returned on validation failure",
+            "Tests: valid inputs pass, invalid inputs rejected with correct error messages"
+          ]
+        },
+        {
+          "id": "F-007",
+          "title": "Soft deletes + financial precision (integer cents)",
+          "priority": "P1",
+          "module": "data-model",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "docs/KIA-DEAL-TRACKER-FOUNDATION-PLAN.md",
+          "acceptanceCriteria": [
+            "deleted_at timestamp column added to all existing tables via migration",
+            "All existing queries updated to filter WHERE deleted_at IS NULL",
+            "Soft-deleted records visible to GM/Owner with ?include_deleted=true query param",
+            "Restore endpoint: PUT /api/<resource>/:id/restore sets deleted_at = null",
+            "Money columns migrated from numeric (dollars) to integer (cents) via migration",
+            "Migration script converts existing data: value * 100, rounded",
+            "formatCurrency(cents) utility created in client for display (divides by 100, adds $ and comma formatting)",
+            "parseCurrency(display) utility for form inputs (converts display string to cents)",
+            "Commission calculations in deals.js updated for integer math",
+            "All report generation updated for cents-based calculations",
+            "Tests: soft delete/restore, currency conversion, commission math with cents"
+          ]
+        },
+        {
+          "id": "F-008",
+          "title": "Activity events — audit trail",
+          "priority": "P1",
+          "module": "productivity",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "docs/KIA-DEAL-TRACKER-FOUNDATION-PLAN.md",
+          "acceptanceCriteria": [
+            "activity_events table created: id, entity_type, entity_id, action, actor_id, old_value (jsonb), new_value (jsonb), metadata (jsonb), created_at",
+            "activityLogger middleware auto-logs all mutations (create, update, delete) with before/after values",
+            "API: GET /api/activity-events?entity_type=deal&entity_id=:id with pagination",
+            "Timeline component displays chronological events with actor name, action, timestamp",
+            "Timeline integrated into DealDetail page and Contact detail page",
+            "Stage changes, document uploads, email sends, commission changes all logged",
+            "Tests: events created on mutations, timeline API returns correct events"
+          ]
+        },
+        {
+          "id": "F-009",
+          "title": "Global search — Ctrl+K command palette",
+          "priority": "P2",
+          "module": "productivity",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "docs/KIA-DEAL-TRACKER-FOUNDATION-PLAN.md",
+          "acceptanceCriteria": [
+            "Ctrl+K opens search modal overlay from any page",
+            "Searches contacts, deals, and vehicles simultaneously via API",
+            "Type-ahead with 200ms debounce",
+            "Partial matching on phone, VIN (last 8), stock number, customer name",
+            "Results categorized by type (Contact, Deal, Vehicle) with icons",
+            "Keyboard navigation: arrow keys + Enter to select",
+            "Escape closes modal, clicking result navigates to detail page",
+            "Search endpoint: GET /api/search?q= returns unified results",
+            "Tests: search returns correct results across entity types, keyboard nav works"
+          ]
+        },
+        {
+          "id": "F-010",
+          "title": "Tasks and follow-ups system",
+          "priority": "P2",
+          "module": "productivity",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "docs/KIA-DEAL-TRACKER-FOUNDATION-PLAN.md",
+          "acceptanceCriteria": [
+            "tasks table created: id, title, description, assignee_id, due_date, priority (low/medium/high/urgent), type (call/email/meeting/follow_up/delivery/other), status (pending/in_progress/completed/cancelled), entity_type, entity_id, recurring_interval, store_id, created_by, created_at, updated_at, deleted_at",
+            "CRUD API: POST/GET/PUT/DELETE /api/tasks with filtering by status, assignee, due date",
+            "My Tasks widget on Dashboard showing overdue (red), today (yellow), upcoming (default)",
+            "Quick-create button from deal detail and contact detail pages",
+            "Auto-overdue detection: tasks past due_date automatically flagged",
+            "Recurring task support: when completed, auto-creates next instance based on interval",
+            "Tests: CRUD, overdue detection, recurring creation, dashboard widget"
+          ]
+        },
+        {
+          "id": "F-011",
+          "title": "Notification bell + real-time alerts",
+          "priority": "P2",
+          "module": "productivity",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "docs/KIA-DEAL-TRACKER-FOUNDATION-PLAN.md",
+          "acceptanceCriteria": [
+            "notifications table created: id, type, title, body, target_user_id, urgency (low/medium/high), acknowledged, acknowledged_at, entity_type, entity_id, store_id, created_at",
+            "Bell icon in top bar shows unread count badge (real-time via Supabase subscription)",
+            "Dropdown panel lists notifications with mark-as-read and mark-all-as-read",
+            "Three urgency levels with visual distinction (high = red, medium = yellow, low = default)",
+            "Auto-generated notifications: deal stage change, task overdue, task assigned, new deal created",
+            "API: GET /api/notifications, PUT /api/notifications/:id/acknowledge",
+            "Tests: notification creation, real-time count update, acknowledge flow"
+          ]
+        },
+        {
+          "id": "F-012",
+          "title": "Commission clawback + bulk operations",
+          "priority": "P3",
+          "module": "financial",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "docs/KIA-DEAL-TRACKER-FOUNDATION-PLAN.md",
+          "acceptanceCriteria": [
+            "Clawback status field on deals: none, flagged, reversed",
+            "Clawback initiation restricted to owner/gm/fi_manager roles",
+            "Commission reversal calculation logged with reason, original amount, reversed amount",
+            "Affected salesperson and their manager notified via notification system",
+            "Clawback column visible in commission reports",
+            "Bulk select on deal list: change stage, reassign salesperson (up to 50 at once)",
+            "Bulk select on task list: mark complete, reassign (up to 50 at once)",
+            "Each bulk action validates permissions per item (can't reassign deals you don't own)",
+            "Tests: clawback flow, commission reversal math, bulk operations with permission checks"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tier-1",
+      "name": "Core Feature Modules",
+      "description": "Primary dealership workflows. Depends on Tier 0 foundation completion.",
+      "status": "completed",
+      "stories": [
+        {
+          "id": "M-001",
+          "title": "Deal Pipeline — Kanban view with drag-drop stages",
+          "priority": "P0",
+          "module": "deal-pipeline",
+          "effort": "L",
+          "status": "completed",
+          "specFile": "discussions/deal-pipeline-spec.md",
+          "existingCompletion": "60%",
+          "acceptanceCriteria": [
+            "10-stage Kanban board rendered with columns using @hello-pangea/dnd",
+            "Deal cards show: customer name, vehicle, value, aging indicator, funding badge",
+            "Drag-drop moves deals between stages with transition rules enforced",
+            "Funding status runs as parallel track (badge, not a stage)",
+            "Board view + list view toggle",
+            "Lost reason modal required when moving to Lost stage",
+            "Real-time updates via Supabase subscription",
+            "Stage-specific actions (e.g., mark funded, schedule delivery)",
+            "Tests: stage transitions, drag-drop, funding badge logic"
+          ]
+        },
+        {
+          "id": "M-002",
+          "title": "Inventory Command Center — vehicle cards + photo gallery + aging",
+          "priority": "P0",
+          "module": "inventory",
+          "effort": "L",
+          "status": "completed",
+          "specFile": "discussions/inventory-command-center-spec.md",
+          "existingCompletion": "25%",
+          "acceptanceCriteria": [
+            "Vehicle cards with photo, status badge, age indicator, key details",
+            "6-status pipeline: at_source, in_transit, incoming, at_garage, on_lot, delivered",
+            "Photo gallery with upload, reorder, and primary photo selection",
+            "Aging alerts: yellow at threshold, red at 2x threshold (configurable per store)",
+            "Filter/sort by status, age, make/model, price range",
+            "New DB columns on deals: trim, mileage, acquisition_type, transport_cost, recon_cost, list_price, safety_status, photo_count",
+            "vehicle_photos table for gallery",
+            "Tests: status transitions, aging calculations, photo upload"
+          ]
+        },
+        {
+          "id": "M-003",
+          "title": "Garage / Work Orders — safety workflow + recon tracking",
+          "priority": "P1",
+          "module": "garage",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "discussions/garage-work-orders-spec.md",
+          "existingCompletion": "5%",
+          "acceptanceCriteria": [
+            "Work orders table with vehicle, type (safety/recon/detail), status, assigned_to, estimated_cost, actual_cost",
+            "Safety inspection workflow: pending → in_progress → passed/failed/conditional",
+            "Recon tracking with line items and cost rollup",
+            "Garage queue dashboard showing pending/in-progress work orders",
+            "Integration with inventory status (vehicle moves to at_garage when work order created)",
+            "Tests: work order CRUD, status transitions, cost calculations"
+          ]
+        },
+        {
+          "id": "M-004",
+          "title": "Pre-Delivery Checklist — expand to full PDI",
+          "priority": "P1",
+          "module": "pre-delivery",
+          "effort": "S",
+          "status": "completed",
+          "specFile": "discussions/pre-delivery-checklist-spec.md",
+          "existingCompletion": "75%",
+          "acceptanceCriteria": [
+            "Expand from 4 items to full PDI checklist (15-20 items per spec)",
+            "Section grouping: exterior, interior, mechanical, documents, accessories",
+            "Photo proof for key items (damage, odometer, VIN plate)",
+            "Compliance percentage shown per deal",
+            "Manager sign-off required before delivery can proceed",
+            "Tests: checklist completion, compliance calculation, sign-off flow"
+          ]
+        },
+        {
+          "id": "M-005",
+          "title": "Driver Dispatch — ETA tracking + driver assignment",
+          "priority": "P1",
+          "module": "dispatch",
+          "effort": "S",
+          "status": "completed",
+          "specFile": "discussions/driver-dispatch-spec.md",
+          "existingCompletion": "70%",
+          "acceptanceCriteria": [
+            "Driver assignment to dispatch jobs (name, phone, vehicle)",
+            "ETA tracking with estimated departure/arrival times",
+            "Status updates: assigned → departed → arrived → completed",
+            "SMS notification to customer with ETA (via Resend or Twilio)",
+            "Calendar view of scheduled dispatches",
+            "Tests: assignment flow, status transitions, ETA calculations"
+          ]
+        },
+        {
+          "id": "M-006",
+          "title": "Document Manager — library + categorization + templates",
+          "priority": "P1",
+          "module": "documents",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "discussions/document-manager-spec.md",
+          "existingCompletion": "10%",
+          "acceptanceCriteria": [
+            "documents table: id, deal_id, contact_id, category, filename, storage_path, uploaded_by, created_at",
+            "Document categories: bill_of_sale, credit_app, insurance, registration, trade_docs, other",
+            "Upload with drag-drop and category selection",
+            "Document library view per deal and per contact",
+            "Required documents checklist per deal stage",
+            "Tests: upload, categorization, required docs validation"
+          ]
+        },
+        {
+          "id": "M-007",
+          "title": "Finance Desk — lender tracking + rate shopping",
+          "priority": "P1",
+          "module": "finance",
+          "effort": "L",
+          "status": "completed",
+          "specFile": "discussions/finance-desk-spec.md",
+          "existingCompletion": "15%",
+          "acceptanceCriteria": [
+            "lenders table: id, name, contact_info, rate_sheet_url, turnaround_days, approval_criteria",
+            "deal_submissions table: deal_id, lender_id, status (submitted/approved/declined/conditional), rate, term, conditions",
+            "Finance desk view showing all pending submissions per deal",
+            "Submit to multiple lenders, track responses",
+            "Rate comparison view for F&I manager",
+            "Approval workflow: conditional → documents → funded",
+            "Tests: submission CRUD, status tracking, rate comparison"
+          ]
+        },
+        {
+          "id": "M-008",
+          "title": "Funding Tracker — bank-side status + proof workflow",
+          "priority": "P2",
+          "module": "funding",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "discussions/remaining-modules-specs.md",
+          "existingCompletion": "15%",
+          "acceptanceCriteria": [
+            "Funding status on deals: not_submitted, submitted, approved, docs_sent, funded, issue",
+            "Funding dashboard showing all deals by funding status",
+            "Aging alerts for deals stuck in submitted/approved too long",
+            "Proof of funding upload (cheque image, wire confirmation)",
+            "Tests: status transitions, aging alerts, proof upload"
+          ]
+        },
+        {
+          "id": "M-009",
+          "title": "Wholesale Manager — board + auction tracking",
+          "priority": "P2",
+          "module": "wholesale",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "discussions/remaining-modules-specs.md",
+          "existingCompletion": "10%",
+          "acceptanceCriteria": [
+            "Wholesale deals board (separate from retail pipeline)",
+            "Auction listing: vehicle, reserve price, auction house, date, result",
+            "Wholesale buyer contacts and history",
+            "Profit/loss tracking per wholesale deal",
+            "Tests: wholesale CRUD, auction tracking, P&L calculations"
+          ]
+        },
+        {
+          "id": "M-010",
+          "title": "Notifications & Automation — alert engine + rules",
+          "priority": "P2",
+          "module": "notifications",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "discussions/notifications-automation-spec.md",
+          "existingCompletion": "15%",
+          "acceptanceCriteria": [
+            "Automation rules engine: trigger (event) → condition → action",
+            "Built-in rules: safety overdue → notify service, funding overdue → notify F&I, aging vehicle → notify manager",
+            "Custom rule builder for GM/Owner",
+            "Escalation chains: if not acknowledged in 10min → manager, 30min → GM",
+            "Email + in-app notification channels",
+            "Notification center page with history and filters",
+            "Tests: rule evaluation, escalation timing, multi-channel delivery"
+          ]
+        },
+        {
+          "id": "M-011",
+          "title": "Reporting & Analytics — GM dashboards + custom builder",
+          "priority": "P2",
+          "module": "reporting",
+          "effort": "M",
+          "status": "completed",
+          "specFile": "discussions/remaining-modules-specs.md",
+          "existingCompletion": "60%",
+          "acceptanceCriteria": [
+            "GM dashboard: daily/weekly/monthly deal volume, revenue, gross profit",
+            "Salesperson leaderboard with real-time rankings",
+            "Inventory aging report with cost exposure",
+            "Custom report builder: select metrics, date range, grouping, export",
+            "Scheduled report delivery via email (weekly summary to GM)",
+            "Tests: report calculations, date range filtering, export formats"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tier-2",
+      "name": "Advanced Modules",
+      "description": "Net-new capabilities. Depends on Tier 1 core modules.",
+      "status": "completed",
+      "stories": [
+        {
+          "id": "A-001",
+          "title": "Lead Manager — capture, scoring, assignment",
+          "priority": "P1",
+          "module": "leads",
+          "effort": "L",
+          "status": "completed",
+          "specFile": "discussions/lead-manager-spec.md",
+          "existingCompletion": "0%",
+          "acceptanceCriteria": [
+            "leads table: id, contact_id, source, score, status, assigned_to, created_at",
+            "Lead capture from website form, phone call log, walk-in",
+            "Lead scoring: recency, engagement, vehicle interest, credit tier",
+            "Auto-assignment: round-robin to available salespeople",
+            "Lead pipeline view (separate from deal pipeline)",
+            "Convert lead to deal with one click (pre-fills contact and vehicle)",
+            "Tests: scoring algorithm, auto-assignment, lead-to-deal conversion"
+          ]
+        },
+        {
+          "id": "A-002",
+          "title": "Chatbot Engine — automated customer engagement",
+          "priority": "P2",
+          "module": "chatbot",
+          "effort": "L",
+          "status": "completed",
+          "specFile": "discussions/chatbot-engine-spec.md",
+          "existingCompletion": "0%",
+          "acceptanceCriteria": [
+            "Chat widget embeddable on dealership website",
+            "Automated responses for common questions (hours, inventory, financing)",
+            "Lead capture from chat conversations",
+            "Handoff to human when bot can't answer",
+            "Chat history stored and linked to contact record",
+            "Bilingual support (FR/EN) with auto-detection",
+            "Tests: bot response matching, lead capture, human handoff trigger"
+          ]
+        }
+      ]
+    }
+  ]
+}

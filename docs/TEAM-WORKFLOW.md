@@ -51,9 +51,10 @@ If the human did not state an identity: **ask**. Never assume, never proceed unn
 Before your first claimed task (and again after any long gap), read in order:
 1. `docs/PROJECT.md` — stack facts, commands, boundaries, quality bar.
 2. `docs/ARCHITECTURE.md` — the system map.
-3. The plan: `../kia-tracker-specs/docs/new/README.md` (index), then
-   `00-overview/EXECUTIVE-SUMMARY.md` and the Canonical Stack table in
-   `00-overview/ARCHITECTURE-DECISIONS.md`.
+3. The plan (in-repo since 2026-07-23): `reference/kia-tracker-specs/docs/new/README.md`
+   (index), then `00-overview/EXECUTIVE-SUMMARY.md` and the Canonical Stack table
+   in `00-overview/ARCHITECTURE-DECISIONS.md`. (Plan docs predate the Dealpilot
+   rename and say "ReadyLoans" — same product, D-020.)
 4. Your zone's deep specs — AHMAD: `03-architecture/`, `05-database/`,
    `04-security/authentication-authorization.md`. HUSSEIN:
    `06-tech-stack/ui-design-system.md`, `06-tech-stack/frontend-stack.md`,

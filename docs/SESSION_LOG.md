@@ -22,7 +22,30 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
-## 2026-07-24 [HUSSEIN] — First session: clone created, H-01 directions generated, awaiting owner pick
+## 2026-07-24 [AHMAD] — A-08: platform is DEALPILOT; GitHub origin; repo self-contained; client answers recorded
+
+**Done:** (1) **Client answered all 5 questions (D-020):** name = **Dealpilot**;
+300+ leads/store/mo baseline; Merlin keeps producing the BOS for now, ours stays
+an optional feature; delivery checklist = per-store backend configuration of
+which items are mandatory; wholesale access granted per-user by the main admin.
+(2) **Rebrand:** root `dealpilot`, packages `@dealpilot/*` (all imports/lockfile
+updated; build+typecheck 22/22, 19/19 tests, lint clean after rename).
+(3) **Reference import:** the full plan + legacy code copied into
+`reference/kia-tracker-specs/` (318 files, 4.6 MB; .git/node_modules/.env
+excluded; secret-scan clean) — the repo is now fully self-contained for any
+machine. §2.1/PROJECT.md/README paths repointed in-repo.
+(4) **GitHub:** origin switched to `https://github.com/FOURDE1/Dealpilot.git`
+(local bare repo kept as `backup` remote); README gained a "New machine setup"
+section (laptop flow for HUSSEIN).
+**For HUSSEIN:** product name is **Dealpilot** — import from `@dealpilot/schemas`
+/ `@dealpilot/contracts` now. On the laptop: follow README "New machine setup"
+(clone → pnpm install → STITCH_API_KEY → "You are Hussein"). Owner design pick
+for H-01 is STILL PENDING — artifact link in your previous entry.
+**Next steps:** 1) Owner picks the design direction. 2) AHMAD → A-04 (db +
+Docker Postgres + RLS migration). 3) A-02 CI now actionable (GitHub exists);
+main branch protection to set in GitHub settings.
+**Blockers:** GitHub push requires auth on this machine (browser prompt or
+`gh auth login`) — noted below if it fails.
 
 **Done:** Bootstrap per TEAM-WORKFLOW §2 + §2.1 onboarding (workflow, board, both
 logs, PROJECT.md, ARCHITECTURE.md, ui-design-system.md, frontend-stack.md,

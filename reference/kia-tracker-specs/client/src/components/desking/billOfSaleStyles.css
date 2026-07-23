@@ -1,0 +1,203 @@
+/* =========================================================================
+   Bill of Sale — Ontario Vehicle Purchase Agreement
+   Print-accurate, table-based legal form with modernized typography.
+   ========================================================================= */
+
+@media print {
+  body > *:not(#bill-of-sale-root) { display: none !important; }
+  body { margin: 0; padding: 0; background: white !important; }
+  #bill-of-sale-root { display: block !important; margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+  @page { size: letter portrait; margin: 0.35in; }
+  .bos-page-break { page-break-before: always; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .bos-noprint { display: none !important; }
+}
+
+@media screen {
+  #bill-of-sale-root {
+    max-width: 8.5in;
+    margin: 20px auto;
+    padding: 0.35in;
+    background: white;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+    border-radius: 2px;
+    color: #111;
+  }
+  .bos-page-break {
+    border-top: 2px dashed #999;
+    margin-top: 28px;
+    padding-top: 28px;
+  }
+}
+
+#bill-of-sale-root,
+#bill-of-sale-root * {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 9px;
+  line-height: 1.35;
+  box-sizing: border-box;
+}
+
+.bos-title {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  margin: 0 0 4px 0;
+}
+.bos-dealer-name { font-size: 12px; font-weight: 800; }
+.bos-dealer-line { font-size: 9px; color: #333; }
+
+.bos-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0;
+}
+.bos-table td, .bos-table th {
+  border: 1px solid #333;
+  padding: 3px 5px;
+  vertical-align: top;
+  font-size: 9px;
+}
+.bos-table th {
+  background: #1a1a1a;
+  color: #fff;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: left;
+  font-size: 9px;
+  padding: 4px 6px;
+}
+
+/* Section header row — alternates dark/gray for visual rhythm. */
+.bos-section-dark td {
+  background: #1a1a1a !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 6px !important;
+  font-size: 9.5px !important;
+}
+.bos-section-gray td {
+  background: #e8e8e8 !important;
+  color: #111 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 6px !important;
+  font-size: 9.5px !important;
+}
+
+.bos-label { color: #444; font-weight: 600; }
+.bos-muted { color: #555; font-size: 8.5px; }
+.bos-bold { font-weight: 700; }
+.bos-right { text-align: right; font-variant-numeric: tabular-nums; }
+.bos-center { text-align: center; }
+.bos-tight td, .bos-tight th { padding: 2px 4px; }
+
+/* Purchase Price table rows */
+.bos-pp-row td { background: #ffffff; }
+.bos-pp-row:nth-child(even) td { background: #fafafa; }
+.bos-pp-total td {
+  background: #f0f0f0 !important;
+  font-weight: 700;
+  border-top: 1.5px solid #000;
+}
+.bos-pp-grand td {
+  background: #1a1a1a !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.02em;
+}
+.bos-exempt-tag {
+  color: #047857;
+  font-weight: 700;
+  font-size: 8px;
+  margin-left: 6px;
+}
+
+.bos-blank-row td { height: 12px; }
+
+.bos-italic-intro {
+  font-style: italic;
+  font-size: 8.5px;
+  text-align: center;
+  padding: 4px 0;
+  color: #333;
+}
+
+.bos-disclaimer {
+  font-size: 7.5px;
+  line-height: 1.35;
+  text-align: justify;
+  color: #111;
+  padding: 3px 4px;
+}
+
+.bos-sig-box {
+  border-bottom: 1px solid #000;
+  height: 20px;
+  position: relative;
+  margin-top: 14px;
+}
+.bos-sig-label {
+  position: absolute;
+  bottom: -12px;
+  left: 0;
+  font-size: 7.5px;
+  color: #444;
+}
+
+.bos-x { font-weight: 700; margin-right: 4px; }
+
+.bos-sales-final-box {
+  border: 1.5px solid #000;
+  padding: 8px 10px;
+  background: #fafafa;
+  font-size: 8.5px;
+  line-height: 1.4;
+  height: 100%;
+}
+.bos-sales-final-box .hdr {
+  font-weight: 800;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.bos-footer-banner {
+  background: #1a1a1a;
+  color: #fff;
+  padding: 5px 8px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-top: 8px;
+}
+
+/* Legal page */
+.bos-legal h2 {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 8px 0 4px 0;
+  padding-bottom: 2px;
+  border-bottom: 1px solid #000;
+}
+.bos-legal p { font-size: 8px; line-height: 1.4; text-align: justify; margin: 0 0 5px 0; }
+.bos-legal .num { font-weight: 800; }
+.bos-template-note {
+  margin-top: 12px;
+  padding: 6px 8px;
+  border: 1px dashed #666;
+  font-style: italic;
+  font-size: 7.5px;
+  color: #555;
+}

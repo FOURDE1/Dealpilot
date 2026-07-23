@@ -28,6 +28,29 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-020: Client answers received — platform is "Dealpilot"; five decisions closed (2026-07-24) [AHMAD]
+
+**Status:** accepted
+**Context:** The client (Hassan Al Khansa, 2026-07-23) answered all five open
+questions from `reference/kia-tracker-specs/docs/new/00-overview/CLIENT-QUESTIONS.md`.
+**Decision:**
+1. **Name = "Dealpilot"** — packages renamed `@dealpilot/*`, root `dealpilot`,
+   repo `github.com/FOURDE1/Dealpilot`. Plan docs keep "ReadyLoans" historically
+   (same product); deep doc rename is backlog task A-09.
+2. **Lead volume:** plan for 300+/month per dealership across all sources
+   (no exact split available) — sizes AI budget and queue capacity.
+3. **Bill of sale:** Merlin & other platforms keep producing it for now;
+   Dealpilot's own BOS ships as an optional per-store feature.
+4. **Delivery checklist:** per-store BACKEND CONFIGURATION — each store selects
+   which checklist items are absolutely necessary (gating) vs optional. Ships
+   as store settings; the QC/ON difference is configuration, not code.
+5. **Wholesale:** access is granted per-user by the main admin — a grantable
+   permission, not a fixed-role assumption.
+**Consequences:** GitHub becomes origin (D-019 executed); reference material
+(plan + legacy code) imported into the repo at `reference/` so any machine is
+self-contained; A-09 doc-rename sweep queued.
+**Decided by:** user (client answers relayed by owner)
+
 ## D-018: Feature-based delivery with owner acceptance gate (2026-07-24) [AHMAD]
 
 **Status:** accepted

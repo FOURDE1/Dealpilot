@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables (secrets)
+.env*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Package tarballs
+*.tgz
+
+# Ralph audit reports (generated)
+audit/reports/
+
+# Agent / tool config (machine-local)
+.claude/
+.superpowers/
+.playwright-mcp/
+
+# Backup files
+*.bak
+
+# Source dumps and operating directives (may contain secrets)
+FULL_SOURCE_CODE.md
+claude-operating-directives.md
+system-preamble.md

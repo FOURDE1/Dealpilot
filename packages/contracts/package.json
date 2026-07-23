@@ -1,5 +1,5 @@
 {
-  "name": "@readyloans/contracts",
+  "name": "@dealpilot/contracts",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -16,7 +16,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@readyloans/schemas": "workspace:*",
+    "@dealpilot/schemas": "workspace:*",
     "@ts-rest/core": "^3.52.0",
     "zod": "catalog:"
   },

@@ -1,5 +1,5 @@
 {
-  "name": "@readyloans/schemas",
+  "name": "@dealpilot/schemas",
   "version": "0.0.0",
   "private": true,
   "type": "module",
