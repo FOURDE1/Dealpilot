@@ -49,7 +49,7 @@
 
 | ID | Task | Owner | Status | Depends on | Notes |
 |---|---|---|---|---|---|
-| F-01 | Organization & store administration: sign in → create/list/edit organizations + their stores. AHMAD half: `/api/v1` org+store routes (A-03 contract) on the RLS db, seeded platform-admin flow. HUSSEIN half: admin screens on H-02 tokens + H-03 shell. | BOTH | BACKLOG | A-05, H-02 | PROPOSED by AHMAD 2026-07-23 — first owner-testable slice. Alternative considered: "Lead intake → lead list", but a lead needs an org+store to attach to, so org/store admin must exist first. OWNER: confirm or override before build starts. Exact test steps added when it reaches AWAITING-OWNER-TEST. |
+| F-01 | Organization & store administration: sign in → create/list/edit organizations + their stores. AHMAD half: `/api/v1` org+store routes (A-03 contract) on the RLS db. HUSSEIN half: admin screens on H-02 tokens + H-03 shell. | BOTH | IN-PROGRESS(ahmad/f01-org-store-api) | A-05, H-02 | **OWNER CONFIRMED 2026-07-24** ("yes… now go") after personally testing the auth shell on the desktop (sign-up→dashboard→sign-out all working). AHMAD half claimed 2026-07-24; HUSSEIN half = admin screens, claim when you're back (contract already on develop since A-03). Exact owner test steps added at AWAITING-OWNER-TEST. |
 
 ### Backlog (next sprint candidates — do not claim in Sprint 1)
 
