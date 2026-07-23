@@ -9,3 +9,4 @@ export * from './organization.js';
 export * from './store.js';
 export * from './user.js';
 export * from './lead.js';
+export * from './auth.js';

@@ -18,6 +18,7 @@ import {
   UpdateStoreInput,
   UpdateUserInput,
   User,
+  MeResponse,
   Uuid,
   paginated,
 } from '@dealpilot/schemas';
@@ -96,6 +97,14 @@ const crudRouter = <
  * and never hand-writes API shapes.
  */
 export const apiV1 = c.router({
+  auth: c.router({
+    /** Session probe (A-05). Sign-up/in/out flow via Better Auth /api/auth/*. */
+    me: {
+      method: 'GET',
+      path: '/api/v1/me',
+      responses: { 200: MeResponse, ...errorResponses },
+    },
+  }),
   organizations: crudRouter('organizations', Organization, CreateOrganizationInput, UpdateOrganizationInput),
   stores: crudRouter('stores', Store, CreateStoreInput, UpdateStoreInput),
   users: crudRouter('users', User, CreateUserInput, UpdateUserInput),
