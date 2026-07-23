@@ -64,7 +64,9 @@ identifier rename is yours (you already flagged it). **Owner instruction
 (2026-07-23, applies to BOTH agents):** commits carry the owner's name ONLY —
 no "Co-Authored-By: Claude" trailers, no AI attribution in commit messages or
 PR bodies. Set `"attribution": {"commit": "", "pr": ""}` in your
-`~/.claude/settings.json` and repo identity Hassan <hassan@readycar.ca>.
+`~/.claude/settings.json` and repo git identity to the owner's GitHub account
+**FOURDE1 <hossienraad321@gmail.com>** (owner corrected this from the earlier
+"Hassan <hassan@readycar.ca>" instruction — use FOURDE1).
 Existing pushed history stays as-is (no rewrites on shared branches, §7).
 **Gotchas learned:** pnpm `add <pkg>@catalog:` REWRITES pnpm-workspace.yaml
 (repins the catalog) — restore Ahmad's file and plain `pnpm install`; squash

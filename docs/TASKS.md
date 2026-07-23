@@ -36,7 +36,7 @@
 | A-05.1 | Auth hardening slice: requireEmailVerification, cookieCache, session TTLs, CORS allowedHeaders/maxAge, auth schema, baseURL host in toWebRequest | AHMAD | BACKLOG | A-05 | Deferred review minors (D-025 item 3) |
 | H-01 | Stitch design selection: 3–5 directions + palettes; owner picks; lock tokens | HUSSEIN | DONE(2026-07-23, 6f07342) | — | Owner picked Direction 1 "Nordique"; tokens locked in D-024 (OKLCH + contrast evidence); name amended to "1Dealer" (D-023) |
 | H-02 | Design tokens + Tailwind v4 + shadcn/ui setup in packages/ui (semantic layers, light/dark) | HUSSEIN | DONE(2026-07-23, 2fd3dea) | A-01, H-01 | Nordique tokens (D-024) + WCAG gate (74 tests); reviewed by 3-lens adversarial workflow, all confirmed findings fixed; --input = shadcn border semantic + --input-bg; Base UI dep deferred to H-05 |
-| H-03 | apps/web shell: routing, layout, auth screens against A-05 contract | HUSSEIN | BACKLOG | A-03, A-05, H-02 | ALL deps DONE (A-03 ✓ A-05 ✓ H-02 ✓) — fully claimable |
+| H-03 | apps/web shell: routing, layout, auth screens against A-05 contract | HUSSEIN | CLAIMED(HUSSEIN, 2026-07-23) | A-03, A-05, H-02 | ALL deps DONE (A-03 ✓ A-05 ✓ H-02 ✓); owner deferred F-01 confirmation — shell needed for any first slice |
 | H-04 | i18n scaffold FR-first (fr-CA default) with EN parity gate | HUSSEIN | BACKLOG | A-01 | Parity script here; CI wiring via HO to AHMAD |
 ### Contract requests & handoffs
 
