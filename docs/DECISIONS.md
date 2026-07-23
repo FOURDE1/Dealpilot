@@ -28,6 +28,37 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-022: A-04 database conventions — tenant key naming, RLS write rules, role credentials (2026-07-24) [AHMAD]
+
+**Status:** accepted
+**Context:** Code review of the foundation migration (2 critical findings, both
+verified live against Postgres) plus naming divergence between the plan docs
+and the A-03 schemas.
+**Decision:**
+1. **`organization_id` is the canonical tenant key** (GUC `app.org_id`) —
+   matching `@dealpilot/schemas` (A-03), superseding the plan docs' `tenant_id`
+   naming. Future CI lints/pgTAP templates adapt to this, not vice versa.
+2. **`WITH CHECK (true)` is banned in practice as in policy:** every write
+   policy requires tenant context at minimum (`app.org_id IS NOT NULL`);
+   user visibility flows only through ACTIVE memberships.
+3. **Same-org structural integrity by FK:** `memberships(organization_id,
+   store_id)` references `stores(organization_id, id)` — a membership can
+   never point at another org's store.
+4. **No credentials in git:** `dealpilot_app` is created NOLOGIN by the
+   migration; LOGIN + password granted per environment (dev: local `db reset`
+   bootstrap; staging/prod: Secrets Manager at provision).
+5. **User INSERT+RETURNING is impossible by design** (SELECT policy needs a
+   not-yet-existing membership) — A-05 creates users with client-generated
+   uuids, user + membership in one `withTenant` transaction.
+6. Deferred columns noted for later migrations: `organizations.country`,
+   `stores.tax_region`, `memberships.invited_by/revoked_at`, `deleted_at` on
+   users/memberships.
+**Consequences:** RLS suite covers fail-closed reads, cross-tenant
+INSERT/UPDATE, membership-gated user visibility; `RLS_REQUIRED=1` makes CI
+fail rather than skip when the DB is absent. Local Postgres runs on host port
+5434 (5432/5433 occupied by unrelated local projects).
+**Decided by:** claude-proposed (AHMAD), from code-review findings
+
 ## D-021: Domain = 1dealer.ca; terminal-git workflow, no pull requests (2026-07-24) [AHMAD]
 
 **Status:** accepted (amends D-019/D-020 and TEAM-WORKFLOW §7)

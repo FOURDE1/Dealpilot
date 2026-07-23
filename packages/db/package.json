@@ -12,10 +12,17 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "db:migrate": "pnpm build && node dist/cli.js migrate",
+    "db:reset": "pnpm build && node dist/cli.js reset"
+  },
+  "dependencies": {
+    "pg": "^8.16.0"
   },
   "devDependencies": {
-    "typescript": "catalog:"
+    "@types/pg": "^8.15.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
