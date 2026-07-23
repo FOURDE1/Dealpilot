@@ -1,5 +1,11 @@
 /**
- * @readyloans/schemas — minimal compiling stub (A-01).
- * Real implementation lands in its own task; see docs/TASKS.md.
+ * @readyloans/schemas — the single source of truth for validation,
+ * sanitization, and shared vocabularies (ADR-016). Consumed by
+ * @readyloans/contracts, the API, workers, and the web app.
  */
-export const PACKAGE = '@readyloans/schemas' as const;
+export * from './common.js';
+export * from './roles.js';
+export * from './organization.js';
+export * from './store.js';
+export * from './user.js';
+export * from './lead.js';

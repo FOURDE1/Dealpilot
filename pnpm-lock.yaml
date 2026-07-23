@@ -9,6 +9,12 @@ catalogs:
     typescript:
       specifier: ^5.9.0
       version: 5.9.3
+    vitest:
+      specifier: ^3.0.0
+      version: 3.2.7
+    zod:
+      specifier: ^4.0.0
+      version: 4.4.3
 
 importers:
 
@@ -33,7 +39,7 @@ importers:
         specifier: ^8.0.0
         version: 8.65.0(eslint@9.39.5)(typescript@5.9.3)
       vitest:
-        specifier: ^3.0.0
+        specifier: 'catalog:'
         version: 3.2.7
 
   apps/api:
@@ -67,6 +73,16 @@ importers:
         version: 5.9.3
 
   packages/contracts:
+    dependencies:
+      '@readyloans/schemas':
+        specifier: workspace:*
+        version: link:../schemas
+      '@ts-rest/core':
+        specifier: ^3.52.0
+        version: 3.52.1(zod@4.4.3)
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -91,10 +107,17 @@ importers:
         version: 5.9.3
 
   packages/schemas:
+    dependencies:
+      zod:
+        specifier: 'catalog:'
+        version: 4.4.3
     devDependencies:
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7
 
   packages/ui:
     devDependencies:
@@ -445,6 +468,17 @@ packages:
     resolution: {integrity: sha512-BfzEnDJOt9T8M989/lA37EcJgat01wLRnoi5dQf3QzOH7jzpqTAzdDbVfRljVr5r+jzKqpbHeyOfAaXxAd0PAA==}
     cpu: [x64]
     os: [win32]
+
+  '@ts-rest/core@3.52.1':
+    resolution: {integrity: sha512-tAjz7Kxq/grJodcTA1Anop4AVRDlD40fkksEV5Mmal88VoZeRKAG8oMHsDwdwPZz+B/zgnz0q2sF+cm5M7Bc7g==}
+    peerDependencies:
+      '@types/node': ^18.18.7 || >=20.8.4
+      zod: ^3.22.3
+    peerDependenciesMeta:
+      '@types/node':
+        optional: true
+      zod:
+        optional: true
 
   '@turbo/darwin-64@2.10.6':
     resolution: {integrity: sha512-S+yIyZkmjYBQbIM7sTqMAwnLeMjSK60Q9grUDPbTWvkRjbsn5k1Rt5sPvTX80M4PnlYQBwLiYsjlu6tHsuIqQQ==}
@@ -1103,6 +1137,9 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+
 snapshots:
 
   '@esbuild/aix-ppc64@0.28.1':
@@ -1321,6 +1358,10 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.62.2':
     optional: true
+
+  '@ts-rest/core@3.52.1(zod@4.4.3)':
+    optionalDependencies:
+      zod: 4.4.3
 
   '@turbo/darwin-64@2.10.6':
     optional: true
@@ -2005,3 +2046,5 @@ snapshots:
   word-wrap@1.2.5: {}
 
   yocto-queue@0.1.0: {}
+
+  zod@4.4.3: {}
