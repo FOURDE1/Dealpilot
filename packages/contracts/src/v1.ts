@@ -20,7 +20,7 @@ import {
   User,
   Uuid,
   paginated,
-} from '@readyloans/schemas';
+} from '@dealpilot/schemas';
 
 const c = initContract();
 

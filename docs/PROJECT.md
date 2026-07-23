@@ -3,13 +3,13 @@
 > Source of truth for HOW to run things in this repo. Claude: if a field the
 > CURRENT task depends on is still `TBD`, ask the user (or discover and confirm)
 > before relying on it, then record the answer here. Deep design authority:
-> `../../kia-tracker-specs/docs/new/00-overview/ARCHITECTURE-DECISIONS.md` (26 ADRs).
+> `reference/kia-tracker-specs/docs/new/00-overview/ARCHITECTURE-DECISIONS.md` (26 ADRs, in-repo).
 
 ## Identity
 
-- **Name:** ReadyLoans (working name — white-label product, rebrandable per tenant; final name pending client answer Q1)
+- **Name:** Dealpilot (client-chosen, 2026-07-23 — D-020; white-label product, rebrandable per tenant; formerly working name "ReadyLoans")
 - **One-line purpose:** Multi-tenant, white-label dealership CRM/DMS plus an AI lead-automation layer, Canada/Quebec-first (Bill 96, Law 25, CASL, PIPEDA).
-- **Target users:** Dealership staff (10 roles: owner, gm, sales_manager, used_car_manager, fi_manager, salesperson, wholesale_manager, logistics, admin_office, bdc_agent) and the platform admin (ReadyLoans operator console).
+- **Target users:** Dealership staff (10 roles: owner, gm, sales_manager, used_car_manager, fi_manager, salesperson, wholesale_manager, logistics, admin_office, bdc_agent) and the platform admin (Dealpilot operator console).
 - **Deployment target:** Web SaaS — responsive SPA + versioned REST API; installable PWA at module parity; no native apps at launch.
 
 ## Stack
@@ -46,7 +46,7 @@
 
 ## Boundaries
 
-- **Never touch:** `../kia-tracker-specs/` — read-only reference for the plan and legacy business rules. No code lands there; legacy data is test data and is never migrated (ADR-026 clean start).
+- **Never touch:** `reference/kia-tracker-specs/` (and the sibling `../kia-tracker-specs/` on the desktop) — read-only reference for the plan and legacy business rules. No code lands there; legacy data is test data and is never migrated (ADR-026 clean start).
 - **Secrets live in:** env vars locally (`.env` git-ignored, committed `.env.example`); AWS Secrets Manager injected into ECS task definitions in deployed environments; GitHub Actions environment secrets for deploy time. Never in source, git, logs, or prompts.
 - **External services:** AWS (RDS, S3, ECS/ECR, CloudFront, ALB, ElastiCache, WAF, Route 53, Secrets Manager, KMS), Twilio, Resend, Stripe, Anthropic (Claude API), Sentry, PostHog (EU), Better Stack, GitHub.
 

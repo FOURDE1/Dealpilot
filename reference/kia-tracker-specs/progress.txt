@@ -1,0 +1,3 @@
+# Ralph Progress Log — Kia Deal Tracker
+# Each iteration appends: [date] [story-id] [result] [notes]
+# ──────────────────────────────────────────────────────────

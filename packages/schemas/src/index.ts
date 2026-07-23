@@ -1,7 +1,7 @@
 /**
- * @readyloans/schemas — the single source of truth for validation,
+ * @dealpilot/schemas — the single source of truth for validation,
  * sanitization, and shared vocabularies (ADR-016). Consumed by
- * @readyloans/contracts, the API, workers, and the web app.
+ * @dealpilot/contracts, the API, workers, and the web app.
  */
 export * from './common.js';
 export * from './roles.js';

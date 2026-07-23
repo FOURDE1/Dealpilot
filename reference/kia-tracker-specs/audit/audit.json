@@ -1,0 +1,168 @@
+{
+  "projectId": "kia-deal-tracker",
+  "lastAuditDate": null,
+  "lastAuditBy": null,
+  "stories": {
+    "F-001": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "F-002": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "F-003": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "F-004": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "F-005": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "F-006": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "F-007": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "F-008": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "F-009": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "F-010": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "F-011": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "F-012": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "M-001": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "M-002": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "M-003": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "M-004": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "M-005": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "M-006": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "M-007": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "M-008": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "M-009": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "M-010": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "M-011": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "A-001": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    },
+    "A-002": {
+      "status": "not_audited",
+      "criteria": {},
+      "notes": "",
+      "auditedAt": null
+    }
+  },
+  "protectedFileHashes": {
+    "server/routes/deals.js": "dd474c5141581bfc0fb48d7936eefb5f7284f8e48cf725f2003a57e7cb5de3ca",
+    "server/services/dispatch.js": "0c21f0c09ae9657a02399824b9bbc703f55429f3f53dd107a740369c9c00380b",
+    "server/services/reportGenerator.js": "a37e5e1d69f014b3627399a93d2a99860b2bfb4c1bbd973d07c0c33695bd7cd9",
+    "server/services/email.js": "543a3426e00eb3c4be18996c60b8b1615f33ccb744edaec28ad2c83ebf9c2a4b",
+    "client/src/index.css": "93f78d2672fa8a9a28de882b875ff4435e949fd77b89db4fa4b89c4bf88685e9",
+    "client/tailwind.config.js": "7cb41d91e85c682e56a21ee4182fb887ca1b7e7d6869243b861617f5d96a4c4f",
+    "client/src/supabaseClient.js": "0fea69bd7f952234c94b0d9d2da026136bdc152547cb5e3bb58ed7af74c83886",
+    "server/middleware/supabase.js": "d32dbc2c8a3cedbdee4ac3c94de97fc06d927adacf3ca32c32ca222379761be4"
+  },
+  "items": []
+}

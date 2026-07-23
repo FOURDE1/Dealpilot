@@ -74,7 +74,7 @@ importers:
 
   packages/contracts:
     dependencies:
-      '@readyloans/schemas':
+      '@dealpilot/schemas':
         specifier: workspace:*
         version: link:../schemas
       '@ts-rest/core':
