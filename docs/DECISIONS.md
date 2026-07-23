@@ -28,6 +28,16 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-028: F-01 backend tenancy model — user-scoped reads, self-serve bootstrap, platform-authority fields (2026-07-24) [AHMAD]
+
+**Status:** accepted
+**Context:** F-01 needs "list my organizations" before tenant context exists, an org-creation path under FORCE RLS, and clear write authority.
+**Decision:** (1) Migration 0003 adds SELECT-only policies keyed on `app.user_id` (withUser/withContext in @dealpilot/db): membership_self_read, org_member_read, store_member_read, user_self_read — reads only, writes still require `app.org_id`. (2) Org creation is self-serve (spec trial path): app-generated org id, org + domain user + owner membership in ONE dual-GUC transaction; `INSERT..ON CONFLICT` requires the new row to pass SELECT policies — hence user_self_read (proven live). (3) `status`/`plan_tier` are PLATFORM authority — removed from org create/update inputs; DB defaults apply; org `slug` immutable + reserved-word blocklist. (4) Write gates: org=owner, stores=owner/gm; cross-tenant/no-membership → 404 (never leak); role-insufficient → 403; deleted org fully locked down; delete-of-deleted → 404 everywhere. (5) Keyset cursors carry pg-text timestamps (JS Date ms-truncation skipped boundary rows — proven live) with strict re-parse validation.
+**Alternatives considered:** SECURITY DEFINER service functions (spec §5) — deferred until the platform console; Better Auth org plugin — rejected in D-025.
+**Consequences:** Hussein builds F-01 screens against the updated contract (org inputs slimmed, StoreListQuery selector). 50-agent adversarial review: no isolation bypass; all confirmed findings fixed. Platform console (A-xx later) owns status/plan_tier transitions.
+**Decided by:** claude-proposed (AHMAD)
+
+
 ## D-027: Keep the `@dealpilot/*` internal package scope — rebrand user-facing only (2026-07-24) [AHMAD]
 
 **Status:** accepted

@@ -22,6 +22,36 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [AHMAD] — F-01 AHMAD half DONE (2347427): org+store API on user-scoped RLS; owner asleep — morning stack queued
+
+**Done:** F-01 backend merged to develop as **2347427** (D-028). Migration 0003
+user-scoped read policies + db withContext/withUser; /api/v1 organizations +
+stores CRUD (self-serve org bootstrap in one dual-GUC txn, owner/gm gates,
+keyset cursors at full pg precision, 404-never-leak, deleted-org lockdown,
+platform-authority status/plan_tier server-side, slug immutable+reserved).
+TDD red-first throughout. **Evidence: 144/144 tests** (RLS_REQUIRED=1), lint 0,
+build+typecheck 22/22. 50-agent adversarial review: NO isolation bypass (live
+probed); confirmed findings all fixed (cursor ms-truncation row-skip, deleted
+org stores staying live, status/plan_tier client-writable, constraint-name
+leak, forged-cursor 500, delete idempotency, + test gaps closed).
+**Local stack refreshed for the owner:** DB reset (migrations 1-3), NEW API
+build on :3001, web on :5173, owner account re-seeded
+(hassan-test@1dealer.ca / Test-Dealpilot-2026!).
+**For HUSSEIN (F-01 UI half — your claim):** contract updated on develop:
+CreateOrganizationInput = {name, slug, default_locale?}; UpdateOrganizationInput
+= {name?, default_locale?} (NO slug/status/plan_tier); StoreListQuery has
+optional organization_id (required when the user has >1 org — error code
+organization_required); duplicate slug/code → 409 details[{path:'slug'|'code'}];
+cursors are opaque. Owner test steps for the F-01 slice are OURS to write when
+both halves are in — coordinate via the F-01 row.
+**Owner morning stack:** see chat message (test auth shell optional re-run;
+F-01 owner test comes only after HUSSEIN's screens; no decisions pending).
+**Next steps:** 1) HUSSEIN: F-01 screens. 2) AHMAD next session: verify CI on
+2347427 green, then A-05.1 auth hardening or A-06 money-math as fill-in.
+3) When both halves land: INTEGRATED → AWAITING-OWNER-TEST with exact steps.
+**Blockers:** none.
+
+
 ## 2026-07-24 [AHMAD] — A-02 DONE (live green+red proven); owner billing fixed; local stack launched for owner test
 
 **Done:** (1) Owner paid the GitHub bill → **A-02 flipped to DONE(125c900)**.
