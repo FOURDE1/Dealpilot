@@ -28,6 +28,24 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-021: Domain = 1dealer.ca; terminal-git workflow, no pull requests (2026-07-24) [AHMAD]
+
+**Status:** accepted (amends D-019/D-020 and TEAM-WORKFLOW §7)
+**Context:** Owner decisions after GitHub adoption.
+**Decision:** (1) The product domain is **`1dealer.ca`** (not dealpilot.ca) —
+use it for the app, tenant subdomains (`<store>.1dealer.ca`), email sending
+domain, and API host planning; product name remains Dealpilot. (2) The git
+workflow is **terminal-only**: no pull requests, no GitHub UI dependencies, no
+server-side branch protection — feature branches are squash-merged into
+`develop` locally and pushed; `main` stays release-only by protocol rule.
+GitHub is the shared remote (also enables the laptop) and A-02 CI runs on
+**push** to develop/main rather than on PRs.
+**Consequences:** faster flow, discipline enforced by TEAM-WORKFLOW rules +
+quality gates instead of server settings; CI still guards every push once A-02
+lands. Domain configuration (Route 53, ACM, Resend, Better Auth URLs) targets
+1dealer.ca everywhere.
+**Decided by:** user
+
 ## D-020: Client answers received — platform is "Dealpilot"; five decisions closed (2026-07-24) [AHMAD]
 
 **Status:** accepted

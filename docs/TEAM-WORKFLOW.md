@@ -164,10 +164,12 @@ Hard rules:
   branch, task ID in the first commit body).
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `chore:`, `docs:`, `test:`,
   `refactor:`, `ci:`). Small, working increments.
-- **Merging:** rebase your branch on latest `develop` first, run `/quality-gate`,
-  open a PR to `develop`, merge it yourself. **Each agent merges ONLY its own
-  branches.** Squash-merge with a Conventional-Commit title; record the merge SHA
-  in the task row.
+- **Merging (owner decision 2026-07-24 — terminal git only, NO pull requests):**
+  rebase your branch on latest `develop`, run `/quality-gate`, then locally
+  `git merge --squash` into `develop` with a Conventional-Commit title and push.
+  **Each agent merges ONLY its own branches.** Record the merge SHA in the task
+  row. GitHub is a plain remote — no PRs, no UI steps; `main` stays release-only
+  by protocol discipline (rule 8), not by server-side protection.
 - **Merge small and often:** a branch lives **max 1–2 days**. If a task is bigger,
   slice it into mergeable increments behind the task ID.
 - **Never commit to `develop`/`main` directly** — sole exception: **coordination

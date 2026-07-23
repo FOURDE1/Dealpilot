@@ -29,7 +29,7 @@
 | ID | Task | Owner | Status | Depends on | Notes |
 |---|---|---|---|---|---|
 | A-01 | Git init + monorepo scaffold (strict TS); GitHub deferred by owner | AHMAD | DONE(2026-07-24, d4235a2) | — | Owner decision 2026-07-24: git-only for now — origin = local bare repo `../readyloans.git`; GitHub repo/protection becomes a follow-up task when needed |
-| A-02 | CI pipeline: lint/typecheck/test on PR, frozen lockfile | AHMAD | BACKLOG | A-01 | GitHub Actions needs GitHub (deferred by owner) — when claimed, author workflow files locally so they activate on first push |
+| A-02 | CI pipeline: lint/typecheck/test on push to develop/main, frozen lockfile | AHMAD | BACKLOG | A-01 | GitHub live (D-019/D-021); runs on PUSH, not PRs — no-PR workflow per D-021 |
 | A-03 | packages/schemas + packages/contracts baseline (tenant, store, user, lead) | AHMAD | DONE(2026-07-24, 31f5f28) | A-01 | CONTRACT PUBLISHED — import from @readyloans/schemas + @readyloans/contracts; code-reviewed (14 findings fixed); 19 tests |
 | A-04 | packages/db + local Docker Postgres (dev) + first migration (tenants/orgs/stores/users + RLS); staging = RDS via IaC | AHMAD | BACKLOG | A-01, A-03 | RDS over Supabase (D-013); staging RDS provisioned with the A-07 IaC baseline (owner approval before any AWS apply); dev needs no cloud resources |
 | A-05 | Fastify api skeleton: health check + error envelope + Better Auth wiring | AHMAD | BACKLOG | A-01, A-03, A-04 | Auth contract published here unblocks H-03 |
