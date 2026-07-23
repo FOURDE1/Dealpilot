@@ -22,6 +22,42 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [AHMAD] — A-04 DONE (637c9fd): Docker Postgres + forced-RLS multi-tenant foundation, proven live
+
+**Done:** A-04 merged to develop as **637c9fd**. `docker-compose.yml` (Postgres
+16-alpine, host port **5434** — 5432/5433 occupied by unrelated local projects);
+`@dealpilot/db`: createPool (explicit timeouts), `withTenant` (transaction-local
+`app.org_id` via set_config — injection-safe, leak-proof across the pool, dead
+connections destroyed not re-pooled), checksum-ledger migration runner
+(immutable applied migrations, advisory-locked, local-only `reset`); migration
+`20260724000001_foundation.sql`: organizations/stores/users/memberships with
+CHECK vocabularies EXACTLY mirroring @dealpilot/schemas, updated_at triggers,
+tenant-leading indexes, RLS ENABLED+FORCED everywhere keyed on
+`NULLIF(current_setting('app.org_id',true),'')::uuid` (fail-closed incl. the
+pooled-connection empty-string quirk), same-org composite FK
+memberships→stores, `dealpilot_app` NOLOGIN role (dev LOGIN via reset
+bootstrap; no credentials in git).
+**Test/build status (evidence):** reset-from-zero clean; **27/27 tests** — 19
+schemas + 8 db: tenant isolation both directions, fail-closed no-context reads,
+cross-tenant INSERT rejected by WITH CHECK, cross-tenant UPDATE touches 0 rows,
+membership-gated user visibility, reset host-guard; `RLS_REQUIRED=1` turns
+DB-absent skips into failures for CI. turbo build+typecheck 22/22; lint clean.
+Code review: 2 CRITICAL (WITH CHECK(true) on users; cross-org store FK gap) —
+both verified live by the reviewer, both fixed + regression-tested (D-022).
+**Gotchas learned:** after a SET LOCAL transaction, pooled connections
+materialize the GUC as EMPTY STRING, not NULL → always NULLIF-wrap GUC reads
+in policies. Root vitest/eslint must exclude `reference/**` (legacy tests were
+being picked up). Docker Desktop daemon may need starting
+(`Docker Desktop.exe`, ~8 s). Port 5432/5433 are taken by other projects on
+this machine — Dealpilot DB is **5434**.
+**For HUSSEIN:** nothing changes for you; when H-03 needs the API (A-05), the
+local DB flow is `docker compose up -d db` + `pnpm --filter @dealpilot/db
+db:reset`.
+**Next steps:** 1) A-05 Fastify + Better Auth (last piece before feature
+slices; unblocks H-03 auth screens). 2) Follow-up gap: checksum-immutability
+live test (noted from review). 3) A-02 CI when convenient (GitHub live).
+**Blockers:** none.
+
 ## 2026-07-24 [AHMAD] — A-08: platform is DEALPILOT; GitHub origin; repo self-contained; client answers recorded
 
 **Done:** (1) **Client answered all 5 questions (D-020):** name = **Dealpilot**;
