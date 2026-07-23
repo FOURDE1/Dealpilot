@@ -33,7 +33,7 @@
 | A-03 | packages/schemas + packages/contracts baseline (tenant, store, user, lead) | AHMAD | CLAIMED(AHMAD, 2026-07-24) | A-01 | Publishes the interface HUSSEIN codes against |
 | A-04 | packages/db + local Docker Postgres (dev) + first migration (tenants/orgs/stores/users + RLS); staging = RDS via IaC | AHMAD | BACKLOG | A-01, A-03 | RDS over Supabase (D-013); staging RDS provisioned with the A-07 IaC baseline (owner approval before any AWS apply); dev needs no cloud resources |
 | A-05 | Fastify api skeleton: health check + error envelope + Better Auth wiring | AHMAD | BACKLOG | A-01, A-03, A-04 | Auth contract published here unblocks H-03 |
-| H-01 | Stitch design selection: 3–5 directions + palettes; owner picks; lock tokens | HUSSEIN | BACKLOG | — (needs Stitch MCP connected by owner) | No repo needed; can start day 1 |
+| H-01 | Stitch design selection: 3–5 directions + palettes; owner picks; lock tokens | HUSSEIN | CLAIMED(HUSSEIN, 2026-07-24) | — | Stitch MCP connected + verified 2026-07-24; directions generating this session |
 | H-02 | Design tokens + Tailwind v4 + shadcn/ui setup in packages/ui (semantic layers, light/dark) | HUSSEIN | BACKLOG | A-01, H-01 | NO Tailwind Plus (owner decision 2026-07-23) |
 | H-03 | apps/web shell: routing, layout, auth screens against A-05 contract | HUSSEIN | BLOCKED(needs A-03 + A-05 contract publication from AHMAD) | A-03, A-05, H-02 | Layout/routing may start after H-02; auth screens only after A-05 |
 | H-04 | i18n scaffold FR-first (fr-CA default) with EN parity gate | HUSSEIN | BACKLOG | A-01 | Parity script here; CI wiring via HO to AHMAD |
