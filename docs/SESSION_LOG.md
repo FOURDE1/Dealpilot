@@ -22,6 +22,34 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [AHMAD] — A-02 DONE (live green+red proven); owner billing fixed; local stack launched for owner test
+
+**Done:** (1) Owner paid the GitHub bill → **A-02 flipped to DONE(125c900)**.
+Live evidence: probe branch `ahmad/ci-probe` at develop's exact tree → run
+**30045013846 SUCCESS** (all steps: containers, checkout, pnpm/node, frozen
+install, db-from-zero on the PG service, build+typecheck, lint, 108 tests
+with RLS_REQUIRED=1); then a deliberate failing test → run **30045318726
+FAILURE at exactly the Test step** (all prior steps green). Probe branch
+deleted (origin+local). D-027 recorded earlier today: keep `@dealpilot/*`
+scope, "1Dealer" user-facing only (owner-approved). (2) **Local stack
+launched on the desktop for the owner's first hands-on test:** db reset
+(clean), API `node dist/index.js` on :3001, web `vite` on :5173 (proxy
+/api→3001). Verified the full journey MYSELF via headless browser:
+`/`→redirects `/login` (guard), `/signup` creates account
+(hassan-test@1dealer.ca / Test-Dealpilot-2026!), lands on FR dashboard
+("Bonjour, Hassan Test", Nordique shell), Se déconnecter → /login, sign-in
+round-trip back to dashboard, **zero console errors**; screenshot captured.
+This completes the live-round-trip half of HUSSEIN's H-03 DoD evidence on a
+Docker machine (Playwright e2e still his). Note: a stale A-05-era API
+process was found holding :3001 and killed before relaunch.
+**For HUSSEIN:** CI now runs on every push of `hussein/**` — you get a
+verdict per push. H-03 live sign-in verified working on the desktop (see
+above); only the Playwright e2e remains for your DoD.
+**Next steps:** 1) Owner tests the auth shell (steps given in chat;
+test account above or create their own). 2) On owner F-01 confirm: AHMAD
+starts org+store routes. 3) Fill-in: A-05.1 or A-06.
+**Blockers:** none.
+
 ## 2026-07-23 [AHMAD] — A-02 CI merged (125c900) but Actions BLOCKED by GitHub billing lock; HO-01↔HO-02 exchanged; owner rules applied
 
 **Done:** A-02 built and squash-merged to develop as **125c900** (decision
