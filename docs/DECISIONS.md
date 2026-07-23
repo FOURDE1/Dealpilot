@@ -28,6 +28,41 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-018: Feature-based delivery with owner acceptance gate (2026-07-24) [AHMAD]
+
+**Status:** accepted
+**Context:** The owner wants visible, testable progress and confidence: after
+the infrastructure/foundation stage, features must not pile up half-integrated.
+**Decision:** After Sprint-1 foundation, all work is organized as vertical
+feature slices (`F-nn`): one user-visible feature at a time, both agents build
+it together, and it reaches `ACCEPTED` only after the OWNER personally tests
+and confirms it. No new feature starts while one awaits owner testing.
+Bundles (features that only work together) are declared up front and accepted
+as a unit. Full protocol: TEAM-WORKFLOW.md §12.
+**Alternatives considered:** free-flowing parallel tracks (rejected — integration
+debt and nothing demonstrable); milestone-only demos (rejected — feedback
+arrives too late to steer).
+**Consequences:** slightly lower raw throughput, much tighter feedback loop;
+the board gains F-rows with AWAITING-OWNER-TEST/ACCEPTED statuses; every
+feature ships with "how to test" instructions for the owner.
+**Decided by:** user
+
+## D-019: GitHub adoption incoming; Stitch on best free-tier model (2026-07-24) [AHMAD]
+
+**Status:** accepted
+**Context:** Owner will provide a GitHub repo so HUSSEIN can also work from a
+laptop with the same account; and instructed that Stitch (H-01+) should use the
+best model available **within the free tier** — never paid options.
+**Decision:** When the owner provides the repo URL (+ `gh auth login`), GitHub
+becomes `origin` (all branches pushed, `main` protected); the local bare repo
+`../readyloans.git` is retired or kept as a mirror. Until then the local bare
+remote stays. HUSSEIN: select Stitch's highest-quality mode that is free
+(e.g. experimental/Pro mode within free generation limits) and stay inside
+free-tier quotas.
+**Consequences:** laptop workflow unlocked at GitHub adoption; A-02 (CI)
+becomes actionable then. Design quality maximized at zero design-tool cost.
+**Decided by:** user
+
 ## D-016: ts-rest 3.52 on zod 4 — accepted peer-dependency mismatch (2026-07-24) [AHMAD]
 
 **Status:** accepted (re-evaluate at A-05)

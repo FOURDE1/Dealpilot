@@ -231,3 +231,32 @@ A task moves to `DONE` only when ALL of:
    never force-push shared branches.
 9. Cross-zone rebase conflict → abort, BLOCKED, HANDOFF — never resolve their files.
 10. Every session ends with the board updated and a tagged session-log entry.
+11. After the foundation, features ship one at a time and the OWNER accepts each
+    one before the next starts (§12).
+
+## 12. Feature-based delivery (owner decision 2026-07-24)
+
+Once the Sprint-1 foundation is done (A-01–A-05, H-01–H-05: repo, CI, contracts,
+db, api+auth, tokens, shell, i18n), ALL further work is organized as **feature
+slices** (`F-nn` rows on the board): one user-visible, testable feature at a
+time, built vertically across both zones.
+
+- **A feature slice** = the full journey the owner can click through: AHMAD's
+  half (schemas/contracts, migrations, API, jobs) + HUSSEIN's half (screens,
+  i18n, UX) + tests on both sides. Example: "Lead intake → lead appears in the
+  list → status can be changed".
+- **Status flow:** `BACKLOG → CLAIMED/IN-PROGRESS → INTEGRATED (both halves
+  merged to develop, e2e green) → AWAITING-OWNER-TEST → ACCEPTED(date)` or
+  `REJECTED(reason)` back to in-progress. The row's Notes must contain **how to
+  test it** (exact steps, URL, seeded credentials) when it reaches
+  AWAITING-OWNER-TEST.
+- **The gate:** the OWNER personally tests and explicitly confirms each feature.
+  No new feature's API or UI work starts while one is AWAITING-OWNER-TEST —
+  fill-in work during the wait is limited to: fixing rejection feedback, tests,
+  docs, infra chores, and *contract preparation* for the next feature.
+- **Bundles (the only exception):** if a feature is untestable without
+  companions (e.g. desking needs inventory + deal), the bundle is declared UP
+  FRONT as one `F-nn` row with sub-parts, and accepted as a unit — never
+  discovered mid-build.
+- **Parallelism stays:** within the active feature (or bundle), both agents
+  work simultaneously as usual; the contract-first rule (§4) sequences them.

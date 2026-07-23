@@ -59,6 +59,26 @@ the thumbnail on `get_project` is the reliable output.
 DECISIONS.md, H-01 DONE. 2) Claim H-02 (tokens + Tailwind v4 + shadcn/ui in
 packages/ui). 3) H-04 (i18n scaffold) is my next parallel-safe task if waiting.
 
+## 2026-07-24 [AHMAD] — State save: feature-based delivery adopted; settings fixed; GitHub incoming
+
+**Done:** Owner checkpoint session. (1) Fixed `~/.claude/settings.json` — a
+trailing extra `}` made the whole file invalid (permissions/env were silently
+not in effect); now valid, takes effect next session start. (2) Recorded the
+owner's **feature-based delivery model** as TEAM-WORKFLOW §12 + D-018: after
+Sprint-1 foundation, one user-visible feature slice at a time, INTEGRATED →
+AWAITING-OWNER-TEST → ACCEPTED by the owner before the next starts; bundles
+declared up front. (3) D-019: GitHub adoption incoming (owner will provide the
+repo URL; HUSSEIN will also work from a laptop, same account) — until then the
+local bare origin stays. (4) Verified Docker 29.5.3 installed → A-04 unblocked.
+**For HUSSEIN (owner instruction):** in Stitch, use the **best model available
+within the FREE tier** (highest-quality free mode, stay inside free generation
+quotas — never paid options). Confirmed `main-project-hussein` as your clone is
+exactly right per §3.
+**Next steps:** 1) AHMAD → A-04 (db + Docker Postgres + migration 0001 + RLS
+smoke test). 2) On owner's GitHub repo URL: switch origin, push, protect main,
+then A-02 CI. 3) HUSSEIN → finish H-01, owner picks a direction.
+**Blockers:** none for A-04. GitHub switch waits on owner repo URL + gh auth.
+
 ## 2026-07-24 [AHMAD] — A-03 DONE: contract published (31f5f28); origin is local bare repo
 
 **Done:** A-03 complete and merged to develop as **31f5f28** — THE publication
