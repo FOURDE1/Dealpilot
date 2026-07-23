@@ -1,5 +1,10 @@
 /**
- * @dealpilot/core — minimal compiling stub (A-01).
- * Real implementation lands in its own task; see docs/TASKS.md.
+ * @dealpilot/core — pure business math, INTEGER CENTS everywhere (ADR-009).
+ * A-06: tax, amortization/lease, desking, and commission engines ported from
+ * the canonical legacy implementations with the audited corrections
+ * (gap-analysis §F; commissions-clawbacks.md §11; desking-finance.md §16).
  */
-export const PACKAGE = '@dealpilot/core' as const;
+export * from './tax.js';
+export * from './finance.js';
+export * from './desking.js';
+export * from './commission.js';
