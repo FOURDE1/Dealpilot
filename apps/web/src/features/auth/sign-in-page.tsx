@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@dealpilot/ui';
 import { signIn } from '../../shared/auth/client.js';
 import { safeReturnTo } from '../../app/guards.js';
@@ -10,6 +11,7 @@ import { AuthCard, AuthError, AuthField } from './auth-card.js';
  * primitive is an H-05 deliverable — these screens migrate onto it then.
  */
 export function SignInPage() {
+  const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
@@ -24,17 +26,17 @@ export function SignInPage() {
     const { error: apiError } = await signIn.email({ email, password });
     setBusy(false);
     if (apiError) {
-      setError('Courriel ou mot de passe invalide.');
+      setError(t('invalidCredentials'));
       return;
     }
     navigate(safeReturnTo(location.search), { replace: true });
   }
 
   return (
-    <AuthCard title="Connexion" subtitle="Accédez à votre espace 1Dealer">
+    <AuthCard title={t('signInTitle')} subtitle={t('signInSubtitle')}>
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4" noValidate>
         <AuthField
-          label="Courriel"
+          label={t('email')}
           type="email"
           autoComplete="email"
           inputMode="email"
@@ -43,7 +45,7 @@ export function SignInPage() {
           required
         />
         <AuthField
-          label="Mot de passe"
+          label={t('password')}
           type="password"
           autoComplete="current-password"
           value={password}
@@ -52,13 +54,13 @@ export function SignInPage() {
         />
         <AuthError message={error} />
         <Button type="submit" className="w-full" disabled={busy}>
-          {busy ? 'Connexion…' : 'Se connecter'}
+          {busy ? t('signingIn') : t('signInAction')}
         </Button>
       </form>
       <p className="text-center text-sm text-muted-foreground">
-        Pas de compte?{' '}
+        {t('noAccount')}{' '}
         <Link to="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
-          Créer un compte
+          {t('createAccount')}
         </Link>
       </p>
     </AuthCard>

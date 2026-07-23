@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@dealpilot/ui';
 import { signUp } from '../../shared/auth/client.js';
 import { AuthCard, AuthError, AuthField } from './auth-card.js';
@@ -7,6 +8,7 @@ import { AuthCard, AuthError, AuthField } from './auth-card.js';
 const MIN_PASSWORD = 12; // matches the A-05 server policy
 
 export function SignUpPage() {
+  const { t } = useTranslation('auth');
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -17,7 +19,7 @@ export function SignUpPage() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     if (password.length < MIN_PASSWORD) {
-      setError(`Le mot de passe doit contenir au moins ${MIN_PASSWORD} caractères.`);
+      setError(t('passwordTooShort', { min: MIN_PASSWORD }));
       return;
     }
     setBusy(true);
@@ -25,18 +27,19 @@ export function SignUpPage() {
     const { error: apiError } = await signUp.email({ name, email, password });
     setBusy(false);
     if (apiError) {
-      setError(apiError.message ?? "Impossible de créer le compte. Réessayez.");
+      // Localized messages only — never the server's raw English text.
+      setError(apiError.code === 'USER_ALREADY_EXISTS' ? t('emailInUse') : t('signUpFailed'));
       return;
     }
     navigate('/', { replace: true });
   }
 
   return (
-    <AuthCard title="Créer un compte" subtitle="Votre concession sur 1Dealer">
+    <AuthCard title={t('signUpTitle')} subtitle={t('signUpSubtitle')}>
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4" noValidate>
-        <AuthField label="Nom complet" type="text" autoComplete="name" value={name} onChange={setName} required />
+        <AuthField label={t('fullName')} type="text" autoComplete="name" value={name} onChange={setName} required />
         <AuthField
-          label="Courriel"
+          label={t('email')}
           type="email"
           autoComplete="email"
           inputMode="email"
@@ -45,23 +48,23 @@ export function SignUpPage() {
           required
         />
         <AuthField
-          label="Mot de passe"
+          label={t('password')}
           type="password"
           autoComplete="new-password"
           value={password}
           onChange={setPassword}
-          hint={`Au moins ${MIN_PASSWORD} caractères.`}
+          hint={t('passwordHint', { min: MIN_PASSWORD })}
           required
         />
         <AuthError message={error} />
         <Button type="submit" className="w-full" disabled={busy}>
-          {busy ? 'Création…' : 'Créer le compte'}
+          {busy ? t('creatingAccount') : t('signUpAction')}
         </Button>
       </form>
       <p className="text-center text-sm text-muted-foreground">
-        Déjà un compte?{' '}
+        {t('haveAccount')}{' '}
         <Link to="/login" className="font-medium text-primary underline-offset-4 hover:underline">
-          Se connecter
+          {t('signInAction')}
         </Link>
       </p>
     </AuthCard>
