@@ -1,0 +1,7 @@
+/* Demo-only Tailwind entry: the app-side equivalent is
+   `@import "tailwindcss"; @import "@dealpilot/ui/tokens.css";`
+   (tokens.css @source-registers the package's own dist for scanning). */
+@import 'tailwindcss';
+@import '../../dist/tokens.css';
+@source './';
+@source '../components/';
