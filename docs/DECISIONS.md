@@ -28,6 +28,82 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-024: H-01 design direction locked — "Nordique" is the token source of truth (2026-07-23) [HUSSEIN]
+
+**Status:** accepted (initially recorded as D-023; renumbered after a same-day
+numbering collision with [AHMAD]'s D-022 — his push reached origin first)
+**Context:** H-01 (D-009, ADR-017 amended): five design directions were generated
+in Google Stitch and presented on a comparison board; the owner picked this
+session. Locked values below are the source of truth H-02 encodes in
+`packages/ui` (primitive → semantic → component CSS custom properties).
+**Decision:** The platform default theme is **Direction 1 "Nordique"** —
+light-first, neutral surfaces, blue primary, Inter, 8 px radius.
+
+*Primary ramp (Tailwind blue, OKLCH):* 50 `oklch(0.970 0.014 254.6)` ·
+100 `oklch(0.932 0.032 255.6)` · 200 `oklch(0.882 0.057 254.1)` ·
+300 `oklch(0.809 0.096 251.8)` · 400 `oklch(0.714 0.143 254.6)` (#60A5FA) ·
+500 `oklch(0.623 0.188 259.8)` (#3B82F6) · 600 `oklch(0.546 0.215 262.9)`
+(#2563EB) · 700 `oklch(0.488 0.217 264.4)` (#1D4ED8).
+
+*Semantic assignment (light):* `--primary` = blue-600 (interactive fills/links —
+white foreground 5.17:1, link on page 4.82:1, both AA); blue-500 = brand accent
+(charts, focus ring `--ring`, non-text UI — 3:1 class only, never text on white).
+*Dark:* `--primary` = blue-400 with near-black foreground (6.64:1; as link text
+6.61–7.42:1 AA). White-on-blue-500 (3.68:1) and white-on-blue-400 (2.54:1) are
+forbidden text pairings.
+
+*Neutrals (KIA-Command structure, §3.1 of ui-design-system.md):* light — page
+#F5F7FA `oklch(0.975 0 0)`, card #FFFFFF, input #F9FAFB, border #E5E7EB /
+subtle #F3F4F6, text #1A1D23 (15.7:1) / secondary #6B7280 (4.50:1 AA) / muted
+#9CA3AF; dark — page #0F1117 `oklch(0.178 0.013 270.6)`, sidebar #141720, card
+#1A1D27, elevated #232738 (elevation via lighter surfaces, not shadows), border
+#2A2D3A / subtle #1F2231, text #F0F2F5 (15.0:1) / secondary #9CA3AF (6.62:1) /
+muted #6B7280.
+
+*Status colors (platform, not tenant-themable):* success #10B981/#34D399,
+warning #F59E0B/#FBBF24, danger #EF4444/#F87171, info #6366F1/#818CF8
+(light/dark). As badge/UI fills only (≥3:1 with computed foregrounds); any
+status color used AS text gets a derived `-text` variant meeting 4.5:1 (the
+ui-design-system §12 auto-fix pattern) — exact ramp values land in H-02 with
+the same contrast script.
+
+*Typography:* **Inter** (300–700), self-hosted WOFF2 (no font CDN — Law 25);
+scale per ui-design-system §4; `tabular-nums` mandatory on money/number columns.
+*Radius:* **0.5rem (8 px, `md`)**. *Density:* `comfortable` default (44 px
+rows) + `compact` mode (34–36 px) as a token swap.
+
+**Alternatives considered:** Boréal (teal, r12 — distinctive but collides with
+teal/cyan pipeline-stage chips), Indigo Atelier (primary identical to the info
+status color), Ardoise et Ambre (primary identical to the warning token;
+dark-first inverts the platform default), Rouge Concession (red primary reads
+as danger platform-wide). Nordique is the only direction with zero
+semantic-color collisions and the strongest white-label canvas.
+**Consequences:** H-02 encodes these as the `packages/ui` token layers, themes
+shadcn/ui against them, and proves both themes ≥4.5:1 text contrast; tenant
+branding still overrides semantic tokens at runtime (ADR-018). Stitch renders
+(projects "ReadyLoans H-01 — Direction 1–5") remain reference only. Comparison
+board artifact regenerated on the laptop account:
+https://claude.ai/code/artifact/dc86eca3-b71f-452c-a046-24cb54d06b12
+**Decided by:** user (owner pick: "go with 1")
+
+## D-023: Product name amended — "Dealpilot" → "1Dealer" (2026-07-23) [HUSSEIN]
+
+**Status:** accepted (amends D-020 §1; D-021 domain unchanged; initially
+recorded as D-022 — renumbered after the same-day collision noted in D-024)
+**Context:** Owner instruction this session while confirming the H-01 design
+pick; verified with the owner that the domain stays `1dealer.ca` (".co" in the
+original message was a typo) and the rename is real, not domain-only.
+**Decision:** The product/brand name is **"1Dealer"** (domain `1dealer.ca`,
+matching D-021). All new user-facing naming (UI wordmark, login page, emails,
+docs, AI persona default copy) says "1Dealer"; "Dealpilot" and "ReadyLoans"
+are historical.
+**Consequences:** White-label default branding (H-02+) uses "1Dealer".
+Engineering identifiers are NOT renamed by this entry — package scope
+`@dealpilot/*`, repo name `FOURDE1/Dealpilot`, and root package name are
+AHMAD's zone; folding the identifier rename into the A-09 doc/rename sweep (or
+deciding to keep the scope as-is) is flagged for AHMAD in the session log.
+**Decided by:** user
+
 ## D-022: A-04 database conventions — tenant key naming, RLS write rules, role credentials (2026-07-24) [AHMAD]
 
 **Status:** accepted
