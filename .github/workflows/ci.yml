@@ -14,7 +14,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Supersede runs on feature branches only — on the shared branches every
+  # commit keeps its verdict (no-PR workflow: this run IS the commit's gate).
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
 
 jobs:
   checks:
@@ -44,9 +46,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing after checkout talks to git — don't leave the token behind.
+          persist-credentials: false
 
       - name: Set up pnpm (version from package.json packageManager)
-        uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9 # v6.0.9
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9 (peeled commit)
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -58,7 +63,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Database from migration zero (proves reset path + dev app-role bootstrap)
-        run: pnpm --filter @dealpilot/db db:reset
+        run: pnpm --filter @dealpilot/db --fail-if-no-match run db:reset
 
       - name: Build + typecheck
         run: pnpm turbo run build typecheck
@@ -67,7 +72,9 @@ jobs:
         run: pnpm lint
 
       - name: Test (RLS_REQUIRED — DB-dependent suites must run, never skip)
-        run: pnpm test
+        # test:ci refuses an empty collection — the in-file RLS_REQUIRED
+        # tripwires only fire if the files are collected at all.
+        run: pnpm test:ci
         env:
           RLS_REQUIRED: '1'
 
