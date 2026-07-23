@@ -22,6 +22,53 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [AHMAD] — A-05 DONE (269dfdd): Fastify API + Better Auth; Sprint-0 foundation COMPLETE
+
+**Done:** A-05 merged to develop as **269dfdd**. `@dealpilot/api`: Fastify 5 app
+factory (`buildApp`), zod env contract that **fails fast in production** if any
+of DATABASE_URL/BETTER_AUTH_SECRET/BETTER_AUTH_URL/WEB_ORIGIN is left at a dev
+default (and requires https auth URL); Better Auth (email+password, uuid ids,
+HttpOnly+SameSite=Lax cookies, Secure in prod) mounted at `/api/auth/*` for
+**identity+sessions only** (org/roles/tenancy stay in A-04 tables — D-025);
+**deny-by-default gate** keyed on the ROUTED pattern (`request.routeOptions.url`)
+so path-traversal can't bypass it; canonical error envelope on every non-2xx
+with Fastify→canonical code mapping + 422 `details[]`; pino logs with reqId +
+cookie/authorization redaction; `/api/v1/health` (public) and `/api/v1/me`
+(session probe, published in the contract as `apiV1.auth.me` + `MeResponse`).
+Migration `20260724000002_better-auth.sql` (CLI-generated identity tables +
+least-privilege grants).
+**Test/build status (evidence):** **34/34 tests** (19 schemas + 8 db + 7 api:
+health, deny-by-default, **path-traversal gate regression**, malformed-JSON
+canonical envelope, full sign-up→cookie→me→sign-out round-trip, sign-in good/bad
+password); real standalone boot verified (health 200, unauth /me 401); turbo
+build+typecheck 22/22; lint clean. Code review (adversarial gate probing — no
+bypass found): 2 MAJOR fixed (prod-default fail-fast; routed-path gate) + minor
+carve-outs recorded in **D-025**; deferred hardening tracked as **A-05.1**.
+**MERGE EVENT:** landed on top of HUSSEIN's pushed work — resolved conflicts in
+DECISIONS.md (renumbered my auth entry D-023→**D-025**; kept his D-023 name +
+D-024 design) and TASKS.md (kept his H-01 DONE + H-02 CLAIMED). Rebase/merge
+protocol worked exactly as designed.
+**⚠️ OWNER RENAME — needs an AHMAD decision:** owner renamed the product
+**"Dealpilot" → "1Dealer"** (D-023 [HUSSEIN]; domain `1dealer.ca` per D-021,
+the ".co" was a typo). User-facing naming = "1Dealer". BUT engineering
+identifiers are still `@dealpilot/*` (package scope), repo `FOURDE1/Dealpilot`,
+root pkg `dealpilot`. **OPEN: decide whether to rename the `@dealpilot/*` scope
+to `@1dealer/*` (note: npm scopes can't start with a digit — would need e.g.
+`@onedealer/*`) or keep the internal scope and only rebrand user-facing.**
+Folded into A-09 (doc/name sweep) — surface to owner before doing it.
+**Sprint-0 foundation is now COMPLETE** (A-01 scaffold, A-03 contracts, A-04
+db+RLS, A-05 api+auth ✅; H-01 design ✅, H-02 tokens in progress). Per D-018,
+the NEXT thing is the **first feature slice** — the first thing the owner can
+open in a browser and test.
+**Next steps (next session, likely Fable 5):** 1) **Commit is already done** —
+nothing pending to merge. 2) Ask owner the `@dealpilot` scope-rename question
+above. 3) With HUSSEIN: define the **first feature slice** (candidate:
+"Organization + store admin" or "Lead intake → lead list") as an F-01 board
+row with owner test steps. 4) Optionally A-02 CI (GitHub live) and A-06 money
+math. HUSSEIN track: H-02 tokens → H-03 web shell (auth screens now unblocked:
+BA client SDK + `/api/v1/me`).
+**Blockers:** none.
+
 ## 2026-07-24 [AHMAD] — A-04 DONE (637c9fd): Docker Postgres + forced-RLS multi-tenant foundation, proven live
 
 **Done:** A-04 merged to develop as **637c9fd**. `docker-compose.yml` (Postgres
