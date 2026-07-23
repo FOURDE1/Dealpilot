@@ -191,6 +191,24 @@ session; layout+routing on @dealpilot/ui tokens, auth screens against the A-05
 Better Auth contract. 2) H-04 (i18n scaffold) parallel-safe. 3) H-05 primitives
 (adds @base-ui/react after cooldown re-check).
 
+**Addendum 3 (2026-07-24): H-04 DONE (b26f490).** FR-first i18n scaffold:
+`@dealpilot/i18n` (typed locales w/ recursive `satisfies` mirror, ICU,
+`createI18n` factory with `strictIcu` for dev/tests, `checkParity` covering
+missing/extra/empty — INCLUDING empty fr-CA reference values — and ICU
+argument-set mismatches; CLI derives the locale set from `resources`, exit-1
+demonstrated; 12 tests). apps/web fully re-keyed with **typed t() keys**
+(`CustomTypeOptions` — typo'd key = compile error), safe localStorage (blocked
+cookies can't blank the SPA), LanguageSwitcher with locale-file accessible
+names, localized auth errors (raw English server text never shown), html lang
+synced incl. after reload. e2e 5/5. Reviewed by a second 25-agent adversarial
+workflow; ALL confirmed findings fixed pre-merge. **HO-03 filed** (AHMAD: wire
+`pnpm --filter @dealpilot/i18n check:parity` into the CI i18n step).
+**Owner instruction (overnight, applies to BOTH agents):** owner is asleep —
+continue autonomously wherever nothing is needed from him; STACK anything
+requiring owner testing/decisions clearly for the morning; stay on plan.
+**Next:** H-05 primitives (feeds the F-01 admin screens), then F-01 HUSSEIN
+half against the A-03 contract.
+
 **Addendum 2 (2026-07-24): H-03 DONE (93a29a7).** Owner installed Docker +
 granted socket access; verified end-to-end on this laptop: compose PG up →
 `db:reset` from migration zero → API booted (`db:up`, gate 401) → curl
