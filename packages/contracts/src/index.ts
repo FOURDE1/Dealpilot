@@ -1,5 +1,6 @@
 /**
- * @readyloans/contracts — minimal compiling stub (A-01).
- * Real implementation lands in its own task; see docs/TASKS.md.
+ * @readyloans/contracts — the published /api/v1 interface (A-03).
+ * Only AHMAD edits this package (TEAM-WORKFLOW §4); HUSSEIN imports from it.
  */
-export const PACKAGE = '@readyloans/contracts' as const;
+export { apiV1 } from './v1.js';
+export { generateOpenApiDocument } from './openapi.js';
