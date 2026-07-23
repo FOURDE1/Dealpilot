@@ -39,6 +39,12 @@
 | H-03 | apps/web shell: routing, layout, auth screens against A-05 contract | HUSSEIN | BLOCKED(needs A-03 + A-05 contract publication from AHMAD) | A-03, A-05, H-02 | Layout/routing may start after H-02; auth screens only after A-05 |
 | H-04 | i18n scaffold FR-first (fr-CA default) with EN parity gate | HUSSEIN | BACKLOG | A-01 | Parity script here; CI wiring via HO to AHMAD |
 
+### Contract requests & handoffs
+
+| ID | Task | Owner | Status | Depends on | Notes |
+|---|---|---|---|---|---|
+| HO-01 | Fix Windows ESM crash in `packages/ui/scripts/generate-css.mjs`: an absolute Windows path reaches the ESM loader → `ERR_UNSUPPORTED_ESM_URL_SCHEME` (protocol 'c:'). Wrap with `url.pathToFileURL(...)` wherever a path is imported/passed as a module URL. | HUSSEIN | BACKLOG | — | Filed by AHMAD 2026-07-23 (found during A-02 local gate). Breaks `pnpm turbo run build` on EVERY Windows checkout (both agents + owner are on Windows); repro: `pnpm turbo run build --filter @dealpilot/ui`, Node 24. CI on ubuntu may stay green — Windows-only failure, tests still 108/108. Top priority at your next session start per §5. |
+
 ### Feature slices (TEAM-WORKFLOW §12 / D-018 — one at a time, owner-accepted)
 
 | ID | Task | Owner | Status | Depends on | Notes |
