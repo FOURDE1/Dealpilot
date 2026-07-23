@@ -22,6 +22,43 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [HUSSEIN] — First session: clone created, H-01 directions generated, awaiting owner pick
+
+**Done:** Bootstrap per TEAM-WORKFLOW §2 + §2.1 onboarding (workflow, board, both
+logs, PROJECT.md, ARCHITECTURE.md, ui-design-system.md, frontend-stack.md,
+white-labeling.md). Created my working copy `../main-project-hussein` (clone of
+`../readyloans.git`, on `develop`, repo-local identity set). Claimed H-01
+(coordination commit aa39295). Generated **5 design directions via the Stitch
+MCP**, each a full design system + rendered FR-first dashboard (desktop, Gemini
+3.1 Pro), one Stitch project per direction:
+1. *Nordique* — blue #3B82F6, Inter, r8 (project 5651095542499910695)
+2. *Boréal* — teal #0F766E, dark teal sidebar, Manrope+Inter, r12 (11503043785098575422)
+3. *Indigo Atelier* — indigo #6366F1, Plus Jakarta Sans+Inter, r10 (6431364234345393492)
+4. *Ardoise et Ambre* — dark-first slate + amber #F59E0B, Space Grotesk+Inter, r6 (7548404339407909459)
+5. *Rouge Concession* — crimson #DC2626, warm grays, Public Sans+Inter, r8 (11280684898210525560)
+Delivered a comparison board (screenshots, palettes, trade-offs, recommendation:
+Nordique as white-label-safe default, Boréal as the distinctive alternative) to
+the owner as a private artifact:
+https://claude.ai/code/artifact/c4277ce4-bafe-419e-a685-870210592442
+**Test/build status:** n/a — H-01 is a no-code task; no repo files touched
+besides coordination docs.
+**Blocked / open questions:** H-01 now `BLOCKED(needs design-direction pick from
+OWNER)`. On the pick: lock palette/typography/radius/density as OKLCH tokens in
+DECISIONS.md `[HUSSEIN]`, mark H-01 DONE, then claim H-02 (depends A-01 DONE ✓).
+Saw Ahmad's A-03 DONE land mid-session (rebase conflict in this file, resolved
+per §8 — coordination file, both entries kept).
+**Gotchas learned:** Stitch MCP tool surface differs from Ahmad's note
+(build_site/get_screen_code are gone; it's create_project / generate_screen_from_text /
+get_project / list_screens now). `generate_screen_from_text` always times out
+client-side (~1 min) while the server keeps rendering ~5–6 min — poll
+`get_project` (updateTime + thumbnailScreenshot), do NOT retry. A second
+generation into the same PROJECT_DESIGN project is silently dropped — use **one
+project per direction**. `list_screens` returns empty even when a render exists;
+the thumbnail on `get_project` is the reliable output.
+**Next steps:** 1) Owner picks a direction (or a mix) → lock tokens in
+DECISIONS.md, H-01 DONE. 2) Claim H-02 (tokens + Tailwind v4 + shadcn/ui in
+packages/ui). 3) H-04 (i18n scaffold) is my next parallel-safe task if waiting.
+
 ## 2026-07-24 [AHMAD] — A-03 DONE: contract published (31f5f28); origin is local bare repo
 
 **Done:** A-03 complete and merged to develop as **31f5f28** — THE publication
