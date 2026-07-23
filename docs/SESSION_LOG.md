@@ -161,6 +161,21 @@ session; layout+routing on @dealpilot/ui tokens, auth screens against the A-05
 Better Auth contract. 2) H-04 (i18n scaffold) parallel-safe. 3) H-05 primitives
 (adds @base-ui/react after cooldown re-check).
 
+**Addendum 2 (2026-07-24): H-03 DONE (93a29a7).** Owner installed Docker +
+granted socket access; verified end-to-end on this laptop: compose PG up →
+`db:reset` from migration zero → API booted (`db:up`, gate 401) → curl
+round-trip (sign-up → me → sign-out → 401) → **Playwright e2e 3/3** (system
+Chrome channel, fr-CA, via the Vite proxy; `*.e2e.ts` naming keeps vitest's
+glob away — root vitest config is AHMAD's zone). Also: GitHub billing lock
+verified GONE via the Actions API (the red develop run was a zero-step casualty
+from the locked window; Ahmad's later runs execute); stale laptop `.env`
+(pre-rebrand readyloans@5432) refreshed from the current example — if the API
+says `db: down`, check `.env` age first. Owner reviewed F-01/scope in Ahmad's
+session (D-027: keep @dealpilot scope, 1Dealer user-facing).
+**Next steps:** 1) F-01 HUSSEIN half (admin screens) once the owner confirms
+the slice and Ahmad's API half lands. 2) H-04 i18n scaffold (parallel-safe,
+keys the shell's FR literals). 3) H-05 primitives.
+
 **Addendum (same session):** owner deferred F-01 confirmation ("continue") →
 claimed H-03 and merged **increment 1 as 734e5f8**: Vite 6 + React 19 SPA,
 react-router v7 (lazy routes; RequireAuth/RedirectIfAuthed with tested
