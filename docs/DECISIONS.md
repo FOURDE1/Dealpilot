@@ -28,6 +28,38 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-023: A-05 auth architecture — Better Auth for identity only; review carve-outs (2026-07-24) [AHMAD]
+
+**Status:** accepted
+**Context:** A-05 wires Better Auth into the Fastify API. Security review (no
+critical bypass; gate probed adversarially and held) surfaced 2 MAJOR + minor
+items; some are fixed now, some are deliberate deferrals to feature slices.
+**Decision:**
+1. **Better Auth = identity + sessions ONLY.** No organization plugin — the
+   A-04 domain tables (organizations/stores/memberships/roles + RLS) are the
+   single source of tenancy truth. Identity ids are uuids for a future 1:1 link
+   to `users.id`.
+2. **Fixed in A-05 (from review):** M1 — production fails fast if DATABASE_URL/
+   BETTER_AUTH_SECRET/BETTER_AUTH_URL/WEB_ORIGIN are left at dev defaults, and
+   BETTER_AUTH_URL must be https in prod. M2 — the deny-by-default gate keys on
+   the ROUTED pattern (`request.routeOptions.url`), not the raw URL, so path
+   traversal cannot bypass it (regression-tested). Fastify error codes mapped to
+   canonical API codes; zod/validation errors emit 422-style `details[]`;
+   password min length 12 + max 128.
+3. **Deliberately deferred (record, not debt-hidden):** Better Auth's own
+   `/api/auth/*` error bodies keep BA's native shape (the web client SDK depends
+   on it) — a documented carve-out from the canonical envelope. Identity tables
+   live in `public` (single-schema for now, not a dedicated `auth` schema).
+   `requireEmailVerification`, `cookieCache`, explicit `session` TTLs, CORS
+   `allowedHeaders`/`maxAge`, `ipAddressHeaders`, and the `baseURL`-derived host
+   in toWebRequest are scheduled for the auth-hardening feature slice / A-05.1.
+4. **Entity CRUD endpoints are NOT built here** — the `apiV1` contract exists
+   (A-03) but routes land with their feature slices (D-018). A-05 ships only
+   health + `/api/v1/me` (session probe) + the BA mount.
+**Consequences:** H-03 auth screens are unblocked (session probe + BA client
+flows are live). Auth-hardening follow-ups tracked as A-05.1 backlog.
+**Decided by:** claude-proposed (AHMAD), from code-review findings
+
 ## D-022: A-04 database conventions — tenant key naming, RLS write rules, role credentials (2026-07-24) [AHMAD]
 
 **Status:** accepted

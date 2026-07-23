@@ -70,3 +70,4 @@ export async function withTenant<T>(
 }
 
 export { migrate, reset } from './migrate.js';
+export type { Pool, PoolClient } from 'pg';
