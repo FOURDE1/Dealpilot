@@ -28,6 +28,44 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-016: ts-rest 3.52 on zod 4 — accepted peer-dependency mismatch (2026-07-24) [AHMAD]
+
+**Status:** accepted (re-evaluate at A-05)
+**Context:** `@ts-rest/core@3.52.1` declares `zod ^3.22.3` as a peer, but the
+platform standard is Zod 4 (ADR-016). Code review verified empirically that
+import, `checkZodSchema`, and error responses all work against the built
+`apiV1` contract on zod 4.4.3.
+**Decision:** Ship A-03 on ts-rest 3.52 + zod 4; re-verify the pairing when
+`@ts-rest/fastify` lands in A-05 and upgrade ts-rest if a zod-4-supporting
+release exists then.
+**Alternatives considered:** downgrade to zod 3 (rejected — ADR-016 fixes
+zod 4 as the shared validation standard); drop ts-rest (rejected — typed
+contract between the two agents is load-bearing for the workflow).
+**Consequences:** a known-unsupported pairing is in the tree; risk isolated to
+`packages/contracts` and surfaced at A-05 integration. Regression tests on the
+contract package guard the behavior we rely on.
+**Decided by:** claude-proposed (AHMAD), per code-review finding 11
+
+## D-017: A-03 schema conventions — defaults, strictness, spec vocabularies (2026-07-24) [AHMAD]
+
+**Status:** accepted
+**Context:** Code review of A-03 found zod defaults leaking through `.partial()`
+into PATCH inputs (an empty PATCH reset entities to defaults), strip-mode
+inputs accepting unknown keys, and invented status vocabularies.
+**Decision:** (1) Create inputs carry defaults; update inputs are explicit,
+strict, defaults-free objects — regression-tested. (2) All request inputs are
+`z.strictObject`. (3) Vocabularies are spec-exact: org status 7-value +
+plan_tier from multi-tenancy.md §3; store status active/paused/closed;
+membership status invited/active/revoked; lead source 19-value enum +
+source_platform from leads.md §2.1. (4) Locale = `fr-CA`/`en-CA` (resolves the
+spec's `fr`/`en` vs `fr-CA`/`en-CA` tension in favor of full BCP-47 tags,
+default `fr-CA`). (5) Lead phone is the required contact channel (leads.md §1);
+lead `score`/`status` are engine-owned, never client inputs on create.
+**Consequences:** A-04 can generate DB CHECK constraints directly from these
+enums; H-03 consumes a stable published contract; any vocabulary change is a
+deliberate schema-package change, not an ad-hoc edit.
+**Decided by:** claude-proposed (AHMAD), from code-review findings 1–10
+
 ## D-015: TypeScript backend re-confirmed (2026-07-24)
 
 **Status:** accepted

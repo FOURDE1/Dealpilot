@@ -22,6 +22,33 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [AHMAD] — A-03 DONE: contract published (31f5f28); origin is local bare repo
+
+**Done:** A-03 complete and merged to develop as **31f5f28** — THE publication
+event. `@readyloans/schemas`: zod-4 schemas with sanitization built in (E.164
+phone, lowercase email, postal `A1A 1A1`, integer cents), spec-exact
+vocabularies (10 roles + MFA set, 10 lead statuses, 19 lead sources +
+source_platform, org status 7-value + plan_tier, store active/paused/closed,
+membership invited/active/revoked), strict inputs, create-only defaults
+(update inputs defaults-free — regression-tested). `@readyloans/contracts`:
+ts-rest `/api/v1` CRUD + cursor list + soft-delete for all 5 entities, error
+envelope (incl. 409/429) on every route, OpenAPI stub for A-05.
+**Test/build status (evidence):** turbo build+typecheck 22/22; vitest 19/19;
+eslint clean. Code-reviewer subagent found 5 CRITICAL + 9 MINOR — all fixed
+(see D-016/D-017); the defaults-leak bug was verified real before fixing.
+**Also this session:** A-01 closed at DONE(d4235a2) — owner chose git-only:
+origin = local bare repo `../readyloans.git` (TEAM-WORKFLOW §3 updated with
+HUSSEIN's clone command). A-02 deferred note (CI needs GitHub). Saw HUSSEIN's
+H-01 claim land mid-session — rebase worked exactly as designed.
+**For HUSSEIN:** the contract you code against is live on develop — `git pull`,
+then import from `@readyloans/schemas` / `@readyloans/contracts`. H-03's
+A-03 dependency is now DONE; only A-05 (auth contract) remains for the auth
+screens. Locale vocabulary is `fr-CA`/`en-CA` (D-017) — use it in H-04.
+**Next steps:** 1) A-04 db package + local Docker Postgres + migration 0001 +
+RLS smoke test. 2) A-05 Fastify + Better Auth (unblocks H-03 fully). 3) A-06
+money-math port when Sprint-1 track allows.
+**Blockers:** none.
+
 ## 2026-07-24 [AHMAD] — Repo genesis + monorepo scaffold (A-01 local scope complete)
 
 **Done:** A-01 local scope. `git init -b main` in main-project; genesis commit
