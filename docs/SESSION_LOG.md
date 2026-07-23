@@ -22,6 +22,61 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-23 [AHMAD] — A-02 CI merged (125c900) but Actions BLOCKED by GitHub billing lock; HO-01↔HO-02 exchanged; owner rules applied
+
+**Done:** A-02 built and squash-merged to develop as **125c900** (decision
+**D-026**): `.github/workflows/ci.yml` — push-triggered on
+main/develop/`ahmad/**`/`hussein/**` + `workflow_dispatch` (feature-branch runs
+= the pre-merge feedback PRs would have given; D-021 unchanged); actions
+SHA-pinned (checkout v7.0.1, pnpm/action-setup v6.0.9 peeled commit,
+setup-node v7.0.0); `permissions: contents: read` + `persist-credentials:
+false`; ephemeral postgres:16-alpine mapped to host **5434** so the repo-wide
+URL convention holds unchanged in CI; `db:reset` from migration zero (with
+`--fail-if-no-match`); turbo build+typecheck; eslint; tests via new root
+**`test:ci`** (`--passWithNoTests=false`) with **RLS_REQUIRED=1**; i18n step =
+explicit NO-OP notice pending H-04. Shared-branch runs keep their verdicts
+(cancel-in-progress only on feature branches). Also: `.nvmrc`=24, PROJECT.md
+Node fact corrected, vitest `fileParallelism: false` (the db suite's beforeAll
+drops the schema the api suite is using — parallel files raced by luck).
+Review = 28-agent adversarial workflow (4 lenses → 2-skeptic refutation per
+finding): 2 CONFIRMED fixed (shared-branch verdict loss; empty-collection
+green), 3 hardenings, 5 refuted with evidence.
+**Board:** F-01 proposal filed (owner deferred confirmation). HO-01 filed
+(ui Windows ESM crash) → HUSSEIN fixed same day (081c546) — full tree back to
+22/22 on Windows. HO-02 answered and closed: the `reference/**` exclude has
+existed since 637c9fd (`git show 637c9fd:vitest.config.ts`); clean tree +
+frozen install runs 6 files / 108/108 green — suspect a pre-637c9fd checkout;
+the REAL half (stale Node facts) fixed in 125c900; re-open with exact
+command/cwd/HEAD if it persists on your machine.
+**Owner rules applied this session:** repo git identity switched to
+**FOURDE1 <hossienraad321@gmail.com>**; `"attribution": {"commit": "", "pr":
+""}` added to `~/.claude/settings.json` (takes effect next session start). My
+3 pushed commits this session (faf3d7d, 2d0c426, 125c900) were already
+trailer-free; older pushed history keeps its trailers per the no-rewrite rule.
+**Test/build status (evidence):** turbo build+typecheck **22/22**; eslint
+exit 0; `RLS_REQUIRED=1 pnpm test:ci` → **6 files, 108/108** (34 ours +
+74 H-02); the exact CI command sequence exercised locally end-to-end.
+**BLOCKED / owner actions:** (1) **GitHub Actions is locked** — the
+ahmad/ci-pipeline run died pre-start with annotation "The job was not started
+because your account is locked due to a billing issue." NO workflow can run
+until the owner fixes github.com → Settings → Billing. After unlock: push
+anything (or dispatch CI) → expect green; AHMAD then pushes a deliberate
+red-probe branch to prove failures fail → flip A-02 to DONE. (2) Confirm or
+override **F-01** (org+store admin — proposed, deferred). (3) `@dealpilot`
+scope rename question (A-09) still open.
+**Gotchas learned:** true machine date is **2026-07-23** (git timestamps
++0300) — earlier entries dated "2026-07-24" were written a day ahead. gh CLI
+is NOT authenticated here (pushes go through Windows credential manager);
+repo FOURDE1/Dealpilot is **public** → anonymous api.github.com works for
+run status + failure annotations (how the billing lock was diagnosed).
+pnpm `--fail-if-no-match` exists in 10.26.1; CLI `--passWithNoTests=false`
+overrides config-level `true`. NOTE: HUSSEIN's older H-01 entry is still
+headless mid-file (~line 175, under my A-08 entry) — his to restore.
+**Next steps:** 1) Owner unlocks billing → green + red-probe → A-02 DONE.
+2) F-01 AHMAD half on owner confirm (org+store routes vs A-03 contract).
+3) Fill-in while waiting: A-05.1 auth hardening or A-06 money-math port.
+**Blockers:** A-02 live verification on owner billing; otherwise none.
+
 ## 2026-07-23 [HUSSEIN] — Laptop online; H-01 DONE (Nordique, D-024); H-02 DONE (2fd3dea); name = 1Dealer (D-023)
 
 **Done:** (1) **Laptop setup:** repo on develop, Node 24.14/pnpm 10.26.1, `.env`
