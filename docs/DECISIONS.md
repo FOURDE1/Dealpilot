@@ -28,6 +28,25 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-027: Keep the `@dealpilot/*` internal package scope — rebrand user-facing only (2026-07-24) [AHMAD]
+
+**Status:** accepted
+**Context:** The product was renamed "Dealpilot" → "1Dealer" (D-023). Engineering
+identifiers still use `@dealpilot/*` (npm scopes cannot start with a digit, so a
+matching scope would need a spelling like `@onedealer/*`). Open question from
+A-09: rename the scope or keep it?
+**Decision:** Keep `@dealpilot/*` as the internal package scope permanently.
+"1Dealer" appears only in user-facing surfaces (UI text, docs the client sees,
+domain). Repo name, package scope, DB role/db names, and other engineering
+identifiers stay `dealpilot`.
+**Alternatives considered:** rename to `@onedealer/*` — rejected: touches every
+import/lockfile for zero user-visible value, and the scope is invisible outside
+the repo.
+**Consequences:** A-09 shrinks to the plan-doc name sweep; no code churn. Any
+future white-label tenant naming is data, not identifiers (per white-labeling
+spec).
+**Decided by:** user (owner reply, 2026-07-24: "yes do the recommended please")
+
 ## D-026: A-02 CI pipeline — push-triggered, SHA-pinned, ephemeral Postgres on 5434 (2026-07-23) [AHMAD]
 
 **Status:** accepted
