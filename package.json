@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
+    "test:ci": "vitest run --passWithNoTests=false",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

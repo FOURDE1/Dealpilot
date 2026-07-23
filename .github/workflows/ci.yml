@@ -1,0 +1,82 @@
+# CI (A-02, D-026) — lint / typecheck / test / build on every push.
+# No-PR workflow (D-021): runs on pushes to the shared branches AND the agents'
+# feature branches, so pre-merge feedback exists without pull requests.
+# Actions are pinned to full commit SHAs (CLAUDE.md supply-chain rules).
+name: CI
+
+on:
+  push:
+    branches: [main, develop, 'ahmad/**', 'hussein/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Supersede runs on feature branches only — on the shared branches every
+  # commit keeps its verdict (no-PR workflow: this run IS the commit's gate).
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/develop' }}
+
+jobs:
+  checks:
+    name: lint / typecheck / test / build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      DO_NOT_TRACK: '1'
+    services:
+      # Ephemeral Postgres per run (ADR-023). Mapped to host port 5434 because
+      # the db default URL and the api integration tests target localhost:5434
+      # (same port the local docker-compose maps — one URL everywhere).
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dealpilot
+          POSTGRES_PASSWORD: dealpilot
+          POSTGRES_DB: dealpilot
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U dealpilot -d dealpilot"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing after checkout talks to git — don't leave the token behind.
+          persist-credentials: false
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9 (peeled commit)
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install (frozen lockfile; lifecycle scripts blocked by pnpm default)
+        run: pnpm install --frozen-lockfile
+
+      - name: Database from migration zero (proves reset path + dev app-role bootstrap)
+        run: pnpm --filter @dealpilot/db --fail-if-no-match run db:reset
+
+      - name: Build + typecheck
+        run: pnpm turbo run build typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test (RLS_REQUIRED — DB-dependent suites must run, never skip)
+        # test:ci refuses an empty collection — the in-file RLS_REQUIRED
+        # tripwires only fire if the files are collected at all.
+        run: pnpm test:ci
+        env:
+          RLS_REQUIRED: '1'
+
+      - name: i18n key parity (pending H-04)
+        run: echo "::notice title=i18n parity::NO-OP — waiting for the packages/i18n EN<->FR key-parity script (H-04). HUSSEIN files an HO row to wire it here when published."

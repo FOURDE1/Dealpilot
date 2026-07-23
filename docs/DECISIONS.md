@@ -28,6 +28,46 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-026: A-02 CI pipeline — push-triggered, SHA-pinned, ephemeral Postgres on 5434 (2026-07-23) [AHMAD]
+
+**Status:** accepted
+**Context:** No-PR workflow (D-021) means there is no PR gate; the only automated
+quality signal is what runs on push. The db/api integration suites need a real
+Postgres and must not silently self-skip in CI.
+**Decision:** Single GitHub Actions workflow (`.github/workflows/ci.yml`):
+1. **Triggers:** push to `main`/`develop` **and** `ahmad/**`/`hussein/**` (+
+   manual `workflow_dispatch`). Feature-branch runs restore the pre-merge
+   feedback PRs would have given — push your branch, get a verdict, then
+   squash-merge (D-021 unchanged: merges stay terminal-git).
+2. **Supply chain:** all actions pinned to full commit SHAs (checkout v7.0.1,
+   pnpm/action-setup v6.0.9, setup-node v7.0.0); `pnpm install
+   --frozen-lockfile`; lifecycle scripts stay blocked (pnpm v10 default);
+   `permissions: contents: read`; no cloud credentials anywhere in CI.
+3. **Database job model (ADR-023):** ephemeral `postgres:16-alpine` service
+   mapped to host port **5434** so the repo-wide convention (one URL,
+   `localhost:5434`, admin `dealpilot`, app role `dealpilot_app`) holds in CI
+   unchanged; `db:reset` runs first (proves migrate-from-zero + dev app-role
+   bootstrap), then build+typecheck, lint, and tests with **`RLS_REQUIRED=1`**
+   so DB-dependent suites fail rather than skip.
+4. **Determinism fix:** root vitest sets `fileParallelism: false` — the db
+   suite's `beforeAll` drops/rebuilds the schema of the same database the api
+   suite uses; parallel test files raced (worked locally by timing luck only).
+5. **Node pin:** added `.nvmrc` = 24 (matches `engines >=24`, local v24.11.1);
+   PROJECT.md's stale "Node 22 LTS" corrected. CI reads `.nvmrc`.
+6. **Not enforced yet:** `format:check` (tree currently not prettier-clean —
+   31 files across both zones; adopting enforcement is a joint follow-up), and
+   the i18n parity step is an explicit NO-OP notice until H-04 publishes the
+   script (HUSSEIN wires it via HO row).
+**Alternatives considered:** PR-triggered CI (rejected — no PRs, D-021);
+per-package test scripts under turbo (rejected for now — root vitest is the
+established runner, 34 tests); running tests against a job container network
+alias (rejected — port mapping keeps one URL for local + CI).
+**Consequences:** every push to any agent branch or shared branch gets the full
+gate; a red `develop` push is visible immediately. Follow-ups created: prettier
+enforcement decision, H-04 parity wiring (HO), A-07 will add deploy workflows
+with OIDC (no long-lived keys) separately.
+**Decided by:** claude-proposed (AHMAD)
+
 ## D-025: A-05 auth architecture — Better Auth for identity only; review carve-outs (2026-07-24) [AHMAD]
 
 **Status:** accepted (recorded as D-023 on ahmad/api-auth; renumbered to D-025

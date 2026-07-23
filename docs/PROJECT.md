@@ -14,7 +14,7 @@
 
 ## Stack
 
-- **Language(s) & version(s):** TypeScript 5.9 `strict` everywhere; Node.js 22 LTS (pinned via `.nvmrc` + `engines`).
+- **Language(s) & version(s):** TypeScript 5.9 `strict` everywhere; Node.js 24 (pinned via `.nvmrc` + `engines >=24`; corrected from the plan's "22 LTS" — A-01 scaffolded on 24, D-026).
 - **Framework(s):** React 19 + Vite 6 SPA (react-router v7, TanStack Query v5); Fastify v5 API; ts-rest + Zod 4 shared contracts (REST `/api/v1`, OpenAPI 3.1); BullMQ 5 workers; Better Auth 1.3+ (organization plugin, RBAC, MFA, HTTPS-only cookies); Tailwind CSS v4 + shadcn/ui on Base UI (no Tailwind Plus — owner decision 2026-07-23); react-i18next + i18next-icu, FR-first (Bill 96); vitest + Playwright.
 - **Package manager:** pnpm workspaces + Turborepo. Monorepo layout: `apps/web`, `apps/api`, `apps/workers`, `apps/intake`; `packages/db`, `schemas`, `contracts`, `core`, `ui`, `i18n`, `ai`.
 - **Database / storage:** Amazon RDS for PostgreSQL 16 in `ca-central-1` (VPC-private — no public accessibility, ingress from ECS task SGs only; KMS-encrypted gp3, deletion protection, automated backups + PITR; owner decision 2026-07-24, D-013) — shared-schema multi-tenant, `tenant_id`/`store_id` on every business row, RLS ENABLED + FORCED, integer cents, RDS Proxy transaction pooling at launch (dev = local Docker Postgres, staging = db.t4g.small Single-AZ); Amazon S3 (private buckets, per-tenant prefixes, presigned URLs only) + CloudFront for files/images; Socket.IO 4 + Redis adapter for realtime (tenant-namespaced rooms, app-emitted events); ElastiCache Valkey (cache, rate limiting, BullMQ backing, Socket.IO adapter).
