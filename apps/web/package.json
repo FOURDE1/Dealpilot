@@ -3,19 +3,32 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
-    }
-  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
-    "typescript": "catalog:"
+    "@tailwindcss/vite": "4.3.3",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.2.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "catalog:",
+    "vite": "6.4.3",
+    "vitest": "catalog:"
+  },
+  "dependencies": {
+    "@dealpilot/contracts": "workspace:*",
+    "@dealpilot/schemas": "workspace:*",
+    "@dealpilot/ui": "workspace:*",
+    "@tanstack/react-query": "5.101.4",
+    "@ts-rest/core": "3.52.1",
+    "better-auth": "^1.6.25",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-router": "7.18.1"
   }
 }
