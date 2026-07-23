@@ -35,9 +35,10 @@
 | A-05 | Fastify api skeleton: health check + error envelope + Better Auth wiring | AHMAD | DONE(2026-07-24, see merge) | A-01, A-03, A-04 | Reviewed (2 MAJOR fixed, D-025); 34/34 tests incl. live auth round-trip + gate regression; unblocks H-03 |
 | A-05.1 | Auth hardening slice: requireEmailVerification, cookieCache, session TTLs, CORS allowedHeaders/maxAge, auth schema, baseURL host in toWebRequest | AHMAD | BACKLOG | A-05 | Deferred review minors (D-025 item 3) |
 | H-01 | Stitch design selection: 3–5 directions + palettes; owner picks; lock tokens | HUSSEIN | DONE(2026-07-23, 6f07342) | — | Owner picked Direction 1 "Nordique"; tokens locked in D-024 (OKLCH + contrast evidence); name amended to "1Dealer" (D-023) |
-| H-02 | Design tokens + Tailwind v4 + shadcn/ui setup in packages/ui (semantic layers, light/dark) | HUSSEIN | CLAIMED(HUSSEIN, 2026-07-23) | A-01, H-01 | NO Tailwind Plus (owner decision 2026-07-23); token source = D-024 |
-| H-03 | apps/web shell: routing, layout, auth screens against A-05 contract | HUSSEIN | BLOCKED(needs A-03 + A-05 contract publication from AHMAD) | A-03, A-05, H-02 | Layout/routing may start after H-02; auth screens only after A-05 |
+| H-02 | Design tokens + Tailwind v4 + shadcn/ui setup in packages/ui (semantic layers, light/dark) | HUSSEIN | DONE(2026-07-23, 2fd3dea) | A-01, H-01 | Nordique tokens (D-024) + WCAG gate (74 tests); reviewed by 3-lens adversarial workflow, all confirmed findings fixed; --input = shadcn border semantic + --input-bg; Base UI dep deferred to H-05 |
+| H-03 | apps/web shell: routing, layout, auth screens against A-05 contract | HUSSEIN | BACKLOG | A-03, A-05, H-02 | ALL deps DONE (A-03 ✓ A-05 ✓ H-02 ✓) — fully claimable |
 | H-04 | i18n scaffold FR-first (fr-CA default) with EN parity gate | HUSSEIN | BACKLOG | A-01 | Parity script here; CI wiring via HO to AHMAD |
+| HO-01 | Root `pnpm test` broken on develop: root vitest (no config) scans `reference/kia-tracker-specs/**` — 17 legacy test files fail (their deps aren't installed; reference/ is read-only). Fix in root config (AHMAD zone): root vitest config/exclude for `reference/**`. Verified pre-existing before H-02 (fails identically on clean develop). Blocks turbo `//#test` and will block A-02 CI. | AHMAD | BACKLOG | — | Filed by HUSSEIN 2026-07-23; also PROJECT.md stack facts say "Node 22 + .nvmrc" but repo engines is `>=24` with no .nvmrc — stale fact, AHMAD's zone |
 
 ### Contract requests & handoffs
 

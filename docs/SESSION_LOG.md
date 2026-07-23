@@ -22,6 +22,60 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-23 [HUSSEIN] — Laptop online; H-01 DONE (Nordique, D-024); H-02 DONE (2fd3dea); name = 1Dealer (D-023)
+
+**Done:** (1) **Laptop setup:** repo on develop, Node 24.14/pnpm 10.26.1, `.env`
+created; Stitch MCP connected (STITCH_API_KEY added to `~/.claude/settings.json`
+env block); GitHub push works via the laptop's existing SSH key (origin switched
+to `git@github.com:FOURDE1/Dealpilot.git`). §2 bootstrap + §2.1 onboarding
+re-done on this machine. (2) **H-01 DONE:** all 5 Stitch projects verified
+intact; comparison board **regenerated on the laptop account**
+(https://claude.ai/code/artifact/dc86eca3-b71f-452c-a046-24cb54d06b12 — old
+desktop artifact unreachable here); owner picked **Direction 1 "Nordique"**;
+tokens locked as **D-024** with computed OKLCH + WCAG evidence. Owner also
+amended the product name → **"1Dealer"** (D-023; domain stays 1dealer.ca —
+".co" was a typo, verified). D-number collision with Ahmad's same-day push
+resolved from both sides (his db entry = D-022, his auth entry = D-025).
+(3) **H-02 DONE, merged to develop as 2fd3dea:** `@dealpilot/ui` ships
+tokens.ts (D-024 source of truth) → unit-tested build-css.ts → generated
+tokens.css (primitive/semantic/component layers, `data-theme` dark,
+`data-density`, `@theme inline`, self-`@source` so app builds emit library
+utilities — verified empirically), Button (cva, semantic tokens only, 44px
+touch floor <lg), cn(), WCAG contrast gate, FR-first two-theme demo
+(`pnpm --filter @dealpilot/ui demo`, screenshot-verified).
+**Test/build status (evidence):** ui build clean; **74/74 vitest** (contrast
+gate: every text pairing ≥4.5:1 BOTH themes; palette-ban; touch targets); root
+lint exit 0; typecheck 0 errors; app-consumption sim emitted `.bg-primary`
+from the two documented imports. Deps verified per supply-chain rules
+(lucide-react REJECTED this session — published <48h; @base-ui/react deferred
+to H-05 per YAGNI — re-verify names/ages then).
+**Review:** 3-lens adversarial workflow (25 agents) on the diff; ALL confirmed
+findings fixed: `--input` now the shadcn border semantic (+`--input-bg` fill —
+prevents invisible borders on vendored H-05 inputs), D-024 status-as-TEXT
+variants added (`success/warning/danger/info-text`, danger-text = #B91C1C
+because #DC2626 measured 4.4999:1 on page), hover:opacity replaced with darker
+hover tokens (opacity broke AA), `max-lg:min-h-11` touch floor, secondary-hover
+no-op fixed, generator fail-fast + tested, palette-ban regex covers all 22
+palettes + arbitrary values, build no longer ships tests in dist.
+**Blocked / open questions:** none for me. **For AHMAD:** HO-01 filed (root
+vitest scans reference/** — root `pnpm test` fails on clean develop; blocks
+A-02 CI); PROJECT.md "Node 22 + .nvmrc" is stale vs `engines >=24`; 1Dealer
+identifier rename is yours (you already flagged it). **Owner instruction
+(2026-07-23, applies to BOTH agents):** commits carry the owner's name ONLY —
+no "Co-Authored-By: Claude" trailers, no AI attribution in commit messages or
+PR bodies. Set `"attribution": {"commit": "", "pr": ""}` in your
+`~/.claude/settings.json` and repo identity Hassan <hassan@readycar.ca>.
+Existing pushed history stays as-is (no rewrites on shared branches, §7).
+**Gotchas learned:** pnpm `add <pkg>@catalog:` REWRITES pnpm-workspace.yaml
+(repins the catalog) — restore Ahmad's file and plain `pnpm install`; squash
+merges need `git branch -D` (git can't see the merge); non-interactive shells
+here sometimes lose nvm/pnpm from PATH — prefix
+`export PATH="$HOME/.nvm/versions/node/v24.14.0/bin:$HOME/.local/share/pnpm:$PATH"`.
+**Next steps:** 1) H-03 (apps/web shell) — ALL deps now DONE, claim next
+session; layout+routing on @dealpilot/ui tokens, auth screens against the A-05
+Better Auth contract. 2) H-04 (i18n scaffold) parallel-safe. 3) H-05 primitives
+(adds @base-ui/react after cooldown re-check).
+
 ## 2026-07-24 [AHMAD] — A-05 DONE (269dfdd): Fastify API + Better Auth; Sprint-0 foundation COMPLETE
 
 **Done:** A-05 merged to develop as **269dfdd**. `@dealpilot/api`: Fastify 5 app
@@ -129,6 +183,8 @@ Docker Postgres + RLS migration). 3) A-02 CI now actionable (GitHub exists);
 main branch protection to set in GitHub settings.
 **Blockers:** GitHub push requires auth on this machine (browser prompt or
 `gh auth login`) — noted below if it fails.
+
+## 2026-07-24 [HUSSEIN] — First session: clone created, H-01 directions generated, awaiting owner pick
 
 **Done:** Bootstrap per TEAM-WORKFLOW §2 + §2.1 onboarding (workflow, board, both
 logs, PROJECT.md, ARCHITECTURE.md, ui-design-system.md, frontend-stack.md,
