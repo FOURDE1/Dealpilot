@@ -10,7 +10,7 @@ catalogs:
       specifier: ^5.9.0
       version: 5.9.3
     vitest:
-      specifier: 3.2.7
+      specifier: ^3.0.0
       version: 3.2.7
     zod:
       specifier: ^4.0.0
