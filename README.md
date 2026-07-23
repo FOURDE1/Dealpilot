@@ -28,8 +28,11 @@ session of the build. Remote: `https://github.com/FOURDE1/Dealpilot.git`.
 Everything needed to continue lives in this repo — clone it and the agents have
 their full memory (board, session logs, decisions, plan):
 
-1. `git clone https://github.com/FOURDE1/Dealpilot.git` and open the folder in
-   Claude Code.
+1. `git clone https://github.com/FOURDE1/Dealpilot.git` then **`git checkout develop`**
+   — IMPORTANT: all work lives on `develop` (390+ files); `main` holds only the
+   genesis scaffold until the first production release. Then open the folder in
+   Claude Code. (One-time optional fix so clones land on develop automatically:
+   `gh auth login` then `gh repo edit FOURDE1/Dealpilot --default-branch develop`.)
 2. Install toolchain if missing: Node ≥24, pnpm (`corepack enable`), Docker
    Desktop, git. Then `pnpm install`.
 3. Copy `.env.example` → `.env` (dev defaults work; no production secrets exist).
