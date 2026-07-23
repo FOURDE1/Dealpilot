@@ -29,7 +29,7 @@
 | ID | Task | Owner | Status | Depends on | Notes |
 |---|---|---|---|---|---|
 | A-01 | Git init + monorepo scaffold (strict TS); GitHub deferred by owner | AHMAD | DONE(2026-07-24, d4235a2) | — | Owner decision 2026-07-24: git-only for now — origin = local bare repo `../readyloans.git`; GitHub repo/protection becomes a follow-up task when needed |
-| A-02 | CI pipeline: lint/typecheck/test on push to develop/main, frozen lockfile | AHMAD | BACKLOG | A-01 | GitHub live (D-019/D-021); runs on PUSH, not PRs — no-PR workflow per D-021 |
+| A-02 | CI pipeline: lint/typecheck/test on push to develop/main, frozen lockfile | AHMAD | CLAIMED(AHMAD, 2026-07-23) | A-01 | GitHub live (D-019/D-021); runs on PUSH, not PRs — no-PR workflow per D-021 |
 | A-03 | packages/schemas + packages/contracts baseline (tenant, store, user, lead) | AHMAD | DONE(2026-07-24, 31f5f28) | A-01 | CONTRACT PUBLISHED — import from @readyloans/schemas + @readyloans/contracts; code-reviewed (14 findings fixed); 19 tests |
 | A-04 | packages/db + local Docker Postgres (dev) + first migration (tenants/orgs/stores/users + RLS); staging = RDS via IaC | AHMAD | DONE(2026-07-24, 637c9fd) | A-01, A-03 | RLS proven live (8 isolation tests incl. negatives); Postgres on host port 5434 (5432/5433 busy); reviewed — 2 critical findings fixed (D-022); staging RDS still via A-07 |
 | A-05 | Fastify api skeleton: health check + error envelope + Better Auth wiring | AHMAD | DONE(2026-07-24, see merge) | A-01, A-03, A-04 | Reviewed (2 MAJOR fixed, D-025); 34/34 tests incl. live auth round-trip + gate regression; unblocks H-03 |
@@ -38,6 +38,12 @@
 | H-02 | Design tokens + Tailwind v4 + shadcn/ui setup in packages/ui (semantic layers, light/dark) | HUSSEIN | CLAIMED(HUSSEIN, 2026-07-23) | A-01, H-01 | NO Tailwind Plus (owner decision 2026-07-23); token source = D-024 |
 | H-03 | apps/web shell: routing, layout, auth screens against A-05 contract | HUSSEIN | BLOCKED(needs A-03 + A-05 contract publication from AHMAD) | A-03, A-05, H-02 | Layout/routing may start after H-02; auth screens only after A-05 |
 | H-04 | i18n scaffold FR-first (fr-CA default) with EN parity gate | HUSSEIN | BACKLOG | A-01 | Parity script here; CI wiring via HO to AHMAD |
+
+### Feature slices (TEAM-WORKFLOW §12 / D-018 — one at a time, owner-accepted)
+
+| ID | Task | Owner | Status | Depends on | Notes |
+|---|---|---|---|---|---|
+| F-01 | Organization & store administration: sign in → create/list/edit organizations + their stores. AHMAD half: `/api/v1` org+store routes (A-03 contract) on the RLS db, seeded platform-admin flow. HUSSEIN half: admin screens on H-02 tokens + H-03 shell. | BOTH | BACKLOG | A-05, H-02 | PROPOSED by AHMAD 2026-07-23 — first owner-testable slice. Alternative considered: "Lead intake → lead list", but a lead needs an org+store to attach to, so org/store admin must exist first. OWNER: confirm or override before build starts. Exact test steps added when it reaches AWAITING-OWNER-TEST. |
 
 ### Backlog (next sprint candidates — do not claim in Sprint 1)
 
