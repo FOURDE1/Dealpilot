@@ -22,6 +22,26 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [AHMAD] — A-05.1 DONE overnight: auth hardening merged; owner asleep, morning stack unchanged +1 item
+
+**Done:** A-05.1 squash-merged to develop. Explicit session TTLs (7d,
+daily refresh), CORS allowedHeaders/content-type+authorization + 86400
+preflight cache, toWebRequest origin from BETTER_AUTH_URL (Host-spoof
+defense, regression-tested). **cookieCache tried and REJECTED with
+evidence** — the cached cookie outlives sign-out; the A-05 round-trip test
+(instant revocation) caught it; the test wins per CLAUDE.md. TDD: 3 new
+tests red-first (CORS red; two pin now-explicit defaults). **159/159 tests**
+(incl. HUSSEIN's new i18n suite), lint 0, build+typecheck green after
+frozen install of his H-04 deps.
+**OWNER STACK +1:** requireEmailVerification needs an EMAIL PROVIDER —
+owner must create a Resend account + API key (plan: Resend) before that
+last A-05.1 item can land. Not urgent; stacked.
+**Next steps:** 1) Verify CI green on tonight's merges (anon API was
+rate-limited). 2) HUSSEIN: F-01 screens (in progress). 3) AHMAD fill-in:
+A-06 money-math or A-09 doc sweep; F-01 integration test steps when
+HUSSEIN's half lands.
+**Blockers:** none.
+
 ## 2026-07-24 [AHMAD] — F-01 AHMAD half DONE (2347427): org+store API on user-scoped RLS; owner asleep — morning stack queued
 
 **Done:** F-01 backend merged to develop as **2347427** (D-028). Migration 0003
