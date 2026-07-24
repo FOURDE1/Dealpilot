@@ -40,7 +40,14 @@ fr-CA where Bill 96 requires.
 **Next steps:** 1) OWNER tests F-01 (steps in row) → ACCEPT unlocks F-02.
 2) AHMAD: A-07 IaC baseline + SES identity (sandbox) in ca-central-1.
 3) After SES verified: requireEmailVerification lands.
-**Blockers:** F-01 acceptance = owner; else none.
+**A-07 recon (Dealpilot profile, ca-central-1):** Route 53 already hosts
+**1dealer.ca** in account 242626139373 — SES domain identity + DKIM fully
+automatable; SES has zero identities, S3 zero buckets (clean slate). A-07
+plan: (1) IaC scaffold in infra/ (CDK TypeScript — matches the TS-everywhere
+stack), (2) SES domain identity + DKIM via Route 53 + sandbox test send,
+(3) OIDC role for GitHub Actions deploys, (4) staging RDS per D-013 last
+(costed — flag before apply).
+**Blockers:** none — F-01 ACCEPTED by owner; A-07 in flight.
 
 ## 2026-07-24 [AHMAD] — overnight continuation: CI all green; A-06 money math DONE (5a47cfd); AHMAD track exhausted
 
