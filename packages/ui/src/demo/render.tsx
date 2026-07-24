@@ -10,6 +10,22 @@
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Button } from '../components/button.js';
+import { DataTable, type ColumnDef } from '../components/data-table.js';
+
+interface DemoRow {
+  name: string;
+  code: string;
+  ville: string;
+}
+const demoColumns: ColumnDef<DemoRow, unknown>[] = [
+  { accessorKey: 'name', header: 'Succursale' },
+  { accessorKey: 'code', header: 'Code' },
+  { accessorKey: 'ville', header: 'Ville' },
+];
+const demoRows: DemoRow[] = [
+  { name: 'Kia Mont-Laurier', code: 'KML', ville: 'Mont-Laurier' },
+  { name: 'ReadyCar', code: 'RC', ville: 'Ottawa' },
+];
 
 function Chip({ tone, children }: { tone: 'success' | 'warning' | 'destructive' | 'info'; children: ReactNode }) {
   const tones = {
@@ -73,6 +89,14 @@ function ThemePanel({ theme, label }: { theme: 'light' | 'dark'; label: string }
             <span className="text-warning-text">3 dossiers en retard</span>{' '}
             <span className="text-danger-text">1 vente perdue</span>
           </p>
+
+          <DataTable
+            columns={demoColumns}
+            data={demoRows}
+            loadingMessage="Chargement…"
+            errorMessage="Erreur"
+            emptyMessage="Aucune donnée"
+          />
 
           <label className="block space-y-1">
             <span className="text-[13px] font-medium">Nom du client</span>

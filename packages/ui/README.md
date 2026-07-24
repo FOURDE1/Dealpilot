@@ -90,9 +90,21 @@ CDN — Law 25). `--font-sans` falls back to `ui-sans-serif, system-ui`.
 Radius: `--radius: 0.5rem` with the shadcn `sm/md/lg/xl` derivation.
 `tabular-nums` is mandatory on money/number columns (§4).
 
+## Components (H-02 + H-05)
+
+- `Button` (cva variants), `Input` / `Label` / `Select` field primitives.
+- `DataTable` — TanStack Table v8 composition: token-styled, sortable,
+  loading/error/empty states, wide content scrolls in its own container.
+  Client-side ops only (fine <200 rows; server-driven ops land with need).
+- `Dialog` / `DialogContent` / `DialogTitle` / `DialogDescription` — themed
+  Base UI dialog (compound API re-exported).
+- `Form` composition — react-hook-form `FormProvider` + `FormField`/`FormItem`
+  /`FormLabel`/`FormControl`/`FormHint`/`FormMessage` with real aria plumbing
+  (shared ids, `aria-describedby`, `aria-invalid`, `role="alert"`). Resolvers
+  (zod + @dealpilot/schemas) are the caller's `useForm` concern.
+
 ## Adding components
 
 Vendored shadcn-style components live in `src/components/` and must: render in
 light + dark + both densities, pass the token-only lint/test rules, ship a
-test, and appear in the demo page. Base UI (`@base-ui/react`) is added with
-the first primitive that needs it (H-05).
+test, and appear in the demo page.
