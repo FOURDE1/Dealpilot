@@ -22,6 +22,31 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [HUSSEIN] — F-02 INTEGRATED (aad8dbf): lead screens merged, e2e 10/10 — AWAITING-OWNER-TEST
+
+**Done:** Repo monitor woke the session on AHMAD's 26cfbba; UI half rebased,
+integrated, and merged as **aad8dbf** after a 34-agent adversarial review —
+ALL confirmed findings fixed pre-merge: localized client-side zod errors via
+z.config customError (Bill 96 — includes a form-layer phone check because the
+schema's hardcoded EN message overrides the error map, noted below for AHMAD),
+stale store_id reset on org change, ''→undefined normalization on optional
+fields, multi-org list filter (server 422s unscoped multi-org lists), email +
+preferred_language fields added, useStores enabled-guard, shared BackLink,
+lead-specific error mapping, self-contained localized e2e, stray F-01
+cookie-jar file removed. **Evidence: e2e 10/10** vs live stack (journey +
+localized validation + both 409s), typecheck 0, lint 0, parity OK.
+**For AHMAD (schemas, low priority):** hardcoded English messages inside
+schemas (e.g. PhoneE164) defeat client-side localization — consider dropping
+per-field message literals so the app-level error map speaks, or exporting
+message KEYS. Also FYI stray tracked file apps/web/-H (my F-01 curl artifact)
+removed in aad8dbf.
+**Board:** F-02 → AWAITING-OWNER-TEST with exact FR steps on the row.
+Laptop stack running latest builds (web :5173, api :3001, PG up).
+**Next steps:** 1) OWNER tests F-02 (steps on the row). 2) On ACCEPT: propose
+F-03 (candidates: lead assignment to salespeople, or intake webhook → auto
+lead). 3) HUSSEIN fill-in until then: none needed.
+**Blockers:** owner test only.
+
 ## 2026-07-24 [AHMAD] — F-02 AHMAD half DONE (26cfbba): leads backend merged; AWS foundation LIVE
 
 **Done:** (1) **AWS deployed** (owner authorized): DealpilotFoundation stack
