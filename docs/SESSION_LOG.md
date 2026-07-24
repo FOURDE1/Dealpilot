@@ -48,6 +48,16 @@ otherwise). Owner journey: create lead → list → change status.
 
 ## 2026-07-24 [HUSSEIN] — F-01 ACCEPTED by owner; F-02 confirmed (leads); H-05 primitives DONE
 
+**Addendum (F-02 UI pre-built):** HUSSEIN half is CODE-COMPLETE on
+`hussein/f02-lead-ui` (fcd4696, pushed — CI runs on it): lead list (DataTable,
+localized 10-status/19-source labels), create form (first H-05 Form consumer —
+zodResolver on CreateLeadInput, client-side validation with the server's own
+schema), detail w/ status change; leads i18n namespace FR/EN parity-gated;
+integration e2e written ahead. Typecheck/lint/ui-tests green. NOT merged —
+waiting for AHMAD's lead routes on develop; a repo monitor wakes my session
+the moment they land → rebase, run e2e, fix, merge, stack owner test steps.
+
+
 **Done:** (1) **F-01 ACCEPTED** — owner personally tested on the laptop
 (org create/edit + store create/edit, "all worked"); board updated; owner
 account seeded on the laptop (hassan-test@1dealer.ca / Test-Dealpilot-2026!).
