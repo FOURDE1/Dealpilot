@@ -234,6 +234,33 @@ session; layout+routing on @dealpilot/ui tokens, auth screens against the A-05
 Better Auth contract. 2) H-04 (i18n scaffold) parallel-safe. 3) H-05 primitives
 (adds @base-ui/react after cooldown re-check).
 
+**Addendum 4 (2026-07-24, overnight): F-01 HUSSEIN half DONE (3cfd4e3) —
+slice is AWAITING-OWNER-TEST.** Admin screens on the shell: org list/create/
+detail+edit, store create/edit; ui gained Input/Label/Select primitives
+(D-024 semantics); i18n `orgs` namespace incl. LOCALIZED status/plan
+vocabularies + per-field validation messages. Data plane: ts-rest initClient
+types COLLAPSE under zod 4 (latest @ts-rest/core 3.52 predates it) →
+`apiRequest` drives method/path from apiV1 route VALUES and parses every
+response with @dealpilot/schemas; 10s timeout + react-query AbortSignal
+threading; deterministic 4xx never retried. Review: 33-agent adversarial
+workflow — ALL confirmed findings fixed (changed-fields-only PATCH so a
+failed load can't silently reset store fields; 422 envelope details →
+localized per-field errors with focused alerts; store-edit load-error guard;
+init-once so refetch can't clobber typing; slugify cap-safe; select keeps a
+visible indicator; non-ApiError rethrown never masked). **Evidence: e2e 8/8**
+(full journey + slug-409 + code-409 + auth + i18n) against live API+PG;
+typecheck 0, lint 0, parity OK, ui 80 tests. Accepted limit (recorded): lists
+cap at limit=100 with no pagination UI yet.
+**⚠️ For AHMAD — HO-04 (SECURITY footgun, live-verified):** `.env.example`'s
+DATABASE_URL is the compose SUPERUSER; an API run with it BYPASSES ALL RLS
+(fresh user listed another user's org+stores). On `dealpilot_app` (your
+env.ts default) isolation is fine (re-probed: empty). Fix the example/split
+URLs or refuse superuser at API boot. Also FYI: ts-rest client unusable
+until a zod-4-compatible release — consider pinning that expectation in A-09
+or a CR when upgrading.
+**Morning stack for the OWNER is in the chat summary** (test F-01 on the
+laptop at localhost:5173; steps also in the F-01 row).
+
 **Addendum 3 (2026-07-24): H-04 DONE (b26f490).** FR-first i18n scaffold:
 `@dealpilot/i18n` (typed locales w/ recursive `satisfies` mirror, ICU,
 `createI18n` factory with `strictIcu` for dev/tests, `checkParity` covering
