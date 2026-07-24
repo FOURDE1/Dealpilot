@@ -58,7 +58,7 @@ export class FoundationStack extends cdk.Stack {
           ],
         },
       }),
-      description: 'CI deploys for FOURDE1/Dealpilot via OIDC — no long-lived keys',
+      description: 'CI deploys for FOURDE1/Dealpilot via OIDC (no long-lived keys)',
       maxSessionDuration: cdk.Duration.hours(1),
     });
     deployRole.addToPolicy(
