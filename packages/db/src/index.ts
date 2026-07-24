@@ -28,10 +28,16 @@ export function createPool(config: DbConfig): pg.Pool {
   });
 }
 
-/** Connection string resolution order: explicit arg > env > local-dev default. */
+/**
+ * Connection string resolution: explicit arg > DB_ADMIN_URL > DATABASE_URL >
+ * local-dev owner default. DB_ADMIN_URL exists so migrations/db:reset keep
+ * owner privileges while DATABASE_URL points the API at the RLS-bound
+ * dealpilot_app role (HO-04 — a superuser API bypasses all RLS).
+ */
 export function resolveDatabaseUrl(explicit?: string): string {
   return (
     explicit ??
+    process.env['DB_ADMIN_URL'] ??
     process.env['DATABASE_URL'] ??
     'postgresql://dealpilot:dealpilot@localhost:5434/dealpilot'
   );

@@ -126,6 +126,15 @@ describe('api skeleton', () => {
     expect(meAfter.statusCode).toBe(401);
   });
 
+  it('HO-04: the API refuses to run as a database SUPERUSER outside tests', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Superusers ignore even FORCED RLS — booting the API on the compose
+    // owner URL silently disables tenant isolation (live-verified by HUSSEIN).
+    await expect(buildApp({ DATABASE_URL: ADMIN_URL, NODE_ENV: 'development' })).rejects.toThrow(
+      /superuser/i,
+    );
+  });
+
   it('session cookie carries the hardened 7-day TTL (A-05.1)', async (ctx) => {
     if (!dbUp || !app) return ctx.skip();
     const res = await app.inject({

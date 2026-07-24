@@ -58,6 +58,21 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   const pool = createPool({ connectionString: env.DATABASE_URL });
   const auth: Auth = createAuth(env, pool);
 
+  // HO-04: a superuser connection silently BYPASSES all RLS (FORCED included).
+  // Refuse to boot on one outside tests — tenant isolation must never depend
+  // on which URL someone pasted into .env.
+  if (env.NODE_ENV !== 'test') {
+    const su = await pool.query<{ rolsuper: boolean }>(
+      'SELECT rolsuper FROM pg_roles WHERE rolname = current_user',
+    ).catch(() => null);
+    if (su?.rows[0]?.rolsuper) {
+      await pool.end();
+      throw new Error(
+        'Refusing to start: DATABASE_URL connects as a Postgres SUPERUSER, which bypasses row-level security. Use the dealpilot_app role (HO-04).',
+      );
+    }
+  }
+
   const app = Fastify({
     logger: {
       level: env.NODE_ENV === 'test' ? 'warn' : 'info',
