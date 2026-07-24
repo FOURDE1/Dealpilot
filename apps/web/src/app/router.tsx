@@ -24,6 +24,15 @@ const OrganizationDetailPage = lazy(() =>
 const StoreFormPage = lazy(() =>
   import('../features/organizations/store-form-page.js').then((m) => ({ default: m.StoreFormPage })),
 );
+const LeadsPage = lazy(() =>
+  import('../features/leads/leads-page.js').then((m) => ({ default: m.LeadsPage })),
+);
+const LeadNewPage = lazy(() =>
+  import('../features/leads/lead-new-page.js').then((m) => ({ default: m.LeadNewPage })),
+);
+const LeadDetailPage = lazy(() =>
+  import('../features/leads/lead-detail-page.js').then((m) => ({ default: m.LeadDetailPage })),
+);
 
 function RouteSkeleton() {
   return (
@@ -59,6 +68,9 @@ export const router = createBrowserRouter([
       { path: 'organizations/:orgId', element: lazyPage(<OrganizationDetailPage />) },
       { path: 'organizations/:orgId/stores/new', element: lazyPage(<StoreFormPage />) },
       { path: 'organizations/:orgId/stores/:storeId', element: lazyPage(<StoreFormPage />) },
+      { path: 'leads', element: lazyPage(<LeadsPage />) },
+      { path: 'leads/new', element: lazyPage(<LeadNewPage />) },
+      { path: 'leads/:leadId', element: lazyPage(<LeadDetailPage />) },
       // Placeholder module routes land with their feature slices.
       { path: '*', element: <Navigate to="/" replace /> },
     ],

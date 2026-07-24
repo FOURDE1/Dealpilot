@@ -50,9 +50,11 @@ function useField() {
   };
 }
 
-export function FormField<TValues extends FieldValues, TName extends FieldPath<TValues>>(
-  props: ControllerProps<TValues, TName>,
-) {
+export function FormField<
+  TValues extends FieldValues,
+  TName extends FieldPath<TValues>,
+  TTransformedValues = TValues,
+>(props: ControllerProps<TValues, TName, TTransformedValues>) {
   const id = useId();
   return (
     <FieldContext.Provider value={{ name: props.name, id }}>

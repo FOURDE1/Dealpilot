@@ -1,0 +1,109 @@
+import { useState } from 'react';
+import { Link, useParams } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import { Label, Select } from '@dealpilot/ui';
+import { LEAD_STATUSES, type LeadStatusT } from '@dealpilot/schemas';
+import { ApiError } from '../../shared/api/client.js';
+import { useLead, useUpdateLead } from './api.js';
+import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
+
+/** The F-02 acceptance action: change a lead's status from its record page. */
+export function LeadDetailPage() {
+  const { t, i18n } = useTranslation('leads');
+  const { leadId = '' } = useParams();
+  const lead = useLead(leadId);
+  const updateLead = useUpdateLead(leadId);
+  const [feedback, setFeedback] = useState<'saved' | 'error' | null>(null);
+
+  async function handleStatusChange(status: LeadStatusT) {
+    setFeedback(null);
+    try {
+      await updateLead.mutateAsync({ status });
+      setFeedback('saved');
+    } catch (err) {
+      setFeedback('error');
+      if (!(err instanceof ApiError)) throw err;
+    }
+  }
+
+  if (lead.isPending) {
+    return (
+      <p className="text-sm text-muted-foreground" aria-busy="true">
+        {t('loading')}
+      </p>
+    );
+  }
+  if (lead.isError) {
+    return (
+      <p role="alert" className="text-sm text-danger-text">
+        {t('loadError')}
+      </p>
+    );
+  }
+
+  const created = new Intl.DateTimeFormat(i18n.language, {
+    dateStyle: 'long',
+    timeStyle: 'short',
+  }).format(new Date(lead.data.created_at));
+
+  return (
+    <div className="space-y-6">
+      <Link to="/leads" className="text-sm font-medium text-primary hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center">
+        ← {t('back')}
+      </Link>
+      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h1 className="text-2xl font-semibold">{leadDisplayName(lead.data) ?? t('noName')}</h1>
+        <span className="font-mono text-sm text-muted-foreground">{lead.data.phone}</span>
+      </header>
+
+      <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="rounded-lg border border-border bg-card p-4">
+          <dl className="space-y-2 text-sm">
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">{t('sourceCol')}</dt>
+              <dd>{t(LEAD_SOURCE_KEYS[lead.data.source])}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">{t('email')}</dt>
+              <dd>{lead.data.email ?? '—'}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">{t('vehicleInterest')}</dt>
+              <dd>{lead.data.vehicle_interest ?? '—'}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-muted-foreground">{t('createdAt')}</dt>
+              <dd>{created}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+          <Label htmlFor="lead-status">{t('changeStatus')}</Label>
+          <Select
+            id="lead-status"
+            value={lead.data.status}
+            disabled={updateLead.isPending}
+            onChange={(e) => void handleStatusChange(e.target.value as LeadStatusT)}
+          >
+            {LEAD_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {t(LEAD_STATUS_KEYS[status])}
+              </option>
+            ))}
+          </Select>
+          {feedback === 'saved' ? (
+            <p role="status" className="text-sm font-medium text-success-text">
+              {t('saved')}
+            </p>
+          ) : null}
+          {feedback === 'error' ? (
+            <p role="alert" className="text-sm text-danger-text">
+              {t('genericError')}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
