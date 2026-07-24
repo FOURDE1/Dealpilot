@@ -52,6 +52,7 @@
 | ID | Task | Owner | Status | Depends on | Notes |
 |---|---|---|---|---|---|
 | F-01 | Organization & store administration: sign in → create/list/edit organizations + their stores. AHMAD half: `/api/v1` org+store routes (A-03 contract) on the RLS db. HUSSEIN half: admin screens on H-02 tokens + H-03 shell. | BOTH | ACCEPTED(2026-07-24) | A-05, H-02 | **OWNER CONFIRMED 2026-07-24** ("yes… now go") after personally testing the auth shell on the desktop (sign-up→dashboard→sign-out all working). AHMAD half claimed 2026-07-24; HUSSEIN half = admin screens, claim when you're back (contract already on develop since A-03). OWNER TESTED AND ACCEPTED 2026-07-24 on the laptop stack: signed in, created an organization, created a store inside it, edited both — "all worked" (owner's words in chat). First feature slice complete end-to-end. Also desktop-verified by AHMAD the same day (headless-browser journey: org+store create/edit, zero console errors). |
+| F-02 | Leads: create a lead → see it in the lead list → change its status. AHMAD half: `/api/v1` lead routes (A-03 contract: 10 statuses, 19 sources) on the RLS db. HUSSEIN half: lead list/detail/create screens + status control on H-05 primitives. | BOTH | BACKLOG | F-01, A-05 | CONFIRMED by owner in chat 2026-07-24 morning ("continue now what needed") after the F-01 proposal named this slice. AHMAD: claim your half when back (contract published since A-03). HUSSEIN builds H-05 primitives first — the lead list/table/forms sit on them. |
 
 ### Backlog (next sprint candidates — do not claim in Sprint 1)
 
@@ -61,7 +62,7 @@
 | A-08 | GitHub adoption + Dealpilot rebrand + reference import | AHMAD | DONE(2026-07-24, see merge) | A-01 | origin = github.com/FOURDE1/Dealpilot; @dealpilot/* packages; plan+legacy in reference/; new-machine setup in README |
 | A-09 | Doc sweep: propagate names + D-020 client answers through reference/docs/new plan docs | AHMAD | BACKLOG | A-08 | Low priority; plan docs currently say ReadyLoans (noted in README/§2.1). Scope-rename question RESOLVED by owner (D-027, 2026-07-24): KEEP `@dealpilot/*` internal scope; "1Dealer" is user-facing only |
 | A-07 | AWS IaC baseline + first deploy, minimal-footprint cost ramp | AHMAD | IN-PROGRESS(ahmad/infra-baseline) | A-01, A-02 | ROADMAP 0.7 (incl. staging RDS db.t4g.small Single-AZ, VPC-private — D-013); every apply needs owner approval |
-| H-05 | packages/ui core primitives (Button, Input, Form, Table, Dialog) on locked tokens | HUSSEIN | BACKLOG | H-02 | Feeds all Phase 1 module UIs |
+| H-05 | packages/ui core primitives (Button, Input, Form, Table, Dialog) on locked tokens | HUSSEIN | CLAIMED(HUSSEIN, 2026-07-24) | H-02 | Feeds all Phase 1 module UIs; Button/Input/Label/Select exist (H-02/F-01) — this adds Form (RHF+zod), DataTable, Dialog; F-02 lead screens build on these |
 
 ---
 
