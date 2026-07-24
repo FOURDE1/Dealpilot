@@ -28,6 +28,16 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-029: Email provider = Amazon SES, not Resend (2026-07-24) [AHMAD]
+
+**Status:** accepted (supersedes the plan's Resend choice in PROJECT.md/specs)
+**Context:** The plan specified Resend (legacy used it). Owner decision 2026-07-24: "i dont want to use resend, lets use ses on aws — better in limit and more stable". Owner provisioned an admin AWS profile ("Dealpilot", account 242626139373) for both agents.
+**Decision:** All transactional email (auth verification, invites, notifications, statements) goes through Amazon SES in ca-central-1, provisioned via the A-07 IaC baseline; domain identity for 1dealer.ca with DKIM; start in sandbox, request production access when the domain is verified. Keeps the whole stack inside the AWS/ca-central-1 residency envelope (D-002).
+**Alternatives considered:** Resend (plan default) — rejected by owner; third-party SMTP — no reason once SES is in-account.
+**Consequences:** No Resend account/key needed (owner stack shrinks). A-05.1's deferred requireEmailVerification lands after SES identity verification. Legacy Resend references in reference/ docs are historical (A-09 sweep note).
+**Decided by:** user
+
+
 ## D-028: F-01 backend tenancy model — user-scoped reads, self-serve bootstrap, platform-authority fields (2026-07-24) [AHMAD]
 
 **Status:** accepted
