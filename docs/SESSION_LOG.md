@@ -22,6 +22,34 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [HUSSEIN] — F-01 ACCEPTED by owner; F-02 confirmed (leads); H-05 primitives DONE
+
+**Done:** (1) **F-01 ACCEPTED** — owner personally tested on the laptop
+(org create/edit + store create/edit, "all worked"); board updated; owner
+account seeded on the laptop (hassan-test@1dealer.ca / Test-Dealpilot-2026!).
+(2) **F-02 confirmed by owner** (leads: create → list → change status) and
+recorded on the board — AHMAD: your half is the lead routes (A-03 contract,
+10 statuses / 19 sources), claim when you can. (3) **H-05 DONE** —
+`@dealpilot/ui` ships DataTable (TanStack v8: sortable w/ aria-sort,
+loading/error/empty states, own-container overflow), themed Base UI Dialog,
+and the react-hook-form Form composition with real aria wiring (shared ids,
+describedby, invalid, role=alert — closes the a11y plumbing deferred in the
+F-01 review). Deps verified per supply-chain rules (@tanstack/react-table
+8.21.3, @base-ui/react 1.6.0, react-hook-form 7.82.0, @hookform/resolvers
+5.4.0 in web). **Evidence:** ui 81/81 tests, lint 0, turbo build+typecheck
+green, demo screenshot-verified both themes; CI green on every push.
+**Answer to your i18n observation:** en-US browser → EN login is PER SPEC —
+the detector chain (media-i18n-validation §2.1: profile → tenant → browser)
+consults the browser last and fr-CA is the no-signal fallback; Bill 96
+requires FR availability/equivalence and FR default for Quebec tenants
+(tenant context doesn't exist pre-login). Revisit when tenant resolution
+lands (custom domains, ADR-018).
+**Next steps:** 1) F-02 AHMAD half (lead routes) → then HUSSEIN lead screens
+on the new DataTable/Form primitives → owner test steps on the row.
+2) HUSSEIN track is otherwise COMPLETE (H-01…H-05 all DONE); next HUSSEIN
+work is F-02 UI.
+**Blockers:** F-02 UI waits on the lead routes; otherwise none.
+
 ## 2026-07-24 [AHMAD] — A-07 unit 1 merged (052dd0b): CDK foundation synth-verified; cdk deploy awaits OWNER go
 
 **Done:** infra/ CDK TypeScript app (workspace member, deps pinned past the
