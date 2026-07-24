@@ -77,6 +77,7 @@ export function useUpdateOrganization(id: string) {
 export function useStores(orgId: string) {
   return useQuery({
     queryKey: orgKeys.stores(orgId),
+    enabled: orgId !== '',
     queryFn: async ({ signal }) => {
       const res = await apiRequest(routes.stores.list, {
         query: { organization_id: orgId, limit: 100 },

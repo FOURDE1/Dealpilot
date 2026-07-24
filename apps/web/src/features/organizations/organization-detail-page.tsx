@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router';
+import { BackLink } from '../../shared/ui/back-link.js';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Label, Select, buttonVariants } from '@dealpilot/ui';
 import type { Locale } from '@dealpilot/i18n';
@@ -56,9 +57,7 @@ export function OrganizationDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link to="/organizations" className="text-sm font-medium text-primary hover:underline">
-        ← {t('back')}
-      </Link>
+      <BackLink to={"/organizations"}>{t('back')}</BackLink>
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="text-2xl font-semibold">{org.data.name}</h1>
         <span className="font-mono text-sm text-muted-foreground">{org.data.slug}</span>

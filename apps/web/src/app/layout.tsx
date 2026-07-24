@@ -7,7 +7,7 @@ import { LanguageSwitcher } from '../shared/i18n/language-switcher.js';
 const NAV_ITEMS = [
   { to: '/', key: 'nav:dashboard', end: true },
   { to: '/organizations', key: 'nav:organizations' },
-  { to: '/prospects', key: 'nav:prospects' },
+  { to: '/leads', key: 'nav:prospects' },
   { to: '/pipeline', key: 'nav:pipeline' },
 ] as const;
 

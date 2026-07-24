@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router/dom';
 import { I18nextProvider } from 'react-i18next';
 import { queryClient } from './shared/api/queryClient.js';
 import { i18n } from './shared/i18n/index.js';
+import './shared/i18n/zod-errors.js';
 import { router } from './app/router.js';
 import './styles/app.css';
 

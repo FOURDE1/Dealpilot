@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
+import { BackLink } from '../../shared/ui/back-link.js';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Label, Select } from '@dealpilot/ui';
 import type { Locale } from '@dealpilot/i18n';
@@ -97,9 +98,7 @@ export function StoreFormPage() {
 
   return (
     <div className="mx-auto max-w-lg space-y-4">
-      <Link to={`/organizations/${orgId}`} className="text-sm font-medium text-primary hover:underline">
-        ← {t('back')}
-      </Link>
+      <BackLink to={`/organizations/${orgId}`}>{t('back')}</BackLink>
       <h1 className="text-2xl font-semibold">{isEdit ? t('editStore') : t('newStore')}</h1>
       <form
         onSubmit={(e) => void handleSubmit(e)}
