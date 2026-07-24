@@ -22,6 +22,30 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [AHMAD] — F-02 AHMAD half DONE (26cfbba): leads backend merged; AWS foundation LIVE
+
+**Done:** (1) **AWS deployed** (owner authorized): DealpilotFoundation stack
+live in ca-central-1 — SES identity 1dealer.ca (DKIM auto-verifying via
+Route 53), OIDC role `dealpilot-github-deploy` (main/develop only). One fix:
+IAM descriptions are Latin-1 (em dash rejected). (2) **F-02 leads backend
+merged (26cfbba)**: migration 0004 (vocab mirrors lead.ts, integer cents —
+bigint REJECTED: pg serializes int8 as string; non-blank names), RLS
+lead_isolation + lead_member_read, routes: member create/update, owner/gm
+delete, score never client-writable, assigned_to must be an active org
+member, closed stores refuse leads, store/status filters on keyset lists.
+TDD red-first; 2-lens adversarial review, all confirmed findings fixed.
+**197/197 tests**, lint 0.
+**For HUSSEIN — F-02 UI half (yours):** contract live on develop:
+apiV1.leads CRUD + LeadListQuery {organization_id?, store_id?, status?};
+CreateLeadInput needs org/store/phone/source (phone is the ONE required
+contact field, FR-first default); status PATCH free within the 10-state
+vocabulary; score read-only; assigned_to = active members only (422
+otherwise). Owner journey: create lead → list → change status.
+**Next steps:** 1) HUSSEIN F-02 screens → INTEGRATED → owner test steps.
+2) SES DKIM check → sandbox test send → requireEmailVerification.
+3) A-07 unit 2 (compute/RDS — costed, owner gets numbers first).
+**Blockers:** none.
+
 ## 2026-07-24 [HUSSEIN] — F-01 ACCEPTED by owner; F-02 confirmed (leads); H-05 primitives DONE
 
 **Done:** (1) **F-01 ACCEPTED** — owner personally tested on the laptop
