@@ -22,6 +22,26 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [AHMAD] — HO-04 fixed (3bdbb0f); D-029 SES; F-01 integrated + verified on desktop; A-07 claimed (AWS profile live)
+
+**Done:** (1) **HO-04 same-day fix (3bdbb0f):** API refuses superuser
+DATABASE_URL at boot (red-first test), .env.example split (app role vs
+DB_ADMIN_URL for migrations), db CLI prefers DB_ADMIN_URL. 184/184. (2)
+**D-029:** owner chose **Amazon SES over Resend** — PROJECT.md updated; NO
+Resend key needed (owner stack shrinks). (3) **AWS live:** owner provisioned
+admin profile `Dealpilot` (account 242626139373, IAM user "HUSSEIN", shared);
+sts verified. **A-07 claimed.** (4) **Integrated F-01 verified on the
+desktop** via headless browser: sign-in → Organizations → create org →
+create store KIA-ML/QC → listed, zero console errors; owner test steps now
+in the F-01 row. Stack running latest builds; owner account re-seeded.
+**Observation for HUSSEIN (your zone, not filing an HO):** headless en-US
+browser gets EN default on /login — confirm the i18n detector still defaults
+fr-CA where Bill 96 requires.
+**Next steps:** 1) OWNER tests F-01 (steps in row) → ACCEPT unlocks F-02.
+2) AHMAD: A-07 IaC baseline + SES identity (sandbox) in ca-central-1.
+3) After SES verified: requireEmailVerification lands.
+**Blockers:** F-01 acceptance = owner; else none.
+
 ## 2026-07-24 [AHMAD] — overnight continuation: CI all green; A-06 money math DONE (5a47cfd); AHMAD track exhausted
 
 **Done:** (1) **CI verified**: every develop merge tonight is GREEN on GitHub
