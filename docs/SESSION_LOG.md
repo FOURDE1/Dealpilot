@@ -22,6 +22,23 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-24 [AHMAD] — A-07 unit 1 merged (052dd0b): CDK foundation synth-verified; cdk deploy awaits OWNER go
+
+**Done:** infra/ CDK TypeScript app (workspace member, deps pinned past the
+48h cooldown): SES domain identity for 1dealer.ca (Easy DKIM auto-written to
+Route 53 + MAIL FROM mx/spf), GitHub OIDC provider + `dealpilot-github-deploy`
+role locked to FOURDE1/Dealpilot main/develop, describe-only perms. Account
+BOOTSTRAPPED (CDKToolkit, ca-central-1). `cdk synth` verified against the
+live account. Gate: 184/184, lint 0 (cdk.out ignored), build+typecheck ok.
+**BLOCKED on one command:** the permission layer (correctly) held back
+`cdk deploy` — it creates IAM credential infrastructure. OWNER: either reply
+"deploy approved" (AHMAD reruns it) or run:
+`cd main-project/infra && set AWS_PROFILE=Dealpilot && pnpm exec cdk deploy --all`
+**Board:** F-02 (lead intake → lead list) PROPOSED — owner confirm to start.
+**Next steps:** 1) deploy on owner go → verify DKIM → sandbox test send.
+2) F-02 on owner confirm. 3) A-07 unit 2 (VPC/ECS/RDS — costed, flagged).
+**Blockers:** cdk deploy = owner approval; else none.
+
 ## 2026-07-24 [AHMAD] — HO-04 fixed (3bdbb0f); D-029 SES; F-01 integrated + verified on desktop; A-07 claimed (AWS profile live)
 
 **Done:** (1) **HO-04 same-day fix (3bdbb0f):** API refuses superuser
