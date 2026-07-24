@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Email, IsoDateTime, Locale, NonNegativeCents, PhoneE164, Uuid } from './common.js';
+import { CursorQuery, Email, IsoDateTime, Locale, NonNegativeCents, PhoneE164, Uuid } from './common.js';
 
 /**
  * The 10-state lead status machine — exact vocabulary from
@@ -49,7 +49,7 @@ export const LeadSource = z.enum(LEAD_SOURCES);
 /** Ad-spend attribution bucket (leads.md §2.1). */
 export const SourcePlatform = z.enum(['google', 'meta', 'organic', 'oem', 'other']);
 
-const nameField = z.string().trim().max(100);
+const nameField = z.string().trim().min(1).max(100);
 
 export const Lead = z.object({
   id: Uuid,
@@ -69,7 +69,7 @@ export const Lead = z.object({
   /** Rules-engine-owned, clamped 0–100 (leads.md §6). Never client-writable. */
   score: z.number().int().min(0).max(100).nullable(),
   budget_cents: NonNegativeCents.nullable(),
-  vehicle_interest: z.string().trim().max(200).nullable(),
+  vehicle_interest: z.string().trim().min(1).max(200).nullable(),
   created_at: IsoDateTime,
   updated_at: IsoDateTime,
   deleted_at: IsoDateTime.nullable(),
@@ -77,7 +77,9 @@ export const Lead = z.object({
 
 /**
  * Leads are always born `new` (leads.md §4) — status is not accepted on create.
- * `score` and `assigned_to` are engine-owned, not client inputs.
+ * `score` is engine-owned (never a client input). `assigned_to` is manually
+ * settable via UPDATE to an active org member; the auto-assignment engine
+ * (AI slice) will drive it later.
  */
 export const CreateLeadInput = z.strictObject({
   organization_id: Uuid,
@@ -90,7 +92,7 @@ export const CreateLeadInput = z.strictObject({
   source_platform: SourcePlatform.optional(),
   preferred_language: Locale.default('fr-CA'),
   budget_cents: NonNegativeCents.optional(),
-  vehicle_interest: z.string().trim().max(200).optional(),
+  vehicle_interest: z.string().trim().min(1).max(200).optional(),
 });
 
 export const UpdateLeadInput = z.strictObject({
@@ -105,7 +107,15 @@ export const UpdateLeadInput = z.strictObject({
   preferred_language: Locale.optional(),
   assigned_to: Uuid.nullable().optional(),
   budget_cents: NonNegativeCents.nullable().optional(),
-  vehicle_interest: z.string().trim().max(200).nullable().optional(),
+  vehicle_interest: z.string().trim().min(1).max(200).nullable().optional(),
+});
+
+/** Org-scoped list with optional store/status filters (F-02); the
+ * organization_id is a verified SELECTOR, never an authority claim. */
+export const LeadListQuery = CursorQuery.extend({
+  organization_id: Uuid.optional(),
+  store_id: Uuid.optional(),
+  status: LeadStatus.optional(),
 });
 
 export type LeadT = z.infer<typeof Lead>;

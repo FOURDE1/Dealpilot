@@ -12,6 +12,7 @@ import {
   Membership,
   Organization,
   Store,
+  LeadListQuery,
   StoreListQuery,
   UpdateLeadInput,
   UpdateMembershipInput,
@@ -114,5 +115,5 @@ export const apiV1 = c.router({
   stores: crudRouter('stores', Store, CreateStoreInput, UpdateStoreInput, StoreListQuery),
   users: crudRouter('users', User, CreateUserInput, UpdateUserInput),
   memberships: crudRouter('memberships', Membership, CreateMembershipInput, UpdateMembershipInput),
-  leads: crudRouter('leads', Lead, CreateLeadInput, UpdateLeadInput),
+  leads: crudRouter('leads', Lead, CreateLeadInput, UpdateLeadInput, LeadListQuery),
 });

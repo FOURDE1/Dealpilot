@@ -28,17 +28,17 @@ import { AppError, forbidden, notFound, parseOrThrow } from './errors.js';
  *   `owner` membership commit atomically inside withTenant(newOrgId).
  */
 
-const STORE_WRITE_ROLES = ['owner', 'gm'] as const;
+export const STORE_WRITE_ROLES = ['owner', 'gm'] as const;
 
 // -- helpers ----------------------------------------------------------------
 
 /** Session user (the deny-by-default gate guarantees presence on these routes). */
-function sessionUser(request: FastifyRequest): { id: string; email: string; name: string } {
+export function sessionUser(request: FastifyRequest): { id: string; email: string; name: string } {
   const { user } = request.session!;
   return { id: user.id, email: user.email, name: user.name };
 }
 
-function idParam(request: FastifyRequest): string {
+export function idParam(request: FastifyRequest): string {
   const parsed = Uuid.safeParse((request.params as { id?: string }).id);
   if (!parsed.success) throw new AppError(422, 'validation_failed', 'Invalid id');
   return parsed.data;
@@ -64,7 +64,7 @@ async function rolesIn(client: PoolClient, userId: string): Promise<string[]> {
  * soft-deleted organization → 404 (never leak). A deleted org is fully locked
  * down — no reads or writes through any tenant path (review 2026-07-24).
  */
-async function requireMember(client: PoolClient, userId: string, writeRoles?: readonly string[]): Promise<string[]> {
+export async function requireMember(client: PoolClient, userId: string, writeRoles?: readonly string[]): Promise<string[]> {
   const roles = await rolesIn(client, userId);
   if (roles.length === 0) throw notFound();
   const alive = await client.query(`SELECT 1 FROM organizations WHERE deleted_at IS NULL`);
@@ -81,7 +81,7 @@ const CONSTRAINT_PATHS: Record<string, string> = {
 };
 
 /** Postgres unique_violation → canonical 409. */
-function conflictFrom(err: unknown): AppError | null {
+export function conflictFrom(err: unknown): AppError | null {
   const e = err as { code?: string; constraint?: string };
   if (e?.code !== '23505') return null;
   const path = e.constraint ? CONSTRAINT_PATHS[e.constraint] : undefined;
@@ -124,7 +124,7 @@ interface PageArgs {
  * before ORDER BY; `params` are its bind values). Fetches limit+1 to compute
  * next_cursor without a count.
  */
-async function keysetPage<Row extends { id: string }>(
+export async function keysetPage<Row extends { id: string }>(
   client: PoolClient,
   baseSql: string,
   params: unknown[],
@@ -156,7 +156,7 @@ async function keysetPage<Row extends { id: string }>(
 }
 
 /** The caller's active org ids, live orgs only (self-read policies scope this). */
-async function callerOrgIds(client: PoolClient): Promise<string[]> {
+export async function callerOrgIds(client: PoolClient): Promise<string[]> {
   const r = await client.query<{ organization_id: string }>(
     `SELECT DISTINCT m.organization_id FROM memberships m
      JOIN organizations o ON o.id = m.organization_id AND o.deleted_at IS NULL

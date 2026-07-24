@@ -6,6 +6,7 @@ import { createAuth, type Auth } from './auth.js';
 import { loadEnv, type Env } from './env.js';
 import { AppError, envelope } from './errors.js';
 import { registerF01Routes } from './f01-routes.js';
+import { registerF02Routes } from './f02-leads-routes.js';
 
 /**
  * Dealpilot API (A-05): Fastify 5 skeleton.
@@ -172,6 +173,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   });
 
   registerF01Routes(app, pool);
+  registerF02Routes(app, pool);
 
   app.addHook('onClose', async () => {
     await pool.end();
