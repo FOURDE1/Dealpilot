@@ -64,7 +64,7 @@
 | A-08 | GitHub adoption + Dealpilot rebrand + reference import | AHMAD | DONE(2026-07-24, see merge) | A-01 | origin = github.com/FOURDE1/Dealpilot; @dealpilot/* packages; plan+legacy in reference/; new-machine setup in README |
 | A-09 | Doc sweep: propagate names + D-020 client answers through reference/docs/new plan docs | AHMAD | BACKLOG | A-08 | Low priority; plan docs currently say ReadyLoans (noted in README/§2.1). Scope-rename question RESOLVED by owner (D-027, 2026-07-24): KEEP `@dealpilot/*` internal scope; "1Dealer" is user-facing only |
 | A-07 | AWS IaC baseline + first deploy, minimal-footprint cost ramp | AHMAD | IN-PROGRESS(unit 1 merged 052dd0b; deploy awaits owner go) | A-01, A-02 | ROADMAP 0.7 (incl. staging RDS db.t4g.small Single-AZ, VPC-private — D-013); every apply needs owner approval |
-| H-05 | packages/ui core primitives (Button, Input, Form, Table, Dialog) on locked tokens | HUSSEIN | CLAIMED(HUSSEIN, 2026-07-24) | H-02 | Feeds all Phase 1 module UIs; Button/Input/Label/Select exist (H-02/F-01) — this adds Form (RHF+zod), DataTable, Dialog; F-02 lead screens build on these |
+| H-05 | packages/ui core primitives (Button, Input, Form, Table, Dialog) on locked tokens | HUSSEIN | DONE(2026-07-24, 9f4aaf5) | H-02 | DataTable (TanStack v8, sortable, state handling), themed Base UI Dialog, RHF Form composition with full aria wiring; 81 ui tests; demo both themes. F-02 lead screens build on these |
 
 ---
 
