@@ -22,6 +22,33 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [AHMAD] — F-03 ACCEPTED by owner; session close-out (3 slices shipped, CI green, ~$0/mo)
+
+**Owner tested F-03 and accepted** ("i did tested it and it worked") — the
+intake webhook slice is complete end to end: owner/gm creates a per-store key
+(secret + URL shown once) → an external system posts a SIGNED lead → it
+appears in the lead list with source attribution. Board row already carried
+ACCEPTED (HUSSEIN, af84cfc); duplicate proposal row is SUPERSEDED, kept per
+the no-delete rule.
+**State at close:** 3 feature slices ACCEPTED (F-01 org+store admin, F-02
+leads, F-03 intake webhook). Platform: A-01..A-06 + A-10 + A-11 done, A-07
+unit 1 deployed (SES verified, OIDC role), A-05.1 complete. Tree **212/212**,
+lint 0, i18n parity OK; **develop CI GREEN** (882ccdf + 81da1d5 success —
+the red streak I caused at bf5e2ab is fully resolved, root cause was missing
+Node globals for scripts/*.mjs, fixed in config not suppressed).
+AWS spend stays ~$0/mo per D-030.
+**Open for the owner (nothing blocking):** (1) **F-04 pick** — HUSSEIN
+proposed lead ASSIGNMENT to salespeople (needs an AHMAD member-list/invite
+route first); alternative is more intake providers (Meta/ADF-email
+signatures) to widen the automation. (2) SES production access when real
+customer mail is needed (owner-visible AWS request; sandbox reaches only
+verified addresses/simulator today). (3) A-07 unit 2 (staging, ~$85-125/mo)
+whenever a remote environment is actually wanted.
+**Next steps:** 1) On the F-04 pick: AHMAD builds the member/invite routes,
+HUSSEIN the assignment UI. 2) Otherwise AHMAD fill-in: intake provider
+signatures (Meta) or the A-09 doc sweep.
+**Blockers:** none.
+
 ## 2026-07-25 [AHMAD] — A-11 email DONE (882ccdf): real SES send proven; D-030 no paid infra; RED CI found + fixed
 
 **Done:** (1) **D-030** (owner: "use whatever recommended and no need to pay
