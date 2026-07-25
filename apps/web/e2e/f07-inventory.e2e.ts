@@ -43,6 +43,15 @@ test('full F-07 journey: stock a car → desk it → golden gross → sold', asy
   await expect(page.getByRole('cell', { name: '2023 Kia Sportage' })).toBeVisible();
   await expect(page.getByText(/27\s?650,00/)).toBeVisible(); // derived total cost
 
+  // Same VIN, different stock number → the error names the VIN (CR-02).
+  await page.getByLabel('N° de stock').fill(`K${(stamp % 100000) + 1}`);
+  await page.getByLabel('Année').fill('2023');
+  await page.getByLabel('Marque').fill('Kia');
+  await page.getByLabel('Modèle').fill('Sportage');
+  await page.getByLabel('NIV').fill('KNDPMCAC5P7000001');
+  await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await expect(page.getByText('Ce NIV est déjà dans l’inventaire.')).toBeVisible();
+
   // Desk it from a lead: picking the car prefills price (32 900) and cost (27 650).
   await page.goto('/leads/new');
   await page.getByLabel('Succursale').selectOption({ label: 'Succursale F07' });
