@@ -19,6 +19,13 @@ export interface EventInput {
   entityType: ActivityEntityTypeT;
   entityId: string;
   action: ActivityActionT;
+  /**
+   * The thing this happened UNDER, when the entity is a child: a checklist item
+   * belongs to a deal. Lets one query answer "everything that happened to this
+   * deal" without the caller knowing which child tables exist (CR-04).
+   */
+  parentEntityType?: ActivityEntityTypeT;
+  parentEntityId?: string;
   /** {"field": {"from": x, "to": y}} — what changed, not the whole row. */
   changes?: Record<string, unknown>;
   reason?: string | null;
@@ -27,8 +34,9 @@ export interface EventInput {
 export async function recordEvent(client: PoolClient, e: EventInput): Promise<void> {
   await client.query(
     `INSERT INTO activity_events
-       (organization_id, store_id, actor_user_id, entity_type, entity_id, action, changes, reason)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+       (organization_id, store_id, actor_user_id, entity_type, entity_id, action,
+        changes, reason, parent_entity_type, parent_entity_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
     [
       e.organizationId,
       e.storeId ?? null,
@@ -38,6 +46,8 @@ export async function recordEvent(client: PoolClient, e: EventInput): Promise<vo
       e.action,
       JSON.stringify(e.changes ?? {}),
       e.reason ?? null,
+      e.parentEntityType ?? null,
+      e.parentEntityId ?? null,
     ],
   );
 }

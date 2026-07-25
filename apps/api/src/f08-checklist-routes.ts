@@ -138,6 +138,10 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
         actorUserId: user.id,
         entityType: 'checklist_item' as const,
         entityId: String(r.rows[0]!['id']),
+        // CR-04: so the deal's timeline can find these without the client
+        // knowing that checklist items are a separate entity at all.
+        parentEntityType: 'deal' as const,
+        parentEntityId: dealId,
       };
       if (completedChanges) {
         await recordEvent(c, {
