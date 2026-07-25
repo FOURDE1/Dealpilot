@@ -127,6 +127,7 @@ export const frCA = {
     add: 'Ajouter',
     adding: 'Ajout…',
     invalidEmail: 'Courriel invalide.',
+    alreadyMember: 'Cette personne fait déjà partie de l’équipe — modifiez ses rôles depuis la liste.',
     emailInUse: 'Un compte existe déjà avec ce courriel.',
     empty: 'Aucun membre — ajoutez votre premier collègue.',
     showRemoved: 'Afficher les membres retirés',

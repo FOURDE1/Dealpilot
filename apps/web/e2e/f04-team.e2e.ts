@@ -52,11 +52,11 @@ test('full F-04 journey: team member → assignment → my-leads filter → revo
   await page.getByLabel('Courriel').fill('marc@groupehassan'); // no TLD — browser passes it, server 422s
   await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
   await expect(page.getByText('Courriel invalide.')).toBeVisible();
-  // Re-adding a same-org email is NOT an error anymore — it re-applies the
-  // given roles to the existing membership (HO-06), never a second row.
+  // Re-adding an ACTIVE member is refused with a pointer to the roles editor
+  // (HO-09 — the add form must never rewrite an active membership).
   await page.getByLabel('Courriel').fill(`marc-${stamp}@1dealer.test`);
   await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
-  await expect(page.getByText('Cette personne était déjà dans l’organisation')).toBeVisible();
+  await expect(page.getByText('fait déjà partie de l’équipe')).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toHaveCount(1);
 
   // Assign the lead to Marc.
@@ -115,4 +115,14 @@ test('full F-04 journey: team member → assignment → my-leads filter → revo
   await page.getByRole('button', { name: 'Réintégrer — Marc Vendeur' }).click();
   await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeVisible();
   await expect(page.getByText('Aucun membre retiré.')).toBeVisible();
+
+  // Adding a REVOKED colleague's email still revives them, with a clear notice.
+  await page.getByRole('button', { name: 'Retirer — Marc Vendeur' }).click();
+  await page.getByRole('button', { name: 'Oui, retirer' }).click();
+  await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeHidden();
+  await page.getByLabel('Nom', { exact: true }).fill('Marc Vendeur');
+  await page.getByLabel('Courriel').fill(`marc-${stamp}@1dealer.test`);
+  await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await expect(page.getByText('Cette personne était déjà dans l’organisation')).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeVisible();
 });

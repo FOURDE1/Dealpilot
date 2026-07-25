@@ -126,7 +126,9 @@ export function TeamPage() {
       if (!(err instanceof ApiError)) throw err;
       setError(
         err.status === 409
-          ? t('emailInUse')
+          ? err.code === 'already_member'
+            ? t('alreadyMember')
+            : t('emailInUse')
           : err.status === 422 && err.fieldPath === 'email'
             ? t('invalidEmail')
             : err.status === 403
@@ -328,7 +330,11 @@ export function TeamPage() {
                     onClick={() => {
                       setRemovedError(null);
                       updateMember.mutateAsync({ id: m.id, body: { status: 'active' } }).catch((err: unknown) => {
-                        setRemovedError(t('genericError'));
+                        setRemovedError(
+                          err instanceof ApiError && err.status === 403
+                            ? t('roleNotGrantable')
+                            : t('genericError'),
+                        );
                         if (!(err instanceof ApiError)) throw err;
                       });
                     }}

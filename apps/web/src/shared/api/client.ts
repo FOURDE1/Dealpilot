@@ -26,6 +26,7 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly fieldPath?: string,
+    readonly code?: string,
   ) {
     super(`API ${status}`);
   }
@@ -80,7 +81,8 @@ export async function apiRequest(
  */
 export function failFromResponse(status: number, body: unknown): never {
   const parsed = ErrorEnvelope.safeParse(body);
-  throw new ApiError(status, parsed.success ? parsed.data.error.details?.[0]?.path : undefined);
+  const detail = parsed.success ? parsed.data.error.details?.[0] : undefined;
+  throw new ApiError(status, detail?.path, detail?.code);
 }
 
 /** Contract routes (method/path values) — the source of truth for every call. */
