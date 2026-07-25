@@ -52,11 +52,21 @@ was recorded for this deal", **not** "0 of 0 complete" and not an error. Any dea
 created from now on always has its ten items.
 
 **The kanban needs a new error path.** Moving a card to **Delivered or Complete** can
-now fail with **422 `checklist_incomplete`**. `error.details[0].message` is a
-comma-separated list of the outstanding codes; `details[0].code` is `hard_block` when
-the safety inspection is what's missing. Show which items are missing — "Cannot
-deliver" alone will just make people think it's broken. This applies to `complete`
-too, not only `delivered`.
+now fail with 422. Two codes:
+
+- `checklist_incomplete` — items are outstanding, all of them waivable by a manager.
+- `checklist_hard_blocked` — the safety inspection is among them, so no one can waive
+  past it. Worth wording differently in the UI: the first is "finish these", the
+  second is "this cannot be skipped".
+
+`error.details` carries **one entry per outstanding item**, and each `details[].code`
+is the checklist code itself (`insurance`, `safety`, …) — no string to split, and it
+matches the codes you already have from `GET /deals/:id/checklist`, so you can render
+each item's own `label_fr`/`label_en`. (`details[].message` is an English fallback;
+don't show it to users.) Show which items are missing — "Cannot deliver" alone will
+just make people think the app is broken.
+
+This applies to `complete` too, not only `delivered`.
 
 **An empty PATCH body is 422.** Don't send `{}` — send only fields that changed.
 

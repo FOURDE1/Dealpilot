@@ -132,7 +132,12 @@ describe('F-08 delivery checklist', () => {
       payload: { pipeline_stage: 'delivered' },
     });
     expect(res.statusCode).toBe(422);
-    expect(JSON.parse(res.body).error.code).toBe('checklist_incomplete');
+    const body = JSON.parse(res.body) as { error: { code: string; details: { code: string }[] } };
+    // Safety is outstanding, so this is the un-waivable flavour.
+    expect(body.error.code).toBe('checklist_hard_blocked');
+    // One detail per outstanding item, each naming the item — no string to split.
+    expect(body.error.details.map((d) => d.code)).toContain('safety');
+    expect(body.error.details).toHaveLength(10);
   });
 
   it('the safety inspection can never be waived — by anyone', async (ctx) => {
@@ -217,7 +222,7 @@ describe('F-08 delivery checklist', () => {
         payload: { pipeline_stage: 'delivered' },
       });
       expect(res.statusCode).toBe(422);
-      expect(JSON.parse(res.body).error.code).toBe('checklist_incomplete');
+      expect(JSON.parse(res.body).error.code).toBe('checklist_hard_blocked');
     });
 
     it('"complete" — the stage AFTER delivered — is gated too', async (ctx) => {
@@ -228,7 +233,7 @@ describe('F-08 delivery checklist', () => {
         payload: { pipeline_stage: 'complete' },
       });
       expect(res.statusCode).toBe(422);
-      expect(JSON.parse(res.body).error.code).toBe('checklist_incomplete');
+      expect(JSON.parse(res.body).error.code).toBe('checklist_hard_blocked');
     });
 
     it('a salesperson cannot sign off the safety inspection by ticking it', async (ctx) => {
@@ -298,6 +303,27 @@ describe('F-08 delivery checklist', () => {
       });
       expect(untick.statusCode).toBe(409);
       expect(JSON.parse(untick.body).error.code).toBe('deal_delivered');
+    });
+
+    it('with only a WAIVABLE item left, the error is soft, not hard-blocked', async (ctx) => {
+      if (!dbUp) return ctx.skip();
+      const id = await freshDeal();
+      const list = await app!.inject({ method: 'GET', url: `/api/v1/deals/${id}/checklist`, headers: { cookie: cookieOwner } });
+      const outstanding = ChecklistResponse.parse(JSON.parse(list.body)).readiness.outstanding;
+      for (const code of outstanding.filter((c) => c !== 'void_cheque')) {
+        await app!.inject({
+          method: 'PATCH', url: `/api/v1/deals/${id}/checklist/${code}`, headers: { cookie: cookieOwner },
+          payload: { completed: true },
+        });
+      }
+      const res = await app!.inject({
+        method: 'PATCH', url: `/api/v1/deals/${id}`, headers: { cookie: cookieOwner },
+        payload: { pipeline_stage: 'delivered' },
+      });
+      expect(res.statusCode).toBe(422);
+      const body = JSON.parse(res.body) as { error: { code: string; details: { code: string }[] } };
+      expect(body.error.code).toBe('checklist_incomplete');
+      expect(body.error.details.map((d) => d.code)).toEqual(['void_cheque']);
     });
 
     it('walking a delivered deal BACK a stage does not unlock its evidence', async (ctx) => {

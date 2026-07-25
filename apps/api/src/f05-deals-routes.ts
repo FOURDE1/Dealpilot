@@ -289,13 +289,22 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
         await ensureDealItems(c, orgId, dealId);
         const readiness = await checklistReadiness(c, dealId);
         if (!readiness.ready_for_delivery) {
-          throw new AppError(422, 'checklist_incomplete', 'The delivery checklist is not complete', [
-            {
-              path: 'pipeline_stage',
-              code: readiness.hard_blocked ? 'hard_block' : 'checklist_incomplete',
-              message: readiness.outstanding.join(', '),
-            },
-          ]);
+          // ONE detail per outstanding item, each carrying the item's own code.
+          // A single joined string would force the client to split on a comma
+          // before it could translate anything — the A-10 lesson: the code is
+          // the vocabulary, the message is only a fallback.
+          throw new AppError(
+            422,
+            readiness.hard_blocked ? 'checklist_hard_blocked' : 'checklist_incomplete',
+            'The delivery checklist is not complete',
+            readiness.outstanding.length > 0
+              ? readiness.outstanding.map((code) => ({
+                  path: 'pipeline_stage',
+                  code,
+                  message: `Outstanding: ${code}`,
+                }))
+              : [{ path: 'pipeline_stage', code: 'checklist_missing', message: 'This deal has no checklist' }],
+          );
         }
       }
 
