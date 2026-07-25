@@ -22,6 +22,61 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [AHMAD] — F-08 delivery checklist backend: "delivered" is now earned, not typed
+
+**Done:** F-08 AHMAD half, the last slice of BATCH-02. Migration
+`packages/db/migrations/20260725000012_delivery-checklist.sql` (`checklist_templates`
+per store + `deal_checklist_items` per deal, RLS enabled+forced, tenant-scoped FK,
+seed for existing stores, backfill for deals in flight); `packages/schemas/src/checklist.ts`;
+`apps/api/src/checklist.ts` (domain helpers) + `apps/api/src/f08-checklist-routes.ts`
+(4 endpoints); the delivery gate in `apps/api/src/f05-deals-routes.ts`. Full gate green:
+25 build/typecheck/lint tasks, **305/305 tests**, i18n parity OK.
+
+The gate: a deal cannot enter `delivered` OR `complete` while a required item is
+outstanding. Nine items a manager may waive — always with a recorded reason, author
+and timestamp. The safety inspection is a hard block no role can waive, and no store
+can switch off. Once delivered, the checklist is frozen: it is the evidence.
+
+**Two adversarial review rounds found 17 defects in my own first cut.** The two that
+mattered: (1) the gate was a **no-op** unless someone had opened the checklist panel
+first — items were only ever created by the F-08 routes, so a deal nobody looked at
+delivered with a 200 and no safety inspection; the existing F-06 test proved it by
+passing. (2) `pipeline_stage: 'complete'` — the stage *after* delivered — walked
+straight around the gate, and is two clicks away in Hussein's shipped kanban.
+Also fixed: any member could tick `safety` (making "cannot be waived" mean "use the
+other field") or erase a manager's waiver; the snapshot was taken at first read
+rather than at deal creation, so template edits rewrote deals in flight; a TOCTOU
+between the readiness read and the stage write; two dead RLS policies that would
+have leaked checklists to any dual-context caller; GETs that wrote 20 rows.
+
+**Proof, not assertion:** every fix was mutation-tested — removing it turns a named
+test red — and RLS/constraints were probed live against Postgres (0 foreign rows
+visible or updatable under another tenant's scope; forged cross-tenant insert
+refused by policy; reasonless waiver refused by CHECK; org-mismatched item refused
+by the composite FK; backfill gives in-flight deals their items and leaves
+already-delivered deals as history).
+
+**In progress:** HUSSEIN half — the checklist panel on the deal. Contract is in
+`docs/HUSSEIN-F08-CONTRACT.md`.
+
+**Blocked / open questions:** one for the owner: **who may sign off the safety
+inspection?** I restricted it to owner/gm because ticking it is legally equivalent
+to waiving it, but in a real store the used-car manager or logistics usually records
+it. Listed in `docs/OWNER-DECISIONS-PENDING.md` as D-033.
+
+**Decisions:** D-033 proposed (safety sign-off role) — awaiting the owner.
+
+**Gotchas learned:** a feature whose tests pass can still be a no-op if an earlier
+test in the same file happens to create its preconditions — the F-08 gate test only
+went red because test #1 had opened the checklist first. Fresh-fixture tests per
+behaviour, not shared ones. Also: when a gate keys on one enum value, check every
+value that comes *after* it in the same workflow.
+
+**Next steps:** (1) Hussein — F-08 panel against `docs/HUSSEIN-F08-CONTRACT.md`.
+(2) Both — BATCH-02 combined owner test round (`docs/OWNER-TEST-BATCH-02.md`).
+(3) Ahmad — invite-token flow (strongest next-batch candidate; currently a
+documented gap in cross-org identity linking).
+
 ## 2026-07-25 [HUSSEIN] — F-09 both halves in (41a2efa AHMAD → 10e38da+1556b64 HUSSEIN); BATCH-02 lacks only F-08
 
 Commissions UI: Team rows (owner/gm only) get "Rémunération" — the pay-plan
