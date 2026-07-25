@@ -8,6 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "dev": "turbo run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",

@@ -57,3 +57,15 @@ all steps below give the English labels.
     column, no sideways scrolling.
 
 Report anything that looks off — numbers, wording (both languages), layout.
+
+---
+
+## KNOWN LIMITATION — inviting a brand-new person (D-035)
+
+Adding a member creates their roster row, but **it does not yet send them a login**.
+Someone added this way cannot sign in until we build the invitation flow. It needs a
+decision from you first — see `docs/OWNER-DECISIONS-PENDING.md`, D-035.
+
+So during testing: add members freely and check the roster, roles and assignment
+behave — but don't expect to be able to log in *as* Marc yet. That is a known gap,
+not something you broke.

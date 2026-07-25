@@ -43,6 +43,47 @@ more than rarely, say so and I will build the history table.
 
 ---
 
+## D-035 — How does an invited team member actually get to log in? *(F-04 gap, raised 2026-07-26)* — **the big one**
+
+**The problem, plainly:** when you add "Marc Seller" on the Team screen today, Marc
+appears in the roster as Active and can be assigned leads — but **Marc can never sign
+in**. Nothing sends him anything, and if he signs up on his own with the same email he
+gets a brand-new account that has no connection to the Marc in your roster. He would be
+a stranger to your dealership.
+
+This is not a bug I can just fix quietly, because every way of fixing it changes
+something you can see. I found it while building F-09 and confirmed it today.
+
+**Why it happens:** the roster row is created with an invented internal id. The real id
+only exists once the person signs up, and the two never meet.
+
+**Option A — Invitations replace the placeholder (my recommendation).**
+Adding a member sends them an email with a single-use link that expires. They set a
+password, and *that* is when the roster row becomes real. Until then the Team screen
+shows them as "Invited".
+*What changes for you:* you cannot assign leads to someone who has not accepted yet.
+I think that is correct — assigning work to an account that cannot log in is what is
+broken today — but it is a real change to how the Team screen behaves.
+*Cost:* about a day. Needs a small screen from Hussein (the accept-invite page).
+
+**Option B — Keep the roster row, attach the login to it later.**
+The roster keeps working exactly as it does now, including assigning leads to someone
+who has not accepted. When they eventually sign up with that email, their login is
+attached to the existing row.
+*What changes for you:* nothing visible.
+*Cost:* similar, but it changes how every request identifies the logged-in user, which
+is the most safety-critical code in the system. I would want to do it carefully rather
+than overnight, and I would not want to do it without you knowing.
+
+**What I need from you:** A or B. If you have no strong feeling, say "your call" and I
+will build A.
+
+**Until then:** the Team screen works for *you* and anyone who signs up themselves and
+is then added. It does not yet work for inviting someone who has no account. I have
+noted this on the owner test sheets so it does not look like a surprise failure.
+
+---
+
 ## Already answered — no action needed
 
 - SES over Resend for email (D-029). Built.

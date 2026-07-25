@@ -88,3 +88,15 @@ the server, not just hidden.
 Anything that looks off — a number, a French or English wording, a layout that
 breaks on your phone. Especially in Part C step 13 and Part D step 20: those two
 are the ones we built this batch for.
+
+---
+
+## KNOWN LIMITATION — inviting a brand-new person (D-035)
+
+Adding a member creates their roster row, but **it does not yet send them a login**.
+Someone added this way cannot sign in until we build the invitation flow. It needs a
+decision from you first — see `docs/OWNER-DECISIONS-PENDING.md`, D-035.
+
+So during testing: add members freely and check the roster, roles and assignment
+behave — but don't expect to be able to log in *as* Marc yet. That is a known gap,
+not something you broke.
