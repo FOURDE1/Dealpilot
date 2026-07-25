@@ -6,6 +6,7 @@ import { CalculateDealInput, ProvinceCA, type CalculateDealInputT } from '@dealp
 import { ApiError } from '../../shared/api/client.js';
 import { useLead } from '../leads/api.js';
 import { useVehicles } from '../inventory/api.js';
+import { activeMembers, useMembers } from '../team/api.js';
 import { vehicleDisplayName } from '../inventory/labels.js';
 import { leadDisplayName } from '../leads/labels.js';
 import { useCalculateDeal, useCreateDeal } from './api.js';
@@ -161,6 +162,10 @@ export function DeskingPage() {
     dealStatus: 'available',
   });
   const [vehicleId, setVehicleId] = useState('');
+  const members = useMembers(lead.data?.organization_id, { enabled: lead.isSuccess });
+  const sellers = activeMembers(members.data?.items);
+  const [soldBy, setSoldBy] = useState('');
+  const [fiReserve, setFiReserve] = useState('');
   // Provenance of the sale price: only an auto-filled (never user-typed) price
   // may be replaced or cleared when the picked car changes.
   const [prefilledPrice, setPrefilledPrice] = useState<string | null>(null);
@@ -189,12 +194,15 @@ export function DeskingPage() {
     if (!inputs || !lead.data) return;
     setSaveError(null);
     try {
+      const reserveCents = fiReserve.trim() === '' ? 0 : parseMoneyToCents(fiReserve);
       await createDeal.mutateAsync({
         ...inputs,
         organization_id: lead.data.organization_id,
         store_id: lead.data.store_id,
         lead_id: lead.data.id,
         ...(vehicleId === '' ? {} : { vehicle_id: vehicleId }),
+        ...(soldBy === '' ? {} : { salesperson_id: soldBy }),
+        fi_reserve_cents: reserveCents ?? 0,
       });
       void navigate(`/leads/${leadId}`);
     } catch (err) {
@@ -286,6 +294,22 @@ export function DeskingPage() {
                 </p>
               ) : null}
             </div>
+            <div className="space-y-1">
+              <Label htmlFor="desk-soldby">{t('soldBy')}</Label>
+              <Select
+                id="desk-soldby"
+                value={soldBy}
+                disabled={members.isPending}
+                onChange={(e) => setSoldBy(e.target.value)}
+              >
+                <option value="">{t('noSalesperson')}</option>
+                {sellers.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="desk-province">{t('province')}</Label>
@@ -348,6 +372,7 @@ export function DeskingPage() {
               <MoneyField id="desk-fees" label={t('fees')} value={draft.fees} onChange={(v) => set('fees', v)} />
               <MoneyField id="desk-fi-price" label={t('fiPrice')} value={draft.fi_price} onChange={(v) => set('fi_price', v)} />
               <MoneyField id="desk-fi-cost" label={t('fiCost')} value={draft.fi_cost} onChange={(v) => set('fi_cost', v)} />
+              <MoneyField id="desk-reserve" label={t('fiReserve')} value={fiReserve} onChange={setFiReserve} />
             </div>
             <label htmlFor="desk-fees-taxable" className="flex items-center gap-2 text-sm max-lg:min-h-11">
               <input

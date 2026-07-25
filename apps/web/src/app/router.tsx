@@ -48,6 +48,9 @@ const InventoryPage = lazy(() =>
 const VehicleDetailPage = lazy(() =>
   import('../features/inventory/vehicle-detail-page.js').then((m) => ({ default: m.VehicleDetailPage })),
 );
+const CommissionsPage = lazy(() =>
+  import('../features/commissions/commissions-page.js').then((m) => ({ default: m.CommissionsPage })),
+);
 
 function RouteSkeleton() {
   return (
@@ -91,6 +94,7 @@ export const router = createBrowserRouter([
       { path: 'pipeline', element: lazyPage(<PipelinePage />) },
       { path: 'inventory', element: lazyPage(<InventoryPage />) },
       { path: 'inventory/:vehicleId', element: lazyPage(<VehicleDetailPage />) },
+      { path: 'commissions', element: lazyPage(<CommissionsPage />) },
       // Placeholder module routes land with their feature slices.
       { path: '*', element: <Navigate to="/" replace /> },
     ],

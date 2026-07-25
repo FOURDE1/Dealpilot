@@ -19,6 +19,7 @@ import { ApiError } from '../../shared/api/client.js';
 import { useOrganizations } from '../organizations/api.js';
 import { useSession } from '../../shared/auth/client.js';
 import { useAddMember, useMembers, useUpdateMember } from './api.js';
+import { PayPlanDialog } from '../commissions/pay-plan-dialog.js';
 
 export const ROLE_KEYS = {
   owner: 'role_owner',
@@ -104,6 +105,7 @@ export function TeamPage() {
   const [revokeTarget, setRevokeTarget] = useState<MemberT | null>(null);
   const [revokeError, setRevokeError] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<MemberT | null>(null);
+  const [planTarget, setPlanTarget] = useState<MemberT | null>(null);
   const [editRoles, setEditRoles] = useState<RoleT[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -174,6 +176,15 @@ export function TeamPage() {
                 }}
               >
                 {t('editRoles')}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                aria-label={t('payPlanFor', { name: row.original.name })}
+                onClick={() => setPlanTarget(row.original)}
+              >
+                {t('payPlan')}
               </Button>
               <Button
                 type="button"
@@ -348,6 +359,13 @@ export function TeamPage() {
           </>
         )
       ) : null}
+
+      <PayPlanDialog
+        member={planTarget}
+        orgId={orgId}
+        colleagues={members.data?.items ?? []}
+        onClose={() => setPlanTarget(null)}
+      />
 
       <Dialog.Root
         open={revokeTarget !== null}

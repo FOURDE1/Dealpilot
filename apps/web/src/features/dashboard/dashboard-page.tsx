@@ -63,6 +63,15 @@ export function DashboardPage() {
         )}
       </section>
 
+      <p className="text-sm">
+        <Link
+          to="/commissions"
+          className="font-medium text-primary hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
+        >
+          {t('commissionsLink')}
+        </Link>
+      </p>
+
       <section className="space-y-3" aria-labelledby="dash-recent-title">
         <header className="flex items-baseline justify-between gap-3">
           <h2 id="dash-recent-title" className="text-lg font-semibold">
