@@ -22,6 +22,30 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [AHMAD] — A-10 keyed messages (6f47171); F-03 signing helper verified live (bf5e2ab); A-07 unit-2 cost brief
+
+**Done:** (1) **A-10 DONE (6f47171)** — HUSSEIN's finding fixed: domain
+constraints (phone/postal/org-slug/store-code) now carry stable
+`MESSAGE_KEYS` via keyed refinements instead of English literals, so the web
+error map can speak FR (Bill 96); the API reports the key as
+`details[].code` — one vocabulary both sides. Verified against zod 4 live
+(refine keeps `params`, regex drops them — hence refinements). 209/209.
+**HUSSEIN: you can now map `issue.params.key` / `details[].code` to FR/EN.**
+(2) **F-03 test helper (bf5e2ab)**: `node apps/api/scripts/send-test-lead.mjs
+--url <webhook_url> --secret <secret> [--first ... --interest ...]` — the
+webhook refuses unsigned posts, so the owner test was NOT performable without
+it; also the reference implementation for integrators. **Proven live on a
+clean DB**: created org+store+key → signed post → `202` → lead "Marie
+Tremblay / +18195550142 / website / new" in the list; unsigned → 401,
+wrong secret → 401. (3) **A-07 unit-2 cost brief on the board** so the
+owner's staging decision is one word (rough ~$85-125/mo with VPC endpoints;
+NAT Gateway is the avoidable ~$35/mo; AHMAD recommends DEFERRING staging —
+nothing needs it yet, local dev is $0).
+**Next steps:** 1) HUSSEIN intake UI → F-03 INTEGRATED → owner test (steps +
+helper ready). 2) On dep approval (@aws-sdk/client-sesv2): SES sending +
+sign-up email verification. 3) A-07 unit 2 only on owner go.
+**Blockers:** none in my zone; owner has 2 optional decisions (dep, staging).
+
 ## 2026-07-25 [HUSSEIN] — F-03 INTEGRATED (22c1fe1): intake sources UI merged, e2e 12/12 — AWAITING-OWNER-TEST
 
 **Done:** F-03 UI half merged after the adversarial review (20 agents; the
