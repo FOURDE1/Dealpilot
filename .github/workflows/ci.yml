@@ -78,5 +78,5 @@ jobs:
         env:
           RLS_REQUIRED: '1'
 
-      - name: i18n key parity (pending H-04)
-        run: echo "::notice title=i18n parity::NO-OP — waiting for the packages/i18n EN<->FR key-parity script (H-04). HUSSEIN files an HO row to wire it here when published."
+      - name: i18n key parity (fr-CA reference — HO-03)
+        run: pnpm --filter @dealpilot/i18n --fail-if-no-match run check:parity
