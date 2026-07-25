@@ -135,6 +135,51 @@ describe('api skeleton', () => {
     );
   });
 
+  it('A-11: sign-up triggers a verification email through the configured transport', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The log transport records the message instead of sending; capture it.
+    const sent: { to: string; subject: string; text: string }[] = [];
+    const probe = await buildApp({ DATABASE_URL: APP_URL, NODE_ENV: 'test' }, {
+      mailer: { async send(m) { sent.push(m); return true; } },
+    });
+    const email = `verify-${Date.now().toString(36)}@dealpilot.test`;
+    const res = await probe.app.inject({
+      method: 'POST',
+      url: '/api/auth/sign-up/email',
+      payload: { email, password: PASSWORD, name: 'Verify Me' },
+    });
+    expect(res.statusCode).toBe(200);
+    await probe.app.close();
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.to).toBe(email);
+    // FR-first per Bill 96, and the link must be present for the user to act.
+    expect(sent[0]!.subject).toMatch(/Confirmez/);
+    expect(sent[0]!.text).toMatch(/https?:\/\/[^\s]+/);
+  });
+
+  it('A-11: verification enforcement is config — off by default, on when required', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const off = await buildApp({ DATABASE_URL: APP_URL, NODE_ENV: 'test' });
+    expect(off.env.REQUIRE_EMAIL_VERIFICATION).toBe(false);
+    await off.app.close();
+
+    const on = await buildApp({
+      DATABASE_URL: APP_URL,
+      NODE_ENV: 'test',
+      REQUIRE_EMAIL_VERIFICATION: 'true',
+    });
+    expect(on.env.REQUIRE_EMAIL_VERIFICATION).toBe(true);
+    await on.app.close();
+  });
+
+  it('A-11: the default transport never sends real mail outside production', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const { app: a, env } = await buildApp({ DATABASE_URL: APP_URL, NODE_ENV: 'test' });
+    expect(env.EMAIL_TRANSPORT).toBe('log');
+    await a.close();
+  });
+
   it('session cookie carries the hardened 7-day TTL (A-05.1)', async (ctx) => {
     if (!dbUp || !app) return ctx.skip();
     const res = await app.inject({

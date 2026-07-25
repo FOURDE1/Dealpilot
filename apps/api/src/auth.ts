@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { betterAuth } from 'better-auth';
 import type { Pool } from '@dealpilot/db';
 import type { Env } from './env.js';
+import { verificationMessage, type Mailer } from './email.js';
 
 /**
  * Better Auth (A-05, ADR-006/D-023): identity + sessions ONLY.
@@ -12,7 +13,7 @@ import type { Env } from './env.js';
  * Sessions: HTTPS-only secure cookies in production; HttpOnly + SameSite=Lax
  * always (authentication-authorization.md §Sessions).
  */
-export function createAuth(env: Env, pool: Pool) {
+export function createAuth(env: Env, pool: Pool, mailer: Mailer) {
   return betterAuth({
     database: pool,
     secret: env.BETTER_AUTH_SECRET,
@@ -30,6 +31,20 @@ export function createAuth(env: Env, pool: Pool) {
       enabled: true,
       minPasswordLength: 12,
       maxPasswordLength: 128,
+      /**
+       * A-11: enforcement is configuration, not code. The verification mail
+       * always goes out; blocking unverified sign-in is opt-in so local test
+       * accounts and the SES sandbox never lock anyone out (D-030).
+       */
+      requireEmailVerification: env.REQUIRE_EMAIL_VERIFICATION,
+    },
+    emailVerification: {
+      sendOnSignUp: true,
+      // A failed send must not fail sign-up — the mailer already swallows and
+      // logs transport errors and reports a boolean.
+      sendVerificationEmail: async ({ user, url }) => {
+        await mailer.send(verificationMessage(user.email, url));
+      },
     },
     advanced: {
       database: {

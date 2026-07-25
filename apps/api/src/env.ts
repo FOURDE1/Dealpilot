@@ -17,6 +17,27 @@ const EnvSchema = z.object({
   BETTER_AUTH_URL: z.string().default(DEV_AUTH_URL),
   /** The web app origin allowed to call this API with credentials (H-03). */
   WEB_ORIGIN: z.string().default(DEV_WEB_ORIGIN),
+
+  // --- transactional email (A-11, SES per D-029) ---------------------------
+  /** ca-central-1 keeps mail inside the Canadian residency envelope (D-002). */
+  AWS_REGION: z.string().default('ca-central-1'),
+  /** Must be an address on the verified 1dealer.ca identity. */
+  EMAIL_FROM: z.string().default('no-reply@1dealer.ca'),
+  /**
+   * 'ses' actually sends; 'log' prints the message instead — the default
+   * outside production so local dev and CI never need AWS credentials and can
+   * never emit real mail. Production must set EMAIL_TRANSPORT=ses explicitly.
+   */
+  EMAIL_TRANSPORT: z.enum(['ses', 'log']).default('log'),
+  /**
+   * Enforcement is config, not code (A-05.1): the verification email always
+   * sends, but blocking unverified sign-in is opt-in so the owner's local test
+   * accounts (and SES sandbox limits) don't lock anyone out.
+   */
+  REQUIRE_EMAIL_VERIFICATION: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

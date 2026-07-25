@@ -5,6 +5,7 @@ import { createPool } from '@dealpilot/db';
 import { createAuth, type Auth } from './auth.js';
 import { loadEnv, type Env } from './env.js';
 import { AppError, envelope } from './errors.js';
+import { createMailer, type Mailer } from './email.js';
 import { registerF01Routes } from './f01-routes.js';
 import { registerF02Routes } from './f02-leads-routes.js';
 import { registerIntakeKeyRoutes, registerPublicIntakeRoutes } from './f03-intake-routes.js';
@@ -60,10 +61,17 @@ async function toWebRequest(request: FastifyRequest, baseUrl: string): Promise<R
   return new Request(url, { method, headers, body });
 }
 
-export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> = {}) {
+/** Test seam: swap the mailer without touching transport configuration. */
+export interface AppDeps {
+  mailer?: Mailer;
+}
+
+export async function buildApp(
+  envOverrides: Partial<Record<keyof Env, string>> = {},
+  deps: AppDeps = {},
+) {
   const env = loadEnv(envOverrides);
   const pool = createPool({ connectionString: env.DATABASE_URL });
-  const auth: Auth = createAuth(env, pool);
 
   // HO-04: a superuser connection silently BYPASSES all RLS (FORCED included).
   // Refuse to boot on one outside tests — tenant isolation must never depend
@@ -88,6 +96,10 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
     genReqId: () => randomUUID(),
     disableRequestLogging: env.NODE_ENV === 'test',
   });
+
+  // Mailer needs the app logger, so auth is built after Fastify (A-11).
+  const mailer: Mailer = deps.mailer ?? createMailer(env, app.log);
+  const auth: Auth = createAuth(env, pool, mailer);
 
   await app.register(cors, {
     origin: [env.WEB_ORIGIN],
