@@ -1,10 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Lead,
-  paginated,
-  type CreateLeadInputT,
-  type UpdateLeadInputT,
-} from '@dealpilot/schemas';
+import { Lead, paginated, type CreateLeadInputT, type UpdateLeadInputT } from '@dealpilot/schemas';
 import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
 
 const PaginatedLeads = paginated(Lead);
@@ -15,9 +10,10 @@ export const leadKeys = {
   detail: (id: string) => ['leads', id] as const,
 };
 
-export function useLeads(orgId?: string) {
+export function useLeads(orgId?: string, opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: leadKeys.list(orgId),
+    enabled: opts?.enabled ?? true,
     queryFn: async ({ signal }) => {
       const res = await apiRequest(routes.leads.list, {
         query: { limit: 100, organization_id: orgId },

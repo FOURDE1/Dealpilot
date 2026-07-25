@@ -44,9 +44,15 @@ export const frCA = {
   dashboard: {
     greeting: 'Bonjour',
     greetingName: 'Bonjour, {name}',
+    statsTitle: 'Vue d’ensemble des prospects',
+    statTotal: 'Prospects (total)',
+    statNew: 'Nouveaux',
+    statAssignedContacted: 'En traitement',
+    statConverted: 'Convertis',
+    recentTitle: 'Prospects récents',
+    viewAll: 'Voir tous les prospects',
+    noLeadsYet: 'Aucun prospect pour l’instant — créez-en un ou branchez une source d’admission.',
     welcomeTitle: 'Bienvenue sur 1Dealer',
-    welcomeBody:
-      "La coquille de l'application est en place. Les modules (prospects, pipeline, livraisons) arriveront par tranches fonctionnelles.",
   },
   leads: {
     title: 'Prospects',
@@ -125,7 +131,8 @@ export const frCA = {
     never: 'Jamais',
     revoke: 'Révoquer',
     revokeTitle: 'Révoquer cette clé?',
-    revokeBody: 'Les envois signés avec cette clé seront refusés immédiatement. Cette action est irréversible.',
+    revokeBody:
+      'Les envois signés avec cette clé seront refusés immédiatement. Cette action est irréversible.',
     cancel: 'Annuler',
     confirmRevoke: 'Oui, révoquer',
     genericError: "L'opération a échoué. Réessayez.",

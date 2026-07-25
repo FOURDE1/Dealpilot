@@ -44,9 +44,15 @@ export const enCA = {
   dashboard: {
     greeting: 'Hello',
     greetingName: 'Hello, {name}',
+    statsTitle: 'Leads overview',
+    statTotal: 'Total leads',
+    statNew: 'New',
+    statAssignedContacted: 'In progress',
+    statConverted: 'Converted',
+    recentTitle: 'Recent leads',
+    viewAll: 'View all leads',
+    noLeadsYet: 'No leads yet — create one or connect an intake source.',
     welcomeTitle: 'Welcome to 1Dealer',
-    welcomeBody:
-      'The application shell is in place. Modules (leads, pipeline, deliveries) arrive as feature slices.',
   },
   leads: {
     title: 'Leads',

@@ -16,7 +16,7 @@ export function LeadsPage() {
   // Multi-org users MUST scope the list (server 422s otherwise); single-org
   // users are scoped implicitly by their membership.
   const effectiveOrg = multiOrg ? orgFilter || orgs.data?.items[0]?.id : undefined;
-  const leads = useLeads(effectiveOrg);
+  const leads = useLeads(effectiveOrg, { enabled: !orgs.isPending });
 
   const columns = useMemo<ColumnDef<LeadT, unknown>[]>(
     () => [
@@ -24,7 +24,10 @@ export function LeadsPage() {
         accessorKey: 'last_name',
         header: t('name'),
         cell: ({ row }) => (
-          <Link to={`/leads/${row.original.id}`} className="font-medium text-primary hover:underline">
+          <Link
+            to={`/leads/${row.original.id}`}
+            className="font-medium text-primary hover:underline"
+          >
             {leadDisplayName(row.original) ?? t('noName')}
           </Link>
         ),
