@@ -20,6 +20,7 @@ interface Draft {
   deal_type: CalculateDealInputT['deal_type'];
   sale_price: string;
   msrp: string;
+  residual: string;
   vehicle_cost: string;
   cash_down: string;
   trade_allowance: string;
@@ -40,6 +41,7 @@ const INITIAL: Draft = {
   deal_type: 'finance',
   sale_price: '',
   msrp: '',
+  residual: '55',
   vehicle_cost: '',
   cash_down: '',
   trade_allowance: '',
@@ -66,6 +68,14 @@ function draftToInputs(d: Draft): CalculateDealInputT | null {
   const term = /^\d+$/.test(d.term.trim()) ? Number(d.term.trim()) : null;
   const msrp = d.msrp.trim() === '' ? undefined : parseMoneyToCents(d.msrp);
   if (msrp === null) return null;
+  // Residual only matters (and only renders) for a lease — garbage left in the
+  // field must never block a finance or cash worksheet.
+  let residual = 55;
+  if (d.deal_type === 'lease') {
+    const parsed = /^\d+$/.test(d.residual.trim()) ? Number(d.residual.trim()) : null;
+    if (parsed === null || parsed > 100) return null;
+    residual = parsed;
+  }
   const fields = {
     vehicle_cost_cents: centsOrZero(d.vehicle_cost),
     cash_down_cents: centsOrZero(d.cash_down),
@@ -89,6 +99,7 @@ function draftToInputs(d: Draft): CalculateDealInputT | null {
       number
     >),
     fees_taxable: d.fees_taxable,
+    residual_percent: residual,
     term_months: term,
     tax_exempt: d.tax_exempt,
   });
@@ -196,6 +207,8 @@ export function DeskingPage() {
   const rateInvalid = draft.rate.trim() !== '' && parsePctToBps(draft.rate) === null;
   const termNum = /^\d+$/.test(draft.term.trim()) ? Number(draft.term.trim()) : null;
   const termInvalid = termNum === null || termNum < 1 || termNum > 120;
+  const residualNum = /^\d+$/.test(draft.residual.trim()) ? Number(draft.residual.trim()) : null;
+  const residualInvalid = isLease && (residualNum === null || residualNum > 100);
   const isHstProv = HST_PROVINCES.has(draft.province);
 
   return (
@@ -293,9 +306,6 @@ export function DeskingPage() {
 
           <section className="space-y-3 rounded-lg border border-border bg-card p-4">
             <h2 className="text-[15px] font-semibold">{t('financeSection')}</h2>
-            {isLease ? (
-              <p className="text-sm text-muted-foreground">{t('leaseFixedNote')}</p>
-            ) : null}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="desk-rate">{t('rate')}</Label>
@@ -303,12 +313,11 @@ export function DeskingPage() {
                   id="desk-rate"
                   inputMode="decimal"
                   value={draft.rate}
-                  disabled={isLease}
-                  aria-invalid={(!isLease && rateInvalid) || undefined}
-                  className={!isLease && rateInvalid ? 'border-danger-border' : undefined}
+                  aria-invalid={rateInvalid || undefined}
+                  className={rateInvalid ? 'border-danger-border' : undefined}
                   onChange={(e) => set('rate', e.target.value)}
                 />
-                {!isLease && rateInvalid ? (
+                {rateInvalid ? (
                   <p role="alert" className="text-xs text-danger-text">
                     {t('invalidRate')}
                   </p>
@@ -320,17 +329,34 @@ export function DeskingPage() {
                   id="desk-term"
                   inputMode="numeric"
                   value={draft.term}
-                  disabled={isLease}
-                  aria-invalid={(!isLease && termInvalid) || undefined}
-                  className={!isLease && termInvalid ? 'border-danger-border' : undefined}
+                  aria-invalid={termInvalid || undefined}
+                  className={termInvalid ? 'border-danger-border' : undefined}
                   onChange={(e) => set('term', e.target.value)}
                 />
-                {!isLease && termInvalid ? (
+                {termInvalid ? (
                   <p role="alert" className="text-xs text-danger-text">
                     {t('invalidTerm')}
                   </p>
                 ) : null}
               </div>
+              {isLease ? (
+                <div className="space-y-1">
+                  <Label htmlFor="desk-residual">{t('residual')}</Label>
+                  <Input
+                    id="desk-residual"
+                    inputMode="numeric"
+                    value={draft.residual}
+                    aria-invalid={residualInvalid || undefined}
+                    className={residualInvalid ? 'border-danger-border' : undefined}
+                    onChange={(e) => set('residual', e.target.value)}
+                  />
+                  {residualInvalid ? (
+                    <p role="alert" className="text-xs text-danger-text">
+                      {t('invalidResidual')}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </section>
         </div>
@@ -366,11 +392,13 @@ export function DeskingPage() {
               )}
               <OutputRow label={t('taxTotal')} cents={out.tax_total_cents} locale={locale} />
               <hr className="border-border" />
-              <OutputRow
-                label={isCash ? t('totalDue') : t('amountFinanced')}
-                cents={out.amount_financed_cents}
-                locale={locale}
-              />
+              {(debounced ?? inputs)?.deal_type === 'lease' ? null : (
+                <OutputRow
+                  label={isCash ? t('totalDue') : t('amountFinanced')}
+                  cents={out.amount_financed_cents}
+                  locale={locale}
+                />
+              )}
               {!isCash ? (
                 <>
                   <OutputRow label={t('monthly')} cents={out.monthly_payment_cents} locale={locale} emphasis />

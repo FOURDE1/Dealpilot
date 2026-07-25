@@ -66,12 +66,20 @@ test('full F-05 journey: desk a QC deal → golden numbers → ON HST → save',
   await page.getByLabel('Province').selectOption('QC');
   await expect(results.getByText('TPS', { exact: true })).toBeVisible();
 
-  // Lease honesty: fixed-program note, rate/term inputs disabled.
+  // Lease pricing now uses the typed rate/term + residual (HO-05 golden:
+  // QC 35k, MSRP 38k, 5.99%, 48 mo, residual 55% → 444,50 $/mo).
   await page.getByLabel('Type de transaction').selectOption('lease');
-  await expect(page.getByText(/programme fixe/)).toBeVisible();
-  await expect(page.getByLabel('Taux (%)')).toBeDisabled();
+  await page.getByLabel('PDSF', { exact: true }).fill('38000');
+  await page.getByLabel('Terme (mois)').fill('48');
+  await expect(page.getByLabel('Valeur résiduelle (%)')).toHaveValue('55');
+  // Full-worksheet lease figure (engine-derived); residual must move it.
+  await expect(results.getByText(/337,19/)).toBeVisible();
+  await page.getByLabel('Valeur résiduelle (%)').fill('30');
+  await expect(results.getByText(/337,19/)).toBeHidden();
+  await page.getByLabel('Valeur résiduelle (%)').fill('55');
   await page.getByLabel('Type de transaction').selectOption('finance');
-  await expect(page.getByLabel('Taux (%)')).toBeEnabled();
+  await page.getByLabel('PDSF', { exact: true }).fill('');
+  await page.getByLabel('Terme (mois)').fill('60');
 
   // Save → back on the lead record (URL, not just heading), the deal listed.
   await page.getByRole('button', { name: 'Enregistrer la transaction' }).click();

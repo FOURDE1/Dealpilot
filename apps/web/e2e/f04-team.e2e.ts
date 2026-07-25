@@ -47,14 +47,17 @@ test('full F-04 journey: team member → assignment → my-leads filter → revo
   await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Vendeur', exact: true })).toBeVisible();
 
-  // Wrong email shapes get named errors, never "operation failed" (owner-reported).
+  // Wrong email shape gets a named error, never "operation failed" (owner-reported).
   await page.getByLabel('Nom', { exact: true }).fill('Marc Bis');
   await page.getByLabel('Courriel').fill('marc@groupehassan'); // no TLD — browser passes it, server 422s
   await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
   await expect(page.getByText('Courriel invalide.')).toBeVisible();
-  await page.getByLabel('Courriel').fill(`marc-${stamp}@1dealer.test`); // duplicate → 409
+  // Re-adding a same-org email is NOT an error anymore — it re-applies the
+  // given roles to the existing membership (HO-06), never a second row.
+  await page.getByLabel('Courriel').fill(`marc-${stamp}@1dealer.test`);
   await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
-  await expect(page.getByText('Un compte existe déjà avec ce courriel.')).toBeVisible();
+  await expect(page.getByText('Cette personne était déjà dans l’organisation')).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toHaveCount(1);
 
   // Assign the lead to Marc.
   await page.getByRole('link', { name: 'Prospects' }).first().click();
@@ -84,11 +87,9 @@ test('full F-04 journey: team member → assignment → my-leads filter → revo
   await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeHidden();
   await expect(page.getByRole('cell', { name: 'Patron Test', exact: true })).toBeVisible();
 
-  // The orphaned assignment surfaces as "Ancien membre", not as unassigned.
+  // Revoking releases the member's leads back to the pool (same transaction).
   await page.getByRole('link', { name: 'Prospects' }).first().click();
-  await expect(page.getByRole('cell', { name: 'Ancien membre' })).toBeVisible();
-  await page.getByRole('link', { name: 'Paul Client' }).click();
-  await expect(page.getByLabel('Assigner')).toHaveValue(/./); // still assigned, not blank
+  await expect(page.getByRole('cell', { name: 'Non assigné' })).toBeVisible();
 
   // Multi-org scoping: a second organization gets its own, separate roster.
   await page.goto('/organizations/new');
@@ -99,7 +100,19 @@ test('full F-04 journey: team member → assignment → my-leads filter → revo
   const orgScope = page.getByLabel('Organisation', { exact: true });
   await orgScope.selectOption({ label: `Groupe F04B ${stamp}` });
   await expect(page.getByRole('cell', { name: 'Patron Test', exact: true })).toBeVisible();
+  // Cross-org email conflict is the one case that still 409s (invite flow later).
+  await page.getByLabel('Nom', { exact: true }).fill('Marc Ailleurs');
+  await page.getByLabel('Courriel').fill(`marc-${stamp}@1dealer.test`);
+  await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await expect(page.getByText('Un compte existe déjà avec ce courriel.')).toBeVisible();
   await orgScope.selectOption({ label: `Groupe F04 ${stamp}` });
   await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeHidden();
   await expect(page.getByRole('cell', { name: 'Patron Test', exact: true })).toBeVisible();
+
+  // Reinstate: removed members are listable again and one click restores access.
+  await page.getByLabel('Afficher les membres retirés').check();
+  await expect(page.getByText(`marc-${stamp}@1dealer.test`)).toBeVisible();
+  await page.getByRole('button', { name: 'Réintégrer — Marc Vendeur' }).click();
+  await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeVisible();
+  await expect(page.getByText('Aucun membre retiré.')).toBeVisible();
 });

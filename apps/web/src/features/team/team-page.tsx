@@ -92,11 +92,15 @@ export function TeamPage() {
   const updateMember = useUpdateMember(orgId);
   const me = members.data?.items.find((m) => m.user_id === session?.user.id);
   const canWrite = me?.roles.some((r) => WRITE_ROLES.has(r)) ?? false;
+  const [showRemoved, setShowRemoved] = useState(false);
+  const [removedError, setRemovedError] = useState<string | null>(null);
+  const removed = useMembers(orgId, { enabled: !noOrg && showRemoved, status: 'revoked' });
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [roles, setRoles] = useState<RoleT[]>(['salesperson']);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<MemberT | null>(null);
   const [revokeError, setRevokeError] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<MemberT | null>(null);
@@ -106,13 +110,15 @@ export function TeamPage() {
   async function handleAdd(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    setNotice(null);
     if (roles.length === 0) {
       setError(t('rolesRequired'));
       return;
     }
     if (!orgId) return;
     try {
-      await addMember.mutateAsync({ organization_id: orgId, email, name, roles });
+      const result = await addMember.mutateAsync({ organization_id: orgId, email, name, roles });
+      if (result.reinstated) setNotice(t('reinstatedNotice'));
       setName('');
       setEmail('');
       setRoles(['salesperson']);
@@ -205,7 +211,10 @@ export function TeamPage() {
             <Select
               id="team-org-scope"
               value={orgId ?? ''}
-              onChange={(e) => setOrgFilter(e.target.value)}
+              onChange={(e) => {
+                setOrgFilter(e.target.value);
+                setRemovedError(null);
+              }}
             >
               {orgs.data?.items.map((o) => (
                 <option key={o.id} value={o.id}>
@@ -250,6 +259,11 @@ export function TeamPage() {
             {error}
           </p>
         ) : null}
+        {notice ? (
+          <p role="status" className="text-sm text-success-text">
+            {notice}
+          </p>
+        ) : null}
         <Button type="submit" disabled={addMember.isPending || name.trim() === '' || email.trim() === ''}>
           {addMember.isPending ? t('adding') : t('add')}
         </Button>
@@ -265,6 +279,69 @@ export function TeamPage() {
         errorMessage={t('loadError')}
         emptyMessage={t('empty')}
       />
+
+      <label htmlFor="team-show-removed" className="flex w-fit items-center gap-2 text-sm max-lg:min-h-11">
+        <input
+          id="team-show-removed"
+          type="checkbox"
+          checked={showRemoved}
+          onChange={(e) => {
+            setShowRemoved(e.target.checked);
+            setRemovedError(null);
+          }}
+          className="size-4 accent-[var(--primary)]"
+        />
+        {t('showRemoved')}
+      </label>
+      {showRemoved ? (
+        removed.isPending ? (
+          <p className="text-sm text-muted-foreground">{t('loading')}</p>
+        ) : removed.isError ? (
+          <p role="alert" className="text-sm text-danger-text">
+            {t('loadError')}
+          </p>
+        ) : removed.data.items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('noRemoved')}</p>
+        ) : (
+          <>
+          {removedError ? (
+            <p role="alert" className="text-sm text-danger-text">
+              {removedError}
+            </p>
+          ) : null}
+          <ul className="divide-y divide-border rounded-lg border border-border bg-card px-4">
+            {removed.data.items.map((m) => (
+              <li key={m.id} className="flex items-center justify-between gap-4 py-2 text-sm">
+                <span>
+                  {m.name} <span className="font-mono text-[13px] text-muted-foreground">{m.email}</span>
+                  <span className="block text-[13px] text-muted-foreground">
+                    {m.roles.map((r) => t(ROLE_KEYS[r])).join(', ')}
+                  </span>
+                </span>
+                {canWrite ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={updateMember.isPending}
+                    aria-label={t('reinstateFor', { name: m.name })}
+                    onClick={() => {
+                      setRemovedError(null);
+                      updateMember.mutateAsync({ id: m.id, body: { status: 'active' } }).catch((err: unknown) => {
+                        setRemovedError(t('genericError'));
+                        if (!(err instanceof ApiError)) throw err;
+                      });
+                    }}
+                  >
+                    {t('reinstate')}
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          </>
+        )
+      ) : null}
 
       <Dialog.Root
         open={revokeTarget !== null}
