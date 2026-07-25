@@ -22,6 +22,20 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [HUSSEIN] — BATCH-01 ACCEPTED by owner; one owner-found issue fixed same day
+
+Owner ran docs/OWNER-TEST-BATCH-01.md: "all is good except" the duplicate-
+email step — typing `marc@groupehassan` (no TLD) passes the BROWSER's email
+check but the server 422s (path=email), and the add form showed the generic
+"operation failed". Fixed: 422/email now maps to "Courriel invalide." /
+"Invalid email address."; e2e extended to cover BOTH wrong-email paths
+(422 invalid shape, 409 duplicate). 14/14 e2e, parity/lint/typecheck 0.
+Also this session: owner locked out a third time → root-caused (API test
+suites DROP the dev database — HO-07 filed for AHMAD: isolate to
+dealpilot_test); interim rule: re-seed + verified sign-in after every test
+run. **BATCH-01 (F-04 + F-05) is the first batch fully through the D-031
+loop: build both → one owner round → accepted.**
+
 ## 2026-07-25 [HUSSEIN] — BATCH-01 UI halves DONE + INTEGRATED: F-04 team/assignment (01cd4af) and F-05 desking (b67ecf7); batch AWAITING-OWNER-TEST
 
 **F-04 (01cd4af):** Team screen (/team, 4th nav tab): add member with
