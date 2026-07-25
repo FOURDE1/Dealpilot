@@ -67,7 +67,13 @@ async function rolesIn(client: PoolClient, userId: string): Promise<string[]> {
 export async function requireMember(client: PoolClient, userId: string, writeRoles?: readonly string[]): Promise<string[]> {
   const roles = await rolesIn(client, userId);
   if (roles.length === 0) throw notFound();
-  const alive = await client.query(`SELECT 1 FROM organizations WHERE deleted_at IS NULL`);
+  // Explicitly keyed on the tenant GUC: under DUAL context (org + user) the
+  // user-scoped read policy also exposes the caller's OTHER organizations, so
+  // an unqualified liveness probe could pass on the wrong row (review 2026-07-25).
+  const alive = await client.query(
+    `SELECT 1 FROM organizations
+     WHERE id = NULLIF(current_setting('app.org_id', true), '')::uuid AND deleted_at IS NULL`,
+  );
   if (alive.rows.length === 0) throw notFound();
   if (writeRoles && !roles.some((r) => writeRoles.includes(r))) throw forbidden();
   return roles;

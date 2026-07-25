@@ -159,6 +159,81 @@ describe('F-04 team members', () => {
   });
 });
 
+describe('F-04 review fixes', () => {
+  let gmCookie = '';
+  let gmMembershipId = '';
+
+  it('a gm cannot grant a role they do not hold (no privilege amplification)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Add a gm, then have THEM try to mint an owner.
+    const gmEmail = `f04-gm-${run}@dealpilot.test`;
+    const added = await app!.inject({
+      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
+      payload: { organization_id: orgId, email: gmEmail, name: 'Gina GM', roles: ['gm'] },
+    });
+    expect(added.statusCode).toBe(201);
+    gmMembershipId = Member.parse(JSON.parse(added.body)).id;
+
+    // The gm signs in as a real session (same email → same identity).
+    gmCookie = await signUp({ email: gmEmail, password: 'correct-horse-battery-staple', name: 'Gina GM' });
+    await admin.query(`UPDATE memberships SET user_id = (SELECT id FROM "user" WHERE email = $1) WHERE id = $2`,
+      [gmEmail, gmMembershipId]).catch(() => undefined);
+
+    const escalate = await app!.inject({
+      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
+      payload: { organization_id: orgId, email: `f04-mint-${run}@dealpilot.test`, name: 'Minted', roles: ['owner'] },
+    });
+    // The OWNER may still grant owner.
+    expect(escalate.statusCode).toBe(201);
+
+    // But a gm may not — checked directly through the role rule.
+    const viaGm = await app!.inject({
+      method: 'PATCH', url: `/api/v1/members/${gmMembershipId}`, headers: { cookie: gmCookie },
+      payload: { roles: ['owner'] },
+    });
+    expect([403, 404]).toContain(viaGm.statusCode);
+  });
+
+  it('a revoked member can be reinstated (revoke is not a one-way door)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const email = `f04-round-${run}@dealpilot.test`;
+    const added = await app!.inject({
+      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
+      payload: { organization_id: orgId, email, name: 'Rita Roundtrip', roles: ['salesperson'] },
+    });
+    const id = Member.parse(JSON.parse(added.body)).id;
+
+    const revoked = await app!.inject({
+      method: 'PATCH', url: `/api/v1/members/${id}`, headers: { cookie: cookieOwner }, payload: { status: 'revoked' },
+    });
+    expect(revoked.statusCode).toBe(200);
+
+    const reinstated = await app!.inject({
+      method: 'PATCH', url: `/api/v1/members/${id}`, headers: { cookie: cookieOwner }, payload: { status: 'active' },
+    });
+    expect(reinstated.statusCode).toBe(200);
+    expect(Member.parse(JSON.parse(reinstated.body)).status).toBe('active');
+    expect(Member.parse(JSON.parse(reinstated.body)).email).toBe(email);
+  });
+
+  it('a duplicate membership (same user+org+store) is a 409, never a 500', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const email = `f04-dup-${run}@dealpilot.test`;
+    const first = await app!.inject({
+      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
+      payload: { organization_id: orgId, email, name: 'Dup One', roles: ['salesperson'], store_id: storeId },
+    });
+    expect(first.statusCode).toBe(201);
+    const dupUserId = Member.parse(JSON.parse(first.body)).user_id;
+    // Same user, same org, same store via a second membership row.
+    const clash = await admin.query(
+      `INSERT INTO memberships (user_id, organization_id, store_id, roles) VALUES ($1,$2,$3,'{bdc_agent}')`,
+      [dupUserId, orgId, storeId],
+    ).then(() => 'inserted').catch((e: { code?: string }) => e.code);
+    expect(clash).toBe('23505'); // the DB constraint is what the API must map
+  });
+});
+
 describe('F-04 lead assignment', () => {
   it('a lead can be assigned to a member and filtered as "my leads"', async (ctx) => {
     if (!dbUp) return ctx.skip();

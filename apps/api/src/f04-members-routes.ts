@@ -34,14 +34,35 @@ const MEMBER_COLUMNS = `
  * it again (the org has no platform-side rescue path yet).
  */
 async function assertNotLastOwner(client: PoolClient, membershipId: string): Promise<void> {
-  const r = await client.query<{ remaining: string }>(
-    `SELECT count(*)::int AS remaining FROM memberships
-     WHERE status = 'active' AND 'owner' = ANY(roles) AND id <> $1`,
+  // FOR UPDATE: two concurrent demotions must not both observe "another owner
+  // exists" and leave the org with none (read-committed, review 2026-07-25).
+  // The org predicate is explicit rather than relying on ambient RLS scope.
+  const r = await client.query(
+    `SELECT id FROM memberships
+     WHERE status = 'active' AND 'owner' = ANY(roles) AND id <> $1
+       AND organization_id = NULLIF(current_setting('app.org_id', true), '')::uuid
+     FOR UPDATE`,
     [membershipId],
   );
-  if (Number(r.rows[0]?.remaining ?? 0) === 0) {
+  if (r.rows.length === 0) {
     throw new AppError(422, 'last_owner', 'An organization must keep at least one active owner', [
       { path: 'roles', code: 'last_owner', message: 'Promote another owner first' },
+    ]);
+  }
+}
+
+/**
+ * An inviter can never grant a role they do not hold themselves
+ * (authentication-authorization.md §Invites). Owners may grant anything;
+ * everyone else is capped by their own role set — otherwise a gm or
+ * admin_office could simply mint themselves an owner.
+ */
+function assertGrantable(actorRoles: readonly string[], requested: readonly string[]): void {
+  if (actorRoles.includes('owner')) return;
+  const tooHigh = requested.filter((r) => !actorRoles.includes(r));
+  if (tooHigh.length > 0) {
+    throw new AppError(403, 'forbidden', 'You cannot grant a role you do not hold', [
+      { path: 'roles', code: 'role_not_grantable', message: tooHigh.join(', ') },
     ]);
   }
 }
@@ -106,7 +127,8 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
     const newUserId = randomUUID();
     try {
       const member = await withTenant(pool, input.organization_id, async (c) => {
-        await requireMember(c, actor.id, MEMBER_WRITE_ROLES);
+        const actorRoles = await requireMember(c, actor.id, MEMBER_WRITE_ROLES);
+        assertGrantable(actorRoles, input.roles);
         if (input.store_id) await assertStoreInOrg(c, input.store_id);
         // App-generated id: INSERT..RETURNING on users cannot pass the SELECT
         // policy before the membership exists (proven in A-04/D-022).
@@ -135,34 +157,36 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
     const input = parseOrThrow(UpdateMemberInput, request.body);
     const actor = sessionUser(request);
     const orgId = await membershipOrg(pool, actor.id, membershipId);
-    const member = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, actor.id, MEMBER_WRITE_ROLES);
-      if (input.store_id) await assertStoreInOrg(c, input.store_id);
+    try {
+      const member = await withTenant(pool, orgId, async (c) => {
+        const actorRoles = await requireMember(c, actor.id, MEMBER_WRITE_ROLES);
+        if (input.roles) assertGrantable(actorRoles, input.roles);
+        if (input.store_id) await assertStoreInOrg(c, input.store_id);
 
-      // Losing owner rights or being revoked both risk orphaning the org.
-      const losesOwner =
-        (input.roles !== undefined && !input.roles.includes('owner')) ||
-        (input.status !== undefined && input.status !== 'active');
-      if (losesOwner) {
-        const current = await c.query<{ is_owner: boolean }>(
-          `SELECT 'owner' = ANY(roles) AND status = 'active' AS is_owner FROM memberships WHERE id = $1`,
+        // Losing owner rights or being revoked both risk orphaning the org.
+        const losesOwner =
+          (input.roles !== undefined && !input.roles.includes('owner')) ||
+          (input.status !== undefined && input.status !== 'active');
+        if (losesOwner) {
+          const current = await c.query<{ is_owner: boolean }>(
+            `SELECT 'owner' = ANY(roles) AND status = 'active' AS is_owner FROM memberships WHERE id = $1`,
+            [membershipId],
+          );
+          if (current.rows[0]?.is_owner) await assertNotLastOwner(c, membershipId);
+        }
+
+        // Identity read (0007 keeps same-org users visible at any membership
+        // status, so revoked members can still be listed and reinstated).
+        const before = await c.query<{ email: string; name: string }>(
+          `SELECT u.email, u.name FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.id = $1`,
           [membershipId],
         );
-        if (current.rows[0]?.is_owner) await assertNotLastOwner(c, membershipId);
-      }
+        if (before.rows.length === 0) throw notFound();
+        const identity = before.rows[0]!;
 
-      // Read the identity BEFORE mutating: revoking removes the membership
-      // that makes this user visible, so a post-update join would find nobody.
-      const before = await c.query<{ email: string; name: string }>(
-        `SELECT u.email, u.name FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.id = $1`,
-        [membershipId],
-      );
-      if (before.rows.length === 0) throw notFound();
-      const identity = before.rows[0]!;
-
-      const fields = Object.entries(input);
-      if (fields.length === 0) {
-        const r = await c.query<Record<string, unknown>>(`SELECT * FROM memberships WHERE id = $1`, [membershipId]);
+        const fields = Object.entries(input);
+        if (fields.length === 0) {
+          const r = await c.query<Record<string, unknown>>(`SELECT * FROM memberships WHERE id = $1`, [membershipId]);
         if (r.rows.length === 0) throw notFound();
         return { ...r.rows[0], ...identity };
       }
@@ -171,10 +195,15 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
         `UPDATE memberships SET ${sets} WHERE id = $1 RETURNING *`,
         [membershipId, ...fields.map(([, v]) => v)],
       );
-      if (r.rows.length === 0) throw notFound();
-      return { ...r.rows[0], ...identity };
-    });
-    return reply.send(member);
+        if (r.rows.length === 0) throw notFound();
+        return { ...r.rows[0], ...identity };
+      });
+      return await reply.send(member);
+    } catch (err) {
+      // A store change can collide with the (user, org, store) unique index —
+      // that is a 409, not an unhandled 500 (review 2026-07-25).
+      throw conflictFrom(err) ?? err;
+    }
   });
 }
 
