@@ -57,7 +57,7 @@
 
 | F-02b | (duplicate row from parallel board edits — consolidated into the F-02 row above by AHMAD 2026-07-25; kept per no-delete rule) | BOTH | ACCEPTED(2026-07-25) | — | The public webhook intake noted here became the F-03 proposal below |
 
-| F-03 | PROPOSED — owner pick: (A) **Intake webhook** [AHMAD recommendation]: public per-store intake URL + secret key → external forms/Meta post leads → auto-appear in the list with source attribution. AHMAD-heavy (apps/intake endpoint, intake keys, rate limiting); HUSSEIN: intake-key management UI. (B) Lead assignment: assign leads to salespeople + "my leads" view — UI-heavy, backend mostly exists. | BOTH | BACKLOG | F-02 | Proposed 2026-07-25 after F-02 ACCEPTED. OWNER: reply A or B (or both order). |
+| F-03 | PROPOSED — owner pick: (A) **Intake webhook** [AHMAD recommendation]: public per-store intake URL + secret key → external forms/Meta post leads → auto-appear in the list with source attribution. AHMAD-heavy (apps/intake endpoint, intake keys, rate limiting); HUSSEIN: intake-key management UI. (B) Lead assignment: assign leads to salespeople + "my leads" view — UI-heavy, backend mostly exists. | BOTH | IN-PROGRESS(ahmad/f03-intake) | F-02 | **OWNER PICKED A 2026-07-25** ("do what is the most recommended"). AHMAD half: intake_keys table + mgmt API + public intake endpoint + rate limit. HUSSEIN half: intake-key management UI (create/copy-once/revoke) + lead source badge — claim after AHMAD contract lands. |
 
 ### Backlog (next sprint candidates — do not claim in Sprint 1)
 
