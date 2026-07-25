@@ -1,20 +1,25 @@
 import { useState } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { BackLink } from '../../shared/ui/back-link.js';
 import { useTranslation } from 'react-i18next';
-import { Label, Select } from '@dealpilot/ui';
+import { buttonVariants, Label, Select } from '@dealpilot/ui';
 import { LEAD_STATUSES, type LeadStatusT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
 import { useLead, useUpdateLead } from './api.js';
 import { activeMembers, useMembers } from '../team/api.js';
+import { useDealsForLead } from '../deals/api.js';
+import { DEAL_STATUS_KEYS, DEAL_TYPE_KEYS } from '../deals/labels.js';
+import { formatCents } from '../deals/money.js';
 import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
 
 /** The F-02 acceptance action: change a lead's status from its record page. */
 export function LeadDetailPage() {
   const { t, i18n } = useTranslation('leads');
+  const { t: td } = useTranslation('deals');
   const { leadId = '' } = useParams();
   const lead = useLead(leadId);
   const updateLead = useUpdateLead(leadId);
+  const deals = useDealsForLead(leadId, lead.data?.organization_id);
   const members = useMembers(lead.data?.organization_id, { enabled: lead.isSuccess });
   const assignees = activeMembers(members.data?.items);
   const assignedTo = lead.data?.assigned_to ?? null;
@@ -139,6 +144,42 @@ export function LeadDetailPage() {
               {t('genericError')}
             </p>
           ) : null}
+        </div>
+
+        <div className="space-y-2 rounded-lg border border-border bg-card p-4 sm:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-[15px] font-semibold">{td('dealsTitle')}</h2>
+            <Link to={`/leads/${leadId}/desk`} className={buttonVariants({ size: 'sm' })}>
+              {td('deskAction')}
+            </Link>
+          </div>
+          {deals.isPending ? (
+            <p className="text-sm text-muted-foreground">{td('loading')}</p>
+          ) : deals.isError ? (
+            <p role="alert" className="text-sm text-danger-text">
+              {td('loadError')}
+            </p>
+          ) : deals.data.items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{td('noDeals')}</p>
+          ) : (
+            <ul className="divide-y divide-border">
+              {deals.data.items.map((d) => (
+                <li key={d.id} className="flex items-baseline justify-between gap-4 py-1.5 text-sm">
+                  <span>
+                    {td(DEAL_TYPE_KEYS[d.deal_type])}
+                    <span className="text-muted-foreground"> — {td(DEAL_STATUS_KEYS[d.status])}</span>
+                  </span>
+                  <span className="font-mono tabular-nums">
+                    {d.deal_type === 'cash'
+                      ? formatCents(d.amount_financed_cents, i18n.language)
+                      : td('monthlyAbbr', {
+                          amount: formatCents(d.monthly_payment_cents, i18n.language),
+                        })}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
     </div>
