@@ -22,6 +22,53 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [AHMAD] — BATCH-01 backends DONE: F-04 members+assignment (c5b4973) and F-05 desking (ac4c859); F-04 review fixes (1a8a614)
+
+**Owner switched us to BATCH delivery (D-031)** — 2-3 slices built in
+parallel, ONE owner test round at the end; every quality rule kept (TDD,
+adversarial review per slice, full gate per merge, CI green).
+**BATCH-01 = F-04 + F-05; both AHMAD halves are merged.**
+**F-04 (c5b4973 + fixes 1a8a614):** members API — list (membership JOIN
+user), add-by-email (creates the user + active membership), roles change,
+revoke/reinstate; lead list gained an `assigned_to` filter ("my leads").
+Two RLS scoping bugs surfaced by tests and fixed at the source: the roster
+needs DUAL context (colleagues are visible only through the org-keyed
+user_read) and a colleague's membership row is invisible under user scope.
+**Adversarial review then found a CRITICAL** — any gm/admin_office could
+grant themselves `owner`; now an inviter can only grant roles they hold
+(spec-cited). Also fixed: revoke was a ONE-WAY DOOR (migration 0007 keeps
+same-org users readable at any membership status — this also stops
+`invited` members being dropped), requireMember's liveness probe had no org
+predicate (soft-deleted org could pass under dual context), the last-owner
+guard was a read-then-write race (now `FOR UPDATE` + org-scoped), and PATCH
+mapped a unique-violation to 500 instead of 409.
+**F-05 (ac4c859):** migration 0006 deals + `/api/v1/deals` —
+`POST /deals/calculate` is a pure preview so the worksheet recomputes live;
+create/update PERSIST the engine's answer beside the inputs and any input
+edit RECOMPUTES. **This puts the A-06 money engine in front of the owner**:
+golden test pins QC \$35k w/ trade+rebate+F&I → tax \$4,118.13, financed
+\$33,117.13, payment \$640.09, gross \$4,500; ON uses HST. Caught by the
+tests: UpdateDealInput built with `.partial()` KEPT the create defaults, so
+a one-field PATCH zeroed every other input — rewritten field-by-field with a
+regression test beside the repo's existing defaults-leak guard.
+**Tree: 237/237, lint 0, parity OK.**
+**For HUSSEIN — both contracts are live on develop:**
+• `apiV1.members.{add,list,update}` — Member = membership + email/name;
+AddMemberInput {organization_id, email, name, roles[], store_id?};
+UpdateMemberInput {roles?, status?, store_id?}. 403 `role_not_grantable`
+when granting above your own role; 422 `last_owner` protects the last owner;
+409 on duplicate email/membership. Leads: `?assigned_to=<user_id>` = "my
+leads".
+• `apiV1.deals.{calculate,create,get,list,update}` — all money in CENTS, rate
+in BASIS POINTS (599 = 5.99%). `calculate` returns DeskingOutputs only
+(gst/pst/hst/tax_total/amount_financed/monthly+biweekly+weekly/front_gross/
+total_gross) and stores nothing — call it on every keystroke; create/update
+return the saved Deal. Outputs are engine-owned (422 if sent).
+**Next steps:** 1) HUSSEIN: team screen + assignee picker + "my leads", and
+the desking worksheet. 2) When both land → ONE combined owner test script
+for BATCH-01. 3) AHMAD fill-in meanwhile: none blocking.
+**Blockers:** none.
+
 ## 2026-07-25 [AHMAD] — F-03 ACCEPTED by owner; session close-out (3 slices shipped, CI green, ~$0/mo)
 
 **Owner tested F-03 and accepted** ("i did tested it and it worked") — the
