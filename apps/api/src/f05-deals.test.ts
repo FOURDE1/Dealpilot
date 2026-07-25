@@ -208,7 +208,8 @@ describe('F-05 saved deals', () => {
     });
     expect(res.statusCode).toBe(201);
     const deal = Deal.parse(JSON.parse(res.body));
-    expect(deal.status).toBe('working');
+    expect(deal.pipeline_stage).toBe('new');
+    expect(deal.funding_status).toBe('not_submitted');
     expect(deal.lead_id).toBe(leadId);
     expect(deal.tax_total_cents).toBe(411_813);
     expect(deal.monthly_payment_cents).toBe(64_009);
@@ -250,16 +251,47 @@ describe('F-05 saved deals', () => {
 
     const move = await app!.inject({
       method: 'PATCH', url: `/api/v1/deals/${dealId}`, headers: { cookie: cookieOwner },
-      payload: { status: 'submitted' },
+      payload: { pipeline_stage: 'submitted' },
     });
     expect(move.statusCode).toBe(200);
-    expect(Deal.parse(JSON.parse(move.body)).status).toBe('submitted');
+    expect(Deal.parse(JSON.parse(move.body)).pipeline_stage).toBe('submitted');
 
     const submitted = await app!.inject({
-      method: 'GET', url: `/api/v1/deals?organization_id=${orgId}&status=submitted`,
+      method: 'GET', url: `/api/v1/deals?organization_id=${orgId}&pipeline_stage=submitted`,
       headers: { cookie: cookieOwner },
     });
     expect(DealPage.parse(JSON.parse(submitted.body)).items).toHaveLength(1);
+  });
+
+  it('the car track and the money track move independently (F-06)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Delivered but NOT yet funded — the state a dealership cares about most,
+    // and the one the old single-status vocabulary could not express.
+    const delivered = await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${dealId}`, headers: { cookie: cookieOwner },
+      payload: { pipeline_stage: 'delivered' },
+    });
+    expect(delivered.statusCode).toBe(200);
+    const afterDelivery = Deal.parse(JSON.parse(delivered.body));
+    expect(afterDelivery.pipeline_stage).toBe('delivered');
+    expect(afterDelivery.funding_status).toBe('not_submitted');
+    expect(afterDelivery.delivered_at).not.toBeNull();
+    expect(afterDelivery.funded_at).toBeNull();
+
+    const funded = await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${dealId}`, headers: { cookie: cookieOwner },
+      payload: { funding_status: 'funded' },
+    });
+    const afterFunding = Deal.parse(JSON.parse(funded.body));
+    expect(afterFunding.funded_at).not.toBeNull();
+    // Funding does not silently move the car track.
+    expect(afterFunding.pipeline_stage).toBe('delivered');
+
+    const lane = await app!.inject({
+      method: 'GET', url: `/api/v1/deals?organization_id=${orgId}&funding_status=funded`,
+      headers: { cookie: cookieOwner },
+    });
+    expect(DealPage.parse(JSON.parse(lane.body)).items).toHaveLength(1);
   });
 
   it('a non-member sees nothing: get 404, list 404', async (ctx) => {
