@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createPool, reset, type Pool, ensureTestDatabase, testAdminUrl, testAppUrl } from '@dealpilot/db';
-import { Lead, Member, paginated } from '@dealpilot/schemas';
+import { Lead, Member, MemberAdded, paginated } from '@dealpilot/schemas';
 import { buildApp } from './app.js';
 
 /**
@@ -106,6 +106,7 @@ describe('F-04 team members', () => {
     expect(member.email).toBe(COLLEAGUE_EMAIL);
     expect(member.roles).toEqual(['salesperson']);
     expect(member.status).toBe('active');
+    expect((JSON.parse(res.body) as { reinstated?: boolean }).reinstated).toBeUndefined();
     colleagueUserId = member.user_id;
     colleagueMembershipId = member.id;
 
@@ -370,10 +371,12 @@ describe('HO-06: removing a colleague is never a one-way door', () => {
       payload: { organization_id: orgId, email, name: 'Marc Vendeur', roles: ['bdc_agent'] },
     });
     expect(again.statusCode).toBe(201);
-    const member = Member.parse(JSON.parse(again.body));
+    const member = MemberAdded.parse(JSON.parse(again.body));
     expect(member.id).toBe(id);
     expect(member.status).toBe('active');
     expect(member.roles).toEqual(['bdc_agent']);
+    // CR-01: the team screen distinguishes a revive from a brand-new person.
+    expect(member.reinstated).toBe(true);
   });
 
   it('the roster can list revoked members so the UI can offer reinstate', async (ctx) => {

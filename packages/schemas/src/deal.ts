@@ -64,6 +64,7 @@ export const Deal = DeskingInputs.extend({
   organization_id: Uuid,
   store_id: Uuid,
   lead_id: Uuid.nullable(),
+  vehicle_id: Uuid.nullable(),
   pipeline_stage: PipelineStage,
   funding_status: FundingStatus,
   funded_at: IsoDateTime.nullable(),
@@ -83,6 +84,8 @@ export const CreateDealInput = DeskingInputs.extend({
   organization_id: Uuid,
   store_id: Uuid,
   lead_id: Uuid.optional(),
+  /** The car being sold (F-07); must belong to the same organization. */
+  vehicle_id: Uuid.optional(),
 }).strict();
 
 /**
@@ -114,6 +117,7 @@ export const UpdateDealInput = z.strictObject({
   pipeline_stage: PipelineStage.optional(),
   funding_status: FundingStatus.optional(),
   lead_id: Uuid.nullable().optional(),
+  vehicle_id: Uuid.nullable().optional(),
 });
 
 export const DealListQuery = CursorQuery.extend({

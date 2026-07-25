@@ -166,7 +166,8 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
             `UPDATE memberships SET status = 'active', roles = $2 WHERE id = $1 RETURNING *`,
             [target.id, input.roles],
           );
-          return { ...reinstated.rows[0], email: input.email, name: input.name };
+          // CR-01: the UI shows a distinct notice for a revive vs a new person.
+          return { ...reinstated.rows[0], email: input.email, name: input.name, reinstated: true };
         }
 
         // App-generated id: INSERT..RETURNING on users cannot pass the SELECT

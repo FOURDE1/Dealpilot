@@ -114,6 +114,16 @@ async function requireLiveStore(client: PoolClient, storeId: string): Promise<vo
   }
 }
 
+/** The car must live in the SAME tenant (RLS makes a foreign one invisible). */
+async function requireVehicleInOrg(client: PoolClient, vehicleId: string): Promise<void> {
+  const r = await client.query(`SELECT 1 FROM vehicles WHERE id = $1 AND deleted_at IS NULL`, [vehicleId]);
+  if (r.rows.length === 0) {
+    throw new AppError(422, 'validation_failed', 'Unknown vehicle for this organization', [
+      { path: 'vehicle_id', code: 'invalid_reference', message: 'Vehicle not found in this organization' },
+    ]);
+  }
+}
+
 /** The lead must live in the SAME tenant (RLS makes a foreign one invisible). */
 async function requireLeadInOrg(client: PoolClient, leadId: string): Promise<void> {
   const r = await client.query(`SELECT 1 FROM leads WHERE id = $1 AND deleted_at IS NULL`, [leadId]);
@@ -153,11 +163,13 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
         await requireMember(c, user.id);
         await requireLiveStore(c, input.store_id);
         if (input.lead_id) await requireLeadInOrg(c, input.lead_id);
-        const cols = ['organization_id', 'store_id', 'lead_id', ...INPUT_COLUMNS, ...OUTPUT_COLUMNS];
+        if (input.vehicle_id) await requireVehicleInOrg(c, input.vehicle_id);
+        const cols = ['organization_id', 'store_id', 'lead_id', 'vehicle_id', ...INPUT_COLUMNS, ...OUTPUT_COLUMNS];
         const values: unknown[] = [
           input.organization_id,
           input.store_id,
           input.lead_id ?? null,
+          input.vehicle_id ?? null,
           ...INPUT_COLUMNS.map((k) => (input as Record<string, unknown>)[k] ?? null),
           ...OUTPUT_COLUMNS.map((k) => (outputs as unknown as Record<string, number>)[k]),
         ];
@@ -241,6 +253,7 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
     const deal = await withTenant(pool, orgId, async (c) => {
       await requireMember(c, user.id);
       if (input.lead_id) await requireLeadInOrg(c, input.lead_id);
+      if (input.vehicle_id) await requireVehicleInOrg(c, input.vehicle_id);
 
       const current = await c.query<Record<string, unknown>>(
         `SELECT * FROM deals WHERE id = $1 AND deleted_at IS NULL`,

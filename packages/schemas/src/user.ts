@@ -74,6 +74,16 @@ export const Member = z.object({
  * exactly one user until someone does this, so it is what makes assignment
  * demonstrable. `store_id: null` = the roles apply org-wide.
  */
+/**
+ * The add-member response. `reinstated` is true when the address already
+ * belonged to a REVOKED/INVITED membership that was revived rather than a new
+ * person being created — the team screen tells the admin which happened
+ * (CR-01; the flag was lost in the HO-09 security rewrite).
+ */
+export const MemberAdded = Member.extend({
+  reinstated: z.boolean().optional(),
+});
+
 export const AddMemberInput = z.strictObject({
   organization_id: Uuid,
   email: Email,
@@ -100,6 +110,7 @@ export const MemberListQuery = CursorQuery.extend({
 });
 
 export type MemberT = z.infer<typeof Member>;
+export type MemberAddedT = z.infer<typeof MemberAdded>;
 export type AddMemberInputT = z.infer<typeof AddMemberInput>;
 export type UpdateMemberInputT = z.infer<typeof UpdateMemberInput>;
 

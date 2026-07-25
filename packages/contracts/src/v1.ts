@@ -13,6 +13,11 @@ import {
   Organization,
   Store,
   AddMemberInput,
+  MemberAdded,
+  CreateVehicleInput,
+  UpdateVehicleInput,
+  Vehicle,
+  VehicleListQuery,
   CalculateDealInput,
   CreateDealInput,
   Deal,
@@ -129,6 +134,8 @@ export const apiV1 = c.router({
   users: crudRouter('users', User, CreateUserInput, UpdateUserInput),
   memberships: crudRouter('memberships', Membership, CreateMembershipInput, UpdateMembershipInput),
   leads: crudRouter('leads', Lead, CreateLeadInput, UpdateLeadInput, LeadListQuery),
+  /** F-07 inventory: the cars a store owns; a deal points at one. */
+  vehicles: crudRouter('vehicles', Vehicle, CreateVehicleInput, UpdateVehicleInput, VehicleListQuery),
   /** F-05 desking: the A-06 money engine behind /api/v1 (13-province tax,
    * amortization, gross). `calculate` is pure preview; deals persist it. */
   deals: c.router({
@@ -170,7 +177,8 @@ export const apiV1 = c.router({
       method: 'POST',
       path: '/api/v1/members',
       body: AddMemberInput,
-      responses: { 201: Member, ...errorResponses },
+      // MemberAdded = Member + `reinstated` (revived vs newly created).
+      responses: { 201: MemberAdded, ...errorResponses },
     },
     list: {
       method: 'GET',

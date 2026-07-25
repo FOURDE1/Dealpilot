@@ -28,6 +28,7 @@ export const MESSAGE_KEYS = {
   org_slug_format: 'org_slug_format',
   org_slug_reserved: 'org_slug_reserved',
   store_code_format: 'store_code_format',
+  vin_format: 'vin_format',
 } as const;
 
 export type MessageKey = (typeof MESSAGE_KEYS)[keyof typeof MESSAGE_KEYS];
