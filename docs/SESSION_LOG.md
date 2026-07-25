@@ -22,6 +22,38 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [HUSSEIN] — BATCH-01 UI halves DONE + INTEGRATED: F-04 team/assignment (01cd4af) and F-05 desking (b67ecf7); batch AWAITING-OWNER-TEST
+
+**F-04 (01cd4af):** Team screen (/team, 4th nav tab): add member with
+10-role fieldset, edit roles, revoke (ICU-named dialogs); org selector for
+multi-org; zero-org CTA; write UI hidden for non-managers (server still
+enforces). Lead page: org-scoped assignee picker; leads list: "Assigned to"
+column + "My leads" filter (`?assigned_to`). 3-lens adversarial review
+(25 agents) confirmed 18 findings — ALL fixed, the big ones: members cache
+was user-agnostic (now org-keyed everywhere + queryClient.clear() on
+sign-out — cross-account leak on shared devices closed), picker fetched
+members without org (400 for multi-org), leads assigned to a revoked member
+silently showed "unassigned" (now "Former member", held in the picker).
+**F-05 (b67ecf7 + ecb95c7):** /leads/:leadId/desk from the lead's Deals box —
+debounced POST /deals/calculate on each edit; GST/QST vs HST by PROVINCE;
+monthly/bi-weekly/weekly, front/total gross; FR/EN money parsing to integer
+cents (20 unit tests incl. NNBSP) + Intl CAD formatting; save persists and
+lists on the lead. Review (17 agents) confirmed 14 findings — ALL fixed,
+the big ones: **stale-quote guard** (Save disabled + panel dimmed while the
+shown figures lag the inputs — a quoted payment can never be saved unseen),
+**rate grammar** (5.999 % parsed as 59.99 % via the money parser — dedicated
+% parser now, 600 bps), lease honesty (engine ignores rate/term for lease →
+fields locked + program note, HO-05), deals list org-scoped (HO-06 also
+filed: revoked members unrecoverable from UI).
+**Tree: lint/typecheck 0, 378 unit/integration (257 api + 28 web + 81 ui +
+12 i18n), e2e 14/14 (f04 journey incl. zero-org/multi-org/orphaned
+assignment; f05 golden numbers 1 375,00 + 2 743,13 = 4 118,13 / 33 117,13 /
+640,09 / 4 500,00, ON HST switch, save+list). Owner seed re-created after
+db:reset (migrations 0006–0007 applied).**
+**For OWNER: one combined English test round — docs/OWNER-TEST-BATCH-01.md.**
+**For AHMAD: HO-05 (lease param mapping), HO-06 (members list status filter);
+F-04 e2e now guards the roster/assignment flows end-to-end.**
+
 ## 2026-07-25 [AHMAD] — BATCH-01 backends DONE: F-04 members+assignment (c5b4973) and F-05 desking (ac4c859); F-04 review fixes (1a8a614)
 
 **Owner switched us to BATCH delivery (D-031)** — 2-3 slices built in
