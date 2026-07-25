@@ -27,6 +27,10 @@ export class ApiError extends Error {
     readonly status: number,
     readonly fieldPath?: string,
     readonly code?: string,
+    /** The envelope's top-level error code (e.g. 'checklist_incomplete'). */
+    readonly errorCode?: string,
+    /** Every detail code — one per offending item when the server lists them. */
+    readonly detailCodes?: string[],
   ) {
     super(`API ${status}`);
   }
@@ -81,8 +85,14 @@ export async function apiRequest(
  */
 export function failFromResponse(status: number, body: unknown): never {
   const parsed = ErrorEnvelope.safeParse(body);
-  const detail = parsed.success ? parsed.data.error.details?.[0] : undefined;
-  throw new ApiError(status, detail?.path, detail?.code);
+  const details = parsed.success ? (parsed.data.error.details ?? []) : [];
+  throw new ApiError(
+    status,
+    details[0]?.path,
+    details[0]?.code,
+    parsed.success ? parsed.data.error.code : undefined,
+    details.map((d) => d.code).filter((c): c is string => typeof c === 'string'),
+  );
 }
 
 /** Contract routes (method/path values) — the source of truth for every call. */

@@ -1,13 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Label, Select } from '@dealpilot/ui';
+import { Button, Label, Select } from '@dealpilot/ui';
 import { PipelineStage, type DealT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
 import { useOrganizations } from '../organizations/api.js';
 import { useLeadNames } from '../leads/api.js';
 import { leadDisplayName } from '../leads/labels.js';
 import { usePipelineDeals, useUpdateDealTracks } from './api.js';
+import { ChecklistDialog } from '../checklists/checklist-dialog.js';
+import { CHECKLIST_CODE_KEYS } from '../checklists/labels.js';
 import { FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from './labels.js';
 import { formatCents } from './money.js';
 
@@ -17,6 +19,7 @@ import { formatCents } from './money.js';
  */
 export function PipelinePage() {
   const { t, i18n } = useTranslation('deals');
+  const { t: tCheck } = useTranslation('checklist');
   const orgs = useOrganizations();
   const multiOrg = (orgs.data?.items.length ?? 0) > 1;
   const [orgFilter, setOrgFilter] = useState('');
@@ -25,6 +28,7 @@ export function PipelinePage() {
   const leads = useLeadNames(multiOrg ? orgId : undefined, { enabled: !orgs.isPending });
   const update = useUpdateDealTracks(multiOrg ? orgId : undefined);
   const [error, setError] = useState<string | null>(null);
+  const [checklistDeal, setChecklistDeal] = useState<DealT | null>(null);
 
   const leadName = useMemo(() => {
     const map = new Map<string, string>();
@@ -47,8 +51,29 @@ export function PipelinePage() {
     try {
       await update.mutateAsync({ id: deal.id, body: patch });
     } catch (err) {
-      setError(t('genericError'));
-      if (!(err instanceof ApiError)) throw err;
+      if (!(err instanceof ApiError)) {
+        setError(t('genericError'));
+        throw err;
+      }
+      if (
+        err.status === 422 &&
+        (err.errorCode === 'checklist_incomplete' || err.errorCode === 'checklist_hard_blocked')
+      ) {
+        // One detail code per outstanding item — translate each.
+        const codes = err.detailCodes ?? [];
+        if (codes.includes('checklist_missing')) {
+          setError(tCheck('noChecklist'));
+        } else {
+          const names = codes
+            .map((c) =>
+              c in CHECKLIST_CODE_KEYS ? tCheck(CHECKLIST_CODE_KEYS[c as keyof typeof CHECKLIST_CODE_KEYS]) : c,
+            )
+            .join(', ');
+          setError(t('deliveryBlocked', { items: names }));
+        }
+      } else {
+        setError(t('genericError'));
+      }
     }
   }
 
@@ -138,6 +163,16 @@ export function PipelinePage() {
                               })}
                         </span>
                       </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start px-0"
+                        aria-label={t('checklistFor', { name: leadName.get(d.lead_id ?? '') ?? d.id.slice(0, 8) })}
+                        onClick={() => setChecklistDeal(d)}
+                      >
+                        {t('checklistAction')}
+                      </Button>
                       <div className="space-y-1">
                         <Label htmlFor={`stage-${d.id}`} className="text-xs">
                           {t('stageLabel')}
@@ -183,6 +218,7 @@ export function PipelinePage() {
         </div>
         </>
       )}
+      <ChecklistDialog deal={checklistDeal} onClose={() => setChecklistDeal(null)} />
     </div>
   );
 }

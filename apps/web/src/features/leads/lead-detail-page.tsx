@@ -8,9 +8,11 @@ import { ApiError } from '../../shared/api/client.js';
 import { useLead, useUpdateLead } from './api.js';
 import { activeMembers, useMembers } from '../team/api.js';
 import { useDealsForLead } from '../deals/api.js';
+import { ChecklistDialog } from '../checklists/checklist-dialog.js';
 import { DEAL_TYPE_KEYS, FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from '../deals/labels.js';
 import { formatCents } from '../deals/money.js';
 import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
+import type { DealT } from '@dealpilot/schemas';
 
 /** The F-02 acceptance action: change a lead's status from its record page. */
 export function LeadDetailPage() {
@@ -26,6 +28,7 @@ export function LeadDetailPage() {
   const assignedIsFormer =
     assignedTo !== null && !assignees.some((m) => m.user_id === assignedTo);
   const [feedback, setFeedback] = useState<'saved' | 'error' | null>(null);
+  const [checklistDeal, setChecklistDeal] = useState<DealT | null>(null);
 
   async function handleStatusChange(status: LeadStatusT) {
     setFeedback(null);
@@ -171,12 +174,21 @@ export function LeadDetailPage() {
                       {' '}— {td(PIPELINE_STAGE_KEYS[d.pipeline_stage])} · {td(FUNDING_STATUS_KEYS[d.funding_status])}
                     </span>
                   </span>
-                  <span className="font-mono tabular-nums">
-                    {d.deal_type === 'cash'
-                      ? formatCents(d.amount_financed_cents, i18n.language)
-                      : td('monthlyAbbr', {
-                          amount: formatCents(d.monthly_payment_cents, i18n.language),
-                        })}
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono tabular-nums">
+                      {d.deal_type === 'cash'
+                        ? formatCents(d.amount_financed_cents, i18n.language)
+                        : td('monthlyAbbr', {
+                            amount: formatCents(d.monthly_payment_cents, i18n.language),
+                          })}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11"
+                      onClick={() => setChecklistDeal(d)}
+                    >
+                      {td('checklistAction')}
+                    </button>
                   </span>
                 </li>
               ))}
@@ -184,6 +196,7 @@ export function LeadDetailPage() {
           )}
         </div>
       </div>
+      <ChecklistDialog deal={checklistDeal} onClose={() => setChecklistDeal(null)} />
     </div>
   );
 }

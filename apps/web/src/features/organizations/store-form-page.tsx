@@ -7,6 +7,7 @@ import type { Locale } from '@dealpilot/i18n';
 import { useCreateStore, useStore, useUpdateStore } from './api.js';
 import { formErrorMessage } from './form-error.js';
 import { IntakeSources } from './intake-sources.js';
+import { ChecklistTemplateSection } from '../checklists/template-section.js';
 
 const PROVINCES = ['AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT'] as const;
 type Province = (typeof PROVINCES)[number];
@@ -167,6 +168,7 @@ export function StoreFormPage() {
       </form>
 
       {isEdit && storeId ? <IntakeSources key={storeId} orgId={orgId} storeId={storeId} /> : null}
+      {isEdit && storeId ? <ChecklistTemplateSection key={`chk-${storeId}`} storeId={storeId} /> : null}
     </div>
   );
 }
