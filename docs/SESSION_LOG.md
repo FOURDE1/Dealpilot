@@ -47,6 +47,59 @@ twice (his and mine). ONE owner round: docs/OWNER-TEST-BATCH-02.md.**
 **Owner also owes two decisions: D-033 (who signs off safety), D-035/invite
 flow (next batch scope).**
 
+## 2026-07-26 [AHMAD] — BATCH-02 closed: CR-03 fixed, two drift guards added, Hussein's UI reviewed and integration proven
+
+**Done:**
+- **CR-03 (Hussein's, fair):** the four F-08 endpoints were mounted but absent from
+  `apiV1`, so the typed client and OpenAPI could not see them and the web app
+  carried route literals. Added as `apiV1.checklist`.
+- **Why nobody noticed, fixed too:** `apps/api/src/contract-coverage.test.ts` now
+  compares the mounted Fastify routes against `apiV1` in BOTH directions. It found
+  a second gap Hussein never hit — the A-03 scaffold declared `users` and
+  `memberships` CRUD that were never mounted, so the contract advertised **ten
+  endpoints answering 404**. Removed; nothing referenced them.
+- **`packages/db/src/rls-coverage.test.ts`** — the ROADMAP Phase 1 exit criterion
+  ("RLS verified by an automated cross-tenant leak test") was only half met:
+  rls.test.ts proves behaviour on the 3 tables that existed when it was written,
+  and we now have 12. The new suite reads the CATALOG, so it covers tables that do
+  not exist yet — missing FORCE RLS, missing write-side isolation, `WITH CHECK
+  (true)`, a bypass-capable app role, or a tenant table with no behavioural test
+  all turn CI red on their own.
+- It flagged two policies of mine from F-09 on its first run: `commission_self_read`
+  and `pay_plan_self_read` grant rows on `user_id = app.user_id` with no
+  organization in the expression, so under the dual-context pattern F-04 already
+  uses they would return a person's pay from EVERY org they belong to. Not
+  reachable today (every such query carries an explicit org predicate) but that
+  safety rested on remembering a convention. Migration 0013 drops them; 318 tests
+  green proves nothing depended on them. Pay stays personal in the route, tested.
+- **Reviewed Hussein's F-08 UI** — faithful to the contract: handles both
+  `checklist_incomplete` and `checklist_hard_blocked` with different wording, keys
+  read-only off `delivered_at` (not the stage), no Waive control on a
+  non-overridable item, renders a waiver distinctly with its author and reason
+  (with a former-member fallback), handles the 409 and the empty-checklist case.
+  No CR needed.
+- **Integration proven, not assumed:** ran his Playwright journey against the live
+  stack with my backend — gate blocks → tick/waive → deliver → frozen — 1 passed.
+  Owner's dev DB left with his org and store and nothing else.
+
+**In progress:** nothing of mine. BATCH-02 is complete on both sides.
+
+**Blocked / open questions:** D-035 (an invited member can never log in — needs the
+owner's choice between two visibly different fixes) and D-033 (who may sign off the
+safety inspection). Both in `docs/OWNER-DECISIONS-PENDING.md`; neither blocks other
+work.
+
+**Gotchas learned:** two guards were worth more than the bugs they fixed — both were
+written because the ORIGINAL defect was invisible to review by eye, and both found a
+second, older defect on their first run. When a mistake was undetectable rather than
+careless, the fix is a detector, not more care.
+
+**Next steps:** (1) owner — BATCH-02 test round (`docs/OWNER-TEST-BATCH-02.md`; stack
+is up and seeded). (2) owner — answer D-035 so the invite flow can be built.
+(3) Ahmad — BATCH-03 per the plan's module order (dispatch, then documents/bill of
+sale); `activity_events` (ADR-009) is the missing piece behind D-034 and should be
+proposed as part of it.
+
 ## 2026-07-26 [AHMAD] — F-08 delivery checklist backend: "delivered" is now earned, not typed
 
 **Done:** F-08 AHMAD half, the last slice of BATCH-02. Migration
