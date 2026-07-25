@@ -131,7 +131,9 @@ export async function keysetPage<Row extends { id: string }>(
   page: PageArgs,
 ): Promise<{ items: Row[]; next_cursor: string | null }> {
   // `_ck` carries created_at at full precision; stripped before the response.
-  let sql = baseSql.replace(/^SELECT \*/, 'SELECT *, created_at::text AS _ck');
+  // Injected before the first FROM so it works for `SELECT *` AND explicit
+  // column lists (e.g. intake-keys omits the `secret` column).
+  let sql = baseSql.replace(' FROM ', ', created_at::text AS _ck FROM ');
   const bind = [...params];
   if (page.cursor) {
     const { c, id } = decodeCursor(page.cursor);

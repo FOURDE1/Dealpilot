@@ -10,3 +10,4 @@ export * from './store.js';
 export * from './user.js';
 export * from './lead.js';
 export * from './auth.js';
+export * from './intake.js';

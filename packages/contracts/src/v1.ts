@@ -12,6 +12,9 @@ import {
   Membership,
   Organization,
   Store,
+  CreateIntakeKeyInput,
+  IntakeKey,
+  IntakeKeyCreated,
   LeadListQuery,
   StoreListQuery,
   UpdateLeadInput,
@@ -116,4 +119,26 @@ export const apiV1 = c.router({
   users: crudRouter('users', User, CreateUserInput, UpdateUserInput),
   memberships: crudRouter('memberships', Membership, CreateMembershipInput, UpdateMembershipInput),
   leads: crudRouter('leads', Lead, CreateLeadInput, UpdateLeadInput, LeadListQuery),
+  intakeKeys: c.router({
+    create: {
+      method: 'POST',
+      path: '/api/v1/intake-keys',
+      body: CreateIntakeKeyInput,
+      // 201 returns the raw secret ONCE (IntakeKeyCreated); list/get never do.
+      responses: { 201: IntakeKeyCreated, ...errorResponses },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/intake-keys',
+      query: StoreListQuery,
+      responses: { 200: paginated(IntakeKey), ...errorResponses },
+    },
+    revoke: {
+      method: 'DELETE',
+      path: '/api/v1/intake-keys/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: c.noBody(),
+      responses: { 204: c.noBody(), ...errorResponses },
+    },
+  }),
 });

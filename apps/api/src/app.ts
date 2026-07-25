@@ -7,6 +7,7 @@ import { loadEnv, type Env } from './env.js';
 import { AppError, envelope } from './errors.js';
 import { registerF01Routes } from './f01-routes.js';
 import { registerF02Routes } from './f02-leads-routes.js';
+import { registerIntakeKeyRoutes, registerPublicIntakeRoutes } from './f03-intake-routes.js';
 
 /**
  * Dealpilot API (A-05): Fastify 5 skeleton.
@@ -24,7 +25,12 @@ import { registerF02Routes } from './f02-leads-routes.js';
  * path by the time onRequest runs, so `/api/auth/../v1/me` can never sneak past
  * the gate. An unmatched route has no routeOptions.url → denied by default.
  */
-const PUBLIC_ROUTES: readonly string[] = ['/api/v1/health', '/api/auth/*'];
+const PUBLIC_ROUTES: readonly string[] = [
+  '/api/v1/health',
+  '/api/auth/*',
+  // F-03 inbound intake webhook — authenticated by HMAC signature, not a session.
+  '/in/v1/leads/:token',
+];
 
 /** Fastify-internal error codes → canonical, stable API codes (api-design.md §8). */
 const FASTIFY_CODE_MAP: Record<string, string> = {
@@ -89,6 +95,24 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
     // A-05.1: restrict request headers and cache preflights for a day.
     allowedHeaders: ['content-type', 'authorization'],
     maxAge: 86400,
+  });
+
+  // JSON parser that keeps the raw bytes (F-03 intake HMAC signs the exact
+  // body). Preserves Fastify's default behavior otherwise; a parse failure
+  // reuses the canonical validation_failed mapping.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+    const req = _req as FastifyRequest & { rawBody?: string };
+    req.rawBody = body as string;
+    const text = body as string;
+    if (!text || text.length === 0) return done(null, undefined);
+    try {
+      done(null, JSON.parse(text));
+    } catch {
+      const err = new Error('Invalid JSON body') as Error & { statusCode?: number; code?: string };
+      err.statusCode = 400;
+      err.code = 'FST_ERR_CTP_INVALID_JSON_BODY';
+      done(err);
+    }
   });
 
   // --- canonical error envelope everywhere -------------------------------
@@ -174,6 +198,8 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
 
   registerF01Routes(app, pool);
   registerF02Routes(app, pool);
+  registerIntakeKeyRoutes(app, pool, env.BETTER_AUTH_URL);
+  registerPublicIntakeRoutes(app, pool);
 
   app.addHook('onClose', async () => {
     await pool.end();
