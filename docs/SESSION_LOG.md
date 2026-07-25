@@ -22,6 +22,26 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [HUSSEIN] — F-06 both halves on develop within the hour (b6575f8 AHMAD → b6f2ab3 HUSSEIN); the signal protocol worked
+
+Built the kanban on a LOCAL integration branch against ahmad/f06-pipeline
+(develop never broke), reviewed it adversarially (14 agents, 11 confirmed
+findings fixed pre-merge: duplicate nav key that only WORKSPACE typecheck
+catches — package-scoped typecheck is not enough, added to my gate ritual;
+create-deal not invalidating the board; silent 100-deal truncation → bounded
+3-page follow + notice; lead names beyond page 1 → bounded name fetch;
+select snap-back → optimistic cache write from the PATCH response; board-wide
+select freeze → per-card pending; cash cards showed a meaningless monthly;
+5th mobile tab overflow → smaller truncating labels + an e2e overflow
+assertion; scroll region keyboard-focusable). Signaled on the board, AHMAD
+merged, my UI followed from a fresh develop branch: full turbo gates + 15/15
+e2e (incl. the f06 kanban journey) green before push.
+**Pipeline is live: 10 stage columns + independent funding track, optimistic
+moves, org scoping, FR/EN.**
+**Waiting on AHMAD: HO-09 (SECURITY, urgent), HO-07 (test-DB isolation),
+F-07 vehicles contract — my inventory UI + worksheet vehicle picker start on
+his merge. BATCH-02 owner script comes once F-07 is in.**
+
 ## 2026-07-25 [HUSSEIN] — HO-05/06 UI halves merged (d0c9f4d); SECURITY HO-09 filed; F-06 half next (AHMAD's contract read)
 
 **Shipped (d0c9f4d):** lease worksheet unlocked — rate/term drive the price,
