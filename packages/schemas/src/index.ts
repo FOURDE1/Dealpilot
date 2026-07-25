@@ -13,3 +13,4 @@ export * from './auth.js';
 export * from './intake.js';
 export * from './deal.js';
 export * from './vehicle.js';
+export * from './commission.js';

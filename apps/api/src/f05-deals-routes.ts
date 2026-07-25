@@ -11,6 +11,7 @@ import {
 } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
+import { writeCommissionsForFundedDeal } from './f09-commissions-routes.js';
 
 /**
  * F-05 desking (apiV1.deals) — the A-06 money engine behind the API.
@@ -164,12 +165,15 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
         await requireLiveStore(c, input.store_id);
         if (input.lead_id) await requireLeadInOrg(c, input.lead_id);
         if (input.vehicle_id) await requireVehicleInOrg(c, input.vehicle_id);
-        const cols = ['organization_id', 'store_id', 'lead_id', 'vehicle_id', ...INPUT_COLUMNS, ...OUTPUT_COLUMNS];
+        const cols = ['organization_id', 'store_id', 'lead_id', 'vehicle_id', 'salesperson_id',
+          'fi_reserve_cents', ...INPUT_COLUMNS, ...OUTPUT_COLUMNS];
         const values: unknown[] = [
           input.organization_id,
           input.store_id,
           input.lead_id ?? null,
           input.vehicle_id ?? null,
+          input.salesperson_id ?? null,
+          input.fi_reserve_cents ?? 0,
           ...INPUT_COLUMNS.map((k) => (input as Record<string, unknown>)[k] ?? null),
           ...OUTPUT_COLUMNS.map((k) => (outputs as unknown as Record<string, number>)[k]),
         ];
@@ -284,7 +288,23 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
         [dealId, ...setEntries.map(([, v]) => v)],
       );
       if (r.rows.length === 0) throw notFound();
-      return r.rows[0]!;
+      const updated = r.rows[0]!;
+
+      // F-09: pay is written in the SAME transaction that records the money
+      // arriving, so a funded deal and its commission can never disagree.
+      // The engine (A-06) owns the math; the unique index makes it idempotent.
+      if (input.funding_status === 'funded' && updated['funded_at']) {
+        await writeCommissionsForFundedDeal(c, {
+          id: String(updated['id']),
+          organization_id: String(updated['organization_id']),
+          salesperson_id: (updated['salesperson_id'] as string | null) ?? null,
+          sale_price_cents: Number(updated['sale_price_cents']),
+          vehicle_cost_cents: Number(updated['vehicle_cost_cents']),
+          fi_reserve_cents: Number(updated['fi_reserve_cents'] ?? 0),
+          funded_at: new Date(updated['funded_at'] as string | Date).toISOString(),
+        });
+      }
+      return updated;
     });
     return reply.send(withDerived(deal));
   });

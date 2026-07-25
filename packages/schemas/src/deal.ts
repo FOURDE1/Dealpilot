@@ -65,6 +65,8 @@ export const Deal = DeskingInputs.extend({
   store_id: Uuid,
   lead_id: Uuid.nullable(),
   vehicle_id: Uuid.nullable(),
+  salesperson_id: Uuid.nullable(),
+  fi_reserve_cents: NonNegativeCents,
   pipeline_stage: PipelineStage,
   funding_status: FundingStatus,
   funded_at: IsoDateTime.nullable(),
@@ -86,6 +88,10 @@ export const CreateDealInput = DeskingInputs.extend({
   lead_id: Uuid.optional(),
   /** The car being sold (F-07); must belong to the same organization. */
   vehicle_id: Uuid.optional(),
+  /** Who sold it (F-09) — drives the commission when the deal funds. */
+  salesperson_id: Uuid.optional(),
+  /** F&I reserve counts toward commissionable gross (commissions §11). */
+  fi_reserve_cents: NonNegativeCents.optional(),
 }).strict();
 
 /**
@@ -118,6 +124,8 @@ export const UpdateDealInput = z.strictObject({
   funding_status: FundingStatus.optional(),
   lead_id: Uuid.nullable().optional(),
   vehicle_id: Uuid.nullable().optional(),
+  salesperson_id: Uuid.nullable().optional(),
+  fi_reserve_cents: NonNegativeCents.optional(),
 });
 
 export const DealListQuery = CursorQuery.extend({

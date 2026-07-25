@@ -13,6 +13,12 @@ import {
   Organization,
   Store,
   AddMemberInput,
+  Commission,
+  CommissionListQuery,
+  CreatePayPlanInput,
+  PayPlan,
+  PayPlanListQuery,
+  UpdatePayPlanInput,
   MemberAdded,
   CreateVehicleInput,
   UpdateVehicleInput,
@@ -134,6 +140,36 @@ export const apiV1 = c.router({
   users: crudRouter('users', User, CreateUserInput, UpdateUserInput),
   memberships: crudRouter('memberships', Membership, CreateMembershipInput, UpdateMembershipInput),
   leads: crudRouter('leads', Lead, CreateLeadInput, UpdateLeadInput, LeadListQuery),
+  /** F-09 pay plans + the commission lines a funded deal produces. */
+  payPlans: c.router({
+    upsert: {
+      method: 'POST',
+      path: '/api/v1/pay-plans',
+      body: CreatePayPlanInput,
+      responses: { 201: PayPlan, ...errorResponses },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/pay-plans',
+      query: PayPlanListQuery,
+      responses: { 200: paginated(PayPlan), ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/pay-plans/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdatePayPlanInput,
+      responses: { 200: PayPlan, ...errorResponses },
+    },
+  }),
+  commissions: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/commissions',
+      query: CommissionListQuery,
+      responses: { 200: paginated(Commission), ...errorResponses },
+    },
+  }),
   /** F-07 inventory: the cars a store owns; a deal points at one. */
   vehicles: crudRouter('vehicles', Vehicle, CreateVehicleInput, UpdateVehicleInput, VehicleListQuery),
   /** F-05 desking: the A-06 money engine behind /api/v1 (13-province tax,
