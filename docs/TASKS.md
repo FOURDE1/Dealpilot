@@ -87,6 +87,57 @@
 | F-08 | **Deal → delivery checklist**: mark a delivered deal's required steps (per-store configurable items, D-020) so "delivered" means something auditable. AHMAD half: checklist template per store + per-deal items + completion API. HUSSEIN half: checklist panel on the deal. | BOTH | INTEGRATED(develop dfe5fc6 + 82853e2/a76979f — both halves) | F-06, F-07 | Two adversarial review rounds found 17 defects in AHMAD's own first cut, the worst being that the gate was a NO-OP unless someone had opened the checklist panel first (items were never created), and that `pipeline_stage: 'complete'` walked straight around it. Both fixed and mutation-proven. Contract for HUSSEIN below. |
 | F-09 | **Commissions on funded deals**: when a deal is funded, compute the salesperson's commission with the A-06 engine (pad-before-rate, tier by funded month, overrides) and show it. AHMAD half: pay-plan per membership + commission rows on funding. HUSSEIN half: commission view. | BOTH | IN-PROGRESS(AHMAD half DONE; HUSSEIN: pay-plan + commission views) | F-06 | Proposed 2026-07-25. The engine and its golden tests already exist (A-06); this wires them to real deals — the owner's 12 real pay plans become live data. |
 
+## 📣 OWNER DIRECTIVE 2026-07-26 (early hours) — AHMAD → HUSSEIN, please read
+
+The owner is asleep and has authorized both of us to **keep going down the whole
+roadmap without stopping to ask**, until the only things left are genuinely his.
+His words: continue "without messing anything and with completing everything
+professionally and perfectly", and he asked me to pass this to you.
+
+**What that changes for you:**
+
+1. **Don't idle waiting on a decision.** If something needs an owner answer,
+   pick the safer option, BUILD IT, and log the fork in
+   `docs/OWNER-DECISIONS-PENDING.md` with what you chose and what the
+   alternative was. He reviews them later; none of them block you now.
+2. **Every owner-facing thing you build gets test cases** appended to
+   `docs/OWNER-TEST-MASTER.md` — that is now the single place he looks. Keep the
+   table format: what to do, what should happen, a ⬜ box. Plain language, no
+   jargon; he is testing a car dealership, not reading a spec.
+3. **Nothing half-landed.** Full quality gate before every merge
+   (build + typecheck + lint + `pnpm test:ci` + i18n parity). If you cannot
+   finish a slice, leave it on your branch and say so on this board rather than
+   merging something partial into develop.
+4. **Do not run `pnpm db:reset`.** It resolves DATABASE_URL to the OWNER'S dev
+   database, not the test one — it wiped his login four times before I guarded
+   it tonight. It now refuses anything not named `*_test`. The test suites reset
+   `dealpilot_test` themselves; you never need the CLI for that. If you do reset
+   dev deliberately, re-seed with `bash apps/web/scripts/seed-owner.sh`.
+5. **Two new guards will fail your build if you drift** — this is intended, and
+   the message tells you what to do:
+   - `apps/api/src/contract-coverage.test.ts` — a route not in `apiV1`, or an
+     `apiV1` entry with no route, turns CI red. (This is CR-03, generalized.)
+   - `packages/db/src/rls-coverage.test.ts` — a new tenant table without forced
+     RLS, without write-side isolation, or without a cross-tenant test.
+   - `f10-activity.test.ts` "no dead vocabulary" — an activity enum value with
+     no real call site.
+
+**Where I am:** F-10 activity trail merged (ADR-009 — every state change now
+writes an append-only row in the same transaction as the change). 327 tests
+green, CI green. Your half of F-10 is the **activity timeline on the deal and
+the lead** — the API is `GET /api/v1/activity?entity_type=deal&entity_id=<id>`,
+paginated, newest first, and it is in the contract as `apiV1.activity`.
+
+**What I'm taking next**, so we don't collide: F-12 invitations (D-035 — an
+invited member currently cannot log in at all), then F-11 dispatch. Both are
+backend-first; I'll post the contract here before you need it, same as F-08.
+
+**Your lane stays `apps/web` + `packages/ui`.** If you need an API shape that
+doesn't exist, file a CR row here rather than working around it — CR-03 was
+exactly right and it found a second bug nobody had noticed.
+
+---
+
 **BATCH-03 (proposed 2026-07-26 by AHMAD, per the plan's own parity order in ROADMAP §3 "Module parity": … delivery → dispatch → commissions → documents …):**
 
 | ID | Task | Owner | Status | Depends on | Notes |
