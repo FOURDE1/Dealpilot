@@ -222,6 +222,20 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
         [membershipId, ...fields.map(([, v]) => v)],
       );
         if (r.rows.length === 0) throw notFound();
+
+        // Someone who is no longer on the team cannot own work: their leads
+        // return to the pool rather than pointing at a person nobody can see
+        // (review 2026-07-25). Same transaction, so no lead is ever left
+        // assigned to a revoked member.
+        if (input.status && input.status !== 'active') {
+          await c.query(
+            `UPDATE leads
+             SET assigned_to = NULL,
+                 status = CASE WHEN status = 'assigned' THEN 'new' ELSE status END
+             WHERE assigned_to = $1 AND deleted_at IS NULL`,
+            [r.rows[0]!['user_id'] as string],
+          );
+        }
         return { ...r.rows[0], ...identity };
       });
       return await reply.send(member);

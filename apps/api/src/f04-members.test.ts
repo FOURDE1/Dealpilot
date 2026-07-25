@@ -267,6 +267,44 @@ describe('F-04 review fixes', () => {
   });
 });
 
+describe('revoking a member releases their leads', () => {
+  it('their assigned leads return to the pool instead of pointing at a ghost', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const email = `f04-release-${run}@dealpilot.test`;
+    const added = await app!.inject({
+      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
+      payload: { organization_id: orgId, email, name: 'Leaving Person', roles: ['salesperson'] },
+    });
+    const member = Member.parse(JSON.parse(added.body));
+
+    const lead = await app!.inject({
+      method: 'POST', url: '/api/v1/leads', headers: { cookie: cookieOwner },
+      payload: { organization_id: orgId, store_id: storeId, phone: '5145550190', source: 'phone', first_name: 'Orphan' },
+    });
+    const theirLeadId = (JSON.parse(lead.body) as { id: string }).id;
+    const assigned = await app!.inject({
+      method: 'PATCH', url: `/api/v1/leads/${theirLeadId}`, headers: { cookie: cookieOwner },
+      payload: { assigned_to: member.user_id, status: 'assigned' },
+    });
+    expect(assigned.statusCode).toBe(200);
+
+    const revoke = await app!.inject({
+      method: 'PATCH', url: `/api/v1/members/${member.id}`, headers: { cookie: cookieOwner },
+      payload: { status: 'revoked' },
+    });
+    expect(revoke.statusCode).toBe(200);
+
+    // The lead must still exist, unassigned and back in the working queue.
+    const after = await app!.inject({
+      method: 'GET', url: `/api/v1/leads/${theirLeadId}`, headers: { cookie: cookieOwner },
+    });
+    expect(after.statusCode).toBe(200);
+    const body = JSON.parse(after.body) as { assigned_to: string | null; status: string };
+    expect(body.assigned_to).toBeNull();
+    expect(body.status).toBe('new');
+  });
+});
+
 describe('HO-06: removing a colleague is never a one-way door', () => {
   it('re-adding a revoked colleague REINSTATES them instead of 409', async (ctx) => {
     if (!dbUp) return ctx.skip();
