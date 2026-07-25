@@ -29,7 +29,7 @@ export function formatBps(bps: number, locale: string): string {
  * Returns null for empty/garbage input rather than guessing.
  */
 export function parseMoneyToCents(raw: string): number | null {
-  const s = raw.replace(/[\s  $]/g, '');
+  const s = raw.replace(/[\s\u00a0\u202f$]/g, '');
   if (s === '' || !/^[0-9.,]+$/.test(s)) return null;
   const lastSep = Math.max(s.lastIndexOf('.'), s.lastIndexOf(','));
   const decimals = lastSep === -1 ? '' : s.slice(lastSep + 1);
