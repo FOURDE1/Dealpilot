@@ -97,3 +97,15 @@ The big one. Details in the next section as it lands.
 ## ROUND 3 — added as work lands
 
 Ahmad and Hussein append here. Empty sections mean the work is in flight.
+
+## ROUND 4 — Activity history (F-10)
+
+Every change now leaves a line — who did it, when, and what changed.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 4.1 | Open any lead → scroll to "History" | Every act on that lead is listed — creation, status changes, assignments — each with the person's name and time | ⬜ |
+| 4.2 | Change the lead's status, look again | The change appears at the top immediately, with old → new | ⬜ |
+| 4.3 | Pipeline → any deal card → "History" | Stage moves, funding moves and the deal's creation are all there | ⬜ |
+| 4.4 | Waive a checklist item with a reason, then open that deal's History | The waiver appears WITH your reason — that line is the audit record | ⬜ |
+| 4.5 | Switch FR ↔ EN | Action names translate; dates reformat | ⬜ |

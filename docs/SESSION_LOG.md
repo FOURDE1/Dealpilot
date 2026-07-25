@@ -22,6 +22,23 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — F-10 timeline merged: the trail is visible, whole and org-scoped; CR-04 filed
+
+History section on every lead + History dialog on every deal (pipeline card
+and lead row): action, actor (system, former and beyond-roster members named
+honestly), timestamp, field-level from→new with money rendered as money and
+user-ids resolved to names; waiver reasons reach the DEAL's history (the
+review's high finding: checklist events are item-keyed, so the client merges
+the org's checklist events by changes.deal_id — exact server filter is
+CR-04); org-scoped queries (multi-org no longer 400s); cursor-follow to 300
+with a truncation notice; every mutating hook invalidates the trail.
+Review (12 agents): 10 confirmed findings, ALL fixed. e2e proves the acts:
+lead status change with the actor's name, deal stage/funding lines, and a
+waiver reason readable in the deal history (19/19 suite).
+Owner rows appended to OWNER-TEST-MASTER (ROUND 4). Per the overnight
+directive: continuing autonomously — next in MY lane: app-wide UI/a11y
+hardening pass (both locales, both themes, 360px) while AHMAD builds F-12.
+
 ## 2026-07-26 [HUSSEIN] — F-08 checklist panel merged (82853e2 + a76979f): BATCH-02 COMPLETE, one owner round pending
 
 The gate is visible: checklist dialog on every pipeline card and lead deal
