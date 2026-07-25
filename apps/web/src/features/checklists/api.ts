@@ -7,18 +7,14 @@ import {
   UpdateChecklistItemInput,
   UpdateChecklistTemplateInput,
 } from '@dealpilot/schemas';
-import { apiRequest, failFromResponse as fail } from '../../shared/api/client.js';
+import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
 
-/**
- * F-08 endpoints are not yet in the shared apiV1 contract (CR-03) — these
- * literals mirror docs/HUSSEIN-F08-CONTRACT.md and parse with the shared
- * schemas, so the wire shapes stay contract-checked.
- */
+/** CR-03 closed: the F-08 endpoints live in apiV1 like everything else. */
 const ROUTES = {
-  dealChecklist: { method: 'GET', path: '/api/v1/deals/:id/checklist' },
-  updateItem: { method: 'PATCH', path: '/api/v1/deals/:id/checklist/:code' },
-  storeTemplate: { method: 'GET', path: '/api/v1/stores/:id/checklist-template' },
-  updateTemplate: { method: 'PATCH', path: '/api/v1/stores/:id/checklist-template/:code' },
+  dealChecklist: routes.checklist.forDeal,
+  updateItem: routes.checklist.updateItem,
+  storeTemplate: routes.checklist.template,
+  updateTemplate: routes.checklist.updateTemplate,
 } as const;
 
 const DealChecklist = z.object({
