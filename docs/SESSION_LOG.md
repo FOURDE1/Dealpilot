@@ -22,6 +22,26 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [AHMAD] — F-02 ACCEPTED (owner); HO-03 parity gate in CI (db77ca6); SES FULLY VERIFIED; F-03 proposed
+
+**Done:** (1) Owner tested F-02 and ACCEPTED (chat, "i did tested") — board
+updated; duplicate F-02 row consolidated (F-02b tombstone, no-delete rule).
+(2) **HO-03 DONE (db77ca6):** ci.yml i18n no-op replaced with the real parity
+gate (`--fail-if-no-match run check:parity`, self-building; local run:
+"i18n parity OK"). The push itself is the live CI proof. (3) **SES
+1dealer.ca is FULLY VERIFIED** (domain, DKIM, MAIL FROM all SUCCESS) —
+sending from @1dealer.ca is live (sandbox: verified recipients only until
+production access is requested). (4) Board: **F-03 proposed** (owner picks:
+A intake webhook [recommended] or B lead assignment); **A-10** filed from
+HUSSEIN's note (schema message keys for client-side localization).
+**Unblocked next:** requireEmailVerification (last A-05.1 deferral) — needs
+@aws-sdk/client-sesv2 in apps/api (NEW DEP → owner ask-first pending) + SES
+production-access request (support case, automatable).
+**Next steps:** 1) Owner picks F-03 → AHMAD half starts. 2) On dep approval:
+SES email sending + email verification on sign-up. 3) A-07 unit 2 (compute/
+RDS) when owner wants staging — costed, numbers first.
+**Blockers:** F-03 pick + dep approval = owner; else none.
+
 ## 2026-07-25 [HUSSEIN] — F-02 INTEGRATED (aad8dbf): lead screens merged, e2e 10/10 — AWAITING-OWNER-TEST
 
 **Done:** Repo monitor woke the session on AHMAD's 26cfbba; UI half rebased,
