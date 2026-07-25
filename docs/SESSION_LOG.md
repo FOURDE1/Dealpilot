@@ -47,6 +47,54 @@ twice (his and mine). ONE owner round: docs/OWNER-TEST-BATCH-02.md.**
 **Owner also owes two decisions: D-033 (who signs off safety), D-035/invite
 flow (next batch scope).**
 
+## 2026-07-26 [AHMAD] — F-10 activity trail merged: ADR-009's audit log, after two review rounds took it apart
+
+**Done:** F-10 AHMAD half (327/327). `activity_events` (append-only, tenant-scoped,
+monotonic `seq`, `ON DELETE SET NULL` on the actor so a Law 25 erasure neither
+fails nor destroys the record), `recordEvent`/`diff` helpers, emission across
+every mutating endpoint, `GET /api/v1/activity` with pay-plan history gated to
+PAY_READ_ROLES, and `apiV1.activity` in the contract.
+
+**What actually happened here is worth reading.** My first cut wrote "every state
+change" in the migration header and wired 4 endpoints out of 23 — five of eight
+entity types and three of fifteen actions could never be written by any code path.
+An adversarial review measured the claim against the code and it was simply false.
+I made the claim true rather than soften it.
+
+The second review round then found five more silent mutations (org/store settings
+edits, the public intake webhook's leads, the founding owner grant, the revoke
+cascade that unassigns leads) and seven defects in my own round-one fixes. The
+three that mattered: a malformed page cursor returned a 500 because my bespoke
+keyset skipped the `decodeCursor` guarantee every other endpoint keeps; pg parses
+a DATE column to LOCAL midnight while 'YYYY-MM-DD' parses as UTC, so re-saving an
+unchanged date recorded a change that never happened — the exact bug class the
+helper existed to prevent; and re-ticking an already-ticked item still rewrote
+`completed_by` while the new no-op suppression hid the event, so a safety
+inspection's legal sign-off could change hands with nothing recording it.
+
+**Guards, because the pattern is now unmistakable.** Every defect this session was
+invisible to review by eye and obvious to a detector. `no dead vocabulary` fails if
+an enum value has no real call site — and I caught my own first version of it being
+vacuous (it matched any quoted string, so 'delivered' was satisfied by
+DELIVERY_STAGES). Mutation-proven: delete the call site, it names both orphaned
+actions.
+
+**In progress:** HUSSEIN half — activity timeline on the deal and the lead.
+
+**Blocked / open questions:** D-035 (invited members cannot log in — the owner's
+choice between two visibly different fixes) and D-033 (who signs off the safety
+inspection). D-034 (correcting a delivered deal's checklist) is now ANSWERABLE:
+the history it needed exists, so a correction path with an audit trail is buildable
+when the owner wants it.
+
+**Gotchas learned:** a claim in a comment is a claim in the product. "Every state
+change" was written before the code did it, and the tests all passed. Measure a
+coverage claim against the code, or do not make it. Second: template literals eat
+`\s` — use `String.raw` for regexes (cost me two lint rounds).
+
+**Next steps:** (1) Hussein — F-10 timeline UI. (2) Owner — BATCH-02 test round and
+D-035. (3) Ahmad — F-11 dispatch, the next module in the plan's parity order.
+
 ## 2026-07-26 [AHMAD] — BATCH-02 closed: CR-03 fixed, two drift guards added, Hussein's UI reviewed and integration proven
 
 **Done:**
