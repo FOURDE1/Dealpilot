@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, cn } from '@dealpilot/ui';
 import { signOut, useSession } from '../shared/auth/client.js';
+import { queryClient } from '../shared/api/queryClient.js';
 import { LanguageSwitcher } from '../shared/i18n/language-switcher.js';
 
 // `/pipeline` returns with its feature slice — a dead route belongs in no nav.
@@ -9,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/', key: 'nav:dashboard', end: true },
   { to: '/organizations', key: 'nav:organizations' },
   { to: '/leads', key: 'nav:prospects' },
+  { to: '/team', key: 'nav:team' },
 ] as const;
 
 /**
@@ -24,6 +26,9 @@ export function AppLayout() {
 
   async function handleSignOut() {
     await signOut();
+    // Cached rosters/leads are the previous account's data — never let the
+    // next sign-in on this device read them.
+    queryClient.clear();
     navigate('/login');
   }
 
@@ -74,7 +79,7 @@ export function AppLayout() {
             when the icon set lands (lucide deferred for release cooldown). */}
         <nav
           aria-label={t('nav:mainNav')}
-          className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-3 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
+          className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-4 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
         >
           {NAV_ITEMS.map((item) => (
             <NavLink

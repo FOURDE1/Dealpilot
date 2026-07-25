@@ -10,13 +10,13 @@ export const leadKeys = {
   detail: (id: string) => ['leads', id] as const,
 };
 
-export function useLeads(orgId?: string, opts?: { enabled?: boolean }) {
+export function useLeads(orgId?: string, opts?: { enabled?: boolean; assignedTo?: string }) {
   return useQuery({
-    queryKey: leadKeys.list(orgId),
+    queryKey: [...leadKeys.list(orgId), opts?.assignedTo ?? 'all'],
     enabled: opts?.enabled ?? true,
     queryFn: async ({ signal }) => {
       const res = await apiRequest(routes.leads.list, {
-        query: { limit: 100, organization_id: orgId },
+        query: { limit: 100, organization_id: orgId, assigned_to: opts?.assignedTo },
         signal,
       });
       if (res.status !== 200) fail(res.status, res.body);

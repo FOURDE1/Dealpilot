@@ -6,6 +6,7 @@ import { Label, Select } from '@dealpilot/ui';
 import { LEAD_STATUSES, type LeadStatusT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
 import { useLead, useUpdateLead } from './api.js';
+import { activeMembers, useMembers } from '../team/api.js';
 import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
 
 /** The F-02 acceptance action: change a lead's status from its record page. */
@@ -14,12 +15,28 @@ export function LeadDetailPage() {
   const { leadId = '' } = useParams();
   const lead = useLead(leadId);
   const updateLead = useUpdateLead(leadId);
+  const members = useMembers(lead.data?.organization_id, { enabled: lead.isSuccess });
+  const assignees = activeMembers(members.data?.items);
+  const assignedTo = lead.data?.assigned_to ?? null;
+  const assignedIsFormer =
+    assignedTo !== null && !assignees.some((m) => m.user_id === assignedTo);
   const [feedback, setFeedback] = useState<'saved' | 'error' | null>(null);
 
   async function handleStatusChange(status: LeadStatusT) {
     setFeedback(null);
     try {
       await updateLead.mutateAsync({ status });
+      setFeedback('saved');
+    } catch (err) {
+      setFeedback('error');
+      if (!(err instanceof ApiError)) throw err;
+    }
+  }
+
+  async function handleAssign(userId: string) {
+    setFeedback(null);
+    try {
+      await updateLead.mutateAsync({ assigned_to: userId === '' ? null : userId });
       setFeedback('saved');
     } catch (err) {
       setFeedback('error');
@@ -77,7 +94,28 @@ export function LeadDetailPage() {
           </dl>
         </div>
 
-        <div className="space-y-2 rounded-lg border border-border bg-card p-4">
+        <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <div className="space-y-2">
+            <Label htmlFor="lead-assignee">{t('assignTitle')}</Label>
+            <Select
+              id="lead-assignee"
+              value={lead.data.assigned_to ?? ''}
+              disabled={updateLead.isPending || members.isPending}
+              onChange={(e) => void handleAssign(e.target.value)}
+            >
+              <option value="">{t('unassigned')}</option>
+              {assignedIsFormer ? (
+                <option value={assignedTo} disabled>
+                  {t('formerMember')}
+                </option>
+              ) : null}
+              {assignees.map((m) => (
+                <option key={m.user_id} value={m.user_id}>
+                  {m.name}
+                </option>
+              ))}
+            </Select>
+          </div>
           <Label htmlFor="lead-status">{t('changeStatus')}</Label>
           <Select
             id="lead-status"

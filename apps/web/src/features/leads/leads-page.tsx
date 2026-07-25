@@ -6,6 +6,8 @@ import type { LeadT } from '@dealpilot/schemas';
 import { Label, Select } from '@dealpilot/ui';
 import { useOrganizations } from '../organizations/api.js';
 import { useLeads } from './api.js';
+import { useSession } from '../../shared/auth/client.js';
+import { useMembers } from '../team/api.js';
 import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
 
 export function LeadsPage() {
@@ -16,7 +18,18 @@ export function LeadsPage() {
   // Multi-org users MUST scope the list (server 422s otherwise); single-org
   // users are scoped implicitly by their membership.
   const effectiveOrg = multiOrg ? orgFilter || orgs.data?.items[0]?.id : undefined;
-  const leads = useLeads(effectiveOrg, { enabled: !orgs.isPending });
+  const { data: session } = useSession();
+  const [mineOnly, setMineOnly] = useState(false);
+  const leads = useLeads(effectiveOrg, {
+    enabled: !orgs.isPending,
+    assignedTo: mineOnly ? session?.user.id : undefined,
+  });
+  const members = useMembers(effectiveOrg ?? orgs.data?.items[0]?.id, { enabled: !orgs.isPending });
+  const memberName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of members.data?.items ?? []) map.set(m.user_id, m.name);
+    return map;
+  }, [members.data]);
 
   const columns = useMemo<ColumnDef<LeadT, unknown>[]>(
     () => [
@@ -52,6 +65,14 @@ export function LeadsPage() {
         cell: ({ row }) => t(LEAD_SOURCE_KEYS[row.original.source]),
       },
       {
+        accessorKey: 'assigned_to',
+        header: t('assignedTo'),
+        cell: ({ row }) =>
+          row.original.assigned_to
+            ? (memberName.get(row.original.assigned_to) ?? t('formerMember'))
+            : t('unassigned'),
+      },
+      {
         accessorKey: 'created_at',
         header: t('createdAt'),
         cell: ({ row }) =>
@@ -60,16 +81,28 @@ export function LeadsPage() {
           ),
       },
     ],
-    [t, i18n.language],
+    [t, i18n.language, memberName],
   );
 
   return (
     <div className="space-y-4">
       <header className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <Link to="/leads/new" className={buttonVariants()}>
-          {t('newLead')}
-        </Link>
+        <span className="flex items-center gap-4">
+          <label htmlFor="my-leads" className="flex items-center gap-2 text-sm max-lg:min-h-11">
+            <input
+              id="my-leads"
+              type="checkbox"
+              checked={mineOnly}
+              onChange={(e) => setMineOnly(e.target.checked)}
+              className="size-4 accent-[var(--primary)]"
+            />
+            {t('myLeads')}
+          </label>
+          <Link to="/leads/new" className={buttonVariants()}>
+            {t('newLead')}
+          </Link>
+        </span>
       </header>
       {multiOrg ? (
         <div className="max-w-xs space-y-1">
