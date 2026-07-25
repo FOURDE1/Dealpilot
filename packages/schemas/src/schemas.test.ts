@@ -12,6 +12,7 @@ import {
   PhoneE164,
   PostalCodeCA,
   Role,
+  UpdateDealInput,
   UpdateLeadInput,
   UpdateOrganizationInput,
   UpdateStoreInput,
@@ -81,6 +82,15 @@ describe('update inputs never inject defaults (defaults-leak regression)', () =>
     expect(UpdateStoreInput.parse({})).toEqual({});
     expect(UpdateUserInput.parse({})).toEqual({});
     expect(UpdateLeadInput.parse({})).toEqual({});
+    expect(UpdateDealInput.parse({})).toEqual({});
+  });
+
+  it('a one-field deal PATCH carries ONLY that field (F-05 regression)', () => {
+    // Deriving UpdateDealInput from the create schema via .partial() keeps the
+    // defaults, which silently zeroed every other input on a price edit.
+    expect(UpdateDealInput.parse({ sale_price_cents: 3_600_000 })).toEqual({
+      sale_price_cents: 3_600_000,
+    });
   });
 });
 

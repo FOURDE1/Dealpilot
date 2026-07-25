@@ -13,6 +13,12 @@ import {
   Organization,
   Store,
   AddMemberInput,
+  CalculateDealInput,
+  CreateDealInput,
+  Deal,
+  DealListQuery,
+  DeskingOutputs,
+  UpdateDealInput,
   CreateIntakeKeyInput,
   Member,
   MemberListQuery,
@@ -123,6 +129,41 @@ export const apiV1 = c.router({
   users: crudRouter('users', User, CreateUserInput, UpdateUserInput),
   memberships: crudRouter('memberships', Membership, CreateMembershipInput, UpdateMembershipInput),
   leads: crudRouter('leads', Lead, CreateLeadInput, UpdateLeadInput, LeadListQuery),
+  /** F-05 desking: the A-06 money engine behind /api/v1 (13-province tax,
+   * amortization, gross). `calculate` is pure preview; deals persist it. */
+  deals: c.router({
+    calculate: {
+      method: 'POST',
+      path: '/api/v1/deals/calculate',
+      body: CalculateDealInput,
+      responses: { 200: DeskingOutputs, ...errorResponses },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/deals',
+      body: CreateDealInput,
+      responses: { 201: Deal, ...errorResponses },
+    },
+    get: {
+      method: 'GET',
+      path: '/api/v1/deals/:id',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: Deal, ...errorResponses },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/deals',
+      query: DealListQuery,
+      responses: { 200: paginated(Deal), ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/deals/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateDealInput,
+      responses: { 200: Deal, ...errorResponses },
+    },
+  }),
   /** F-04 team members: membership joined to user, add-by-email, roles, revoke. */
   members: c.router({
     add: {
