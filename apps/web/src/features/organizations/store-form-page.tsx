@@ -6,6 +6,7 @@ import { Button, Input, Label, Select } from '@dealpilot/ui';
 import type { Locale } from '@dealpilot/i18n';
 import { useCreateStore, useStore, useUpdateStore } from './api.js';
 import { formErrorMessage } from './form-error.js';
+import { IntakeSources } from './intake-sources.js';
 
 const PROVINCES = ['AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT'] as const;
 type Province = (typeof PROVINCES)[number];
@@ -97,7 +98,7 @@ export function StoreFormPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg space-y-4">
+    <div className={isEdit ? "mx-auto max-w-2xl space-y-6" : "mx-auto max-w-lg space-y-4"}>
       <BackLink to={`/organizations/${orgId}`}>{t('back')}</BackLink>
       <h1 className="text-2xl font-semibold">{isEdit ? t('editStore') : t('newStore')}</h1>
       <form
@@ -164,6 +165,8 @@ export function StoreFormPage() {
           {busy ? t('saving') : isEdit ? t('save') : t('createStore')}
         </Button>
       </form>
+
+      {isEdit && storeId ? <IntakeSources key={storeId} orgId={orgId} storeId={storeId} /> : null}
     </div>
   );
 }

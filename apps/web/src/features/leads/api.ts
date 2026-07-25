@@ -1,12 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ErrorEnvelope,
   Lead,
   paginated,
   type CreateLeadInputT,
   type UpdateLeadInputT,
 } from '@dealpilot/schemas';
-import { ApiError, apiRequest, routes } from '../../shared/api/client.js';
+import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
 
 const PaginatedLeads = paginated(Lead);
 
@@ -15,11 +14,6 @@ export const leadKeys = {
   list: (orgId: string | undefined) => ['leads', 'list', orgId ?? 'single-org'] as const,
   detail: (id: string) => ['leads', id] as const,
 };
-
-function fail(status: number, body: unknown): never {
-  const parsed = ErrorEnvelope.safeParse(body);
-  throw new ApiError(status, parsed.success ? parsed.data.error.details?.[0]?.path : undefined);
-}
 
 export function useLeads(orgId?: string) {
   return useQuery({

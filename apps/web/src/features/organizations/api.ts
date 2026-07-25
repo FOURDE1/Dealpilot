@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ErrorEnvelope,
   Organization,
   Store,
   paginated,
@@ -9,7 +8,7 @@ import {
   type UpdateOrganizationInputT,
   type UpdateStoreInputT,
 } from '@dealpilot/schemas';
-import { ApiError, apiRequest, routes } from '../../shared/api/client.js';
+import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
 
 export { ApiError } from '../../shared/api/client.js';
 
@@ -21,12 +20,6 @@ export const orgKeys = {
   detail: (id: string) => ['organizations', id] as const,
   stores: (orgId: string) => ['organizations', orgId, 'stores'] as const,
 };
-
-function fail(status: number, body: unknown): never {
-  const parsed = ErrorEnvelope.safeParse(body);
-  const fieldPath = parsed.success ? parsed.data.error.details?.[0]?.path : undefined;
-  throw new ApiError(status, fieldPath);
-}
 
 export function useOrganizations() {
   return useQuery({

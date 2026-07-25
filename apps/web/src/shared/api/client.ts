@@ -1,4 +1,5 @@
 import { apiV1 } from '@dealpilot/contracts';
+import { ErrorEnvelope } from '@dealpilot/schemas';
 
 /**
  * The ONLY data plane (ADR-002): every request is driven by the published
@@ -71,6 +72,15 @@ export async function apiRequest(
   });
   const body = res.status === 204 ? undefined : await res.json().catch(() => undefined);
   return { status: res.status, body };
+}
+
+/**
+ * Throws ApiError for a non-2xx contract response, extracting the envelope's
+ * first detail path (409 conflicts, 422 validation) for per-field messages.
+ */
+export function failFromResponse(status: number, body: unknown): never {
+  const parsed = ErrorEnvelope.safeParse(body);
+  throw new ApiError(status, parsed.success ? parsed.data.error.details?.[0]?.path : undefined);
 }
 
 /** Contract routes (method/path values) — the source of truth for every call. */
