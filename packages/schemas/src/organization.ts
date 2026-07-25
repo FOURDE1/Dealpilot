@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IsoDateTime, Locale, Uuid } from './common.js';
+import { IsoDateTime, Locale, MESSAGE_KEYS, Uuid, withKey } from './common.js';
 
 /**
  * Tenant root: Platform → Organization (dealer group) → Store.
@@ -21,9 +21,9 @@ export const PlanTier = z.enum(['core', 'growth', 'scale', 'enterprise']);
 const orgName = z.string().trim().min(1).max(200);
 const orgSlug = z
   .string()
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'kebab-case, lowercase alphanumerics')
   .min(3)
-  .max(40);
+  .max(40)
+  .refine((v) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v), withKey(MESSAGE_KEYS.org_slug_format));
 
 /**
  * The slug drives subdomains + intake URLs (multi-tenancy.md §7): platform
@@ -31,9 +31,10 @@ const orgSlug = z
  * deliberately absent from UpdateOrganizationInput.
  */
 const RESERVED_SLUGS = new Set(['www', 'api', 'app', 'admin', 'in', 'status']);
-const orgSlugInput = orgSlug.refine((s) => !RESERVED_SLUGS.has(s), {
-  message: 'This slug is reserved',
-});
+const orgSlugInput = orgSlug.refine(
+  (s) => !RESERVED_SLUGS.has(s),
+  withKey(MESSAGE_KEYS.org_slug_reserved),
+);
 
 export const Organization = z.object({
   id: Uuid,

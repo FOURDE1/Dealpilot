@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MESSAGE_KEYS,
   CreateLeadInput,
   CreateOrganizationInput,
   CreateStoreInput,
@@ -143,6 +144,35 @@ describe('Membership', () => {
     };
     expect(() => Membership.parse(m)).toThrow();
     expect(Membership.parse({ ...m, roles: ['owner'] }).roles).toEqual(['owner']);
+  });
+});
+
+describe('message keys (A-10 — client-localizable validation)', () => {
+  // zod's safeParse result is a discriminated union; read the first issue's
+  // key through a narrow view of the error shape.
+  const keyOf = (r: { success: boolean; error?: unknown }): string | undefined => {
+    const issues = (r.error as { issues?: { params?: { key?: string } }[] } | undefined)?.issues;
+    return issues?.[0]?.params?.key;
+  };
+
+  it('every domain constraint carries a stable key instead of an English literal', () => {
+    expect(keyOf(PhoneE164.safeParse('123'))).toBe(MESSAGE_KEYS.phone_nanp);
+    expect(keyOf(PostalCodeCA.safeParse('90210'))).toBe(MESSAGE_KEYS.postal_code_ca);
+    expect(keyOf(CreateOrganizationInput.safeParse({ name: 'X', slug: 'Bad Slug' }))).toBe(
+      MESSAGE_KEYS.org_slug_format,
+    );
+    expect(keyOf(CreateOrganizationInput.safeParse({ name: 'X', slug: 'admin' }))).toBe(
+      MESSAGE_KEYS.org_slug_reserved,
+    );
+    expect(keyOf(CreateStoreInput.safeParse({ organization_id: crypto.randomUUID(), name: 'S', code: 'a b', province: 'QC' }))).toBe(
+      MESSAGE_KEYS.store_code_format,
+    );
+  });
+
+  it('keys are stable strings the web app can map to FR/EN text', () => {
+    for (const key of Object.values(MESSAGE_KEYS)) {
+      expect(key).toMatch(/^[a-z0-9_]+$/);
+    }
   });
 });
 

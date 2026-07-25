@@ -13,6 +13,28 @@ import { z } from 'zod';
  *   silently reset fields — regression-tested in schemas.test.ts).
  */
 
+/**
+ * A-10: domain constraints carry a STABLE KEY instead of an English literal.
+ * An explicit `message` wins over zod's error map, which blocked the web app
+ * from localizing (Bill 96) — a keyed `custom` issue leaves the message to the
+ * consumer: the web app maps `issue.params.key` to FR/EN text, and the API
+ * uses the key as the machine-readable `details[].code`.
+ * Standard checks (min/max/email/uuid) keep zod's own codes — already
+ * localizable through the same error map.
+ */
+export const MESSAGE_KEYS = {
+  phone_nanp: 'phone_nanp',
+  postal_code_ca: 'postal_code_ca',
+  org_slug_format: 'org_slug_format',
+  org_slug_reserved: 'org_slug_reserved',
+  store_code_format: 'store_code_format',
+} as const;
+
+export type MessageKey = (typeof MESSAGE_KEYS)[keyof typeof MESSAGE_KEYS];
+
+/** Attach a message key to a refinement (zod drops `params` on format checks). */
+export const withKey = (key: MessageKey) => ({ params: { key } });
+
 export const Uuid = z.uuid();
 
 /** Lowercased, trimmed email. */
@@ -26,16 +48,14 @@ export const Email = z.string().trim().toLowerCase().pipe(z.email());
 export const PhoneE164 = z
   .string()
   .transform((v) => v.replace(/\D/g, ''))
-  .refine((d) => d.length === 10 || (d.length === 11 && d.startsWith('1')), {
-    message: 'Expected a 10-digit North American phone number',
-  })
+  .refine((d) => d.length === 10 || (d.length === 11 && d.startsWith('1')), withKey('phone_nanp'))
   .transform((d) => `+1${d.slice(-10)}`);
 
 /** Canadian postal code, normalized to `A1A 1A1` (uppercase, single space). */
 export const PostalCodeCA = z
   .string()
   .trim()
-  .regex(/^[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d$/, 'Expected a Canadian postal code (A1A 1A1)')
+  .refine((v) => /^[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d$/.test(v), withKey('postal_code_ca'))
   .transform((v) => {
     const c = v.replace(/\s/g, '').toUpperCase();
     return `${c.slice(0, 3)} ${c.slice(3)}`;

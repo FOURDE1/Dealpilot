@@ -38,9 +38,11 @@ export const forbidden = () => new AppError(403, 'forbidden', 'Insufficient role
 export function parseOrThrow<T>(schema: { safeParse: (v: unknown) => { success: true; data: T } | { success: false; error: ZodError } }, value: unknown): T {
   const result = schema.safeParse(value);
   if (!result.success) {
+    // A-10: a keyed domain issue reports its stable key as the machine code,
+    // so clients (and Hussein's FR/EN map) key off one vocabulary.
     const details = result.error.issues.map((i) => ({
       path: i.path.join('.'),
-      code: i.code,
+      code: (i as { params?: { key?: string } }).params?.key ?? i.code,
       message: i.message,
     }));
     throw new AppError(422, 'validation_failed', 'Request failed validation', details);

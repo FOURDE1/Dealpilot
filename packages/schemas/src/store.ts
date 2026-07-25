@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CursorQuery, IsoDateTime, Locale, PhoneE164, PostalCodeCA, ProvinceCA, Uuid } from './common.js';
+import { CursorQuery, IsoDateTime, Locale, MESSAGE_KEYS, PhoneE164, PostalCodeCA, ProvinceCA, Uuid, withKey } from './common.js';
 
 export const StoreStatus = z.enum(['active', 'paused', 'closed']);
 
@@ -9,7 +9,13 @@ const storeCode = z
   .string()
   .trim()
   .toUpperCase()
-  .pipe(z.string().regex(/^[A-Z0-9]+(?:-[A-Z0-9]+)*$/).min(2).max(20));
+  .pipe(
+    z
+      .string()
+      .min(2)
+      .max(20)
+      .refine((v) => /^[A-Z0-9]+(?:-[A-Z0-9]+)*$/.test(v), withKey(MESSAGE_KEYS.store_code_format)),
+  );
 
 export const Store = z.object({
   id: Uuid,
