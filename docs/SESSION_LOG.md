@@ -56,6 +56,22 @@ refused by policy; reasonless waiver refused by CHECK; org-mismatched item refus
 by the composite FK; backfill gives in-flight deals their items and leaves
 already-delivered deals as history).
 
+**Owner's stack verified for the morning, not assumed:** the dev database was
+empty (an earlier reset had taken the seed account with it, so the login on the
+test sheets would simply have failed), and the API still listening on :3001 was a
+process started six hours before the F-08 code was even built. Rebuilt the dev
+schema, restarted on current code, re-seeded `hassan-test@1dealer.ca` +
+Groupe Hassan + Kia Mont-Laurier, then walked Part C of the owner test end-to-end
+with real HTTP calls: checklist present at deal creation (10 items, FR labels),
+delivery refused (`checklist_hard_blocked`, 10 details), `complete` refused too,
+safety waiver refused for the owner, soft waiver recorded with its reason and
+author, gate opens once everything is ticked, `delivered_at` stamped, and the
+checklist frozen afterwards (`deal_delivered`). Test deal removed; his
+environment is clean.
+
+Also: `pnpm dev` did not exist. Both owner test sheets and PROJECT.md told people
+to run it. It exists now (root script + turbo persistent `dev` task).
+
 **In progress:** HUSSEIN half — the checklist panel on the deal. Contract is in
 `docs/HUSSEIN-F08-CONTRACT.md`.
 
