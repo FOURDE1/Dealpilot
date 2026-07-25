@@ -22,6 +22,26 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [HUSSEIN] — F-03 INTEGRATED (22c1fe1): intake sources UI merged, e2e 12/12 — AWAITING-OWNER-TEST
+
+**Done:** F-03 UI half merged after the adversarial review (20 agents; the
+quality lens died on an API drop mid-run — its two finished siblings covered
+the ground; NOTE a code-reviewer subagent attempted an Edit during review and
+another once switched my branch — watch working-tree state after workflows).
+Intake sources on the store page: create key → focused ONE-TIME secret/URL
+reveal (copy buttons, cache cleared on Done), localized list, revoke via
+H-05 Dialog with in-dialog errors naming the key. Shared failFromResponse
+extracted (rule of three). e2e proves the WHOLE loop: UI key → real
+HMAC-signed POST (X-Intake-Timestamp / X-Intake-Signature: v1=hex, 202) →
+lead in the list → revoke → 401. **12/12 e2e, typecheck 0, lint 0, parity
+OK.** Board: F-03 AWAITING-OWNER-TEST; laptop stack on latest builds;
+owner account hassan-test@1dealer.ca re-seeded with Groupe Hassan +
+Kia Mont-Laurier (remember: EVERY db:reset needs this re-seed).
+**Next steps:** 1) OWNER tests F-03 (steps in chat: create key, signed curl
+helper provided, watch the lead arrive). 2) On ACCEPT: F-04 proposal
+(candidates: lead assignment, or intake provider expansion ADF/Meta).
+**Blockers:** owner test only.
+
 ## 2026-07-25 [AHMAD] — F-03 intake webhook AHMAD half DONE (0b9b93d); SES verified; HO-03 done
 
 **Done:** F-03 lead intake backend merged (0b9b93d). Migration 0005:
