@@ -13,6 +13,7 @@ import { registerF04Routes } from './f04-members-routes.js';
 import { registerF05Routes } from './f05-deals-routes.js';
 import { registerF07Routes } from './f07-vehicles-routes.js';
 import { registerF09Routes } from './f09-commissions-routes.js';
+import { registerF11Routes } from './f11-dispatch-routes.js';
 import { registerF12Routes } from './f12-invitation-routes.js';
 import { registerF08Routes } from './f08-checklist-routes.js';
 
@@ -230,6 +231,7 @@ export async function buildApp(
   registerF09Routes(app, pool);
   // The invitation link points at the WEB app, not the API — WEB_ORIGIN is
   // already the one origin allowed to call us with credentials (H-03).
+  registerF11Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);
 

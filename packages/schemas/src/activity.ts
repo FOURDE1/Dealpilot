@@ -8,7 +8,8 @@ import { CursorQuery, IsoDateTime, Uuid } from './common.js';
  */
 export const ActivityEntityType = z.enum([
   'deal', 'lead', 'vehicle', 'membership', 'pay_plan', 'checklist_item',
-  'checklist_template', 'intake_key', 'invitation', 'organization', 'store',
+  'checklist_template', 'intake_key', 'invitation', 'dispatch_assignment',
+  'organization', 'store',
 ]);
 
 export const ActivityAction = z.enum([
