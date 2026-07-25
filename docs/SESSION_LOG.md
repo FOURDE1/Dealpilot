@@ -22,6 +22,35 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [AHMAD] — revoked members release their leads; BATCH-02 proposed; F-06 pipeline ready on a branch (HO-07 filed)
+
+**Done:** (1) Last confirmed F-04 review finding fixed and merged: revoking a
+member now RELEASES their leads (assigned_to cleared, an `assigned` lead
+returns to `new`) in the same transaction — work no longer points at someone
+the org cannot see. 264/264. (2) **BATCH-02 proposed** following the plan's
+module order: **F-06 deal pipeline** + **F-07 inventory (vehicles)**.
+(3) **F-06 built and ready on `ahmad/f06-pipeline` — deliberately NOT merged.**
+It corrects vocabulary drift I introduced in F-05: deals shipped an ad-hoc
+`working/funded/...` status, but deals-pipeline.md defines TWO independent
+tracks — `pipeline_stage` (10 canonical stages, where the CAR is) and
+`funding_status` (4, where the MONEY is). A single column cannot express
+"delivered but not yet funded", the state a dealership watches most.
+Migration 0009 renames + maps (working→new, funded→complete), adds
+funding_status/funded_at/delivered_at; routes filter on either track and
+stamp the timestamps on first transition (the commission engine keys its tier
+on funded_at, never on the stage). Backend+packages **237/237**.
+**Why unmerged:** it BREAKS `apps/web` (HUSSEIN's zone, which I never edit).
+I tried a compile-safe alias first — it does not help, because his label maps
+enumerate the old values. So the contract is published on the branch and
+**HO-07** carries the exact value mapping and the two files that break;
+develop stays GREEN until his half is ready, then I merge first and he
+follows within minutes.
+**Next steps:** 1) HUSSEIN: HO-07 (and the earlier lease rate/term unlock +
+Reinstate button). 2) On his signal: merge F-06, then F-07 inventory
+(vehicles + vehicle_id on deals). 3) Owner: confirm BATCH-02 when convenient
+— nothing is blocked meanwhile.
+**Blockers:** F-06 merge waits on HUSSEIN (by design, not by fault).
+
 ## 2026-07-25 [AHMAD] — BATCH-01 ACCEPTED; both owner-visible handoffs fixed same day (HO-05 lease, HO-06 reinstate)
 
 **Owner accepted BATCH-01** (F-04 members+assignment, F-05 desking) — the
