@@ -22,6 +22,27 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [HUSSEIN] — F-07 both halves in (294eb21 AHMAD → edcc722+fixes HUSSEIN); CR-01 re-armed; BATCH-02 script drafted
+
+Inventory UI: /inventory (6th tab — mobile bar moved to dedicated SHORT
+labels: Accueil/Groupes/Prospects/Pipeline/Stock/Équipe, per-label clip
+assertion in e2e) with add-vehicle (identity, VIN, acquisition cost
+build-up), derived total cost in the list, both status tracks; vehicle page
+moves location/sale status and edits recon/list price. Desking worksheet
+gained the VEHICLE PICKER: available cars of the lead's store; picking
+prefills cost (always) and price (only while auto — provenance tracked, so
+switching cars can never save car A's price on car B, and deselecting takes
+the money with it; both covered in e2e). Deal-attachment proven at the API
+level in the journey. Adversarial review: 16 confirmed findings, ALL fixed
+(the high ones: price provenance; 6-tab label clipping). CR-02 filed
+(vehicles constraint names for field-pathed 409s — UI branch already
+waiting). CR-01 re-armed: MemberAdded parse + notice assertion back.
+Gates: parity/lint/typecheck 0, e2e 16/16 incl. golden \$5,250 front gross
+on a stocked car.
+**BATCH-02 state: F-06 ✓ F-07 ✓ — F-08/F-09 remain. Combined owner script
+DRAFTED (scratchpad) — posts when the batch closes (owner may also close it
+at F-06+F-07 if preferred).**
+
 ## 2026-07-25 [AHMAD] — F-07 inventory backend merged; CR-01 fixed; listener protocol working both ways
 
 **Listener worked twice this stretch** (D-032): HUSSEIN's pushes woke me, I
