@@ -25,17 +25,28 @@ export function useVehicles(
     queryKey: vehicleKeys.list(orgId, { storeId: opts?.storeId, dealStatus: opts?.dealStatus }),
     enabled: opts?.enabled ?? true,
     queryFn: async ({ signal }) => {
-      const res = await apiRequest(routes.vehicles.list, {
-        query: {
-          limit: 100,
-          organization_id: orgId,
-          store_id: opts?.storeId,
-          deal_status: opts?.dealStatus,
-        },
-        signal,
-      });
-      if (res.status !== 200) fail(res.status, res.body);
-      return PaginatedVehicles.parse(res.body);
+      // Bounded cursor-follow (same rationale as the pipeline board): one page
+      // silently hides the OLDEST stock — exactly the aged units to watch.
+      const items = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < 3; page++) {
+        const res = await apiRequest(routes.vehicles.list, {
+          query: {
+            limit: 100,
+            cursor,
+            organization_id: orgId,
+            store_id: opts?.storeId,
+            deal_status: opts?.dealStatus,
+          },
+          signal,
+        });
+        if (res.status !== 200) fail(res.status, res.body);
+        const parsed = PaginatedVehicles.parse(res.body);
+        items.push(...parsed.items);
+        if (!parsed.next_cursor) return { items, truncated: false };
+        cursor = parsed.next_cursor;
+      }
+      return { items, truncated: true };
     },
   });
 }

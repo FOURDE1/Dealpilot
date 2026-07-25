@@ -25,14 +25,16 @@ export function VehicleDetailPage() {
   const [listDraft, setListDraft] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<'saved' | 'error' | null>(null);
 
-  async function patch(body: Parameters<typeof update.mutateAsync>[0]) {
+  async function patch(body: Parameters<typeof update.mutateAsync>[0]): Promise<boolean> {
     setFeedback(null);
     try {
       await update.mutateAsync(body);
       setFeedback('saved');
+      return true;
     } catch (err) {
       setFeedback('error');
       if (!(err instanceof ApiError)) throw err;
+      return false;
     }
   }
 
@@ -53,6 +55,8 @@ export function VehicleDetailPage() {
   const locale = i18n.language;
   const recon = reconDraft ?? (v.recon_cost_cents / 100).toFixed(2);
   const list = listDraft ?? (v.list_price_cents === null ? '' : (v.list_price_cents / 100).toFixed(2));
+  const reconInvalid = recon.trim() !== '' && parseMoneyToCents(recon) === null;
+  const listInvalid = list.trim() !== '' && parseMoneyToCents(list) === null;
 
   return (
     <div className="space-y-6">
@@ -130,23 +134,52 @@ export function VehicleDetailPage() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="veh-recon">{t('reconCost')}</Label>
-            <Input id="veh-recon" inputMode="decimal" value={recon} onChange={(e) => setReconDraft(e.target.value)} />
+            <Input
+              id="veh-recon"
+              inputMode="decimal"
+              value={recon}
+              aria-invalid={reconInvalid || undefined}
+              className={reconInvalid ? 'border-danger-border' : undefined}
+              onChange={(e) => setReconDraft(e.target.value)}
+            />
+            {reconInvalid ? (
+              <p role="alert" className="text-xs text-danger-text">
+                {t('invalidAmount')}
+              </p>
+            ) : null}
           </div>
           <div className="space-y-1">
             <Label htmlFor="veh-list">{t('listPrice')}</Label>
-            <Input id="veh-list" inputMode="decimal" value={list} onChange={(e) => setListDraft(e.target.value)} />
+            <Input
+              id="veh-list"
+              inputMode="decimal"
+              value={list}
+              aria-invalid={listInvalid || undefined}
+              className={listInvalid ? 'border-danger-border' : undefined}
+              onChange={(e) => setListDraft(e.target.value)}
+            />
+            {listInvalid ? (
+              <p role="alert" className="text-xs text-danger-text">
+                {t('invalidAmount')}
+              </p>
+            ) : null}
           </div>
           <Button
             type="button"
-            disabled={update.isPending}
+            disabled={update.isPending || reconInvalid || listInvalid}
             onClick={() => {
               const reconCents = recon.trim() === '' ? 0 : parseMoneyToCents(recon);
               const listCents = list.trim() === '' ? null : parseMoneyToCents(list);
               if (reconCents === null || (list.trim() !== '' && listCents === null)) return;
-              void patch({ recon_cost_cents: reconCents, list_price_cents: listCents }).then(() => {
-                setReconDraft(null);
-                setListDraft(null);
-              });
+              void patch({ recon_cost_cents: reconCents, list_price_cents: listCents }).then(
+                (ok) => {
+                  // Typed values must survive a failed save.
+                  if (ok) {
+                    setReconDraft(null);
+                    setListDraft(null);
+                  }
+                },
+              );
             }}
           >
             {update.isPending ? t('saving') : t('save')}

@@ -60,6 +60,8 @@ export function InventoryPage() {
   const createVehicle = useCreateVehicle();
   const [draft, setDraft] = useState<Draft>(INITIAL);
   const [error, setError] = useState<string | null>(null);
+  const yearInvalid = draft.year.trim() !== '' && !/^\d{4}$/.test(draft.year.trim());
+  const moneyInvalid = (raw: string) => raw.trim() !== '' && parseMoneyToCents(raw) === null;
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
@@ -100,7 +102,9 @@ export function InventoryPage() {
       if (!(err instanceof ApiError)) throw err;
       setError(
         err.status === 409
-          ? t('stockInUse')
+          ? err.fieldPath === 'vin'
+            ? t('vinInUse')
+            : t('stockInUse')
           : err.status === 422 && err.fieldPath === 'vin'
             ? t('invalidVin')
             : t('genericError'),
@@ -155,7 +159,14 @@ export function InventoryPage() {
         {multiOrg ? (
           <div className="mt-3 max-w-xs space-y-1">
             <Label htmlFor="inv-org">{t('orgScope')}</Label>
-            <Select id="inv-org" value={orgId ?? ''} onChange={(e) => setOrgFilter(e.target.value)}>
+            <Select
+              id="inv-org"
+              value={orgId ?? ''}
+              onChange={(e) => {
+                setOrgFilter(e.target.value);
+                set('store_id', ''); // stores belong to the org — never submit a stale one
+              }}
+            >
               {orgs.data?.items.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.name}
@@ -177,7 +188,11 @@ export function InventoryPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="space-y-1">
             <Label htmlFor="inv-store">{t('store')}</Label>
-            <Select id="inv-store" value={draft.store_id} onChange={(e) => set('store_id', e.target.value)}>
+            <Select
+              id="inv-store"
+              value={draft.store_id || (stores.data?.items[0]?.id ?? '')}
+              onChange={(e) => set('store_id', e.target.value)}
+            >
               {stores.data?.items.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -191,7 +206,20 @@ export function InventoryPage() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="inv-year">{t('year')}</Label>
-            <Input id="inv-year" inputMode="numeric" value={draft.year} onChange={(e) => set('year', e.target.value)} required />
+            <Input
+              id="inv-year"
+              inputMode="numeric"
+              value={draft.year}
+              aria-invalid={yearInvalid || undefined}
+              className={yearInvalid ? 'border-danger-border' : undefined}
+              onChange={(e) => set('year', e.target.value)}
+              required
+            />
+            {yearInvalid ? (
+              <p role="alert" className="text-xs text-danger-text">
+                {t('invalidYear')}
+              </p>
+            ) : null}
           </div>
           <div className="space-y-1">
             <Label htmlFor="inv-make">{t('make')}</Label>
@@ -221,19 +249,67 @@ export function InventoryPage() {
           </div>
           <div className="space-y-1">
             <Label htmlFor="inv-acq-cost">{t('acquisitionCost')}</Label>
-            <Input id="inv-acq-cost" inputMode="decimal" value={draft.acquisition_cost} onChange={(e) => set('acquisition_cost', e.target.value)} />
+            <Input
+              id="inv-acq-cost"
+              inputMode="decimal"
+              value={draft.acquisition_cost}
+              aria-invalid={moneyInvalid(draft.acquisition_cost) || undefined}
+              className={moneyInvalid(draft.acquisition_cost) ? 'border-danger-border' : undefined}
+              onChange={(e) => set('acquisition_cost', e.target.value)}
+            />
+            {moneyInvalid(draft.acquisition_cost) ? (
+              <p role="alert" className="text-xs text-danger-text">
+                {t('invalidAmount')}
+              </p>
+            ) : null}
           </div>
           <div className="space-y-1">
             <Label htmlFor="inv-transport">{t('transportCost')}</Label>
-            <Input id="inv-transport" inputMode="decimal" value={draft.transport_cost} onChange={(e) => set('transport_cost', e.target.value)} />
+            <Input
+              id="inv-transport"
+              inputMode="decimal"
+              value={draft.transport_cost}
+              aria-invalid={moneyInvalid(draft.transport_cost) || undefined}
+              className={moneyInvalid(draft.transport_cost) ? 'border-danger-border' : undefined}
+              onChange={(e) => set('transport_cost', e.target.value)}
+            />
+            {moneyInvalid(draft.transport_cost) ? (
+              <p role="alert" className="text-xs text-danger-text">
+                {t('invalidAmount')}
+              </p>
+            ) : null}
           </div>
           <div className="space-y-1">
             <Label htmlFor="inv-recon">{t('reconCost')}</Label>
-            <Input id="inv-recon" inputMode="decimal" value={draft.recon_cost} onChange={(e) => set('recon_cost', e.target.value)} />
+            <Input
+              id="inv-recon"
+              inputMode="decimal"
+              value={draft.recon_cost}
+              aria-invalid={moneyInvalid(draft.recon_cost) || undefined}
+              className={moneyInvalid(draft.recon_cost) ? 'border-danger-border' : undefined}
+              onChange={(e) => set('recon_cost', e.target.value)}
+            />
+            {moneyInvalid(draft.recon_cost) ? (
+              <p role="alert" className="text-xs text-danger-text">
+                {t('invalidAmount')}
+              </p>
+            ) : null}
           </div>
           <div className="space-y-1">
             <Label htmlFor="inv-list">{t('listPrice')}</Label>
-            <Input id="inv-list" inputMode="decimal" value={draft.list_price} onChange={(e) => set('list_price', e.target.value)} />
+            <Input
+              id="inv-list"
+              inputMode="decimal"
+              value={draft.list_price}
+              aria-invalid={moneyInvalid(draft.list_price) || undefined}
+              className={moneyInvalid(draft.list_price) ? 'border-danger-border' : undefined}
+              onChange={(e) => set('list_price', e.target.value)}
+            />
+            {moneyInvalid(draft.list_price) ? (
+              <p role="alert" className="text-xs text-danger-text">
+                {t('invalidAmount')}
+              </p>
+            ) : null}
           </div>
         </div>
         {error ? (
@@ -249,6 +325,9 @@ export function InventoryPage() {
         </Button>
       </form>
 
+      {vehicles.data?.truncated ? (
+        <p className="text-sm text-muted-foreground">{t('invTruncated')}</p>
+      ) : null}
       <DataTable
         columns={columns}
         data={vehicles.data?.items}

@@ -51,7 +51,15 @@ test('full F-07 journey: stock a car → desk it → golden gross → sold', asy
   await page.getByLabel('Nom de famille').fill('Acheteur');
   await page.getByRole('button', { name: 'Créer le prospect' }).click();
   await page.getByRole('link', { name: 'Créer une transaction' }).click();
-  await page.getByLabel('Véhicule', { exact: true }).selectOption({ index: 1 });
+  const picker = page.getByLabel('Véhicule', { exact: true });
+  await picker.selectOption({ index: 1 });
+  await expect(page.getByLabel('Prix de vente')).toHaveValue('32900.00');
+  await expect(page.getByLabel('Coût du véhicule')).toHaveValue('27650.00');
+  // Deselect: the car's money leaves with it; re-pick brings it back.
+  await picker.selectOption({ index: 0 });
+  await expect(page.getByLabel('Prix de vente')).toHaveValue('');
+  await expect(page.getByLabel('Coût du véhicule')).toHaveValue('');
+  await picker.selectOption({ index: 1 });
   await expect(page.getByLabel('Prix de vente')).toHaveValue('32900.00');
   await expect(page.getByLabel('Coût du véhicule')).toHaveValue('27650.00');
   const results = page.getByRole('complementary');
@@ -59,6 +67,12 @@ test('full F-07 journey: stock a car → desk it → golden gross → sold', asy
   await expect(results.getByText(/5\s?250,00/)).toHaveCount(2);
   await page.getByRole('button', { name: 'Enregistrer la transaction' }).click();
   await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
+
+  // The saved deal really carries the car (vehicle_id set server-side).
+  const leadId = page.url().split('/').pop()!;
+  const dealsResp = await page.request.get(`/api/v1/deals?lead_id=${leadId}&limit=10`);
+  const deals = (await dealsResp.json()) as { items: { vehicle_id: string | null }[] };
+  expect(deals.items[0]?.vehicle_id).toBeTruthy();
 
   // Mark the car sold (pending delivery) on its page; the list reflects it.
   await page.getByRole('link', { name: 'Inventaire' }).first().click();

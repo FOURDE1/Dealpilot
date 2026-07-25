@@ -7,12 +7,12 @@ import { LanguageSwitcher } from '../shared/i18n/language-switcher.js';
 
 // `/pipeline` returns with its feature slice — a dead route belongs in no nav.
 const NAV_ITEMS = [
-  { to: '/', key: 'nav:dashboard', end: true },
-  { to: '/organizations', key: 'nav:organizations' },
-  { to: '/leads', key: 'nav:prospects' },
-  { to: '/pipeline', key: 'nav:pipeline' },
-  { to: '/inventory', key: 'nav:inventory' },
-  { to: '/team', key: 'nav:team' },
+  { to: '/', key: 'nav:dashboard', shortKey: 'nav:shortDashboard', end: true },
+  { to: '/organizations', key: 'nav:organizations', shortKey: 'nav:shortOrganizations' },
+  { to: '/leads', key: 'nav:prospects', shortKey: 'nav:shortProspects' },
+  { to: '/pipeline', key: 'nav:pipeline', shortKey: 'nav:shortPipeline' },
+  { to: '/inventory', key: 'nav:inventory', shortKey: 'nav:shortInventory' },
+  { to: '/team', key: 'nav:team', shortKey: 'nav:shortTeam' },
 ] as const;
 
 /**
@@ -95,7 +95,7 @@ export function AppLayout() {
                 )
               }
             >
-              {t(item.key)}
+              {t(item.shortKey)}
             </NavLink>
           ))}
         </nav>

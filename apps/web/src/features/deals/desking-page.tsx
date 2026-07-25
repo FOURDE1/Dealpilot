@@ -161,6 +161,9 @@ export function DeskingPage() {
     dealStatus: 'available',
   });
   const [vehicleId, setVehicleId] = useState('');
+  // Provenance of the sale price: only an auto-filled (never user-typed) price
+  // may be replaced or cleared when the picked car changes.
+  const [prefilledPrice, setPrefilledPrice] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft>(INITIAL);
   const [debounced, setDebounced] = useState<CalculateDealInputT | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -248,18 +251,26 @@ export function DeskingPage() {
                   const id = e.target.value;
                   setVehicleId(id);
                   const car = vehicles.data?.items.find((veh) => veh.id === id);
-                  if (car) {
-                    // The car brings its own money facts to the worksheet:
-                    // cost always (gross depends on it), price only if empty.
+                  const priceWasAuto =
+                    draft.sale_price.trim() === '' || draft.sale_price === prefilledPrice;
+                  if (!car) {
+                    // Deselect: the phantom cost (and an auto price) leave with the car.
                     setDraft((d) => ({
                       ...d,
-                      vehicle_cost: (car.total_cost_cents / 100).toFixed(2),
-                      sale_price:
-                        d.sale_price.trim() === '' && car.list_price_cents !== null
-                          ? (car.list_price_cents / 100).toFixed(2)
-                          : d.sale_price,
+                      vehicle_cost: '',
+                      sale_price: priceWasAuto ? '' : d.sale_price,
                     }));
+                    setPrefilledPrice(null);
+                    return;
                   }
+                  const newPrice =
+                    car.list_price_cents === null ? null : (car.list_price_cents / 100).toFixed(2);
+                  setDraft((d) => ({
+                    ...d,
+                    vehicle_cost: (car.total_cost_cents / 100).toFixed(2),
+                    sale_price: priceWasAuto ? (newPrice ?? '') : d.sale_price,
+                  }));
+                  setPrefilledPrice(priceWasAuto ? newPrice : prefilledPrice);
                 }}
               >
                 <option value="">{t('noVehicle')}</option>
@@ -269,6 +280,11 @@ export function DeskingPage() {
                   </option>
                 ))}
               </Select>
+              {vehicles.isError ? (
+                <p role="alert" className="text-xs text-danger-text">
+                  {t('loadError')}
+                </p>
+              ) : null}
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
