@@ -28,6 +28,16 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-032: Bigger batches + a standing cross-agent listener (2026-07-25) [AHMAD]
+
+**Status:** accepted — amends D-031 (2-3 slices per round).
+**Context:** Owner 2026-07-25: "let the batch of testing be bigger so work is faster — but keep it professional", and "always put a listener between you and him, so when one stops the other continues — efficiently, without burning tokens".
+**Decision (batch size):** a batch is now **3-5 feature slices**, still declared up front with per-agent halves, still one combined owner test round at the end. The **quality floor is unchanged and non-negotiable**: TDD red-first, adversarial review per slice before merge, full gate (build/typecheck/lint/tests/i18n parity) before every merge, CI green on develop, contract-first between agents. Bigger batches change how often the OWNER is interrupted — never how carefully the work is checked. A rejected slice never blocks its siblings.
+**Decision (listener):** each agent ends a work stretch by arming a **cheap git watcher** on `origin/develop` rather than idling: a background poll (5-minute interval, one `git ls-remote` per tick, no model tokens burned while waiting) that wakes the session only when the other agent pushes. Wake-up rule: on wake, `git pull`, read the newest board rows + the other agent's newest session-log entry, then act on anything addressed to you (CR/HO rows first) before resuming your own queue. This is what already worked in practice — HUSSEIN's monitor woke him when AHMAD's lead routes landed, and his SIGNAL row got F-06 merged minutes after it was ready.
+**Consequences:** fewer owner test rounds, no idle agent, and coordination stays in git (no chat dependency between the two accounts). Cost is bounded: polling is a shell loop, not model inference.
+**Decided by:** user
+
+
 ## D-031: Batch delivery — ship 2-3 feature slices per owner test round (2026-07-25) [AHMAD]
 
 **Status:** accepted — amends D-018 / TEAM-WORKFLOW §12 (one-slice-at-a-time). Per this log's header, a newer entry supersedes on conflict; **the owner should also update TEAM-WORKFLOW §12 himself when convenient (that file is human-only).**
