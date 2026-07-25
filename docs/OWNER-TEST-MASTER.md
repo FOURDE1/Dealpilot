@@ -89,8 +89,19 @@ usually the ones who actually know. Say the word.
 recorded reason is buildable if mistakes turn out to be common in real life.
 Tell us if they are.
 
-### D-035 — see the invitation section below
-The big one. Details in the next section as it lands.
+### D-035 — Invitations: we built Option A (the one Ahmad recommended)
+**The problem:** adding "Marc Seller" created his row on the Team screen but sent
+him nothing, and he could never log in. If he signed up himself he got a
+completely separate account with no link to your roster.
+**What we built:** adding someone now emails them a link. They set a password,
+and *that* is when they become a real member. Until then the Team screen shows
+them as **Invited**.
+**The visible change you were asked about:** you cannot assign leads to someone
+who has not accepted yet. We think that is right — assigning work to an account
+that cannot log in is what was broken — but it is a real change, and it is
+reversible if you disagree.
+**The other way (Option B):** keep the roster row working as it does now and
+attach a login to it later. Say the word and we switch.
 
 ---
 
@@ -109,3 +120,30 @@ Every change now leaves a line — who did it, when, and what changed.
 | 4.3 | Pipeline → any deal card → "History" | Stage moves, funding moves and the deal's creation are all there | ⬜ |
 | 4.4 | Waive a checklist item with a reason, then open that deal's History | The waiver appears WITH your reason — that line is the audit record | ⬜ |
 | 4.5 | Switch FR ↔ EN | Action names translate; dates reformat | ⬜ |
+
+## ROUND 5 — Invitations (F-12) — **the D-035 fix**
+
+This is the one that closes "an invited person can never log in". Test it with
+a second email address you control (a personal Gmail is fine).
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 5.1 | Team → invite someone, using an email you can actually open | They appear as **Invited**, not Active | ⬜ |
+| 5.2 | Check that inbox | An email arrives, in French first then English, with a link | ⬜ |
+| 5.3 | Open the link **while signed out** | It says which dealership invited you and as what role — nothing else | ⬜ |
+| 5.4 | Set a password and accept | You land in the app as that person, on your dealership | ⬜ |
+| 5.5 | Sign back in as yourself → Team | They are now **Active**, with the roles you chose | ⬜ |
+| 5.6 | Open the same link again | It no longer works — one use only | ⬜ |
+| 5.7 | Invite the same person again | Refused: already on the team | ⬜ |
+| 5.8 | Invite someone, then revoke it before they accept | Their link stops working immediately | ⬜ |
+| 5.9 | Try to assign a lead to someone still **Invited** | Not offered. That is the D-035 trade-off above | ⬜ |
+
+**Worth knowing:** the link expires after 7 days, and if you forward it to
+someone else it will not work for them — accepting requires signing in as the
+invited email address. That is deliberate: an invitation is a key to your
+business data.
+
+**If email doesn't arrive:** we're on Amazon SES and the domain may still be in
+sandbox, which only delivers to verified addresses. In that case the API hands
+the link back so you can pass it on manually, and 5.2 is the only step that
+fails — everything else still works. Tell us and we'll request production access.
