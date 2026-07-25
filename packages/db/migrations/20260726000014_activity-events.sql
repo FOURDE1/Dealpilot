@@ -30,7 +30,7 @@ CREATE TABLE activity_events (
   entity_type      text NOT NULL
                    CHECK (entity_type IN ('deal','lead','vehicle','membership',
                                           'pay_plan','checklist_item','checklist_template',
-                                          'intake_key','organization','store')),
+                                          'intake_key','invitation','organization','store')),
   entity_id        uuid NOT NULL,
 
   -- Verb, past tense, stable vocabulary. New verbs need a migration, which is

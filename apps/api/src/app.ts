@@ -13,6 +13,7 @@ import { registerF04Routes } from './f04-members-routes.js';
 import { registerF05Routes } from './f05-deals-routes.js';
 import { registerF07Routes } from './f07-vehicles-routes.js';
 import { registerF09Routes } from './f09-commissions-routes.js';
+import { registerF12Routes } from './f12-invitation-routes.js';
 import { registerF08Routes } from './f08-checklist-routes.js';
 
 /**
@@ -36,6 +37,12 @@ const PUBLIC_ROUTES: readonly string[] = [
   '/api/auth/*',
   // F-03 inbound intake webhook — authenticated by HMAC signature, not a session.
   '/in/v1/leads/:token',
+  // F-12: the invited person has no account yet, so the accept screen must be
+  // able to say "Groupe Hassan invited you as a salesperson" before they sign
+  // up. It is authenticated by the token itself and returns nothing beyond
+  // that sentence; ACCEPTING still requires a session matching the invited
+  // email, which is where the authority actually transfers.
+  '/api/v1/invitations/preview',
 ];
 
 /** Fastify-internal error codes → canonical, stable API codes (api-design.md §8). */
@@ -221,6 +228,9 @@ export async function buildApp(
   registerF05Routes(app, pool);
   registerF07Routes(app, pool);
   registerF09Routes(app, pool);
+  // The invitation link points at the WEB app, not the API — WEB_ORIGIN is
+  // already the one origin allowed to call us with credentials (H-03).
+  registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);
 
   app.addHook('onClose', async () => {

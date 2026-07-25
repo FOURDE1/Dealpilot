@@ -23,7 +23,7 @@ import { callerOrgIds, conflictFrom, idParam, keysetPage, requireMember, session
  * (members are created active); the A-11 mailer is ready for it.
  */
 
-const MEMBER_WRITE_ROLES = ['owner', 'gm', 'admin_office'] as const;
+export const MEMBER_WRITE_ROLES = ['owner', 'gm', 'admin_office'] as const;
 
 /** membership + user, the shape the API returns. */
 const MEMBER_COLUMNS = `
@@ -58,7 +58,7 @@ async function assertNotLastOwner(client: PoolClient, membershipId: string): Pro
  * everyone else is capped by their own role set — otherwise a gm or
  * admin_office could simply mint themselves an owner.
  */
-function assertGrantable(actorRoles: readonly string[], requested: readonly string[]): void {
+export function assertGrantable(actorRoles: readonly string[], requested: readonly string[]): void {
   if (actorRoles.includes('owner')) return;
   const tooHigh = requested.filter((r) => !actorRoles.includes(r));
   if (tooHigh.length > 0) {
