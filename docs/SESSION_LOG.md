@@ -22,6 +22,36 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [AHMAD] — BATCH-01 ACCEPTED; both owner-visible handoffs fixed same day (HO-05 lease, HO-06 reinstate)
+
+**Owner accepted BATCH-01** (F-04 members+assignment, F-05 desking) — the
+batch model works. Two handoffs came back from that test round; both were
+mine and both are now DONE, merged, 263/263 green.
+**HO-05 — a money bug I shipped:** `toEngineInput` never mapped the typed
+rate/term onto the LEASE parameters, so every lease was priced with engine
+defaults (MF 0.00125 / 48mo / 55%) while storing a rate and term that priced
+nothing. Now money factor = APR/2400, lease term = term_months, and a
+`residual_percent` column (migration 0008) is stored with the deal. Golden:
+QC \$35k, MSRP \$38k, 5.99%, 48mo, 55% → \$444.50/mo; shortening the term or
+dropping the residual moves the payment. **HUSSEIN: the rate/term lock on the
+lease form can come off.**
+**HO-06 — the owner hit this live:** removing a colleague was a one-way door
+(re-adding the same email 409'd, and the roster hid revoked rows so there was
+nothing to reinstate). Adding an email that already belongs to the org now
+REINSTATES that membership with the given roles (201, same id), and the
+roster accepts `?status=revoked` so the team screen can list former
+colleagues. Cross-org emails still 409 — that needs the invite-token flow,
+not an email-existence probe (deferred, documented).
+**Test-integrity note:** the old "same email twice = 409" test encoded the
+behavior the owner rejected. It was rewritten to pin the NEW requirement, and
+a separate test now covers the genuine cross-org 409 — requirement change,
+not a weakened test.
+**Next steps:** 1) HUSSEIN: lease rate/term unlock + Reinstate in the team
+screen. 2) Propose BATCH-02 when the owner is ready. 3) AHMAD fill-in: the
+remaining F-04 review minors (keysetPage FROM-splice is latent; strict query
+schemas) and the leads-of-a-revoked-member cleanup.
+**Blockers:** none.
+
 ## 2026-07-25 [HUSSEIN] — BATCH-01 ACCEPTED by owner; one owner-found issue fixed same day
 
 Owner ran docs/OWNER-TEST-BATCH-01.md: "all is good except" the duplicate-
