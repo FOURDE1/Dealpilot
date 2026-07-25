@@ -91,6 +91,12 @@ export const UpdateMemberInput = z.strictObject({
 
 export const MemberListQuery = CursorQuery.extend({
   organization_id: Uuid.optional(),
+  /**
+   * Omitted = active + invited (the working roster). Pass `revoked` to show
+   * former colleagues so the team screen can offer "reinstate" (HO-06 — the
+   * owner hit a one-way door: removing someone left no path back).
+   */
+  status: MembershipStatus.optional(),
 });
 
 export type MemberT = z.infer<typeof Member>;

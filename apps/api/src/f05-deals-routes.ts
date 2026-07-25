@@ -35,6 +35,13 @@ function toEngineInput(i: DeskingInputsT): DeskingInput {
     dealType: i.deal_type,
     interestRatePct: i.interest_rate_bps / 100,
     termMonths: i.term_months,
+    // HO-05: a lease is priced from a money factor, a lease term and a
+    // residual — not from the finance fields. Without this mapping the engine
+    // silently used its defaults, so a saved lease stored a rate and term that
+    // had nothing to do with its payment. MF = APR / 2400 (industry standard).
+    moneyFactor: i.interest_rate_bps / 100 / 2400,
+    leaseTermMonths: i.term_months,
+    residualPercent: i.residual_percent,
     cashDownCents: i.cash_down_cents,
     taxExempt: i.tax_exempt,
     ...(i.trade_allowance_cents || i.trade_acv_cents || i.trade_lien_cents
@@ -77,7 +84,7 @@ const INPUT_COLUMNS = [
   'province', 'deal_type', 'sale_price_cents', 'msrp_cents', 'vehicle_cost_cents',
   'cash_down_cents', 'trade_allowance_cents', 'trade_acv_cents', 'trade_lien_cents',
   'rebate_cents', 'fees_cents', 'fees_taxable', 'fi_price_cents', 'fi_cost_cents',
-  'interest_rate_bps', 'term_months', 'tax_exempt',
+  'interest_rate_bps', 'term_months', 'residual_percent', 'tax_exempt',
 ] as const;
 
 const OUTPUT_COLUMNS = [

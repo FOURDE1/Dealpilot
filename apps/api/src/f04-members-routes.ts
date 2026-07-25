@@ -108,12 +108,20 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
     // transaction, so setting the org key grants nothing on its own.
     const page = await withContext(pool, { orgId, userId: user.id }, async (c) => {
       await requireMember(c, user.id);
+      const params: unknown[] = [orgId];
+      let where = `m.organization_id = $1`;
+      if (query.status) {
+        params.push(query.status);
+        where += ` AND m.status = $${params.length}`;
+      } else {
+        where += ` AND m.status <> 'revoked'`;
+      }
       return keysetPage(
         c,
         `SELECT ${MEMBER_COLUMNS} FROM memberships m
          JOIN users u ON u.id = m.user_id
-         WHERE m.organization_id = $1 AND m.status <> 'revoked'`,
-        [orgId],
+         WHERE ${where}`,
+        params,
         query,
         'm',
       );
@@ -130,6 +138,24 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
         const actorRoles = await requireMember(c, actor.id, MEMBER_WRITE_ROLES);
         assertGrantable(actorRoles, input.roles);
         if (input.store_id) await assertStoreInOrg(c, input.store_id);
+        // HO-06: adding someone who is ALREADY in this org (typically a
+        // revoked colleague) reinstates them instead of colliding on the
+        // platform-unique email — removing a person must never be a one-way
+        // door. Same-org identities are visible at any status (migration 0007).
+        const existing = await c.query<{ id: string }>(
+          `SELECT m.id FROM memberships m JOIN users u ON u.id = m.user_id
+           WHERE lower(u.email) = lower($1) AND m.store_id IS NOT DISTINCT FROM $2
+           LIMIT 1`,
+          [input.email, input.store_id ?? null],
+        );
+        if (existing.rows.length > 0) {
+          const reinstated = await c.query<Record<string, unknown>>(
+            `UPDATE memberships SET status = 'active', roles = $2 WHERE id = $1 RETURNING *`,
+            [existing.rows[0]!.id, input.roles],
+          );
+          return { ...reinstated.rows[0], email: input.email, name: input.name, reinstated: true };
+        }
+
         // App-generated id: INSERT..RETURNING on users cannot pass the SELECT
         // policy before the membership exists (proven in A-04/D-022).
         await c.query(

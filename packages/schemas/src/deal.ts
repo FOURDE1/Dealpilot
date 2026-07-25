@@ -30,6 +30,8 @@ export const DeskingInputs = z.object({
   /** Basis points: 599 = 5.99% APR. Integers only, like money. */
   interest_rate_bps: z.number().int().min(0).max(10_000).default(0),
   term_months: z.number().int().min(1).max(120).default(60),
+  /** Lease only: residual as a percent of MSRP (the engine's own unit). */
+  residual_percent: z.number().int().min(0).max(100).default(55),
   tax_exempt: z.boolean().default(false),
 });
 
@@ -94,6 +96,7 @@ export const UpdateDealInput = z.strictObject({
   fi_cost_cents: NonNegativeCents.optional(),
   interest_rate_bps: z.number().int().min(0).max(10_000).optional(),
   term_months: z.number().int().min(1).max(120).optional(),
+  residual_percent: z.number().int().min(0).max(100).optional(),
   tax_exempt: z.boolean().optional(),
   status: DealStatus.optional(),
   lead_id: Uuid.nullable().optional(),

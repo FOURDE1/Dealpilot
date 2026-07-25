@@ -146,6 +146,59 @@ describe('F-05 desking calculator', () => {
   });
 });
 
+describe('HO-05: a lease is priced from the typed rate, term and residual', () => {
+  const LEASE = {
+    province: 'QC' as const,
+    deal_type: 'lease' as const,
+    sale_price_cents: 3_500_000,
+    msrp_cents: 3_800_000,
+    vehicle_cost_cents: 3_100_000,
+    cash_down_cents: 200_000,
+    interest_rate_bps: 599,
+    term_months: 48,
+    residual_percent: 55,
+  };
+
+  it('uses the typed values, not the engine defaults (golden)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const res = await app!.inject({
+      method: 'POST', url: '/api/v1/deals/calculate', headers: { cookie: cookieOwner }, payload: LEASE,
+    });
+    expect(res.statusCode).toBe(200);
+    const out = DeskingOutputs.parse(JSON.parse(res.body));
+    // 5.99% APR -> money factor 5.99/2400; residual 55% of $38,000 = $20,900.
+    expect(out.monthly_payment_cents).toBe(44_450);
+  });
+
+  it('changing the term or the residual changes the payment', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const longer = await app!.inject({
+      method: 'POST', url: '/api/v1/deals/calculate', headers: { cookie: cookieOwner },
+      payload: { ...LEASE, term_months: 60 },
+    });
+    const lowerResidual = await app!.inject({
+      method: 'POST', url: '/api/v1/deals/calculate', headers: { cookie: cookieOwner },
+      payload: { ...LEASE, residual_percent: 45 },
+    });
+    const base = 44_450;
+    expect(DeskingOutputs.parse(JSON.parse(longer.body)).monthly_payment_cents).not.toBe(base);
+    // Less residual value left at the end = more to depreciate = higher payment.
+    expect(DeskingOutputs.parse(JSON.parse(lowerResidual.body)).monthly_payment_cents).toBeGreaterThan(base);
+  });
+
+  it('a saved lease persists the residual it was priced with', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const res = await app!.inject({
+      method: 'POST', url: '/api/v1/deals', headers: { cookie: cookieOwner },
+      payload: { ...LEASE, organization_id: orgId, store_id: storeId, residual_percent: 50 },
+    });
+    expect(res.statusCode).toBe(201);
+    const deal = Deal.parse(JSON.parse(res.body));
+    expect(deal.residual_percent).toBe(50);
+    expect(deal.monthly_payment_cents).toBeGreaterThan(0);
+  });
+});
+
 describe('F-05 saved deals', () => {
   it('saves a deal on a lead with the engine outputs persisted', async (ctx) => {
     if (!dbUp) return ctx.skip();
