@@ -126,6 +126,7 @@ export const enCA = {
     addTitle: 'Add a member',
     add: 'Add',
     adding: 'Adding…',
+    invalidEmail: 'Invalid email address.',
     emailInUse: 'An account already exists with this email.',
     empty: 'No members — add your first colleague.',
     revoke: 'Remove',

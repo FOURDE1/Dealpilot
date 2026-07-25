@@ -121,9 +121,11 @@ export function TeamPage() {
       setError(
         err.status === 409
           ? t('emailInUse')
-          : err.status === 403
-            ? t('roleNotGrantable')
-            : t('genericError'),
+          : err.status === 422 && err.fieldPath === 'email'
+            ? t('invalidEmail')
+            : err.status === 403
+              ? t('roleNotGrantable')
+              : t('genericError'),
       );
     }
   }

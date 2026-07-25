@@ -47,6 +47,15 @@ test('full F-04 journey: team member → assignment → my-leads filter → revo
   await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Vendeur', exact: true })).toBeVisible();
 
+  // Wrong email shapes get named errors, never "operation failed" (owner-reported).
+  await page.getByLabel('Nom', { exact: true }).fill('Marc Bis');
+  await page.getByLabel('Courriel').fill('marc@groupehassan'); // no TLD — browser passes it, server 422s
+  await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await expect(page.getByText('Courriel invalide.')).toBeVisible();
+  await page.getByLabel('Courriel').fill(`marc-${stamp}@1dealer.test`); // duplicate → 409
+  await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await expect(page.getByText('Un compte existe déjà avec ce courriel.')).toBeVisible();
+
   // Assign the lead to Marc.
   await page.getByRole('link', { name: 'Prospects' }).first().click();
   await page.getByRole('link', { name: 'Paul Client' }).click();
