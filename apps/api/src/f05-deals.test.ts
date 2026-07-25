@@ -266,6 +266,21 @@ describe('F-05 saved deals', () => {
 
   it('the car track and the money track move independently (F-06)', async (ctx) => {
     if (!dbUp) return ctx.skip();
+    // F-08 changed the contract under this test: delivery is now earned, so the
+    // checklist has to be satisfied before the car track can move. Everything
+    // this test is actually about — the two tracks being independent — is
+    // unchanged below.
+    const checklist = await app!.inject({
+      method: 'GET', url: `/api/v1/deals/${dealId}/checklist`, headers: { cookie: cookieOwner },
+    });
+    for (const code of (JSON.parse(checklist.body) as { readiness: { outstanding: string[] } }).readiness.outstanding) {
+      const tick = await app!.inject({
+        method: 'PATCH', url: `/api/v1/deals/${dealId}/checklist/${code}`, headers: { cookie: cookieOwner },
+        payload: { completed: true },
+      });
+      expect(tick.statusCode).toBe(200);
+    }
+
     // Delivered but NOT yet funded — the state a dealership cares about most,
     // and the one the old single-status vocabulary could not express.
     const delivered = await app!.inject({

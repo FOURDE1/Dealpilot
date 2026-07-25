@@ -12,6 +12,7 @@ import {
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import { writeCommissionsForFundedDeal } from './f09-commissions-routes.js';
+import { checklistReadiness, DELIVERY_STAGES, ensureDealItems } from './checklist.js';
 
 /**
  * F-05 desking (apiV1.deals) — the A-06 money engine behind the API.
@@ -182,6 +183,10 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
            VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
           values,
         );
+        // F-08: take the checklist snapshot NOW, in the same transaction that
+        // creates the deal. This is the moment store policy applies to it; a
+        // template edited next week must not change what this deal owes.
+        await ensureDealItems(c, input.organization_id, String(r.rows[0]!['id']));
         return r.rows[0]!;
       });
       return await reply.status(201).send(withDerived(deal));
@@ -259,11 +264,40 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
       if (input.lead_id) await requireLeadInOrg(c, input.lead_id);
       if (input.vehicle_id) await requireVehicleInOrg(c, input.vehicle_id);
 
+      // FOR UPDATE: the checklist PATCH locks this same row, so a required item
+      // cannot be unticked in the window between the readiness check below and
+      // the stage write at the end of this transaction.
       const current = await c.query<Record<string, unknown>>(
-        `SELECT * FROM deals WHERE id = $1 AND deleted_at IS NULL`,
+        `SELECT * FROM deals WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
         [dealId],
       );
       if (current.rows.length === 0) throw notFound();
+
+      // F-08: 'delivered' is a claim about the real world, so it has to be
+      // earned — every REQUIRED checklist item done or waived-with-a-reason
+      // first. A store that requires nothing passes trivially; the safety
+      // inspection can never be waived (delivery.md §2).
+      //
+      // The gate covers EVERY stage at or past delivery, not just 'delivered':
+      // 'complete' sits after it, so gating only the one stage would leave the
+      // next one along as an open door.
+      const wasDelivered = DELIVERY_STAGES.has(String(current.rows[0]!['pipeline_stage']));
+      if (input.pipeline_stage && DELIVERY_STAGES.has(input.pipeline_stage) && !wasDelivered) {
+        // Materialize the checklist here rather than trusting that someone
+        // opened the panel first — a gate that only exists once you look at it
+        // is not a gate.
+        await ensureDealItems(c, orgId, dealId);
+        const readiness = await checklistReadiness(c, dealId);
+        if (!readiness.ready_for_delivery) {
+          throw new AppError(422, 'checklist_incomplete', 'The delivery checklist is not complete', [
+            {
+              path: 'pipeline_stage',
+              code: readiness.hard_blocked ? 'hard_block' : 'checklist_incomplete',
+              message: readiness.outstanding.join(', '),
+            },
+          ]);
+        }
+      }
 
       // Inputs changed ⇒ the engine speaks again: stored outputs must never
       // drift from the inputs beside them.
@@ -279,7 +313,7 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
       if (input.funding_status === 'funded' && !current.rows[0]!['funded_at']) {
         setEntries.push(['funded_at', new Date().toISOString()]);
       }
-      if (input.pipeline_stage === 'delivered' && !current.rows[0]!['delivered_at']) {
+      if (input.pipeline_stage && DELIVERY_STAGES.has(input.pipeline_stage) && !current.rows[0]!['delivered_at']) {
         setEntries.push(['delivered_at', new Date().toISOString()]);
       }
       const sets = setEntries.map(([k], i) => `${k} = $${i + 2}`).join(', ');

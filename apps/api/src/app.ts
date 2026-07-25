@@ -13,6 +13,7 @@ import { registerF04Routes } from './f04-members-routes.js';
 import { registerF05Routes } from './f05-deals-routes.js';
 import { registerF07Routes } from './f07-vehicles-routes.js';
 import { registerF09Routes } from './f09-commissions-routes.js';
+import { registerF08Routes } from './f08-checklist-routes.js';
 
 /**
  * Dealpilot API (A-05): Fastify 5 skeleton.
@@ -220,6 +221,7 @@ export async function buildApp(
   registerF05Routes(app, pool);
   registerF07Routes(app, pool);
   registerF09Routes(app, pool);
+  registerF08Routes(app, pool);
 
   app.addHook('onClose', async () => {
     await pool.end();

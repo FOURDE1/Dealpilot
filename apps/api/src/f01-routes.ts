@@ -12,6 +12,7 @@ import {
   Uuid,
 } from '@dealpilot/schemas';
 import { AppError, forbidden, notFound, parseOrThrow } from './errors.js';
+import { ensureTemplate } from './checklist.js';
 
 /**
  * F-01: organization & store administration routes (apiV1.organizations,
@@ -300,6 +301,10 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
             input.postal_code ?? null, input.default_locale, input.timezone, input.status,
           ],
         );
+        // F-08: a new store gets the canonical delivery checklist immediately,
+        // so reads never have to write and a deal desked one second later
+        // already has something to be measured against.
+        await ensureTemplate(c, input.organization_id, String(r.rows[0]!['id']));
         return r.rows[0];
       });
       return await reply.status(201).send(store);
