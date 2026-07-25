@@ -44,6 +44,15 @@ RDS) when owner wants staging — costed, numbers first.
 
 ## 2026-07-25 [HUSSEIN] — F-02 INTEGRATED (aad8dbf): lead screens merged, e2e 10/10 — AWAITING-OWNER-TEST
 
+**Addendum (2026-07-25): F-02 ACCEPTED by owner** (EN locale test — note:
+db:reset WIPES seeded accounts; re-seed hassan-test after every reset, learned
+the embarrassing way). **F-03 proposed on the board** (intake webhook
+RECOMMENDED; alt: lead assignment) — owner/AHMAD to confirm. **Shell §7 gap
+fixed and merged:** mobile bottom tab bar (<lg, safe-area aware, 56px targets),
+dead /pipeline dropped from both navs, dialogs got explicit z-50; phone e2e
+added — 11/11. Reviewed, findings fixed.
+
+
 **Done:** Repo monitor woke the session on AHMAD's 26cfbba; UI half rebased,
 integrated, and merged as **aad8dbf** after a 34-agent adversarial review —
 ALL confirmed findings fixed pre-merge: localized client-side zod errors via
