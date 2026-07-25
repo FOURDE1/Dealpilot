@@ -18,7 +18,8 @@
     "fastify": "^5.0.0",
     "zod": "catalog:",
     "@aws-sdk/client-sesv2": "3.1092.0",
-    "@dealpilot/core": "workspace:*"
+    "@dealpilot/core": "workspace:*",
+    "@dealpilot/contracts": "workspace:*"
   },
   "devDependencies": {
     "typescript": "catalog:",

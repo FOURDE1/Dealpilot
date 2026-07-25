@@ -2,14 +2,11 @@ import { initContract } from '@ts-rest/core';
 import { z } from 'zod';
 import {
   CreateLeadInput,
-  CreateMembershipInput,
   CreateOrganizationInput,
   CreateStoreInput,
-  CreateUserInput,
   CursorQuery,
   ErrorEnvelope,
   Lead,
-  Membership,
   Organization,
   Store,
   AddMemberInput,
@@ -25,7 +22,13 @@ import {
   Vehicle,
   VehicleListQuery,
   CalculateDealInput,
+  ChecklistCode,
+  ChecklistReadiness,
+  ChecklistTemplate,
   CreateDealInput,
+  DealChecklistItem,
+  UpdateChecklistItemInput,
+  UpdateChecklistTemplateInput,
   Deal,
   DealListQuery,
   DeskingOutputs,
@@ -39,11 +42,8 @@ import {
   LeadListQuery,
   StoreListQuery,
   UpdateLeadInput,
-  UpdateMembershipInput,
   UpdateOrganizationInput,
   UpdateStoreInput,
-  UpdateUserInput,
-  User,
   MeResponse,
   Uuid,
   paginated,
@@ -137,8 +137,11 @@ export const apiV1 = c.router({
   // Store list is org-scoped (F-01): the selector is verified against the
   // caller's memberships server-side — never an authority claim.
   stores: crudRouter('stores', Store, CreateStoreInput, UpdateStoreInput, StoreListQuery),
-  users: crudRouter('users', User, CreateUserInput, UpdateUserInput),
-  memberships: crudRouter('memberships', Membership, CreateMembershipInput, UpdateMembershipInput),
+  // NO users/memberships CRUD. The A-03 scaffold declared both generically and
+  // neither was ever mounted, so the contract advertised ten endpoints that
+  // answer 404 — found by contract-coverage.test.ts, not by eye. Identities come
+  // from Better Auth, and F-04 manages the roster through /api/v1/members. If
+  // either is ever wanted, declare it here in the same commit that mounts it.
   leads: crudRouter('leads', Lead, CreateLeadInput, UpdateLeadInput, LeadListQuery),
   /** F-09 pay plans + the commission lines a funded deal produces. */
   payPlans: c.router({
@@ -205,6 +208,50 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: UpdateDealInput,
       responses: { 200: Deal, ...errorResponses },
+    },
+  }),
+  /**
+   * F-08 delivery checklist: the gate between Signed and Delivered. A deal's
+   * items are snapshot from its store's template when the deal is created, so
+   * later policy edits never rewrite a deal in flight.
+   */
+  checklist: c.router({
+    /** The deal's items plus whether it may be delivered at all. */
+    forDeal: {
+      method: 'GET',
+      path: '/api/v1/deals/:id/checklist',
+      pathParams: z.object({ id: Uuid }),
+      responses: {
+        200: z.object({ items: z.array(DealChecklistItem), readiness: ChecklistReadiness }),
+        ...errorResponses,
+      },
+    },
+    /**
+     * Tick, untick or waive one item. 403 when a salesperson tries to waive or
+     * to sign off the safety inspection; 409 `deal_delivered` once the deal has
+     * been delivered, because the checklist is then the record of why.
+     */
+    updateItem: {
+      method: 'PATCH',
+      path: '/api/v1/deals/:id/checklist/:code',
+      pathParams: z.object({ id: Uuid, code: ChecklistCode }),
+      body: UpdateChecklistItemInput,
+      responses: { 200: DealChecklistItem, ...errorResponses },
+    },
+    /** The store's policy: which items it requires (D-020). */
+    template: {
+      method: 'GET',
+      path: '/api/v1/stores/:id/checklist-template',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: z.object({ items: z.array(ChecklistTemplate) }), ...errorResponses },
+    },
+    /** Owner/GM only. Switching the safety inspection off is refused (422). */
+    updateTemplate: {
+      method: 'PATCH',
+      path: '/api/v1/stores/:id/checklist-template/:code',
+      pathParams: z.object({ id: Uuid, code: ChecklistCode }),
+      body: UpdateChecklistTemplateInput,
+      responses: { 200: ChecklistTemplate, ...errorResponses },
     },
   }),
   /** F-04 team members: membership joined to user, add-by-email, roles, revoke. */
