@@ -5,8 +5,14 @@ Test-Dealpilot-2026! at http://localhost:5173 — EN toggle in the top bar; the
 steps below use the English labels.
 
 To start the stack: `pnpm dev` in the project root (API on 3001, app on 5173).
-If the login fails, a database reset removed the seed account — say so and one
-script restores it.
+**It is already running and already seeded** — Ahmad left it up on the current
+code, with Groupe Hassan / Kia Mont-Laurier in place and no test data cluttering
+it. If the login ever fails, run `bash apps/web/scripts/seed-owner.sh` with the
+stack up.
+
+**Ahmad walked all four parts below end-to-end before you woke up**, against this
+same running stack, so nothing here is guesswork. The numbers quoted in Part D are
+the ones the system actually produced.
 
 ## Part A — The deal pipeline (F-06)
 

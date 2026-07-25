@@ -69,6 +69,16 @@ author, gate opens once everything is ticked, `delivered_at` stamped, and the
 checklist frozen afterwards (`deal_delivered`). Test deal removed; his
 environment is clean.
 
+Then walked the OTHER three parts of the BATCH-02 sheet the same way, so the whole
+round is verified rather than just the new slice: inventory adds a car and reports
+total cost 2 330 000 cents from 2 200 000 + 50 000 transport + 80 000 recon, with
+duplicate stock naming `stock_number` and duplicate VIN naming `vin` (CR-02 live);
+a deal prices at $597.79/mo and moves new → submitted while the funding track stays
+independent; and the commission engine paid $975 on a $5 400 gross — the $1 500 pad
+subtracted BEFORE the 25% rate, which is the exact case the legacy system got wrong
+— and re-funding the same deal still produced one line. All smoke data removed
+afterwards; the owner's environment has his org and store and nothing else.
+
 Also: `pnpm dev` did not exist. Both owner test sheets and PROJECT.md told people
 to run it. It exists now (root script + turbo persistent `dev` task).
 
