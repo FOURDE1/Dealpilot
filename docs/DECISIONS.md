@@ -28,6 +28,17 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-031: Batch delivery — ship 2-3 feature slices per owner test round (2026-07-25) [AHMAD]
+
+**Status:** accepted — amends D-018 / TEAM-WORKFLOW §12 (one-slice-at-a-time). Per this log's header, a newer entry supersedes on conflict; **the owner should also update TEAM-WORKFLOW §12 himself when convenient (that file is human-only).**
+**Context:** Owner 2026-07-25: "i want u to do more than one step (F-04), because we are slow — we do batches and then we test them, but keeping everything professional and functional". One-slice-per-acceptance made the owner a per-feature bottleneck while both agents idled between rounds.
+**Decision:** Work ships in **BATCHES of 2-3 feature slices**. Each batch is declared up front on the board with per-agent halves; both agents build their halves in parallel; the batch reaches **AWAITING-OWNER-TEST only when every slice in it is INTEGRATED and green**, with ONE combined test script covering all of them. The owner accepts/rejects per slice (a rejected slice does not block its siblings).
+**Non-negotiables kept (this is speed, not corner-cutting):** TDD red-first, adversarial review per slice before merge, full quality gate (build/typecheck/lint/tests/i18n parity) before every merge, CI green on develop, contract-first between agents, zone ownership, and no owner-visible feature ships untested.
+**Alternatives considered:** bigger 5+ slice batches — rejected: a rejection late in a long batch wastes more work than it saves; 2-3 keeps a test round under ~15 minutes for the owner.
+**Consequences:** Owner test rounds drop from per-feature to per-batch. The board's feature section now carries a **BATCH-nn** grouping row. First batch = **BATCH-01: F-04 (team members + lead assignment) + F-05 (deal desking on the A-06 money engine)**.
+**Decided by:** user
+
+
 ## D-030: No paid AWS infrastructure until launch-adjacent; SES SDK approved (2026-07-25) [AHMAD]
 
 **Status:** accepted
