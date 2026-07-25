@@ -131,6 +131,23 @@ describe('F-07 inventory', () => {
     expect(res.statusCode).toBe(409);
   });
 
+  it('a 409 names the field that clashed — stock number vs VIN (CR-02)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const dupStock = await app!.inject({
+      method: 'POST', url: '/api/v1/vehicles', headers: { cookie: cookieOwner },
+      payload: { ...CAR, vin: undefined, organization_id: orgId, store_id: storeId },
+    });
+    expect(dupStock.statusCode).toBe(409);
+    expect(JSON.parse(dupStock.body).error.details?.[0]?.path).toBe('stock_number');
+
+    const dupVin = await app!.inject({
+      method: 'POST', url: '/api/v1/vehicles', headers: { cookie: cookieOwner },
+      payload: { ...CAR, stock_number: 'K2699', organization_id: orgId, store_id: storeId },
+    });
+    expect(dupVin.statusCode).toBe(409);
+    expect(JSON.parse(dupVin.body).error.details?.[0]?.path).toBe('vin');
+  });
+
   it('lists inventory and filters by availability', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const all = await app!.inject({

@@ -84,6 +84,12 @@ const CONSTRAINT_PATHS: Record<string, string> = {
   organizations_slug_key: 'slug',
   stores_organization_id_code_key: 'code',
   users_email_key: 'email',
+  // F-07 inventory (CR-02): without these, a duplicate VIN and a duplicate
+  // stock number are indistinguishable and the UI has to guess which field to
+  // flag. Note the VIN rule is a partial unique INDEX, not a table constraint —
+  // Postgres still reports its name here.
+  vehicles_organization_id_store_id_stock_number_key: 'stock_number',
+  idx_vehicles_org_vin: 'vin',
 };
 
 /** Postgres unique_violation → canonical 409. */
