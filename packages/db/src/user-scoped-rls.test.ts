@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { createPool, resolveDatabaseUrl, withUser } from './index.js';
+import { createPool, testAdminUrl, testAppUrl, withUser } from './index.js';
 import { reset } from './migrate.js';
+import { ensureTestDatabase } from './test-db.js';
 
 /**
  * F-01 user-scoped READ policies: a signed-in user can see the organizations,
@@ -14,8 +15,8 @@ import { reset } from './migrate.js';
  */
 
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
-const adminUrl = resolveDatabaseUrl();
-const appUrl = adminUrl.replace(/\/\/[^@]+@/, '//dealpilot_app:dealpilot_app_dev@');
+const adminUrl = testAdminUrl();
+const appUrl = testAppUrl();
 
 let admin: pg.Pool;
 let app: pg.Pool;
@@ -26,6 +27,7 @@ let hassanId = '';
 let rivalId = '';
 
 beforeAll(async () => {
+  await ensureTestDatabase();
   admin = createPool({ connectionString: adminUrl, max: 2 });
   try {
     await admin.query('SELECT 1');

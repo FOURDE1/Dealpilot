@@ -111,4 +111,5 @@ export async function withUser<T>(
 }
 
 export { migrate, reset } from './migrate.js';
+export { ensureTestDatabase, testAdminUrl, testAppUrl } from './test-db.js';
 export type { Pool, PoolClient } from 'pg';

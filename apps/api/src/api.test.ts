@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ensureTestDatabase, testAdminUrl, testAppUrl } from '@dealpilot/db';
 import { buildApp } from './app.js';
 
 /**
@@ -8,8 +9,8 @@ import { buildApp } from './app.js';
  * that into a failure in CI, same convention as the db package).
  */
 
-const ADMIN_URL = 'postgresql://dealpilot:dealpilot@localhost:5434/dealpilot';
-const APP_URL = 'postgresql://dealpilot_app:dealpilot_app_dev@localhost:5434/dealpilot';
+const ADMIN_URL = testAdminUrl();
+const APP_URL = testAppUrl();
 
 let app: Awaited<ReturnType<typeof buildApp>>['app'] | undefined;
 let dbUp = false;
@@ -18,6 +19,7 @@ const EMAIL = `test-${Date.now().toString(36)}@dealpilot.test`;
 const PASSWORD = 'correct-horse-battery-staple';
 
 beforeAll(async () => {
+  await ensureTestDatabase();
   const probe = await buildApp({ DATABASE_URL: ADMIN_URL, NODE_ENV: 'test' });
   const health = await probe.app.inject({ method: 'GET', url: '/api/v1/health' });
   const dbState = (JSON.parse(health.body) as { db: string }).db;

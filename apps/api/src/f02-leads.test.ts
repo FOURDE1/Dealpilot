@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { createPool, reset, type Pool } from '@dealpilot/db';
+import { createPool, reset, type Pool, ensureTestDatabase, testAdminUrl, testAppUrl } from '@dealpilot/db';
 import { Lead, paginated } from '@dealpilot/schemas';
 import { buildApp } from './app.js';
 
@@ -13,8 +13,8 @@ import { buildApp } from './app.js';
  * delete, engine-owned fields rejected.
  */
 
-const ADMIN_URL = 'postgresql://dealpilot:dealpilot@localhost:5434/dealpilot';
-const APP_URL = 'postgresql://dealpilot_app:dealpilot_app_dev@localhost:5434/dealpilot';
+const ADMIN_URL = testAdminUrl();
+const APP_URL = testAppUrl();
 const migrationsDir = join(
   dirname(fileURLToPath(import.meta.url)),
   '..', '..', '..', 'packages', 'db', 'migrations',
@@ -47,6 +47,7 @@ async function signUp(user: { email: string; password: string; name: string }) {
 }
 
 beforeAll(async () => {
+  await ensureTestDatabase();
   admin = createPool({ connectionString: ADMIN_URL, max: 2 });
   try {
     await admin.query('SELECT 1');

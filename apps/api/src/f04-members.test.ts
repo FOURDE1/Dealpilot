@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { createPool, reset, type Pool } from '@dealpilot/db';
+import { createPool, reset, type Pool, ensureTestDatabase, testAdminUrl, testAppUrl } from '@dealpilot/db';
 import { Lead, Member, paginated } from '@dealpilot/schemas';
 import { buildApp } from './app.js';
 
@@ -12,8 +12,8 @@ import { buildApp } from './app.js';
  * last-owner protection, assignment to a non-member.
  */
 
-const ADMIN_URL = 'postgresql://dealpilot:dealpilot@localhost:5434/dealpilot';
-const APP_URL = 'postgresql://dealpilot_app:dealpilot_app_dev@localhost:5434/dealpilot';
+const ADMIN_URL = testAdminUrl();
+const APP_URL = testAppUrl();
 const migrationsDir = join(
   dirname(fileURLToPath(import.meta.url)),
   '..', '..', '..', 'packages', 'db', 'migrations',
@@ -47,6 +47,7 @@ async function signUp(u: { email: string; password: string; name: string }) {
 }
 
 beforeAll(async () => {
+  await ensureTestDatabase();
   admin = createPool({ connectionString: ADMIN_URL, max: 2 });
   try {
     await admin.query('SELECT 1');
@@ -112,7 +113,7 @@ describe('F-04 team members', () => {
     expect(MemberPage.parse(JSON.parse(list.body)).items).toHaveLength(2);
   });
 
-  it('re-adding an existing member updates their roles (idempotent, HO-06)', async (ctx) => {
+  it('re-adding an ACTIVE member is refused, never a silent role rewrite (HO-09)', async (ctx) => {
     if (!dbUp) return ctx.skip();
     // REQUIREMENT CHANGED 2026-07-25 (owner hit the old behavior live): adding
     // an email that already belongs to this org must not dead-end on a 409 —
@@ -121,15 +122,10 @@ describe('F-04 team members', () => {
       method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
       payload: { organization_id: orgId, email: COLLEAGUE_EMAIL, name: 'Sam Again', roles: ['bdc_agent'] },
     });
-    expect(res.statusCode).toBe(201);
-    const member = Member.parse(JSON.parse(res.body));
-    expect(member.id).toBe(colleagueMembershipId);
-    expect(member.roles).toEqual(['bdc_agent']);
-    // restore for the tests that follow
-    await app!.inject({
-      method: 'PATCH', url: `/api/v1/members/${colleagueMembershipId}`, headers: { cookie: cookieOwner },
-      payload: { roles: ['salesperson'] },
-    });
+    // SECURITY: rewriting an ACTIVE membership through the add form let an
+    // admin type the sole owner's address and silently demote them.
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).error.details?.[0]?.code).toBe('already_member');
   });
 
   it('an email belonging to ANOTHER organization still 409s (documented limit)', async (ctx) => {
@@ -264,6 +260,56 @@ describe('F-04 review fixes', () => {
       [dupUserId, orgId, storeId],
     ).then(() => 'inserted').catch((e: { code?: string }) => e.code);
     expect(clash).toBe('23505'); // the DB constraint is what the API must map
+  });
+});
+
+describe('HO-09: reinstate cannot be used to escalate', () => {
+  it('the add form cannot rewrite the sole owner (org keeps its owner)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const attack = await app!.inject({
+      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
+      payload: { organization_id: orgId, email: OWNER.email, name: 'Owner Rewritten', roles: ['salesperson'] },
+    });
+    expect(attack.statusCode).toBe(409);
+    const owners = await admin.query(
+      `SELECT 1 FROM memberships WHERE organization_id = $1 AND status = 'active' AND 'owner' = ANY(roles)`,
+      [orgId],
+    );
+    expect(owners.rows.length).toBeGreaterThan(0);
+  });
+
+  it('reviving a revoked OWNER requires owner rank', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Seed a second owner, revoke them, then try to revive as a mere gm.
+    const email = `f04-ex-owner-${run}@dealpilot.test`;
+    const added = await app!.inject({
+      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
+      payload: { organization_id: orgId, email, name: 'Ex Owner', roles: ['owner'] },
+    });
+    const exOwnerId = Member.parse(JSON.parse(added.body)).id;
+    await app!.inject({
+      method: 'PATCH', url: `/api/v1/members/${exOwnerId}`, headers: { cookie: cookieOwner }, payload: { status: 'revoked' },
+    });
+
+    // A gm session: create the identity, then grant gm from the owner.
+    const gmEmail = `f04-gm2-${run}@dealpilot.test`;
+    const gmCookie = await signUp({ email: gmEmail, password: 'correct-horse-battery-staple', name: 'Gil GM' });
+    const me = await app!.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie: gmCookie } });
+    const gmUserId = (JSON.parse(me.body) as { user: { id: string } }).user.id;
+    await admin.query(
+      `INSERT INTO users (id, email, name, status) VALUES ($1,$2,$3,'active') ON CONFLICT (id) DO NOTHING`,
+      [gmUserId, gmEmail, 'Gil GM'],
+    );
+    await admin.query(
+      `INSERT INTO memberships (user_id, organization_id, store_id, roles) VALUES ($1,$2,NULL,'{gm}')`,
+      [gmUserId, orgId],
+    );
+
+    const revive = await app!.inject({
+      method: 'PATCH', url: `/api/v1/members/${exOwnerId}`, headers: { cookie: gmCookie }, payload: { status: 'active' },
+    });
+    expect(revive.statusCode).toBe(403);
+    expect(JSON.parse(revive.body).error.code).toBe('forbidden');
   });
 });
 

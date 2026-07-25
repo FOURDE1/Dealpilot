@@ -142,18 +142,31 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
         // revoked colleague) reinstates them instead of colliding on the
         // platform-unique email — removing a person must never be a one-way
         // door. Same-org identities are visible at any status (migration 0007).
-        const existing = await c.query<{ id: string }>(
-          `SELECT m.id FROM memberships m JOIN users u ON u.id = m.user_id
+        const existing = await c.query<{ id: string; status: string; roles: string[] }>(
+          `SELECT m.id, m.status, m.roles FROM memberships m JOIN users u ON u.id = m.user_id
            WHERE lower(u.email) = lower($1) AND m.store_id IS NOT DISTINCT FROM $2
            LIMIT 1`,
           [input.email, input.store_id ?? null],
         );
         if (existing.rows.length > 0) {
+          const target = existing.rows[0]!;
+          // SECURITY (HO-09): only a REVOKED/INVITED membership may be revived
+          // this way. Matching an ACTIVE one used to rewrite it, so typing the
+          // sole owner's address into the add form silently demoted them and
+          // could leave the org with no owner at all.
+          if (target.status === 'active') {
+            throw new AppError(409, 'conflict', 'This person is already on the team', [
+              { path: 'email', code: 'already_member', message: 'Change their roles from the team list instead' },
+            ]);
+          }
+          // Reviving someone who outranks you is an escalation just like
+          // granting the role directly.
+          assertGrantable(actorRoles, target.roles);
           const reinstated = await c.query<Record<string, unknown>>(
             `UPDATE memberships SET status = 'active', roles = $2 WHERE id = $1 RETURNING *`,
-            [existing.rows[0]!.id, input.roles],
+            [target.id, input.roles],
           );
-          return { ...reinstated.rows[0], email: input.email, name: input.name, reinstated: true };
+          return { ...reinstated.rows[0], email: input.email, name: input.name };
         }
 
         // App-generated id: INSERT..RETURNING on users cannot pass the SELECT
@@ -188,6 +201,16 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
         const actorRoles = await requireMember(c, actor.id, MEMBER_WRITE_ROLES);
         if (input.roles) assertGrantable(actorRoles, input.roles);
         if (input.store_id) await assertStoreInOrg(c, input.store_id);
+
+          // SECURITY (HO-09): re-activating someone is as powerful as granting
+        // their roles — a gm must not be able to revive a revoked owner.
+        if (input.status === 'active') {
+          const target = await c.query<{ roles: string[] }>(
+            `SELECT roles FROM memberships WHERE id = $1`,
+            [membershipId],
+          );
+          if (target.rows[0]) assertGrantable(actorRoles, target.rows[0].roles);
+        }
 
         // Losing owner rights or being revoked both risk orphaning the org.
         const losesOwner =
