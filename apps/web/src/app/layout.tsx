@@ -4,17 +4,18 @@ import { Button, cn } from '@dealpilot/ui';
 import { signOut, useSession } from '../shared/auth/client.js';
 import { LanguageSwitcher } from '../shared/i18n/language-switcher.js';
 
+// `/pipeline` returns with its feature slice — a dead route belongs in no nav.
 const NAV_ITEMS = [
   { to: '/', key: 'nav:dashboard', end: true },
   { to: '/organizations', key: 'nav:organizations' },
   { to: '/leads', key: 'nav:prospects' },
-  { to: '/pipeline', key: 'nav:pipeline' },
 ] as const;
 
 /**
- * App shell: fixed sidebar (240px, collapses under lg to a top strip for this
- * increment) + 56px topbar, everything on semantic tokens; all strings via
- * i18n (H-04, ADR-019).
+ * App shell: fixed sidebar (240px, >=lg) + 56px topbar + bottom tab bar
+ * (<lg) on semantic tokens; all strings via i18n (H-04, ADR-019).
+ * Spec note (§7): tablet (640-1023px) formally gets a sidebar DRAWER — the
+ * tab bar covers that range as an accepted increment until the drawer lands.
  */
 export function AppLayout() {
   const { t } = useTranslation(['common', 'nav']);
@@ -64,9 +65,33 @@ export function AppLayout() {
             </Button>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1400px] flex-1 p-4 lg:p-6">
+        <main className="mx-auto w-full max-w-[1400px] flex-1 p-4 pb-20 lg:p-6">
           <Outlet />
         </main>
+
+        {/* Mobile navigation (ui-design-system §7): the sidebar hides <lg,
+            so a bottom tab bar carries the primary destinations. Icons join
+            when the icon set lands (lucide deferred for release cooldown). */}
+        <nav
+          aria-label={t('nav:mainNav')}
+          className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-3 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
+        >
+          {NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={'end' in item ? item.end : false}
+              className={({ isActive }) =>
+                cn(
+                  'flex min-h-14 items-center justify-center px-2 text-[13px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  isActive ? 'text-primary' : 'text-muted-foreground',
+                )
+              }
+            >
+              {t(item.key)}
+            </NavLink>
+          ))}
+        </nav>
       </div>
     </div>
   );
