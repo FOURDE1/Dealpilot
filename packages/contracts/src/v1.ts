@@ -11,7 +11,18 @@ import {
   Store,
   ActivityEvent,
   ActivityListQuery,
+  ChaserVehicle,
+  CreateChaserInput,
+  CreateDispatchInput,
   CreateInvitationInput,
+  CreatePlateInput,
+  DealerPlate,
+  DispatchAssignment,
+  DispatchListQuery,
+  FleetListQuery,
+  UpdateChaserInput,
+  UpdateDispatchInput,
+  UpdatePlateInput,
   Invitation,
   InvitationListQuery,
   InvitationPreview,
@@ -169,6 +180,77 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: UpdatePayPlanInput,
       responses: { 200: PayPlan, ...errorResponses },
+    },
+  }),
+  /**
+   * F-11 dispatch: the drivers, plate and chaser that get a sold car to the
+   * customer. The server picks the resources — choosing is where double
+   * bookings come from.
+   */
+  dispatch: c.router({
+    book: {
+      method: 'POST',
+      path: '/api/v1/dispatch',
+      body: CreateDispatchInput,
+      responses: { 201: DispatchAssignment, ...errorResponses },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/dispatch',
+      query: DispatchListQuery,
+      responses: { 200: paginated(DispatchAssignment), ...errorResponses },
+    },
+    /** Move the run along, or record the driver and ETAs. */
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/dispatch/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateDispatchInput,
+      responses: { 200: DispatchAssignment, ...errorResponses },
+    },
+  }),
+  /** F-11 fleet: the follow cars that bring drivers home. */
+  chasers: c.router({
+    create: {
+      method: 'POST',
+      path: '/api/v1/chasers',
+      body: CreateChaserInput,
+      responses: { 201: ChaserVehicle, ...errorResponses },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/chasers',
+      query: FleetListQuery,
+      responses: { 200: paginated(ChaserVehicle), ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/chasers/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateChaserInput,
+      responses: { 200: ChaserVehicle, ...errorResponses },
+    },
+  }),
+  /** F-11 fleet: dealer plates, for units that are not registered yet. */
+  plates: c.router({
+    create: {
+      method: 'POST',
+      path: '/api/v1/plates',
+      body: CreatePlateInput,
+      responses: { 201: DealerPlate, ...errorResponses },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/plates',
+      query: FleetListQuery,
+      responses: { 200: paginated(DealerPlate), ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/plates/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdatePlateInput,
+      responses: { 200: DealerPlate, ...errorResponses },
     },
   }),
   /**

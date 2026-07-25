@@ -15,5 +15,6 @@ export * from './deal.js';
 export * from './vehicle.js';
 export * from './commission.js';
 export * from './activity.js';
+export * from './dispatch.js';
 export * from './invitation.js';
 export * from './checklist.js';

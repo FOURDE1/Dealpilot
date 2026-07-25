@@ -54,6 +54,9 @@ const BEHAVIOURALLY_COVERED = new Set([
   // F-12: cross-tenant case in apps/api/src/f12-invitations.test.ts
   // ("another organization cannot see or revoke these invitations").
   'invitations',
+  // F-11: cross-tenant case in apps/api/src/f11-dispatch.test.ts
+  // ("another organization sees none of this fleet").
+  'chaser_vehicles', 'dealer_plates', 'dispatch_assignments',
 ]);
 
 interface PolicyRow {
