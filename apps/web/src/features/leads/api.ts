@@ -71,7 +71,10 @@ export function useCreateLead() {
       if (res.status !== 201) fail(res.status, res.body);
       return Lead.parse(res.body);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: leadKeys.all }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: leadKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ['activity'] });
+    },
   });
 }
 
@@ -83,6 +86,9 @@ export function useUpdateLead(id: string) {
       if (res.status !== 200) fail(res.status, res.body);
       return Lead.parse(res.body);
     },
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: leadKeys.all }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: leadKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ['activity'] });
+    },
   });
 }

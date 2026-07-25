@@ -52,6 +52,7 @@ export function useUpdateChecklistItem(dealId: string) {
       void queryClient.invalidateQueries({ queryKey: checklistKeys.deal(dealId) });
       // Readiness gates the pipeline's Delivered/Complete moves.
       void queryClient.invalidateQueries({ queryKey: ['deals'] });
+      void queryClient.invalidateQueries({ queryKey: ['activity'] });
     },
   });
 }

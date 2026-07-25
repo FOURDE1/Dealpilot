@@ -9,6 +9,7 @@ import { useLeadNames } from '../leads/api.js';
 import { leadDisplayName } from '../leads/labels.js';
 import { usePipelineDeals, useUpdateDealTracks } from './api.js';
 import { ChecklistDialog } from '../checklists/checklist-dialog.js';
+import { DealActivityDialog } from '../activity/activity-dialog.js';
 import { CHECKLIST_CODE_KEYS } from '../checklists/labels.js';
 import { checklistKeys } from '../checklists/api.js';
 import { useQueryClient } from '@tanstack/react-query';
@@ -23,6 +24,7 @@ import { formatCents } from './money.js';
 export function PipelinePage() {
   const { t, i18n } = useTranslation('deals');
   const { t: tCheck } = useTranslation('checklist');
+  const { t: tActivity } = useTranslation('activity');
   const orgs = useOrganizations();
   const multiOrg = (orgs.data?.items.length ?? 0) > 1;
   const [orgFilter, setOrgFilter] = useState('');
@@ -33,6 +35,7 @@ export function PipelinePage() {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [checklistDeal, setChecklistDeal] = useState<DealT | null>(null);
+  const [activityDeal, setActivityDeal] = useState<DealT | null>(null);
 
   const leadName = useMemo(() => {
     const map = new Map<string, string>();
@@ -189,6 +192,16 @@ export function PipelinePage() {
                       >
                         {t('checklistAction')}
                       </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start px-0"
+                        aria-label={tActivity('historyFor', { name: leadName.get(d.lead_id ?? '') ?? d.id.slice(0, 8) })}
+                        onClick={() => setActivityDeal(d)}
+                      >
+                        {tActivity('historyAction')}
+                      </Button>
                       <div className="space-y-1">
                         <Label htmlFor={`stage-${d.id}`} className="text-xs">
                           {t('stageLabel')}
@@ -234,6 +247,11 @@ export function PipelinePage() {
         </div>
         </>
       )}
+      <DealActivityDialog
+        deal={activityDeal}
+        dealLabel={activityDeal?.lead_id ? leadName.get(activityDeal.lead_id) : undefined}
+        onClose={() => setActivityDeal(null)}
+      />
       <ChecklistDialog
         deal={checklistDeal}
         dealLabel={checklistDeal?.lead_id ? leadName.get(checklistDeal.lead_id) : undefined}

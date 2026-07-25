@@ -98,6 +98,7 @@ export function useUpdateDealTracks(orgId?: string) {
           old ? { ...old, items: old.items.map((d) => (d.id === updated.id ? updated : d)) } : old,
       );
       void queryClient.invalidateQueries({ queryKey: dealKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ['activity'] });
       // Funding writes commission lines in the same transaction server-side.
       if (updated.funding_status === 'funded') {
         void queryClient.invalidateQueries({ queryKey: ['commissions'] });
@@ -114,6 +115,9 @@ export function useCreateDeal() {
       if (res.status !== 201) fail(res.status, res.body);
       return Deal.parse(res.body);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: dealKeys.all }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: dealKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ['activity'] });
+    },
   });
 }
