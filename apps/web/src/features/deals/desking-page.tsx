@@ -195,6 +195,7 @@ export function DeskingPage() {
     setSaveError(null);
     try {
       const reserveCents = fiReserve.trim() === '' ? 0 : parseMoneyToCents(fiReserve);
+      if (reserveCents === null) return; // invalid reserve must never save as $0
       await createDeal.mutateAsync({
         ...inputs,
         organization_id: lead.data.organization_id,
@@ -229,6 +230,7 @@ export function DeskingPage() {
   const termInvalid = termNum === null || termNum < 1 || termNum > 120;
   const residualNum = /^\d+$/.test(draft.residual.trim()) ? Number(draft.residual.trim()) : null;
   const residualInvalid = isLease && (residualNum === null || residualNum > 100);
+  const reserveInvalid = fiReserve.trim() !== '' && parseMoneyToCents(fiReserve) === null;
   const isHstProv = HST_PROVINCES.has(draft.province);
 
   return (
@@ -309,6 +311,11 @@ export function DeskingPage() {
                   </option>
                 ))}
               </Select>
+              {members.isError ? (
+                <p role="alert" className="text-xs text-danger-text">
+                  {t('loadError')}
+                </p>
+              ) : null}
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
@@ -503,7 +510,7 @@ export function DeskingPage() {
           <Button
             type="button"
             className="w-full"
-            disabled={inputs === null || stale || createDeal.isPending}
+            disabled={inputs === null || stale || reserveInvalid || createDeal.isPending}
             onClick={() => void handleSave()}
           >
             {createDeal.isPending ? t('saving') : t('save')}

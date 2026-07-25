@@ -32,7 +32,7 @@ test('full F-09 journey: pay plan → sold-by deal → funded → $1,375 line', 
   await page.getByLabel('Courriel').fill(`vicky-${stamp}@1dealer.test`);
   await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
   await expect(page.getByRole('cell', { name: 'Vicky Vendeuse', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Plan de paie — Vicky Vendeuse' }).click();
+  await page.getByRole('button', { name: 'Plan de rémunération — Vicky Vendeuse' }).click();
   await page.getByLabel('Taux de commission (%)').fill('25');
   await page.getByLabel('Pad (montant déduit du profit)').fill('1500');
   await page.getByRole('button', { name: 'Enregistrer', exact: true }).click();

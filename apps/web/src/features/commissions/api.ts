@@ -29,7 +29,9 @@ export function usePayPlan(orgId: string | undefined, userId: string, opts?: { e
       });
       if (res.status !== 200) fail(res.status, res.body);
       const parsed = PaginatedPayPlans.parse(res.body);
-      return parsed.items.find((p) => p.active) ?? null;
+      // The API answers with the CALLER's plans when the caller may not read
+      // others' pay — never present those as the requested member's plan.
+      return parsed.items.find((p) => p.active && p.user_id === userId) ?? null;
     },
   });
 }
@@ -64,12 +66,22 @@ export function useCommissions(orgId?: string, opts?: { enabled?: boolean }) {
     queryKey: commissionKeys.lines(orgId),
     enabled: opts?.enabled ?? true,
     queryFn: async ({ signal }) => {
-      const res = await apiRequest(routes.commissions.list, {
-        query: { organization_id: orgId, limit: 100 },
-        signal,
-      });
-      if (res.status !== 200) fail(res.status, res.body);
-      return PaginatedCommissions.parse(res.body);
+      // Pay data: follow cursors (bounded) — a month total from one page is a
+      // payroll dispute waiting to happen.
+      const items = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < 3; page++) {
+        const res = await apiRequest(routes.commissions.list, {
+          query: { organization_id: orgId, limit: 100, cursor },
+          signal,
+        });
+        if (res.status !== 200) fail(res.status, res.body);
+        const parsed = PaginatedCommissions.parse(res.body);
+        items.push(...parsed.items);
+        if (!parsed.next_cursor) return { items, truncated: false };
+        cursor = parsed.next_cursor;
+      }
+      return { items, truncated: true };
     },
   });
 }

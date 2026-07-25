@@ -36,6 +36,8 @@ export const ROLE_KEYS = {
 
 /** Mirror of the API's MEMBER_WRITE_ROLES — the server still enforces. */
 const WRITE_ROLES = new Set<RoleT>(['owner', 'gm', 'admin_office']);
+/** Mirror of PAY_WRITE_ROLES — pay plans are owner/gm territory. */
+const PAY_ROLES = new Set<RoleT>(['owner', 'gm']);
 
 const STATUS_KEYS = {
   active: 'status_active',
@@ -93,6 +95,7 @@ export function TeamPage() {
   const updateMember = useUpdateMember(orgId);
   const me = members.data?.items.find((m) => m.user_id === session?.user.id);
   const canWrite = me?.roles.some((r) => WRITE_ROLES.has(r)) ?? false;
+  const canPay = me?.roles.some((r) => PAY_ROLES.has(r)) ?? false;
   const [showRemoved, setShowRemoved] = useState(false);
   const [removedError, setRemovedError] = useState<string | null>(null);
   const removed = useMembers(orgId, { enabled: !noOrg && showRemoved, status: 'revoked' });
@@ -177,15 +180,17 @@ export function TeamPage() {
               >
                 {t('editRoles')}
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-label={t('payPlanFor', { name: row.original.name })}
-                onClick={() => setPlanTarget(row.original)}
-              >
-                {t('payPlan')}
-              </Button>
+              {canPay ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t('payPlanFor', { name: row.original.name })}
+                  onClick={() => setPlanTarget(row.original)}
+                >
+                  {t('payPlan')}
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
@@ -199,7 +204,7 @@ export function TeamPage() {
           ),
       },
     ],
-    [t, canWrite],
+    [t, canWrite, canPay],
   );
 
   if (noOrg)

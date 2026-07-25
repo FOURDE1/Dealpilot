@@ -98,6 +98,10 @@ export function useUpdateDealTracks(orgId?: string) {
           old ? { ...old, items: old.items.map((d) => (d.id === updated.id ? updated : d)) } : old,
       );
       void queryClient.invalidateQueries({ queryKey: dealKeys.all });
+      // Funding writes commission lines in the same transaction server-side.
+      if (updated.funding_status === 'funded') {
+        void queryClient.invalidateQueries({ queryKey: ['commissions'] });
+      }
     },
   });
 }

@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { BackLink } from '../../shared/ui/back-link.js';
-import { DataTable, type ColumnDef } from '@dealpilot/ui';
+import { DataTable, Label, Select, type ColumnDef } from '@dealpilot/ui';
 import type { CommissionT } from '@dealpilot/schemas';
 import { useOrganizations } from '../organizations/api.js';
+import { useMembers } from '../team/api.js';
 import { formatCents } from '../deals/money.js';
 import { useCommissions } from './api.js';
 
@@ -30,8 +31,15 @@ export function CommissionsPage() {
   const { t, i18n } = useTranslation('commissions');
   const orgs = useOrganizations();
   const multiOrg = (orgs.data?.items.length ?? 0) > 1;
-  const orgId = multiOrg ? orgs.data?.items[0]?.id : undefined;
-  const commissions = useCommissions(orgId, { enabled: !orgs.isPending });
+  const [orgFilter, setOrgFilter] = useState('');
+  const orgId = multiOrg ? orgFilter || orgs.data?.items[0]?.id : orgs.data?.items[0]?.id;
+  const commissions = useCommissions(multiOrg ? orgId : undefined, { enabled: !orgs.isPending });
+  const members = useMembers(orgId, { enabled: !orgs.isPending });
+  const memberName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of members.data?.items ?? []) map.set(m.user_id, m.name);
+    return map;
+  }, [members.data]);
   const locale = i18n.language;
 
   const columns = useMemo<ColumnDef<CommissionT, unknown>[]>(
@@ -43,6 +51,11 @@ export function CommissionsPage() {
           new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(row.original.funded_at)),
       },
       { accessorKey: 'kind', header: t('kind'), cell: ({ row }) => t(KIND_KEYS[row.original.kind]) },
+      {
+        accessorKey: 'user_id',
+        header: t('personCol'),
+        cell: ({ row }) => memberName.get(row.original.user_id) ?? '—',
+      },
       {
         accessorKey: 'deal_id',
         header: t('deal'),
@@ -73,7 +86,7 @@ export function CommissionsPage() {
         ),
       },
     ],
-    [t, locale],
+    [t, locale, memberName],
   );
 
   const total = monthTotal(commissions.data?.items ?? []);
@@ -91,6 +104,23 @@ export function CommissionsPage() {
           <span className="font-mono text-base font-semibold tabular-nums">{formatCents(total, locale)}</span>
         </p>
       </header>
+      {multiOrg ? (
+        <div className="max-w-xs space-y-1">
+          <Label htmlFor="comm-org">{t('orgScope')}</Label>
+          <Select id="comm-org" value={orgId ?? ''} onChange={(e) => setOrgFilter(e.target.value)}>
+            {orgs.data?.items.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+      ) : null}
+      {commissions.data?.truncated ? (
+        <p role="alert" className="text-sm text-danger-text">
+          {t('truncatedWarning')}
+        </p>
+      ) : null}
       <DataTable
         columns={columns}
         data={commissions.data?.items}

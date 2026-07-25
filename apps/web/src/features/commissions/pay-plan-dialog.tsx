@@ -38,6 +38,12 @@ export function PayPlanDialog({
   const [overrideOn, setOverrideOn] = useState('');
   const [overrideRate, setOverrideRate] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const rateInvalid = rate.trim() !== '' && parsePctToRate(rate) === null;
+  const padInvalid = pad.trim() !== '' && parseMoneyToCents(pad) === null;
+  const thresholdInvalid = tierOn && tierThreshold.trim() !== '' && parseMoneyToCents(tierThreshold) === null;
+  const tierRateInvalid = tierOn && tierRate.trim() !== '' && parsePctToRate(tierRate) === null;
+  const overrideRateInvalid = overrideOn !== '' && overrideRate.trim() !== '' && parsePctToRate(overrideRate) === null;
+  const anyInvalid = rateInvalid || padInvalid || thresholdInvalid || tierRateInvalid || overrideRateInvalid;
 
   useEffect(() => {
     if (!member) return;
@@ -97,16 +103,46 @@ export function PayPlanDialog({
         <DialogTitle>{member ? t('planFor', { name: member.name }) : t('planTitle')}</DialogTitle>
         {plan.isPending && member ? (
           <p className="mt-3 text-sm text-muted-foreground">{t('loading')}</p>
+        ) : plan.isError ? (
+          // Never show an editable blank form over an UNKNOWN existing plan —
+          // the upsert is a full replace and would silently wipe tier/override.
+          <p role="alert" className="mt-3 text-sm text-danger-text">
+            {t('loadError')}
+          </p>
         ) : (
           <div className="mt-3 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label htmlFor="plan-rate">{t('rate')}</Label>
-                <Input id="plan-rate" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} />
+                <Input
+                  id="plan-rate"
+                  inputMode="decimal"
+                  value={rate}
+                  aria-invalid={rateInvalid || undefined}
+                  className={rateInvalid ? 'border-danger-border' : undefined}
+                  onChange={(e) => setRate(e.target.value)}
+                />
+                {rateInvalid ? (
+                  <p role="alert" className="text-xs text-danger-text">
+                    {t('invalidRate')}
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-1">
                 <Label htmlFor="plan-pad">{t('pad')}</Label>
-                <Input id="plan-pad" inputMode="decimal" value={pad} onChange={(e) => setPad(e.target.value)} />
+                <Input
+                  id="plan-pad"
+                  inputMode="decimal"
+                  value={pad}
+                  aria-invalid={padInvalid || undefined}
+                  className={padInvalid ? 'border-danger-border' : undefined}
+                  onChange={(e) => setPad(e.target.value)}
+                />
+                {padInvalid ? (
+                  <p role="alert" className="text-xs text-danger-text">
+                    {t('invalidAmount')}
+                  </p>
+                ) : null}
               </div>
             </div>
             <label htmlFor="plan-tier-on" className="flex items-center gap-2 text-sm max-lg:min-h-11">
@@ -127,12 +163,31 @@ export function PayPlanDialog({
                     id="plan-tier-threshold"
                     inputMode="decimal"
                     value={tierThreshold}
+                    aria-invalid={thresholdInvalid || undefined}
+                    className={thresholdInvalid ? 'border-danger-border' : undefined}
                     onChange={(e) => setTierThreshold(e.target.value)}
                   />
+                  {thresholdInvalid ? (
+                    <p role="alert" className="text-xs text-danger-text">
+                      {t('invalidAmount')}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="plan-tier-rate">{t('tierRate')}</Label>
-                  <Input id="plan-tier-rate" inputMode="decimal" value={tierRate} onChange={(e) => setTierRate(e.target.value)} />
+                  <Input
+                    id="plan-tier-rate"
+                    inputMode="decimal"
+                    value={tierRate}
+                    aria-invalid={tierRateInvalid || undefined}
+                    className={tierRateInvalid ? 'border-danger-border' : undefined}
+                    onChange={(e) => setTierRate(e.target.value)}
+                  />
+                  {tierRateInvalid ? (
+                    <p role="alert" className="text-xs text-danger-text">
+                      {t('invalidRate')}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -141,8 +196,14 @@ export function PayPlanDialog({
                 <Label htmlFor="plan-override-on">{t('overrideOn')}</Label>
                 <Select id="plan-override-on" value={overrideOn} onChange={(e) => setOverrideOn(e.target.value)}>
                   <option value="">{t('noOverride')}</option>
+                  {overrideOn !== '' &&
+                  !colleagues.some((c) => c.status === 'active' && c.user_id === overrideOn) ? (
+                    <option value={overrideOn} disabled>
+                      {t('formerMember')}
+                    </option>
+                  ) : null}
                   {colleagues
-                    .filter((c) => c.user_id !== member?.user_id)
+                    .filter((c) => c.status === 'active' && c.user_id !== member?.user_id)
                     .map((c) => (
                       <option key={c.user_id} value={c.user_id}>
                         {c.name}
@@ -157,8 +218,15 @@ export function PayPlanDialog({
                   inputMode="decimal"
                   value={overrideRate}
                   disabled={overrideOn === ''}
+                  aria-invalid={overrideRateInvalid || undefined}
+                  className={overrideRateInvalid ? 'border-danger-border' : undefined}
                   onChange={(e) => setOverrideRate(e.target.value)}
                 />
+                {overrideRateInvalid ? (
+                  <p role="alert" className="text-xs text-danger-text">
+                    {t('invalidRate')}
+                  </p>
+                ) : null}
               </div>
             </div>
             {error ? (
@@ -174,7 +242,11 @@ export function PayPlanDialog({
                   </Button>
                 }
               />
-              <Button type="button" disabled={upsert.isPending || rate.trim() === ''} onClick={handleSave}>
+              <Button
+                type="button"
+                disabled={upsert.isPending || rate.trim() === '' || anyInvalid}
+                onClick={handleSave}
+              >
                 {upsert.isPending ? t('saving') : t('save')}
               </Button>
             </div>
