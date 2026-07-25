@@ -7,7 +7,17 @@ import { CursorQuery, IsoDateTime, NonNegativeCents, ProvinceCA, Uuid } from './
  * carry a float rounding error. Outputs come from @dealpilot/core (A-06) —
  * clients never send them.
  */
-export const DealStatus = z.enum(['working', 'submitted', 'approved', 'funded', 'delivered', 'lost']);
+/**
+ * The 10 canonical pipeline stages (deals-pipeline.md §2) — where the CAR is.
+ * F-05 shipped an ad-hoc vocabulary; this is the spec's, corrected in F-06.
+ */
+export const PipelineStage = z.enum([
+  'new', 'submitted', 'approved', 'signed', 'sourcing',
+  'pending_delivery', 'scheduled', 'delivered', 'complete', 'lost',
+]);
+
+/** Where the MONEY is (deals-pipeline.md §3) — tracked independently. */
+export const FundingStatus = z.enum(['not_submitted', 'submitted', 'stips_required', 'funded']);
 export const DealType = z.enum(['finance', 'lease', 'cash']);
 
 /** The desk inputs — everything a manager types on the worksheet. */
@@ -54,7 +64,10 @@ export const Deal = DeskingInputs.extend({
   organization_id: Uuid,
   store_id: Uuid,
   lead_id: Uuid.nullable(),
-  status: DealStatus,
+  pipeline_stage: PipelineStage,
+  funding_status: FundingStatus,
+  funded_at: IsoDateTime.nullable(),
+  delivered_at: IsoDateTime.nullable(),
   /** Optional on input, NULL in the row — the entity must accept both. */
   msrp_cents: NonNegativeCents.nullable(),
 }).extend(DeskingOutputs.shape).extend({
@@ -98,7 +111,8 @@ export const UpdateDealInput = z.strictObject({
   term_months: z.number().int().min(1).max(120).optional(),
   residual_percent: z.number().int().min(0).max(100).optional(),
   tax_exempt: z.boolean().optional(),
-  status: DealStatus.optional(),
+  pipeline_stage: PipelineStage.optional(),
+  funding_status: FundingStatus.optional(),
   lead_id: Uuid.nullable().optional(),
 });
 
@@ -106,7 +120,9 @@ export const DealListQuery = CursorQuery.extend({
   organization_id: Uuid.optional(),
   store_id: Uuid.optional(),
   lead_id: Uuid.optional(),
-  status: DealStatus.optional(),
+  /** Kanban column, or the funding lane — the two tracks filter separately. */
+  pipeline_stage: PipelineStage.optional(),
+  funding_status: FundingStatus.optional(),
 });
 
 export type DealT = z.infer<typeof Deal>;

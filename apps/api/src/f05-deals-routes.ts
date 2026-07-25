@@ -217,7 +217,12 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
       }
       let sql = `SELECT * FROM deals WHERE organization_id = $1 AND deleted_at IS NULL`;
       const params: unknown[] = [orgId];
-      for (const [key, value] of [['store_id', query.store_id], ['lead_id', query.lead_id], ['status', query.status]] as const) {
+      for (const [key, value] of [
+        ['store_id', query.store_id],
+        ['lead_id', query.lead_id],
+        ['pipeline_stage', query.pipeline_stage],
+        ['funding_status', query.funding_status],
+      ] as const) {
         if (value) {
           params.push(value);
           sql += ` AND ${key} = $${params.length}`;
@@ -252,6 +257,14 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
         ...Object.entries(input),
         ...OUTPUT_COLUMNS.map((k) => [k, (outputs as unknown as Record<string, number>)[k]] as [string, unknown]),
       ];
+      // The two tracks stamp their own moments: the commission engine keys its
+      // monthly tier on funded_at, never on the stage (commissions §11).
+      if (input.funding_status === 'funded' && !current.rows[0]!['funded_at']) {
+        setEntries.push(['funded_at', new Date().toISOString()]);
+      }
+      if (input.pipeline_stage === 'delivered' && !current.rows[0]!['delivered_at']) {
+        setEntries.push(['delivered_at', new Date().toISOString()]);
+      }
       const sets = setEntries.map(([k], i) => `${k} = $${i + 2}`).join(', ');
       const r = await c.query<Record<string, unknown>>(
         `UPDATE deals SET ${sets} WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
