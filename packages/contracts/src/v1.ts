@@ -9,6 +9,8 @@ import {
   Lead,
   Organization,
   Store,
+  ActivityEvent,
+  ActivityListQuery,
   AddMemberInput,
   Commission,
   CommissionListQuery,
@@ -163,6 +165,15 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: UpdatePayPlanInput,
       responses: { 200: PayPlan, ...errorResponses },
+    },
+  }),
+  /** F-10 activity trail (ADR-009): one entity's history, or the org's recent. */
+  activity: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/activity',
+      query: ActivityListQuery,
+      responses: { 200: paginated(ActivityEvent), ...errorResponses },
     },
   }),
   commissions: c.router({

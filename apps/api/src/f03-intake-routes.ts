@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { CreateIntakeKeyInput, IntakeLeadPayload, StoreListQuery, Uuid } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
+import { recordEvent } from './activity.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser, STORE_WRITE_ROLES } from './f01-routes.js';
 
 /**
@@ -74,6 +75,17 @@ export function registerIntakeKeyRoutes(app: FastifyInstance, pool: Pool, apiBas
          VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
         [input.organization_id, input.store_id, input.label, input.provider, input.default_source, token, secret],
       );
+      // A webhook credential is a standing key to the front door. Minting one is
+      // recorded; the secret itself never is.
+      await recordEvent(c, {
+        organizationId: input.organization_id,
+        storeId: input.store_id,
+        actorUserId: user.id,
+        entityType: 'intake_key',
+        entityId: String((r.rows[0] as Record<string, unknown>)['id']),
+        action: 'created',
+        changes: { label: input.label, provider: input.provider },
+      });
       return r.rows[0] as Record<string, unknown>;
     });
     // The secret leaves the server exactly here, once.
@@ -122,7 +134,17 @@ export function registerIntakeKeyRoutes(app: FastifyInstance, pool: Pool, apiBas
     const orgId = await keyOrg(pool, user.id, keyId);
     await withTenant(pool, orgId, async (c) => {
       await requireMember(c, user.id, STORE_WRITE_ROLES);
-      await c.query(`UPDATE intake_keys SET active = false, revoked_at = now() WHERE id = $1 AND revoked_at IS NULL`, [keyId]);
+      const revoked = await c.query(
+        `UPDATE intake_keys SET active = false, revoked_at = now()
+         WHERE id = $1 AND revoked_at IS NULL RETURNING id`,
+        [keyId],
+      );
+      if (revoked.rows.length > 0) {
+        await recordEvent(c, {
+          organizationId: orgId, actorUserId: user.id,
+          entityType: 'intake_key', entityId: keyId, action: 'revoked',
+        });
+      }
     });
     return reply.status(204).send();
   });

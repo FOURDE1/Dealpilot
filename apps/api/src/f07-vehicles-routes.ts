@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { CreateVehicleInput, UpdateVehicleInput, VehicleListQuery } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
+import { diff, recordEvent } from './activity.js';
 import { conflictFrom, idParam, keysetPage, requireMember, sessionUser, STORE_WRITE_ROLES } from './f01-routes.js';
 
 /**
@@ -79,6 +80,15 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
            VALUES (${present.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
           present.map((k) => (input as Record<string, unknown>)[k]),
         );
+        await recordEvent(c, {
+          organizationId: input.organization_id,
+          storeId: input.store_id,
+          actorUserId: user.id,
+          entityType: 'vehicle',
+          entityId: String(r.rows[0]!['id']),
+          action: 'created',
+          changes: { stock_number: input.stock_number },
+        });
         return r.rows[0]!;
       });
       return await reply.status(201).send(withTotalCost(vehicle));
@@ -153,21 +163,33 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
     try {
       const vehicle = await withTenant(pool, orgId, async (c) => {
         await requireMember(c, user.id);
+        const beforeRow = await c.query<Record<string, unknown>>(
+          `SELECT * FROM vehicles WHERE id = $1 AND deleted_at IS NULL`,
+          [vehicleId],
+        );
+        if (beforeRow.rows.length === 0) throw notFound();
+        const prior = beforeRow.rows[0]!;
+
         const fields = Object.entries(input);
-        if (fields.length === 0) {
-          const r = await c.query<Record<string, unknown>>(
-            `SELECT * FROM vehicles WHERE id = $1 AND deleted_at IS NULL`,
-            [vehicleId],
-          );
-          if (r.rows.length === 0) throw notFound();
-          return r.rows[0]!;
-        }
+        if (fields.length === 0) return prior;
         const sets = fields.map(([k], i) => `${k} = $${i + 2}`).join(', ');
         const r = await c.query<Record<string, unknown>>(
           `UPDATE vehicles SET ${sets} WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
           [vehicleId, ...fields.map(([, v]) => v)],
         );
         if (r.rows.length === 0) throw notFound();
+        const changed = diff(prior, input as Record<string, unknown>, Object.keys(input));
+        if (Object.keys(changed).length > 0) {
+          await recordEvent(c, {
+            organizationId: orgId,
+            storeId: String(prior['store_id']),
+            actorUserId: user.id,
+            entityType: 'vehicle',
+            entityId: vehicleId,
+            action: 'updated',
+            changes: changed,
+          });
+        }
         return r.rows[0]!;
       });
       return await reply.send(withTotalCost(vehicle));
@@ -194,6 +216,10 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
         ]);
       }
       await c.query(`UPDATE vehicles SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, [vehicleId]);
+      await recordEvent(c, {
+        organizationId: orgId, actorUserId: user.id,
+        entityType: 'vehicle', entityId: vehicleId, action: 'deleted',
+      });
     });
     return reply.status(204).send();
   });

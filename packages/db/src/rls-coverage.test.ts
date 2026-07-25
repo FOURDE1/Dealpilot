@@ -48,6 +48,9 @@ const BEHAVIOURALLY_COVERED = new Set([
   'organizations', 'stores', 'users', 'memberships', 'leads', 'intake_keys',
   'deals', 'vehicles', 'commissions', 'pay_plans',
   'checklist_templates', 'deal_checklist_items',
+  // F-10: cross-tenant case lives in apps/api/src/f10-activity.test.ts
+  // ("another tenant sees none of it").
+  'activity_events',
 ]);
 
 interface PolicyRow {
@@ -196,10 +199,11 @@ describe('RLS coverage (catalog-driven — covers tables that do not exist yet)'
     const r = await admin.query<{ table_name: string }>(
       `SELECT table_name FROM information_schema.role_table_grants
        WHERE grantee = 'dealpilot_app' AND privilege_type = 'DELETE'
-         AND table_name IN ('commissions', 'deal_checklist_items')`,
+         AND table_name IN ('commissions', 'deal_checklist_items', 'activity_events')`,
     );
     // Money lines are corrected with new rows; a delivered deal's checklist is
-    // evidence. Neither is ever removed by the application.
+    // evidence; the activity trail is append-only by definition. None of the
+    // three is ever removed by the application.
     expect(r.rows.map((x) => x.table_name)).toEqual([]);
   });
 });

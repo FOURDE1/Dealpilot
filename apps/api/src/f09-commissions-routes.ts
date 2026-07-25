@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { calculateCommission, type CommissionPlan, type Overrider } from '@dealpilot/core';
 import {
+  ActivityListQuery,
   CommissionListQuery,
   CreatePayPlanInput,
   PayPlanListQuery,
@@ -9,6 +10,7 @@ import {
 } from '@dealpilot/schemas';
 import { AppError, forbidden, notFound, parseOrThrow } from './errors.js';
 import { conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
+import { diff, recordEvent } from './activity.js';
 
 /**
  * F-09 pay plans + commissions (commissions-clawbacks.md §11).
@@ -187,6 +189,22 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
             input.override_on_user_id ?? null, input.override_rate ?? null,
           ],
         );
+        // This is an UPSERT: re-posting quietly rewrites what a person is paid.
+        // The row keeps only the new rate, so without this the change leaves no
+        // trace at all.
+        await recordEvent(c, {
+          organizationId: input.organization_id,
+          storeId: input.store_id ?? null,
+          actorUserId: user.id,
+          entityType: 'pay_plan',
+          entityId: String(r.rows[0]!['id']),
+          action: 'updated',
+          changes: {
+            user_id: input.user_id,
+            commission_rate: input.commission_rate,
+            pad_cents: input.pad_cents,
+          },
+        });
         return r.rows[0]!;
       });
       return await reply.status(201).send(numericToNumbers(plan));
@@ -222,21 +240,99 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
     const orgId = await planOrg(pool, user.id, planId);
     const plan = await withTenant(pool, orgId, async (c) => {
       await requireMember(c, user.id, PAY_WRITE_ROLES);
+      const beforeRow = await c.query<Record<string, unknown>>(`SELECT * FROM pay_plans WHERE id = $1`, [planId]);
+      if (beforeRow.rows.length === 0) throw notFound();
+      const prior = beforeRow.rows[0]!;
+
       const fields = Object.entries(input);
-      if (fields.length === 0) {
-        const r = await c.query<Record<string, unknown>>(`SELECT * FROM pay_plans WHERE id = $1`, [planId]);
-        if (r.rows.length === 0) throw notFound();
-        return r.rows[0]!;
-      }
+      if (fields.length === 0) return prior;
       const sets = fields.map(([k], i) => `${k} = $${i + 2}`).join(', ');
       const r = await c.query<Record<string, unknown>>(
         `UPDATE pay_plans SET ${sets} WHERE id = $1 RETURNING *`,
         [planId, ...fields.map(([, v]) => v)],
       );
       if (r.rows.length === 0) throw notFound();
+      // numeric arrives from pg as a string ("0.2500"); diff() normalizes so a
+      // rate that did not move is not reported as though it did.
+      const changed = diff(prior, input as Record<string, unknown>, Object.keys(input));
+      if (Object.keys(changed).length > 0) {
+        await recordEvent(c, {
+          organizationId: orgId,
+          actorUserId: user.id,
+          entityType: 'pay_plan',
+          entityId: planId,
+          action: 'updated',
+          changes: changed,
+        });
+      }
       return r.rows[0]!;
     });
     return reply.send(numericToNumbers(plan));
+  });
+
+  /**
+   * F-10: one entity's history, or the organization's recent activity.
+   * Tenant-scoped like everything else; any active member may read it, because
+   * an audit trail only visible to the people who could tamper with it is not
+   * an audit trail.
+   */
+  app.get('/api/v1/activity', async (request, reply) => {
+    const query = parseOrThrow(ActivityListQuery, request.query);
+    const user = sessionUser(request);
+    const orgId = await resolveOrg(pool, user.id, query.organization_id);
+    const page = await withTenant(pool, orgId, async (c) => {
+      const roles = await requireMember(c, user.id);
+      const canSeePay = roles.some((r) => PAY_READ_ROLES.includes(r as (typeof PAY_READ_ROLES)[number]));
+      const params: unknown[] = [orgId];
+      let where = 'organization_id = $1';
+      // Pay-plan history spells out commission rates from/to. The commissions
+      // route restricts those to PAY_READ_ROLES because pay is personal; an
+      // audit feed that hands the same numbers to the whole floor would be a
+      // way around that door rather than a window onto it.
+      if (!canSeePay) where += ` AND entity_type <> 'pay_plan'`;
+      for (const [col, val] of [
+        ['entity_type', query.entity_type],
+        ['entity_id', query.entity_id],
+        ['actor_user_id', query.actor_user_id],
+      ] as const) {
+        if (val) {
+          params.push(val);
+          where += ` AND ${col} = $${params.length}`;
+        }
+      }
+      // A dedicated keyset on `seq` rather than the shared created_at+id one:
+      // every event from a single request shares created_at to the microsecond
+      // (now() is transaction-start), so a uuid tiebreak would order a stage
+      // change and the funding change beside it at random. `seq` is monotonic
+      // and unique, which makes it both the causal order and a sufficient
+      // cursor on its own.
+      if (query.cursor) {
+        params.push(Number(Buffer.from(query.cursor, 'base64url').toString('utf8')));
+        where += ` AND seq < $${params.length}`;
+      }
+      params.push(query.limit + 1);
+      const r = await c.query<Record<string, unknown>>(
+        `SELECT id, organization_id, store_id, actor_user_id, entity_type, entity_id,
+                action, changes, reason, created_at, seq
+         FROM activity_events WHERE ${where} ORDER BY seq DESC LIMIT $${params.length}`,
+        params,
+      );
+      const hasMore = r.rows.length > query.limit;
+      const rows = hasMore ? r.rows.slice(0, query.limit) : r.rows;
+      const last = rows[rows.length - 1];
+      return {
+        items: rows.map((row) => {
+          const item = { ...row };
+          delete item['seq'];
+          return item;
+        }),
+        next_cursor:
+          hasMore && last
+            ? Buffer.from(String(last['seq']), 'utf8').toString('base64url')
+            : null,
+      };
+    });
+    return reply.send(page);
   });
 
   app.get('/api/v1/commissions', async (request, reply) => {

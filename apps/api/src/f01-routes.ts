@@ -13,6 +13,7 @@ import {
 } from '@dealpilot/schemas';
 import { AppError, forbidden, notFound, parseOrThrow } from './errors.js';
 import { ensureTemplate } from './checklist.js';
+import { recordEvent } from './activity.js';
 
 /**
  * F-01: organization & store administration routes (apiV1.organizations,
@@ -218,6 +219,10 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
            VALUES ($1, $2, NULL, '{owner}')`,
           [user.id, orgId],
         );
+        await recordEvent(c, {
+          organizationId: orgId, actorUserId: user.id,
+          entityType: 'organization', entityId: orgId, action: 'created',
+        });
         return inserted.rows[0];
       });
       return await reply.status(201).send(org);
@@ -278,7 +283,16 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
       // delete semantic everywhere (soft delete per ADR-009; purge is a
       // platform-side flow later).
       await requireMember(c, user.id, ['owner']);
-      await c.query(`UPDATE organizations SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, [orgId]);
+      const gone = await c.query(
+        `UPDATE organizations SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+        [orgId],
+      );
+      if (gone.rows.length > 0) {
+        await recordEvent(c, {
+          organizationId: orgId, actorUserId: user.id,
+          entityType: 'organization', entityId: orgId, action: 'deleted',
+        });
+      }
     });
     return reply.status(204).send();
   });
@@ -305,6 +319,14 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
         // so reads never have to write and a deal desked one second later
         // already has something to be measured against.
         await ensureTemplate(c, input.organization_id, String(r.rows[0]!['id']));
+        await recordEvent(c, {
+          organizationId: input.organization_id,
+          storeId: String(r.rows[0]!['id']),
+          actorUserId: user.id,
+          entityType: 'store',
+          entityId: String(r.rows[0]!['id']),
+          action: 'created',
+        });
         return r.rows[0];
       });
       return await reply.status(201).send(store);
@@ -395,7 +417,16 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
     const orgId = await storeOrg(pool, user.id, storeId);
     await withTenant(pool, orgId, async (c) => {
       await requireMember(c, user.id, STORE_WRITE_ROLES);
-      await c.query(`UPDATE stores SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, [storeId]);
+      const gone = await c.query(
+        `UPDATE stores SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+        [storeId],
+      );
+      if (gone.rows.length > 0) {
+        await recordEvent(c, {
+          organizationId: orgId, storeId, actorUserId: user.id,
+          entityType: 'store', entityId: storeId, action: 'deleted',
+        });
+      }
     });
     return reply.status(204).send();
   });
