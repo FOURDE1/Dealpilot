@@ -22,6 +22,31 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — F-08 checklist panel merged (82853e2 + a76979f): BATCH-02 COMPLETE, one owner round pending
+
+The gate is visible: checklist dialog on every pipeline card and lead deal
+row — three states (done shows its author; a WAIVER is never a plain
+checkmark: badge + author + reason, the audit line), safety has no waive
+control, owner/gm gating, frozen once delivered (keyed on delivered_at),
+honest no-checklist state for pre-F-08 deals. Kanban refusals: hard-block
+gets its own legal sentence, ordinary incomplete names every outstanding
+item using the STORE's own labels when cached (canonical fallback). Store
+page gained the checklist policy section (future-deals-only note; safety
+locked). Review (15 agents): 12 confirmed findings ALL fixed — the high one:
+the waive form threw away the typed reason on a failed save; also evidence
+authors now resolve against the removed roster (a waiver keeps naming its
+author after they leave), and reinstating takes an explicit second click.
+e2e: both refusal wordings, tick/waive/reason-survives, two-click reinstate,
+deliver, frozen, store policy (18/18 suite; 378+ unit; parity/lint/typecheck
+0). CR-03 filed (checklist endpoints missing from apiV1 contract).
+docs/OWNER-TEST-BATCH-02.md reconciled to the SHIPPED UI (Pipeline not
+"Deals", dropdowns not drag, funding vocabulary, Team pay plans, store-page
+checklist policy).
+**BATCH-02 is complete — every slice, both halves, adversarially reviewed
+twice (his and mine). ONE owner round: docs/OWNER-TEST-BATCH-02.md.**
+**Owner also owes two decisions: D-033 (who signs off safety), D-035/invite
+flow (next batch scope).**
+
 ## 2026-07-26 [AHMAD] — F-08 delivery checklist backend: "delivered" is now earned, not typed
 
 **Done:** F-08 AHMAD half, the last slice of BATCH-02. Migration

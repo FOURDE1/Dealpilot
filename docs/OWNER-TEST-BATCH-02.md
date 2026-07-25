@@ -16,14 +16,14 @@ the ones the system actually produced.
 
 ## Part A — The deal pipeline (F-06)
 
-1. Click "Deals" in the left menu. You get a board with ten columns:
+1. Click "Pipeline" in the left menu (bottom bar on the phone). You get a board with ten columns:
    New, Submitted, Approved, Signed, Sourcing, Pending delivery, Scheduled,
    Delivered, Complete, Lost.
-2. Move one of your deals from New to Submitted (drag it, or use the stage
-   buttons on the card).
+2. Move one of your deals from New to Submitted using the "Stage" dropdown
+   on its card (dropdowns, not drag — they work by keyboard and on phones).
    → It lands in the new column and stays there after a page refresh.
 3. Notice the funding badge on the card — that is a SEPARATE track
-   (not_submitted / submitted / approved / funded). A deal can be "Signed" in
+   (Not submitted / Submitted / Stips required / Funded). A deal can be "Signed" in
    the pipeline while funding is still "Submitted". That is on purpose: they
    are two different real-world processes.
 4. Try to move a deal straight from New to Complete → it is refused with a
@@ -62,7 +62,8 @@ the ones the system actually produced.
     → The panel turns to "Ready for delivery".
 15. Now move the deal to "Delivered" → it goes through, and the deal records
     its delivery date.
-16. Go to Settings → your store → "Delivery checklist". Switch
+16. Go to Organizations → your organization → open your store. Scroll to
+    "Delivery checklist (store policy)". Switch
     "Drivers booked" off (your store does not do that).
     → Try switching **Safety inspection** off too → refused, same reason as 13.
 17. Open the deal from step 9 again → "Drivers booked" is STILL on it. Changing
@@ -75,8 +76,8 @@ the server, not just hidden.
 
 ## Part D — Commissions (F-09)
 
-18. Go to Settings → Pay plans. Add a plan for Marc Seller: rate 25%, pad on,
-    pad 1 500, tier on at 40 000 gross → 30%.
+18. Go to Team and click "Pay plan" on Marc Seller's row. Set: rate 25,
+    pad 1 500, tier on with threshold 40 000 and rate 30. Save.
 19. Open a deal, set "Sold by" to Marc, F&I reserve 500, and fund it
     (funding status → Funded).
 20. Go to Commissions → Marc's line is there, showing: the deal's total gross,
@@ -84,8 +85,8 @@ the server, not just hidden.
     number, it is the exact place the old system was wrong), the rate it used,
     and the dollars.
 21. Fund the same deal again / reload → still ONE line. It cannot double-pay.
-22. If you set yourself an override on Marc (Settings → Pay plans, "override
-    on" Marc at 5%), fund another of his deals → you get your OWN line, paid
+22. If you set yourself an override on Marc (Team → your own "Pay plan",
+    "Override on the sales of" Marc at 5%), fund another of his deals → you get your OWN line, paid
     from his deal. In the old system overrides silently never paid; here the
     line is written on your record, not his.
 
