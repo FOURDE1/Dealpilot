@@ -81,9 +81,23 @@ export async function migrate(pool: pg.Pool, migrationsDir: string): Promise<str
  * Refuses to run against anything that does not look like a local database.
  */
 export async function reset(pool: pg.Pool, migrationsDir: string, databaseUrl: string): Promise<string[]> {
-  const host = new URL(databaseUrl).hostname;
+  const parsed = new URL(databaseUrl);
+  const host = parsed.hostname;
   if (host !== 'localhost' && host !== '127.0.0.1' && host !== 'db') {
     throw new Error(`Refusing to reset non-local database host "${host}"`);
+  }
+  // HO-07, and again on 2026-07-26: `pnpm db:reset` resolves DATABASE_URL, which
+  // in a dev shell is the DEVELOPER'S database, not the test one. Running it to
+  // refresh the test schema silently destroys the owner's login and any data he
+  // was in the middle of looking at — it locked him out four times before this
+  // guard existed. The test database is safe by name; anything else has to be
+  // asked for out loud.
+  const dbName = parsed.pathname.replace(/^\//, '');
+  if (!dbName.endsWith('_test') && process.env['DB_RESET_CONFIRM'] !== dbName) {
+    throw new Error(
+      `Refusing to DROP SCHEMA on "${dbName}" — this is not a *_test database and it probably has someone's work in it. ` +
+        `If you really mean it: DB_RESET_CONFIRM=${dbName} pnpm --filter @dealpilot/db run db:reset`,
+    );
   }
   const client = await pool.connect();
   try {
