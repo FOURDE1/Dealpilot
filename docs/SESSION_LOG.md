@@ -22,6 +22,25 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [HUSSEIN] — F-09 both halves in (41a2efa AHMAD → 10e38da+1556b64 HUSSEIN); BATCH-02 lacks only F-08
+
+Commissions UI: Team rows (owner/gm only) get "Rémunération" — the pay-plan
+dialog (rate/pad/tier/override on the F-09 contract, per-field validation,
+fetch-error shown rather than an editable blank form that would full-replace
+away an existing tier); worksheet gained "Sold by" + F&I reserve (invalid
+reserve BLOCKS save — was silently \$0, i.e. a real underpay); /commissions
+(from the dashboard) lists lines with person, commissionable gross, rate,
+amount + local-time month total, org selector, 300-line cursor window with a
+LOUD truncation warning; funding a deal invalidates the commissions cache.
+Adversarial review: 17 confirmed findings, ALL fixed — the high ones were
+genuine pay-money bugs (reserve→\$0; blank-form wipe; org-view without a
+person column). e2e mirrors the backend golden end-to-end: plan 25 % +
+1 500 $ pad → 7 000 $ front-gross deal sold by Vicky → funded on the kanban →
+line 5 500 $ × 25 % = **1 375,00 $** (17/17 with the whole suite).
+**BATCH-02: F-06 ✓ F-07 ✓ F-09 ✓ — F-08 delivery checklist is the last
+slice. Owner script covers everything shipped (Parts A–E) and is ready the
+moment F-08 lands or the owner closes the batch without it.**
+
 ## 2026-07-25 [AHMAD] — CR-02 closed; F-09 commissions backend merged — the owner's real pay plans now compute live
 
 **Listener protocol ran clean again:** HUSSEIN pushed, I woke, cleared his
