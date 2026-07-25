@@ -37,7 +37,7 @@ test('full F-10 journey: lead + deal histories record the acts', async ({ page }
   await expect(page.getByText('Modifications enregistrées.')).toBeVisible();
   const history = page.locator('div').filter({ has: page.getByRole('heading', { name: 'Historique' }) }).last();
   await expect(history.getByText('Création', { exact: true }).first()).toBeVisible();
-  await expect(history.getByText(/Modification.*— Patron Trace|Modification/).first()).toBeVisible();
+  await expect(history.getByText(/Modification — Patron Trace/).first()).toBeVisible();
   await expect(history.getByText(/status: new → contacted/).first()).toBeVisible();
 
   // The deal's history records stage and funding moves.
@@ -56,4 +56,18 @@ test('full F-10 journey: lead + deal histories record the acts', async ({ page }
   await expect(dialog.getByText('Financement changé').first()).toBeVisible();
   await expect(dialog.getByText(/pipeline_stage: new → submitted/).first()).toBeVisible();
   await expect(dialog.getByText('Création', { exact: true }).first()).toBeVisible();
+  await dialog.getByRole('button', { name: 'Fermer' }).click();
+
+  // Checklist acts reach the deal's history too (waiver reason included).
+  await colSub.getByRole('button', { name: /Liste de livraison/ }).click();
+  const chk = page.getByRole('dialog');
+  await chk.getByRole('listitem').filter({ hasText: 'Chèque annulé' }).getByRole('button', { name: 'Exempter' }).click();
+  await chk.getByLabel('Raison de l’exemption').fill('Déjà au dossier');
+  await chk.getByRole('button', { name: 'Exempter avec cette raison' }).click();
+  await expect(chk.getByText(/Exempté par/)).toBeVisible();
+  await chk.getByRole('button', { name: 'Fermer' }).click();
+  await colSub.getByRole('button', { name: /Historique/ }).click();
+  const dialog2 = page.getByRole('dialog');
+  await expect(dialog2.getByText('Élément exempté').first()).toBeVisible();
+  await expect(dialog2.getByText(/Déjà au dossier/).first()).toBeVisible();
 });

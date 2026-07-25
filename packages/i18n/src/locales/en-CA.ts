@@ -426,6 +426,8 @@ export const enCA = {
     loading: 'Loading…',
     loadError: 'Could not load data. Try again.',
     empty: 'No events recorded.',
+    truncated: 'History limited to the 300 most recent events.',
+    unlistedMember: 'Unlisted member',
     system: 'System',
     formerMember: 'Former member',
     reason: 'Reason: {reason}',

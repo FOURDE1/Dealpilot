@@ -66,6 +66,7 @@ export function useUpdateMember(orgId?: string) {
       // every cached lead view is potentially stale.
       if (body.status && body.status !== 'active') {
         void queryClient.invalidateQueries({ queryKey: leadKeys.all });
+        void queryClient.invalidateQueries({ queryKey: ['activity'] });
       }
     },
   });

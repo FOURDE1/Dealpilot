@@ -426,6 +426,8 @@ export const frCA = {
     loading: 'Chargement…',
     loadError: 'Impossible de charger les données. Réessayez.',
     empty: 'Aucun événement consigné.',
+    truncated: 'Historique limité aux 300 événements les plus récents.',
+    unlistedMember: 'Membre non listé',
     system: 'Système',
     formerMember: 'Ancien membre',
     reason: 'Raison : {reason}',

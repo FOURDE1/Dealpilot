@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { ActivityActionT, ActivityEntityTypeT, ActivityEventT } from '@dealpilot/schemas';
 import { useMembers } from '../team/api.js';
+import { formatCents } from '../deals/money.js';
 import { useActivity } from './api.js';
 
 const ACTION_KEYS = {
@@ -42,7 +43,7 @@ export function ActivityTimeline({
   organizationId: string | undefined;
 }) {
   const { t, i18n } = useTranslation('activity');
-  const activity = useActivity(entityType, entityId);
+  const activity = useActivity(entityType, entityId, organizationId);
   const members = useMembers(organizationId, { enabled: organizationId !== undefined });
   const removed = useMembers(organizationId, {
     enabled: organizationId !== undefined,
@@ -54,8 +55,23 @@ export function ActivityTimeline({
     return (
       members.data?.items.find((m) => m.user_id === event.actor_user_id)?.name ??
       removed.data?.items.find((m) => m.user_id === event.actor_user_id)?.name ??
-      t('formerMember')
+      t('unlistedMember')
     );
+  };
+
+  const resolveUser = (v: unknown): string | null => {
+    if (typeof v !== 'string') return null;
+    return (
+      members.data?.items.find((m) => m.user_id === v)?.name ??
+      removed.data?.items.find((m) => m.user_id === v)?.name ??
+      null
+    );
+  };
+
+  const renderValue = (field: string, v: unknown): string => {
+    if (field.endsWith('_cents') && typeof v === 'number') return formatCents(v, i18n.language);
+    const name = resolveUser(v);
+    return name ?? changeValue(v);
   };
 
   if (activity.isPending)
@@ -72,6 +88,10 @@ export function ActivityTimeline({
   const fmt = new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' });
 
   return (
+    <>
+    {activity.data.truncated ? (
+      <p className="text-sm text-muted-foreground">{t('truncated')}</p>
+    ) : null}
     <ol className="divide-y divide-border">
       {activity.data.items.map((event) => {
         const fields = Object.entries(event.changes);
@@ -98,8 +118,8 @@ export function ActivityTimeline({
                     <li key={field} className="font-mono text-xs text-muted-foreground">
                       {field}
                       {hasFromTo
-                        ? `: ${changeValue(c.from)} → ${changeValue(c.to)}`
-                        : `: ${changeValue(change)}`}
+                        ? `: ${renderValue(field, c.from)} → ${renderValue(field, c.to)}`
+                        : `: ${renderValue(field, change)}`}
                     </li>
                   );
                 })}
@@ -109,5 +129,6 @@ export function ActivityTimeline({
         );
       })}
     </ol>
+    </>
   );
 }
