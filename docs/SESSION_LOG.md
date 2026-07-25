@@ -103,6 +103,17 @@ sign-up email verification. 3) A-07 unit 2 only on owner go.
 
 ## 2026-07-25 [HUSSEIN] — F-03 INTEGRATED (22c1fe1): intake sources UI merged, e2e 12/12 — AWAITING-OWNER-TEST
 
+**Addendum: F-03 ACCEPTED by owner** ("done and working" after firing a
+signed webhook themselves; account had been wiped by another db:reset —
+`apps/web/scripts/seed-owner.sh` now committed, run it after EVERY reset).
+**F-04 proposed** (lead assignment — NOTE it likely drags in a minimal
+add-member path, only one user exists per org; alt: more intake providers).
+**Dashboard is now real:** lead stat tiles (tested pure bucket math, honest
+Total label, multi-org scope labelled with the org name, mount-race gated)
++ recent-leads list; proper states; merged after review with all findings
+fixed. Owner-visible polish while F-04 waits on AHMAD's half.
+
+
 **Done:** F-03 UI half merged after the adversarial review (20 agents; the
 quality lens died on an API drop mid-run — its two finished siblings covered
 the ground; NOTE a code-reviewer subagent attempted an Edit during review and
