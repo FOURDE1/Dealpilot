@@ -25,6 +25,33 @@ export function useLeads(orgId?: string, opts?: { enabled?: boolean; assignedTo?
   });
 }
 
+/**
+ * Bounded multi-page fetch just for id→name mapping (kanban cards): one page
+ * of newest leads misses older leads' names entirely.
+ */
+export function useLeadNames(orgId?: string, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: [...leadKeys.list(orgId), 'names'],
+    enabled: opts?.enabled ?? true,
+    queryFn: async ({ signal }) => {
+      const items = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < 3; page++) {
+        const res = await apiRequest(routes.leads.list, {
+          query: { limit: 100, organization_id: orgId, cursor },
+          signal,
+        });
+        if (res.status !== 200) fail(res.status, res.body);
+        const parsed = PaginatedLeads.parse(res.body);
+        items.push(...parsed.items);
+        if (!parsed.next_cursor) break;
+        cursor = parsed.next_cursor;
+      }
+      return items;
+    },
+  });
+}
+
 export function useLead(id: string) {
   return useQuery({
     queryKey: leadKeys.detail(id),

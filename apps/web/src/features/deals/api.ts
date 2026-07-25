@@ -5,13 +5,17 @@ import {
   paginated,
   type CalculateDealInputT,
   type CreateDealInputT,
+  type DealT,
+  type UpdateDealInputT,
 } from '@dealpilot/schemas';
 import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
 
 const PaginatedDeals = paginated(Deal);
 
 export const dealKeys = {
+  all: ['deals'] as const,
   forLead: (leadId: string) => ['deals', 'lead', leadId] as const,
+  pipeline: (orgId: string | undefined) => ['deals', 'pipeline', orgId ?? 'single-org'] as const,
   calc: (inputs: CalculateDealInputT | null) => ['deal-calc', inputs] as const,
 };
 
@@ -49,6 +53,55 @@ export function useDealsForLead(leadId: string, orgId: string | undefined) {
   });
 }
 
+const MAX_BOARD_PAGES = 3; // 300 rows — beyond that the board says it is truncated
+
+/** Follows the cursor a bounded number of pages so the board isn't silently cut at 100. */
+export function usePipelineDeals(orgId?: string, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: dealKeys.pipeline(orgId),
+    enabled: opts?.enabled ?? true,
+    queryFn: async ({ signal }) => {
+      const items = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < MAX_BOARD_PAGES; page++) {
+        const res = await apiRequest(routes.deals.list, {
+          query: { organization_id: orgId, limit: 100, cursor },
+          signal,
+        });
+        if (res.status !== 200) fail(res.status, res.body);
+        const parsed = PaginatedDeals.parse(res.body);
+        items.push(...parsed.items);
+        if (!parsed.next_cursor) return { items, truncated: false };
+        cursor = parsed.next_cursor;
+      }
+      return { items, truncated: true };
+    },
+  });
+}
+
+/** Stage/funding moves from the kanban — refreshes every deal view. */
+export function useUpdateDealTracks(orgId?: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: UpdateDealInputT }) => {
+      const res = await apiRequest(routes.deals.update, { params: { id }, body });
+      if (res.status !== 200) fail(res.status, res.body);
+      return Deal.parse(res.body);
+    },
+    onSuccess: (updated) => {
+      // Write the server's answer straight into the board cache so the
+      // controlled selects show the new value immediately (no snap-back),
+      // then reconcile everything else in the background.
+      queryClient.setQueryData(
+        dealKeys.pipeline(orgId),
+        (old: { items: DealT[]; truncated: boolean } | undefined) =>
+          old ? { ...old, items: old.items.map((d) => (d.id === updated.id ? updated : d)) } : old,
+      );
+      void queryClient.invalidateQueries({ queryKey: dealKeys.all });
+    },
+  });
+}
+
 export function useCreateDeal() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -57,8 +110,6 @@ export function useCreateDeal() {
       if (res.status !== 201) fail(res.status, res.body);
       return Deal.parse(res.body);
     },
-    onSuccess: (deal) => {
-      if (deal.lead_id) void queryClient.invalidateQueries({ queryKey: dealKeys.forLead(deal.lead_id) });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: dealKeys.all }),
   });
 }

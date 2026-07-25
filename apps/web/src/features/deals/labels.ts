@@ -22,11 +22,22 @@ export const DEAL_TYPE_KEYS = {
   cash: 'dealType_cash',
 } as const satisfies Record<DealT['deal_type'], string>;
 
-export const DEAL_STATUS_KEYS = {
-  working: 'status_working',
-  submitted: 'status_submitted',
-  approved: 'status_approved',
-  funded: 'status_funded',
-  delivered: 'status_delivered',
-  lost: 'status_lost',
-} as const satisfies Record<DealT['status'], string>;
+export const PIPELINE_STAGE_KEYS = {
+  new: 'stage_new',
+  submitted: 'stage_submitted',
+  approved: 'stage_approved',
+  signed: 'stage_signed',
+  sourcing: 'stage_sourcing',
+  pending_delivery: 'stage_pending_delivery',
+  scheduled: 'stage_scheduled',
+  delivered: 'stage_delivered',
+  complete: 'stage_complete',
+  lost: 'stage_lost',
+} as const satisfies Record<DealT['pipeline_stage'], string>;
+
+export const FUNDING_STATUS_KEYS = {
+  not_submitted: 'funding_not_submitted',
+  submitted: 'funding_submitted',
+  stips_required: 'funding_stips_required',
+  funded: 'funding_funded',
+} as const satisfies Record<DealT['funding_status'], string>;

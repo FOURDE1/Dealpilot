@@ -39,6 +39,9 @@ const TeamPage = lazy(() =>
 const DeskingPage = lazy(() =>
   import('../features/deals/desking-page.js').then((m) => ({ default: m.DeskingPage })),
 );
+const PipelinePage = lazy(() =>
+  import('../features/deals/pipeline-page.js').then((m) => ({ default: m.PipelinePage })),
+);
 
 function RouteSkeleton() {
   return (
@@ -79,6 +82,7 @@ export const router = createBrowserRouter([
       { path: 'leads/:leadId', element: lazyPage(<LeadDetailPage />) },
       { path: 'leads/:leadId/desk', element: lazyPage(<DeskingPage />) },
       { path: 'team', element: lazyPage(<TeamPage />) },
+      { path: 'pipeline', element: lazyPage(<PipelinePage />) },
       // Placeholder module routes land with their feature slices.
       { path: '*', element: <Navigate to="/" replace /> },
     ],

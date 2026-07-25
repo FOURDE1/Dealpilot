@@ -8,7 +8,7 @@ import { ApiError } from '../../shared/api/client.js';
 import { useLead, useUpdateLead } from './api.js';
 import { activeMembers, useMembers } from '../team/api.js';
 import { useDealsForLead } from '../deals/api.js';
-import { DEAL_STATUS_KEYS, DEAL_TYPE_KEYS } from '../deals/labels.js';
+import { DEAL_TYPE_KEYS, FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from '../deals/labels.js';
 import { formatCents } from '../deals/money.js';
 import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
 
@@ -167,7 +167,9 @@ export function LeadDetailPage() {
                 <li key={d.id} className="flex items-baseline justify-between gap-4 py-1.5 text-sm">
                   <span>
                     {td(DEAL_TYPE_KEYS[d.deal_type])}
-                    <span className="text-muted-foreground"> — {td(DEAL_STATUS_KEYS[d.status])}</span>
+                    <span className="text-muted-foreground">
+                      {' '}— {td(PIPELINE_STAGE_KEYS[d.pipeline_stage])} · {td(FUNDING_STATUS_KEYS[d.funding_status])}
+                    </span>
                   </span>
                   <span className="font-mono tabular-nums">
                     {d.deal_type === 'cash'
