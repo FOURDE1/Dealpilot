@@ -11,6 +11,10 @@ import {
   Store,
   ActivityEvent,
   ActivityListQuery,
+  CreateInvitationInput,
+  Invitation,
+  InvitationListQuery,
+  InvitationPreview,
   AddMemberInput,
   Commission,
   CommissionListQuery,
@@ -165,6 +169,50 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: UpdatePayPlanInput,
       responses: { 200: PayPlan, ...errorResponses },
+    },
+  }),
+  /**
+   * F-12 invitations (D-035): an invited person can now actually log in. The
+   * link carries a token we never store — only its SHA-256 — and accepting
+   * requires being signed in AS the invited email.
+   */
+  invitations: c.router({
+    create: {
+      method: 'POST',
+      path: '/api/v1/invitations',
+      body: CreateInvitationInput,
+      responses: { 201: Invitation, ...errorResponses },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/invitations',
+      query: InvitationListQuery,
+      responses: { 200: paginated(Invitation), ...errorResponses },
+    },
+    /**
+     * PUBLIC — the invitee has no account yet. Name, email, roles; nothing else.
+     * POST for a read so the token stays out of URLs, logs and browser history.
+     */
+    preview: {
+      method: 'POST',
+      path: '/api/v1/invitations/preview',
+      body: z.object({ token: z.string() }),
+      responses: { 200: InvitationPreview, ...errorResponses },
+    },
+    accept: {
+      method: 'POST',
+      path: '/api/v1/invitations/accept',
+      body: z.object({ token: z.string() }),
+      responses: {
+        201: z.object({ organization_id: Uuid, membership_id: Uuid }),
+        ...errorResponses,
+      },
+    },
+    revoke: {
+      method: 'DELETE',
+      path: '/api/v1/invitations/:id',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 204: z.void(), ...errorResponses },
     },
   }),
   /** F-10 activity trail (ADR-009): one entity's history, or the org's recent. */

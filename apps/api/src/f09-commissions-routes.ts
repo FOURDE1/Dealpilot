@@ -296,9 +296,15 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
       // audit feed that hands the same numbers to the whole floor would be a
       // way around that door rather than a window onto it.
       if (!canSeePay) where += ` AND entity_type <> 'pay_plan'`;
+      // Filtering by an entity returns what happened TO it and what happened
+      // UNDER it — a deal's timeline includes its checklist acts without the
+      // caller having to know checklist items exist (CR-04).
+      if (query.entity_id) {
+        params.push(query.entity_id);
+        where += ` AND (entity_id = $${params.length} OR parent_entity_id = $${params.length})`;
+      }
       for (const [col, val] of [
         ['entity_type', query.entity_type],
-        ['entity_id', query.entity_id],
         ['actor_user_id', query.actor_user_id],
       ] as const) {
         if (val) {
@@ -326,7 +332,7 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
       params.push(query.limit + 1);
       const r = await c.query<Record<string, unknown>>(
         `SELECT id, organization_id, store_id, actor_user_id, entity_type, entity_id,
-                action, changes, reason, created_at, seq
+                action, changes, reason, parent_entity_type, parent_entity_id, created_at, seq
          FROM activity_events WHERE ${where} ORDER BY seq DESC LIMIT $${params.length}`,
         params,
       );

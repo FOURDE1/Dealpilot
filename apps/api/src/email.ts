@@ -105,3 +105,32 @@ export function verificationMessage(to: string, url: string): EmailMessage {
     ].join('\n'),
   };
 }
+
+/** F-12: the invitation link. FR first (Bill 96), same shape as verification. */
+export function invitationMessage(to: string, url: string): EmailMessage {
+  return {
+    to,
+    subject: "Invitation à rejoindre l'équipe / You have been invited — 1Dealer",
+    text: [
+      'Bonjour,',
+      '',
+      'Vous avez été invité à rejoindre une équipe sur 1Dealer.',
+      'Créez votre mot de passe et accédez à votre compte ici :',
+      url,
+      '',
+      "Ce lien expire dans 7 jours et ne peut servir qu'une seule fois.",
+      "Si vous ne vous attendiez pas à cette invitation, ignorez ce message.",
+      '',
+      '— — —',
+      '',
+      'Hello,',
+      '',
+      'You have been invited to join a team on 1Dealer.',
+      'Set your password and get access here:',
+      url,
+      '',
+      'This link expires in 7 days and can only be used once.',
+      'If you were not expecting this invitation, you can ignore this message.',
+    ].join('\n'),
+  };
+}

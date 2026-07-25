@@ -8,7 +8,7 @@ import { CursorQuery, IsoDateTime, Uuid } from './common.js';
  */
 export const ActivityEntityType = z.enum([
   'deal', 'lead', 'vehicle', 'membership', 'pay_plan', 'checklist_item',
-  'checklist_template', 'intake_key', 'organization', 'store',
+  'checklist_template', 'intake_key', 'invitation', 'organization', 'store',
 ]);
 
 export const ActivityAction = z.enum([
@@ -31,6 +31,9 @@ export const ActivityEvent = z.object({
   /** {"field": {"from": x, "to": y}} */
   changes: z.record(z.string(), z.unknown()),
   reason: z.string().nullable(),
+  /** Set when this happened under something else — a checklist item's deal. */
+  parent_entity_type: ActivityEntityType.nullable(),
+  parent_entity_id: Uuid.nullable(),
   created_at: IsoDateTime,
 });
 

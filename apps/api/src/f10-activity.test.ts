@@ -224,6 +224,26 @@ describe('F-10 activity trail', () => {
     expect(held).toEqual(['INSERT', 'SELECT']);
   });
 
+  it('a deal’s timeline includes what happened to its checklist (CR-04)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const tick = await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${dealId}/checklist/idv`, headers: { cookie },
+      payload: { completed: true },
+    });
+    expect(tick.statusCode).toBe(200);
+
+    // One query, filtered by the DEAL, returns the checklist act too — Hussein
+    // was otherwise pulling the whole org's checklist events and filtering in
+    // the browser, which goes wrong the moment a store is busy.
+    const events = await activity(`?entity_id=${dealId}`);
+    const item = events.find((e) => e.entity_type === 'checklist_item');
+    expect(item, 'checklist events must roll up to their deal').toBeDefined();
+    expect(item!.parent_entity_id).toBe(dealId);
+    expect(item!.parent_entity_type).toBe('deal');
+    // And it did not drag in some other deal's checklist.
+    expect(events.every((e) => e.entity_id === dealId || e.parent_entity_id === dealId)).toBe(true);
+  });
+
   it('no dead vocabulary — every entity type and action is actually emitted', async (ctx) => {
     if (!dbUp) return ctx.skip();
     // The first cut of F-10 declared 8 entity types and wired 3, so five of them
