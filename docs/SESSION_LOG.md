@@ -64,6 +64,50 @@ twice (his and mine). ONE owner round: docs/OWNER-TEST-BATCH-02.md.**
 **Owner also owes two decisions: D-033 (who signs off safety), D-035/invite
 flow (next batch scope).**
 
+## 2026-07-26 [AHMAD] — F-11 dispatch merged, after a review found the headline feature unreachable
+
+**Done (373/373):** the dispatch scheduling core — drivers/chaser rule and
+conflict window in `packages/core` with 14 golden tests, store-scoped fleets,
+the board, and a transactional resource lifecycle. Migration 0017.
+
+**The finding worth remembering.** My first cut marked a plate `in_use` the
+moment a run was booked. That made the feature's whole point — "a conflict flags
+the run, it never blocks it" — UNREACHABLE: a booked plate was never offered
+again, so a genuine same-afternoon double-booking came back as "no plate
+available", the exact inverse of the rule. Worse, the integration test that
+"proved" the fix manufactured the colliding state with raw admin SQL the API
+could not produce, so it was green and meaningless.
+
+The model is now honest: a plate is booked for a TIME, not taken off the board.
+Availability is a calendar question; a free resource wins; when everything
+collides the run is booked and flagged. `status` means physically out with a
+driver and flips on departure. Mutation-proven — break the picker and three
+named tests fail.
+
+Six more real defects from the same review: ending a run released resources it
+never consumed (so cancelling one run could hand back another's plate); fleet
+`status` was directly writable, a back door around the entire accounting scheme;
+a lien-only trade counted as "no trade", contradicting the money engine and
+burning a chaser; `?conflicts_only=false` returned only conflicts
+(`z.coerce.boolean` turns the string "false" into true); re-booking a live deal
+was a 500; and the board — driver names and phone numbers — was readable by any
+member.
+
+**Scope stated, not implied:** F-11b is filed for the dispatch email, driver
+companies, addresses, cash-to-collect, the wet-ink gate and customer
+notification. The commit message says what is NOT built rather than letting the
+title imply all of dispatch-transport.md.
+
+**In progress:** HUSSEIN — F-12 invite/accept screens, then the dispatch board.
+
+**Gotchas learned:** `z.coerce.boolean()` is almost never what you want for a
+query flag — every non-empty string is true. And a test that reaches its
+precondition with raw SQL is testing the database, not the product; if the API
+cannot produce the state, the feature cannot either.
+
+**Next steps:** (1) Hussein — F-12 screens. (2) Ahmad — F-11b, or documents /
+bill of sale, next in the plan's parity order. (3) Owner — rounds 1-6.
+
 ## 2026-07-26 [AHMAD] — F-12 invitations merged: the Team screen stops lying. CR-04 closed.
 
 **Done (340/340, all guards green):**

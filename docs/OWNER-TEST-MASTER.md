@@ -147,3 +147,33 @@ business data.
 sandbox, which only delivers to verified addresses. In that case the API hands
 the link back so you can pass it on manually, and 5.2 is the only step that
 fails — everything else still works. Tell us and we'll request production access.
+
+## ROUND 6 — Dispatch (F-11): getting the car to the customer
+
+Needs Hussein's dispatch board before you can click through it. The rules below
+are what the system does today, so you can sanity-check them against how your
+store actually runs.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 6.1 | Settings → Fleet: add two dealer plates and one chaser car | They appear, both plates "available" | ⬜ |
+| 6.2 | A deal **with** a trade-in → book the delivery | **1 driver, no chaser** — the driver brings the trade-in back | ⬜ |
+| 6.3 | A deal **without** a trade-in → book the delivery | **2 drivers + the chaser** — someone has to bring driver 1 home | ⬜ |
+| 6.4 | Book a second delivery the same afternoon | Uses the **second** plate — no warning, because there is one free | ⬜ |
+| 6.5 | Book a **third** the same afternoon (only two plates) | Booked anyway, **flagged** with which plate clashes and with which deal | ⬜ |
+| 6.6 | Book something for next week | No warning — a plate booked Friday is free on Tuesday | ⬜ |
+| 6.7 | Mark a run departed, then arrived, then completed | The plate and chaser go back to "available" | ⬜ |
+| 6.8 | Cancel a booked run | Same — a called-off run must not lock up a plate | ⬜ |
+| 6.9 | Try to mark a run "arrived" without "departed" | Refused. The ETA you gave the customer was never true | ⬜ |
+| 6.10 | Try to edit a completed run's driver | Refused — it is the record now | ⬜ |
+
+**The judgement call to check (6.5):** a clash never blocks the booking. It gets
+flagged so a dispatcher can look at it, because you can fix a flagged run and
+you cannot fix a refusal. The window is **4 hours** either side, and it is
+per-store — say the word if your geography wants something different.
+
+**⚠ NOT BUILT YET (F-11b), so don't look for it:** the driver dispatch email,
+the driver-company roster, pickup/delivery addresses, cash-to-collect, special
+instructions, the wet-ink gate before booking, and the customer "your car is on
+its way" notification. The scheduling core is done; the paperwork around it is
+the next slice.
