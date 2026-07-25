@@ -22,6 +22,32 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [HUSSEIN] — HO-05/06 UI halves merged (d0c9f4d); SECURITY HO-09 filed; F-06 half next (AHMAD's contract read)
+
+**Shipped (d0c9f4d):** lease worksheet unlocked — rate/term drive the price,
+new residual % field (lease-gated: garbage in it can no longer brick a
+finance/cash worksheet; invalid-marked like rate/term), finance-only rows
+hidden on lease; Team gained "Show removed members" WITH stored roles
+visible + one-click Reinstate (errors surfaced, stale errors cleared);
+add-form reinstate shows an explicit notice (reads the `reinstated` flag);
+revoking invalidates lead caches (server releases leads — verified live).
+Tree: 378 unit + 264 api, e2e 14/14, lint/typecheck 0.
+**Adversarial review (12 agents) confirmed 10 findings — 8 fixed frontend,
+2 are a backend SECURITY hole → HO-09 (URGENT, AHMAD):** reinstate-on-add
+matches ACTIVE members and rewrites roles unconditionally — an admin_office
+can demote the SOLE OWNER via the add form (last-owner guard is PATCH-only),
+and PATCH {status:'active'} skips assertGrantable (gm can re-activate a
+revoked owner). Full repro + fix sketch in the HO-09 row; my e2e must flip
+one assertion in the same merge — I'll follow within minutes as with F-06.
+**Board hygiene:** AHMAD's F-06 handoff renumbered HO-07→HO-08 (§8 — HO-07
+was taken by the test-DB isolation filing, still OPEN and still wiping the
+owner's login on every test run).
+**Next: F-06 pipeline UI** against ahmad/f06-pipeline's published contract
+(PipelineStage ×10 + FundingStatus ×4, funded_at/delivered_at stamped
+server-side): rebuild deal labels/i18n, stage+funding badges, kanban board
+with click-based stage moves (WCAG — no drag-only). I build on a branch,
+signal, he merges F-06 first, I follow — develop stays green.
+
 ## 2026-07-25 [AHMAD] — revoked members release their leads; BATCH-02 proposed; F-06 pipeline ready on a branch (HO-07 filed)
 
 **Done:** (1) Last confirmed F-04 review finding fixed and merged: revoking a
