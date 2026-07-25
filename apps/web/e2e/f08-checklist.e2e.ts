@@ -40,7 +40,7 @@ test('full F-08 journey: gate blocks → tick/waive → deliver → frozen', asy
   await page.getByRole('link', { name: 'Pipeline' }).first().click();
   const colNew = page.getByRole('region', { name: 'Nouvelle' });
   await colNew.getByLabel('Étape').selectOption({ label: 'Livrée' });
-  await expect(page.getByText(/Livraison bloquée — éléments en attente/)).toBeVisible();
+  await expect(page.getByText(/obligation légale que personne ne peut exempter/)).toBeVisible();
   await expect(page.getByText(/Inspection de sécurité/)).toBeVisible();
 
   // Open the checklist from the card.
@@ -59,13 +59,35 @@ test('full F-08 journey: gate blocks → tick/waive → deliver → frozen', asy
   await dialog.getByLabel('Raison de l’exemption').fill('Prélèvement automatique déjà au dossier');
   await dialog.getByRole('button', { name: 'Exempter avec cette raison' }).click();
   await expect(dialog.getByText(/Exempté par/)).toBeVisible();
-  await expect(dialog.getByText('Prélèvement automatique déjà au dossier')).toBeVisible();
+  await expect(dialog.getByText(/Prélèvement automatique déjà au dossier/)).toBeVisible();
+
+  // Reinstating asks twice — one click only arms the confirmation.
+  await dialog.getByRole('button', { name: 'Rétablir' }).click();
+  await expect(dialog.getByRole('button', { name: /Confirmer\? \(la raison sera effacée\)/ })).toBeVisible();
+  await expect(dialog.getByText(/Prélèvement automatique déjà au dossier/)).toBeVisible(); // still there
+  await dialog.getByRole('button', { name: /Confirmer\? \(la raison sera effacée\)/ }).click();
+  await expect(dialog.getByText(/Exempté par/)).toHaveCount(0);
+  // Waive it again for the rest of the journey.
+  await dialog.getByRole('listitem').filter({ hasText: 'Chèque annulé' }).getByRole('button', { name: 'Exempter' }).click();
+  await dialog.getByLabel('Raison de l’exemption').fill('Prélèvement automatique déjà au dossier');
+  await dialog.getByRole('button', { name: 'Exempter avec cette raison' }).click();
+  await expect(dialog.getByText(/Exempté par/)).toBeVisible();
 
   // The safety inspection offers NO waive control.
   const safetyRow = dialog.getByRole('listitem').filter({ hasText: 'Inspection de sécurité' });
   await expect(safetyRow.getByRole('button', { name: 'Exempter' })).toHaveCount(0);
 
-  // Settle everything else, safety last (owner may tick it).
+  // Tick safety first — the next refusal must use the ORDINARY wording.
+  await dialog.getByLabel('Inspection de sécurité').click();
+  await expect(dialog.getByLabel('Inspection de sécurité')).toBeChecked();
+  await dialog.getByRole('button', { name: 'Fermer' }).click();
+  await colNew.getByLabel('Étape').selectOption({ label: 'Livrée' });
+  await expect(page.getByText(/Livraison bloquée — éléments en attente/)).toBeVisible();
+  await expect(page.getByText(/obligation légale/)).toHaveCount(0);
+
+  // Settle everything else.
+  await colNew.getByRole('button', { name: /Liste de livraison/ }).click();
+  const dialog2 = page.getByRole('dialog');
   for (const label of [
     'Financement approuvé',
     "Vérification d'identité",
@@ -74,13 +96,12 @@ test('full F-08 journey: gate blocks → tick/waive → deliver → frozen', asy
     'Date de livraison',
     'Chauffeurs réservés',
     'Immatriculation',
-    'Inspection de sécurité',
   ]) {
-    await dialog.getByLabel(label).click();
-    await expect(dialog.getByLabel(label)).toBeChecked();
+    await dialog2.getByLabel(label).click();
+    await expect(dialog2.getByLabel(label)).toBeChecked();
   }
-  await expect(dialog.getByText('Prête pour la livraison.')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Fermer' }).click();
+  await expect(dialog2.getByText('Prête pour la livraison.')).toBeVisible();
+  await dialog2.getByRole('button', { name: 'Fermer' }).click();
 
   // Delivered now goes through; the checklist is frozen afterwards.
   await colNew.getByLabel('Étape').selectOption({ label: 'Livrée' });

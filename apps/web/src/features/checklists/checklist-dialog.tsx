@@ -29,6 +29,7 @@ function ItemRow({
   const update = useUpdateChecklistItem(dealId);
   const [waiving, setWaiving] = useState(false);
   const [reason, setReason] = useState('');
+  const [confirmUnwaive, setConfirmUnwaive] = useState(false);
   const label = i18n.language.startsWith('fr') ? item.label_fr : item.label_en;
   const waived = item.overridden_at !== null;
   const done = item.completed_at !== null;
@@ -36,9 +37,12 @@ function ItemRow({
   const canTick = !dealFrozen && (!isSafety || canManage);
   const canWaive = !dealFrozen && item.overridable && canManage && !done;
 
-  function send(body: Parameters<typeof update.mutateAsync>[0]['body']) {
+  async function send(body: Parameters<typeof update.mutateAsync>[0]['body']): Promise<boolean> {
     onError(null);
-    update.mutateAsync({ code: item.code, body }).catch((err: unknown) => {
+    try {
+      await update.mutateAsync({ code: item.code, body });
+      return true;
+    } catch (err) {
       if (!(err instanceof ApiError)) {
         onError(t('genericError'));
         throw err;
@@ -52,7 +56,8 @@ function ItemRow({
               ? t('hardBlock')
               : t('genericError'),
       );
-    });
+      return false;
+    }
   }
 
   return (
@@ -67,7 +72,7 @@ function ItemRow({
             type="checkbox"
             checked={done}
             disabled={!canTick || waived || update.isPending}
-            onChange={(e) => send({ completed: e.target.checked })}
+            onChange={(e) => void send({ completed: e.target.checked })}
             className="size-4 accent-[var(--primary)]"
           />
           {label}
@@ -76,7 +81,7 @@ function ItemRow({
         <span className="flex items-center gap-2">
           {done ? (
             <span className="text-xs text-success-text">
-              {t('doneBy', { name: memberName(item.completed_by) ?? '—' })}
+              {t('doneBy', { name: memberName(item.completed_by) ?? t('formerMember') })}
             </span>
           ) : null}
           {waived ? (
@@ -90,21 +95,33 @@ function ItemRow({
             </Button>
           ) : null}
           {waived && canManage && !dealFrozen ? (
+            // Two clicks on purpose: reinstating erases the recorded reason.
             <Button
               type="button"
-              variant="ghost"
+              variant={confirmUnwaive ? 'destructive' : 'ghost'}
               size="sm"
               disabled={update.isPending}
-              onClick={() => send({ overridden: false })}
+              onClick={() => {
+                if (!confirmUnwaive) {
+                  setConfirmUnwaive(true);
+                  return;
+                }
+                setConfirmUnwaive(false);
+                void send({ overridden: false });
+              }}
+              onBlur={() => setConfirmUnwaive(false)}
             >
-              {t('unwaive')}
+              {confirmUnwaive ? t('unwaiveConfirm') : t('unwaive')}
             </Button>
           ) : null}
         </span>
       </div>
       {waived ? (
         <p className="text-xs text-muted-foreground">
-          {t('waivedBy', { name: memberName(item.overridden_by) ?? '—' })} — « {item.override_reason} »
+          {t('waivedByWithReason', {
+            name: memberName(item.overridden_by) ?? t('formerMember'),
+            reason: item.override_reason ?? '',
+          })}
         </p>
       ) : null}
       {waiving && !waived ? (
@@ -114,6 +131,7 @@ function ItemRow({
             <Input
               id={`waive-reason-${item.code}`}
               value={reason}
+              maxLength={300}
               onChange={(e) => setReason(e.target.value)}
             />
           </div>
@@ -122,9 +140,13 @@ function ItemRow({
             size="sm"
             disabled={reason.trim().length < 3 || update.isPending}
             onClick={() => {
-              send({ overridden: true, override_reason: reason.trim() });
-              setWaiving(false);
-              setReason('');
+              void send({ overridden: true, override_reason: reason.trim() }).then((ok) => {
+                // The typed reason survives a failed save.
+                if (ok) {
+                  setWaiving(false);
+                  setReason('');
+                }
+              });
             }}
           >
             {t('confirmWaive')}
@@ -141,18 +163,32 @@ function ItemRow({
 }
 
 /** The F-08 panel: the gate between Signed and Delivered, item by item. */
-export function ChecklistDialog({ deal, onClose }: { deal: DealT | null; onClose: () => void }) {
+export function ChecklistDialog({
+  deal,
+  dealLabel,
+  onClose,
+}: {
+  deal: DealT | null;
+  dealLabel?: string;
+  onClose: () => void;
+}) {
   const { t } = useTranslation('checklist');
   const { data: session } = useSession();
   const checklist = useDealChecklist(deal?.id ?? '', { enabled: deal !== null });
   const members = useMembers(deal?.organization_id, { enabled: deal !== null });
+  // Evidence must keep naming its author even after they leave the org.
+  const removed = useMembers(deal?.organization_id, { enabled: deal !== null, status: 'revoked' });
   const [error, setError] = useState<string | null>(null);
 
   const me = members.data?.items.find((m) => m.user_id === session?.user.id);
   const canManage = me?.roles.some((r) => SAFETY_ROLES.has(r)) ?? false;
   const dealFrozen = deal?.delivered_at !== null && deal !== null;
   const memberName = (id: string | null) =>
-    id === null ? null : (members.data?.items.find((m) => m.user_id === id)?.name ?? null);
+    id === null
+      ? null
+      : (members.data?.items.find((m) => m.user_id === id)?.name ??
+        removed.data?.items.find((m) => m.user_id === id)?.name ??
+        null);
 
   const data = checklist.data;
   const doneCount = data?.items.filter((i) => i.completed_at !== null || i.overridden_at !== null).length ?? 0;
@@ -160,7 +196,10 @@ export function ChecklistDialog({ deal, onClose }: { deal: DealT | null; onClose
   return (
     <Dialog.Root open={deal !== null} onOpenChange={(open) => (!open ? onClose() : undefined)}>
       <DialogContent className="max-h-[85svh] overflow-y-auto">
-        <DialogTitle>{t('title')}</DialogTitle>
+        <DialogTitle>
+          {t('title')}
+          {dealLabel ? <span className="text-muted-foreground"> — {dealLabel}</span> : null}
+        </DialogTitle>
         {checklist.isPending && deal ? (
           <p className="mt-3 text-sm text-muted-foreground">{t('loading')}</p>
         ) : checklist.isError ? (

@@ -185,6 +185,9 @@ export function LeadDetailPage() {
                     <button
                       type="button"
                       className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11"
+                      aria-label={td('checklistFor', {
+                        name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.monthly_payment_cents, i18n.language)}`,
+                      })}
                       onClick={() => setChecklistDeal(d)}
                     >
                       {td('checklistAction')}
@@ -196,7 +199,11 @@ export function LeadDetailPage() {
           )}
         </div>
       </div>
-      <ChecklistDialog deal={checklistDeal} onClose={() => setChecklistDeal(null)} />
+      <ChecklistDialog
+        deal={checklistDeal}
+        dealLabel={checklistDeal ? td(DEAL_TYPE_KEYS[checklistDeal.deal_type]) : undefined}
+        onClose={() => setChecklistDeal(null)}
+      />
     </div>
   );
 }

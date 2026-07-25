@@ -10,6 +10,9 @@ import { leadDisplayName } from '../leads/labels.js';
 import { usePipelineDeals, useUpdateDealTracks } from './api.js';
 import { ChecklistDialog } from '../checklists/checklist-dialog.js';
 import { CHECKLIST_CODE_KEYS } from '../checklists/labels.js';
+import { checklistKeys } from '../checklists/api.js';
+import { useQueryClient } from '@tanstack/react-query';
+import type { DealChecklistItemT } from '@dealpilot/schemas';
 import { FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from './labels.js';
 import { formatCents } from './money.js';
 
@@ -27,6 +30,7 @@ export function PipelinePage() {
   const deals = usePipelineDeals(multiOrg ? orgId : undefined, { enabled: !orgs.isPending });
   const leads = useLeadNames(multiOrg ? orgId : undefined, { enabled: !orgs.isPending });
   const update = useUpdateDealTracks(multiOrg ? orgId : undefined);
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [checklistDeal, setChecklistDeal] = useState<DealT | null>(null);
 
@@ -44,6 +48,17 @@ export function PipelinePage() {
   }, [deals.data]);
 
   const pendingId = update.isPending ? update.variables?.id : null;
+
+  function codeToLabel(dealId: string, code: string): string {
+    // Prefer the deal's own (store-renamable) labels when the panel was opened;
+    // fall back to the canonical names.
+    const cached = queryClient.getQueryData<{ items: DealChecklistItemT[] }>(checklistKeys.deal(dealId));
+    const item = cached?.items.find((i) => i.code === code);
+    if (item) return i18n.language.startsWith('fr') ? item.label_fr : item.label_en;
+    return code in CHECKLIST_CODE_KEYS
+      ? tCheck(CHECKLIST_CODE_KEYS[code as keyof typeof CHECKLIST_CODE_KEYS])
+      : code;
+  }
 
   async function move(deal: DealT, patch: { pipeline_stage?: DealT['pipeline_stage']; funding_status?: DealT['funding_status'] }) {
     if (pendingId === deal.id) return; // one in-flight move per deal
@@ -64,12 +79,13 @@ export function PipelinePage() {
         if (codes.includes('checklist_missing')) {
           setError(tCheck('noChecklist'));
         } else {
-          const names = codes
-            .map((c) =>
-              c in CHECKLIST_CODE_KEYS ? tCheck(CHECKLIST_CODE_KEYS[c as keyof typeof CHECKLIST_CODE_KEYS]) : c,
-            )
-            .join(', ');
-          setError(t('deliveryBlocked', { items: names }));
+          const names = codes.map((c) => codeToLabel(deal.id, c)).join(', ');
+          // A legal hard block is a different sentence than "finish these".
+          setError(
+            err.errorCode === 'checklist_hard_blocked'
+              ? t('deliveryHardBlocked', { items: names })
+              : t('deliveryBlocked', { items: names }),
+          );
         }
       } else {
         setError(t('genericError'));
@@ -218,7 +234,11 @@ export function PipelinePage() {
         </div>
         </>
       )}
-      <ChecklistDialog deal={checklistDeal} onClose={() => setChecklistDeal(null)} />
+      <ChecklistDialog
+        deal={checklistDeal}
+        dealLabel={checklistDeal?.lead_id ? leadName.get(checklistDeal.lead_id) : undefined}
+        onClose={() => setChecklistDeal(null)}
+      />
     </div>
   );
 }

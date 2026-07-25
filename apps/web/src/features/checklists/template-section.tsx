@@ -52,7 +52,7 @@ export function ChecklistTemplateSection({ storeId }: { storeId: string }) {
               const label = i18n.language.startsWith('fr') ? item.label_fr : item.label_en;
               const isSafety = item.code === 'safety';
               return (
-                <li key={item.code} className="flex items-center justify-between gap-3 py-2">
+                <li key={item.code} className="flex min-h-11 items-center justify-between gap-3 py-1.5">
                   <Label htmlFor={`tmpl-${item.code}`} className="text-sm">
                     {label}
                     {isSafety ? (
@@ -65,7 +65,7 @@ export function ChecklistTemplateSection({ storeId }: { storeId: string }) {
                     checked={item.active}
                     disabled={update.isPending || isSafety}
                     onChange={(e) => toggle(item.code, e.target.checked)}
-                    className="size-4 accent-[var(--primary)]"
+                    className="size-6 accent-[var(--primary)] lg:size-4"
                   />
                 </li>
               );
