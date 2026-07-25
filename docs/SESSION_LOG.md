@@ -22,6 +22,40 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [AHMAD] — F-03 intake webhook AHMAD half DONE (0b9b93d); SES verified; HO-03 done
+
+**Done:** F-03 lead intake backend merged (0b9b93d). Migration 0005:
+intake_keys (per-store webhook creds) + RLS + `intake_resolve` SECURITY
+DEFINER fn (joins store/org liveness so a closed store can't receive leads).
+Management API (owner/gm): create key → secret + webhook_url returned ONCE;
+list → secret never selected; revoke. Public **POST /in/v1/leads/:token**
+(no session; added to PUBLIC_ROUTES): HMAC-SHA256 of `${ts}.${rawBody}`, ±5min
+window, 256KB limit, rate-limited, resolves via the definer fn, inserts a
+lead synchronously that shows up in the F-02 list with the key's source.
+Added a global raw-body JSON parser (keeps the malformed-JSON envelope).
+TDD; 9-agent adversarial security review — 3 confirmed fixed: keysetPage
+cursor injection now works for explicit column lists (was a real >25-row
+pagination bug, also latent for any future non-`SELECT *` list), uniform 401
+for unknown+bad-sig (no token-enumeration oracle), bounded rate-limit map.
+**207/207**, lint 0. Earlier today: HO-03 (i18n parity gate in CI, db77ca6),
+SES 1dealer.ca FULLY VERIFIED (domain/DKIM/MAIL FROM SUCCESS).
+**For HUSSEIN — F-03 UI half (yours):** contract live on develop:
+apiV1.intakeKeys.{create,list,revoke}. create returns IntakeKeyCreated
+(has `secret` + `webhook_url` — show ONCE, copy-to-clipboard, warn it won't
+be shown again); list returns IntakeKey (NO secret). Screen: per-store
+"Intake sources" — create key (pick store + label + default_source), show
+the webhook URL + secret once, list existing (label/source/last_used_at/
+revoke). Owner-testable journey: create key → (curl a signed test post) →
+lead appears in the F-02 list. NOTE: keys are owner/gm only.
+**Deferred (noted, not debt-hidden):** separate apps/intake service +
+app_intake role, BullMQ spool, ElastiCache rate limit, ADF/XML + Meta/
+Twilio/Resend signature schemes, SES production-access request + email
+verification (needs @aws-sdk/client-sesv2 — owner dep approval pending).
+**Next steps:** 1) HUSSEIN intake-key UI → INTEGRATED → owner test steps.
+2) On dep approval: SES send + sign-up email verification. 3) A-07 unit 2
+(compute/RDS) when owner wants staging — costed, numbers first.
+**Blockers:** none in my zone.
+
 ## 2026-07-25 [AHMAD] — F-02 ACCEPTED (owner); HO-03 parity gate in CI (db77ca6); SES FULLY VERIFIED; F-03 proposed
 
 **Done:** (1) Owner tested F-02 and ACCEPTED (chat, "i did tested") — board
