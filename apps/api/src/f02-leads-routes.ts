@@ -126,6 +126,10 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
         params.push(query.status);
         sql += ` AND status = $${params.length}`;
       }
+      if (query.assigned_to) {
+        params.push(query.assigned_to);
+        sql += ` AND assigned_to = $${params.length}`;
+      }
       return keysetPage(c, sql, params, query);
     });
     return reply.send(page);

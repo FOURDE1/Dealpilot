@@ -116,6 +116,8 @@ export const LeadListQuery = CursorQuery.extend({
   organization_id: Uuid.optional(),
   store_id: Uuid.optional(),
   status: LeadStatus.optional(),
+  /** F-04: drives the "my leads" view; pass a member's user id. */
+  assigned_to: Uuid.optional(),
 });
 
 export type LeadT = z.infer<typeof Lead>;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Email, IsoDateTime, Locale, PhoneE164, Uuid } from './common.js';
+import { CursorQuery, Email, IsoDateTime, Locale, PhoneE164, Uuid } from './common.js';
 import { Role } from './roles.js';
 
 export const UserStatus = z.enum(['invited', 'active', 'disabled']);
@@ -50,6 +50,52 @@ export const UpdateUserInput = z.strictObject({
   language_pref: Locale.optional(),
   status: UserStatus.optional(),
 });
+
+/**
+ * F-04 member view: a membership joined to its user, which is what a team
+ * screen actually needs (who they are + what they can do). Never exposes
+ * credentials — identity lives in Better Auth, this is the domain record.
+ */
+export const Member = z.object({
+  id: Uuid,
+  user_id: Uuid,
+  organization_id: Uuid,
+  store_id: Uuid.nullable(),
+  roles: z.array(Role).min(1),
+  status: MembershipStatus,
+  email: Email,
+  name: userName,
+  created_at: IsoDateTime,
+  updated_at: IsoDateTime,
+});
+
+/**
+ * Add a colleague by EMAIL (the user row is created if absent) — the org has
+ * exactly one user until someone does this, so it is what makes assignment
+ * demonstrable. `store_id: null` = the roles apply org-wide.
+ */
+export const AddMemberInput = z.strictObject({
+  organization_id: Uuid,
+  email: Email,
+  name: userName,
+  roles: z.array(Role).min(1),
+  store_id: Uuid.nullable().optional(),
+});
+
+/** Change what a member can do, or revoke them. */
+export const UpdateMemberInput = z.strictObject({
+  roles: z.array(Role).min(1).optional(),
+  status: MembershipStatus.optional(),
+  store_id: Uuid.nullable().optional(),
+});
+
+export const MemberListQuery = CursorQuery.extend({
+  organization_id: Uuid.optional(),
+});
+
+export type MemberT = z.infer<typeof Member>;
+export type AddMemberInputT = z.infer<typeof AddMemberInput>;
+export type UpdateMemberInputT = z.infer<typeof UpdateMemberInput>;
 
 export const CreateMembershipInput = z.strictObject({
   user_id: Uuid,

@@ -9,6 +9,7 @@ import { createMailer, type Mailer } from './email.js';
 import { registerF01Routes } from './f01-routes.js';
 import { registerF02Routes } from './f02-leads-routes.js';
 import { registerIntakeKeyRoutes, registerPublicIntakeRoutes } from './f03-intake-routes.js';
+import { registerF04Routes } from './f04-members-routes.js';
 
 /**
  * Dealpilot API (A-05): Fastify 5 skeleton.
@@ -212,6 +213,7 @@ export async function buildApp(
   registerF02Routes(app, pool);
   registerIntakeKeyRoutes(app, pool, env.BETTER_AUTH_URL);
   registerPublicIntakeRoutes(app, pool);
+  registerF04Routes(app, pool);
 
   app.addHook('onClose', async () => {
     await pool.end();

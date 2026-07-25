@@ -12,7 +12,11 @@ import {
   Membership,
   Organization,
   Store,
+  AddMemberInput,
   CreateIntakeKeyInput,
+  Member,
+  MemberListQuery,
+  UpdateMemberInput,
   IntakeKey,
   IntakeKeyCreated,
   LeadListQuery,
@@ -119,6 +123,28 @@ export const apiV1 = c.router({
   users: crudRouter('users', User, CreateUserInput, UpdateUserInput),
   memberships: crudRouter('memberships', Membership, CreateMembershipInput, UpdateMembershipInput),
   leads: crudRouter('leads', Lead, CreateLeadInput, UpdateLeadInput, LeadListQuery),
+  /** F-04 team members: membership joined to user, add-by-email, roles, revoke. */
+  members: c.router({
+    add: {
+      method: 'POST',
+      path: '/api/v1/members',
+      body: AddMemberInput,
+      responses: { 201: Member, ...errorResponses },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/members',
+      query: MemberListQuery,
+      responses: { 200: paginated(Member), ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/members/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateMemberInput,
+      responses: { 200: Member, ...errorResponses },
+    },
+  }),
   intakeKeys: c.router({
     create: {
       method: 'POST',

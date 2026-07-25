@@ -129,19 +129,26 @@ export async function keysetPage<Row extends { id: string }>(
   baseSql: string,
   params: unknown[],
   page: PageArgs,
+  /**
+   * Table alias owning the sort key, required when the query JOINs and both
+   * sides expose created_at/id (e.g. members = memberships JOIN users, where
+   * a bare `created_at` is ambiguous). Pass the alias without the dot.
+   */
+  sortAlias?: string,
 ): Promise<{ items: Row[]; next_cursor: string | null }> {
+  const q = sortAlias ? `${sortAlias}.` : '';
   // `_ck` carries created_at at full precision; stripped before the response.
   // Injected before the first FROM so it works for `SELECT *` AND explicit
   // column lists (e.g. intake-keys omits the `secret` column).
-  let sql = baseSql.replace(' FROM ', ', created_at::text AS _ck FROM ');
+  let sql = baseSql.replace(' FROM ', `, ${q}created_at::text AS _ck FROM `);
   const bind = [...params];
   if (page.cursor) {
     const { c, id } = decodeCursor(page.cursor);
     bind.push(c, id);
-    sql += ` AND (created_at, id) < ($${bind.length - 1}::timestamptz, $${bind.length})`;
+    sql += ` AND (${q}created_at, ${q}id) < ($${bind.length - 1}::timestamptz, $${bind.length})`;
   }
   bind.push(page.limit + 1);
-  sql += ` ORDER BY created_at DESC, id DESC LIMIT $${bind.length}`;
+  sql += ` ORDER BY ${q}created_at DESC, ${q}id DESC LIMIT $${bind.length}`;
   const r = await client.query<Row & { _ck: string }>(sql, bind);
   const hasMore = r.rows.length > page.limit;
   const rows = hasMore ? r.rows.slice(0, page.limit) : r.rows;
