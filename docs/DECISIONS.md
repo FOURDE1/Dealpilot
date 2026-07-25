@@ -28,6 +28,16 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## D-030: No paid AWS infrastructure until launch-adjacent; SES SDK approved (2026-07-25) [AHMAD]
+
+**Status:** accepted
+**Context:** A-07 unit 1 (SES identity + OIDC deploy role) costs ~$0/mo and is deployed. Unit 2 (VPC/NAT/ALB/ECS/RDS/ElastiCache staging) is the first real monthly bill — roughly $85-125/mo with VPC endpoints, ~$120-160/mo if a NAT Gateway is used. Nothing in the current build needs a cloud environment: both agents develop against local Docker Postgres, and every feature is owner-tested locally.
+**Decision:** Owner reply 2026-07-25 ("use whatever recommended and no need to pay now"): **defer all cost-bearing AWS resources**. Keep building at ~$0/mo (SES identity, Route 53 zone and the OIDC role are free/negligible); revisit staging when a real remote environment is needed (owner demo, external integrator testing, or launch prep). When it lands, prefer VPC endpoints over a NAT Gateway (~$35/mo saved) and consider a stop/start schedule.
+**Also decided (same reply):** `@aws-sdk/client-sesv2` is approved as an apps/api dependency — verified official (publisher `amzn-oss`, repo aws/aws-sdk-js-v3), pinned to 3.1092.0 (past the 48h/3-day cooldown per CLAUDE.md supply chain rules).
+**Consequences:** Transactional email (sign-up verification) can be built now against the verified 1dealer.ca identity. SES stays in sandbox — real sends go to the SES mailbox simulator or verified addresses; production access is a later owner-visible request. No AWS spend accrues in the meantime.
+**Decided by:** user
+
+
 ## D-029: Email provider = Amazon SES, not Resend (2026-07-24) [AHMAD]
 
 **Status:** accepted (supersedes the plan's Resend choice in PROJECT.md/specs)
