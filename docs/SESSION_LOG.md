@@ -22,6 +22,34 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [AHMAD] — A-11 email DONE (882ccdf): real SES send proven; D-030 no paid infra; RED CI found + fixed
+
+**Done:** (1) **D-030** (owner: "use whatever recommended and no need to pay
+now") — ALL cost-bearing AWS deferred (staging ~$85-125/mo revisited only
+when a remote env is actually needed); `@aws-sdk/client-sesv2` approved,
+verified official (amzn-oss / aws-sdk-js-v3), pinned 3.1092.0 past cooldown.
+(2) **A-11 DONE (882ccdf)** — transactional email: `apps/api/src/email.ts`
+with two transports: `log` (DEFAULT outside prod — no AWS creds needed,
+cannot emit real mail) and `ses`. Send failures log + return false, never
+throw (sign-up survives degraded mail). Better Auth wired via
+`emailVerification.sendVerificationEmail` — option shape read from the
+INSTALLED 1.6.25 types, not memory; bilingual FR-first message.
+`requireEmailVerification` is **env-gated, default OFF** so local test
+accounts and the SES sandbox never lock anyone out. buildApp gained a mailer
+test seam. **LIVE PROOF: real SES SendEmail from no-reply@1dealer.ca to the
+AWS mailbox simulator succeeded.** 212/212, parity OK.
+(3) **CAUGHT MY OWN MISS:** develop CI had been RED since bf5e2ab — I merged
+the F-03 helper without re-running the gate, and eslint had no Node globals
+for `scripts/*.mjs`. Root-caused (config, not suppression) and fixed in the
+same merge; every CI step now verified locally before push.
+**Owner-facing:** verification email is BUILT but enforcement stays off until
+SES production access is requested (owner-visible support case, deferred);
+sandbox only reaches verified addresses / the simulator.
+**Next steps:** 1) HUSSEIN F-03 intake UI → owner test (helper ready).
+2) Optional: request SES production access when real customer mail is needed.
+3) A-07 unit 2 only when the owner wants a remote env (D-030).
+**Blockers:** none.
+
 ## 2026-07-25 [AHMAD] — A-10 keyed messages (6f47171); F-03 signing helper verified live (bf5e2ab); A-07 unit-2 cost brief
 
 **Done:** (1) **A-10 DONE (6f47171)** — HUSSEIN's finding fixed: domain
