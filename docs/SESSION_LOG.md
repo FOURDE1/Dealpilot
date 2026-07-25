@@ -64,6 +64,48 @@ twice (his and mine). ONE owner round: docs/OWNER-TEST-BATCH-02.md.**
 **Owner also owes two decisions: D-033 (who signs off safety), D-035/invite
 flow (next batch scope).**
 
+## 2026-07-26 [AHMAD] — F-12 invitations merged: the Team screen stops lying. CR-04 closed.
+
+**Done (340/340, all guards green):**
+- **F-12 invitations** — D-035, decided by delegation when the owner authorized
+  continuous work. Adding a member used to write a roster row against an INVENTED
+  user id and send nothing: that person could never log in, and signing up on
+  their own produced an unrelated identity. Now an invitation IS the roster entry
+  until a real person accepts. 32-byte token, only its SHA-256 stored, single
+  use, 7-day expiry; accepting requires a session whose email IS the invited one,
+  which is what stops a forwarded link handing over a seat. Accept is one
+  SECURITY DEFINER call creating the user row, claiming the invitation and
+  creating the membership — atomic, so two clicks cannot make two memberships.
+- **The token never appears in a URL.** It travels in the request body, because a
+  token in a path lands in access logs, browser history and Referer headers. The
+  email link still carries it, but that link points at the web app, not the API.
+- **CR-04 (Hussein's, fair)** — checklist events were keyed by ITEM, so a deal's
+  timeline could not fetch them; his client was filtering org-wide events in the
+  browser. Fixed generally with `parent_entity_type`/`parent_entity_id` and a
+  roll-up in the feed filter, so dispatch and documents will need no new endpoint.
+
+**Both drift guards earned their keep again**, on my own work this time: the RLS
+guard refused the `invitations` table until it had a cross-tenant test, and the
+contract guard refused the routes until they were in apiV1 — where it also
+surfaced that Fastify had merged `:token` and `:id` into one radix node. That
+path ambiguity is what led to moving tokens into the body, which is better
+security than what I originally wrote.
+
+**In progress:** HUSSEIN — F-12 invite + accept screens
+(`docs/HUSSEIN-F12-CONTRACT.md`), and his F-10 timeline is already in.
+
+**Blocked / open questions:** nothing blocking. D-033, D-034 and D-035 are all
+now DECIDED-BY-US and written up for the owner in `docs/OWNER-TEST-MASTER.md`
+with what we chose and what the alternative was.
+
+**Gotchas learned:** `invitations.accepted_user_id` references `users(id)`, so
+the claiming UPDATE has to run AFTER the user row exists — the FK fires on the
+claim, not on the membership insert. Cost one debugging round.
+
+**Next steps:** (1) Ahmad — F-11 dispatch, next in the plan's parity order.
+(2) Hussein — F-12 screens. (3) Owner — rounds 1-5 in OWNER-TEST-MASTER.md
+whenever he wakes.
+
 ## 2026-07-26 [AHMAD] — F-10 activity trail merged: ADR-009's audit log, after two review rounds took it apart
 
 **Done:** F-10 AHMAD half (327/327). `activity_events` (append-only, tenant-scoped,
