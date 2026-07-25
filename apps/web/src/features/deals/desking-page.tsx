@@ -5,6 +5,8 @@ import { Button, Input, Label, Select } from '@dealpilot/ui';
 import { CalculateDealInput, ProvinceCA, type CalculateDealInputT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
 import { useLead } from '../leads/api.js';
+import { useVehicles } from '../inventory/api.js';
+import { vehicleDisplayName } from '../inventory/labels.js';
 import { leadDisplayName } from '../leads/labels.js';
 import { useCalculateDeal, useCreateDeal } from './api.js';
 import { DEAL_TYPE_KEYS, PROVINCE_KEYS } from './labels.js';
@@ -153,6 +155,12 @@ export function DeskingPage() {
   const { leadId = '' } = useParams();
   const navigate = useNavigate();
   const lead = useLead(leadId);
+  const vehicles = useVehicles(lead.data?.organization_id, {
+    enabled: lead.isSuccess,
+    storeId: lead.data?.store_id,
+    dealStatus: 'available',
+  });
+  const [vehicleId, setVehicleId] = useState('');
   const [draft, setDraft] = useState<Draft>(INITIAL);
   const [debounced, setDebounced] = useState<CalculateDealInputT | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -183,6 +191,7 @@ export function DeskingPage() {
         organization_id: lead.data.organization_id,
         store_id: lead.data.store_id,
         lead_id: lead.data.id,
+        ...(vehicleId === '' ? {} : { vehicle_id: vehicleId }),
       });
       void navigate(`/leads/${leadId}`);
     } catch (err) {
@@ -229,6 +238,38 @@ export function DeskingPage() {
         <div className="space-y-4">
           <section className="space-y-3 rounded-lg border border-border bg-card p-4">
             <h2 className="text-[15px] font-semibold">{t('vehicleSection')}</h2>
+            <div className="space-y-1">
+              <Label htmlFor="desk-vehicle">{t('vehicleLabel')}</Label>
+              <Select
+                id="desk-vehicle"
+                value={vehicleId}
+                disabled={vehicles.isPending}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setVehicleId(id);
+                  const car = vehicles.data?.items.find((veh) => veh.id === id);
+                  if (car) {
+                    // The car brings its own money facts to the worksheet:
+                    // cost always (gross depends on it), price only if empty.
+                    setDraft((d) => ({
+                      ...d,
+                      vehicle_cost: (car.total_cost_cents / 100).toFixed(2),
+                      sale_price:
+                        d.sale_price.trim() === '' && car.list_price_cents !== null
+                          ? (car.list_price_cents / 100).toFixed(2)
+                          : d.sale_price,
+                    }));
+                  }
+                }}
+              >
+                <option value="">{t('noVehicle')}</option>
+                {vehicles.data?.items.map((veh) => (
+                  <option key={veh.id} value={veh.id}>
+                    {veh.stock_number} — {vehicleDisplayName(veh)}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="desk-province">{t('province')}</Label>

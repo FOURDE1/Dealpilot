@@ -116,13 +116,14 @@ test('full F-04 journey: team member → assignment → my-leads filter → revo
   await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeVisible();
   await expect(page.getByText('Aucun membre retiré.')).toBeVisible();
 
-  // Adding a REVOKED colleague's email still revives them (the explicit
-  // notice returns with CR-01 — the API's `reinstated` flag was dropped).
+  // Adding a REVOKED colleague's email revives them, with the explicit notice
+  // (CR-01: the API's `reinstated` flag is back in the contract).
   await page.getByRole('button', { name: 'Retirer — Marc Vendeur' }).click();
   await page.getByRole('button', { name: 'Oui, retirer' }).click();
   await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeHidden();
   await page.getByLabel('Nom', { exact: true }).fill('Marc Vendeur');
   await page.getByLabel('Courriel').fill(`marc-${stamp}@1dealer.test`);
   await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await expect(page.getByText('Cette personne était déjà dans l’organisation')).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeVisible();
 });

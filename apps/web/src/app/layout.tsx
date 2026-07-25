@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { to: '/organizations', key: 'nav:organizations' },
   { to: '/leads', key: 'nav:prospects' },
   { to: '/pipeline', key: 'nav:pipeline' },
+  { to: '/inventory', key: 'nav:inventory' },
   { to: '/team', key: 'nav:team' },
 ] as const;
 
@@ -80,7 +81,7 @@ export function AppLayout() {
             when the icon set lands (lucide deferred for release cooldown). */}
         <nav
           aria-label={t('nav:mainNav')}
-          className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-5 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
+          className="fixed inset-x-0 bottom-0 z-10 grid grid-cols-6 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] lg:hidden"
         >
           {NAV_ITEMS.map((item) => (
             <NavLink

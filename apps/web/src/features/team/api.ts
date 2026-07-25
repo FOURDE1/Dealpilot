@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Member,
+  MemberAdded,
   paginated,
   type AddMemberInputT,
   type MemberT,
@@ -43,10 +44,9 @@ export function useAddMember(orgId?: string) {
     mutationFn: async (body: AddMemberInputT) => {
       const res = await apiRequest(routes.members.add, { body });
       if (res.status !== 201) fail(res.status, res.body);
-      // The 201 body carries `reinstated: true` when an existing same-org
-      // membership was re-activated instead of a new one created.
-      const reinstated = (res.body as { reinstated?: boolean }).reinstated === true;
-      return { member: Member.parse(res.body), reinstated };
+      // MemberAdded (CR-01): `reinstated: true` marks a revived membership.
+      const added = MemberAdded.parse(res.body);
+      return { member: added, reinstated: added.reinstated === true };
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: teamKeys.all(orgId) }),
   });
