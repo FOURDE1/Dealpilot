@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { CreateLeadInput, LeadListQuery, UpdateLeadInput } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
+import { diff, recordEvent } from './activity.js';
 import {
   STORE_WRITE_ROLES,
   callerOrgIds,
@@ -87,6 +88,15 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
             input.budget_cents ?? null, input.vehicle_interest ?? null,
           ],
         );
+        await recordEvent(c, {
+          organizationId: input.organization_id,
+          storeId: input.store_id,
+          actorUserId: user.id,
+          entityType: 'lead',
+          entityId: String(r.rows[0]!['id']),
+          action: 'created',
+          changes: { source: input.source },
+        });
         return r.rows[0];
       });
       return await reply.status(201).send(lead);
@@ -161,18 +171,39 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
         await requireMember(c, user.id);
         if (input.store_id) await requireLiveStore(c, input.store_id);
         if (input.assigned_to) await requireAssignableMember(c, input.assigned_to);
+        const beforeRow = await c.query<Record<string, unknown>>(
+          `SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL`,
+          [leadId],
+        );
+        if (beforeRow.rows.length === 0) throw notFound();
+        const prior = beforeRow.rows[0]!;
+
         const fields = Object.entries(input);
-        if (fields.length === 0) {
-          const r = await c.query(`SELECT * FROM leads WHERE id = $1 AND deleted_at IS NULL`, [leadId]);
-          if (r.rows.length === 0) throw notFound();
-          return r.rows[0];
-        }
+        if (fields.length === 0) return prior;
         const sets = fields.map(([k], i) => `${k} = $${i + 2}`).join(', ');
         const r = await c.query(
           `UPDATE leads SET ${sets} WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
           [leadId, ...fields.map(([, v]) => v)],
         );
         if (r.rows.length === 0) throw notFound();
+
+        const evt = { organizationId: orgId, actorUserId: user.id, entityType: 'lead' as const, entityId: leadId };
+        if ('assigned_to' in input && input.assigned_to !== prior['assigned_to']) {
+          await recordEvent(c, {
+            ...evt,
+            action: input.assigned_to ? 'assigned' : 'unassigned',
+            changes: { assigned_to: { from: prior['assigned_to'] ?? null, to: input.assigned_to ?? null } },
+          });
+        }
+        // Everything a lead PATCH can write, minus assignment which has its own
+        // verb above.
+        const changed = diff(prior, input as Record<string, unknown>, [
+          'first_name', 'last_name', 'email', 'phone', 'status', 'source',
+          'source_platform', 'preferred_language', 'budget_cents', 'vehicle_interest', 'store_id',
+        ]);
+        if (Object.keys(changed).length > 0) {
+          await recordEvent(c, { ...evt, action: 'updated', changes: changed });
+        }
         return r.rows[0];
       });
       return await reply.send(lead);
@@ -187,7 +218,18 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
     const orgId = await leadOrg(pool, user.id, leadId);
     await withTenant(pool, orgId, async (c) => {
       await requireMember(c, user.id, STORE_WRITE_ROLES);
-      await c.query(`UPDATE leads SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, [leadId]);
+      const gone = await c.query(
+        `UPDATE leads SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+        [leadId],
+      );
+      // Only when a row actually moved: a second DELETE deletes nothing and
+      // should not claim otherwise.
+      if (gone.rows.length > 0) {
+        await recordEvent(c, {
+          organizationId: orgId, actorUserId: user.id,
+          entityType: 'lead', entityId: leadId, action: 'deleted',
+        });
+      }
     });
     return reply.status(204).send();
   });

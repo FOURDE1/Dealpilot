@@ -4,6 +4,7 @@ import { ChecklistCode, UpdateChecklistItemInput, UpdateChecklistTemplateInput }
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { checklistReadiness, ensureDealItems, ensureTemplate, type ItemRow } from './checklist.js';
 import { idParam, requireMember, sessionUser, STORE_WRITE_ROLES } from './f01-routes.js';
+import { recordEvent } from './activity.js';
 
 /**
  * F-08 delivery checklist (delivery.md §2) — the gate between Signed and
@@ -80,7 +81,12 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
 
       const sets: string[] = [];
       const params: unknown[] = [dealId, code];
-      if (input.completed !== undefined) {
+      // A tick that is already ticked must not rewrite completed_by: the deal's
+      // legal sign-off would quietly change hands, and the suppressed event
+      // below means nothing would record that it had.
+      const completedChanges = input.completed !== undefined && input.completed !== (target.completed_at !== null);
+      const overriddenChanges = input.overridden !== undefined && input.overridden !== (target.overridden_at !== null);
+      if (completedChanges) {
         // A non-overridable item is the legally required one. Ticking it is a
         // sworn statement that the inspection happened, so it carries the same
         // authority as waiving a soft item — otherwise "cannot be waived" would
@@ -94,11 +100,12 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
       }
       if (input.overridden !== undefined) {
         // Deny by default, and BEFORE any business check: a caller who may not
-        // waive learns nothing about which items are waivable.
+        // waive learns nothing about which items are waivable. The role check
+        // runs even for a no-op, so probing cannot map who may waive what.
         if (!isManager) {
           throw new AppError(403, 'forbidden', 'Only an owner or GM can waive a checklist item');
         }
-        if (input.overridden) {
+        if (input.overridden && overriddenChanges) {
           // The safety inspection is a legal obligation — no role waives it.
           if (!target.overridable) {
             throw new AppError(422, 'hard_block', 'This item cannot be waived', [
@@ -107,9 +114,9 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
           }
           params.push(user.id, input.override_reason);
           sets.push(`overridden_at = now()`, `overridden_by = $${params.length - 1}`, `override_reason = $${params.length}`);
-        } else {
-          // Clearing a waiver erases a manager's recorded reason, and nothing
-          // keeps history — so it is a manager's decision to undo (above).
+        } else if (overriddenChanges) {
+          // Clearing a waiver erases a manager's recorded reason — a manager's
+          // decision to undo (checked above).
           sets.push('overridden_at = NULL', 'overridden_by = NULL', 'override_reason = NULL');
         }
       }
@@ -117,10 +124,36 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
         const r = await c.query(`SELECT * FROM deal_checklist_items WHERE deal_id = $1 AND code = $2`, [dealId, code]);
         return r.rows[0];
       }
-      const r = await c.query(
+      const r = await c.query<Record<string, unknown>>(
         `UPDATE deal_checklist_items SET ${sets.join(', ')} WHERE deal_id = $1 AND code = $2 RETURNING *`,
         params,
       );
+
+      // F-10: the history this feature was missing. `completed` and
+      // `overridden` can move in the SAME request, so each gets its own event —
+      // collapsing them to one verb would silently lose whichever lost the
+      // ternary. No-ops are skipped: a double-clicked checkbox is not history.
+      const evt = {
+        organizationId: orgId,
+        actorUserId: user.id,
+        entityType: 'checklist_item' as const,
+        entityId: String(r.rows[0]!['id']),
+      };
+      if (completedChanges) {
+        await recordEvent(c, {
+          ...evt,
+          action: input.completed ? 'checklist_completed' : 'checklist_uncompleted',
+          changes: { deal_id: dealId, code, completed: { from: target.completed_at !== null, to: input.completed } },
+        });
+      }
+      if (overriddenChanges) {
+        await recordEvent(c, {
+          ...evt,
+          action: input.overridden ? 'checklist_waived' : 'checklist_unwaived',
+          changes: { deal_id: dealId, code, waived: { from: target.overridden_at !== null, to: input.overridden } },
+          reason: input.overridden ? (input.override_reason ?? null) : null,
+        });
+      }
       return r.rows[0];
     });
     return reply.send(item);
@@ -163,11 +196,23 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
         return r.rows[0];
       }
       const sets = fields.map(([k], i) => `${k} = $${i + 3}`).join(', ');
-      const r = await c.query(
+      const r = await c.query<Record<string, unknown>>(
         `UPDATE checklist_templates SET ${sets} WHERE store_id = $1 AND code = $2 RETURNING *`,
         [storeId, code, ...fields.map(([, v]) => v)],
       );
       if (r.rows.length === 0) throw notFound();
+      // Switching an item off WEAKENS the delivery gate for every deal desked
+      // afterwards. That is a legitimate store decision and a very good thing
+      // to be able to point at later.
+      await recordEvent(c, {
+        organizationId: orgId,
+        storeId,
+        actorUserId: user.id,
+        entityType: 'checklist_template',
+        entityId: String(r.rows[0]!['id']),
+        action: 'updated',
+        changes: { code, ...Object.fromEntries(fields.map(([k, v]) => [k, v])) },
+      });
       return r.rows[0];
     });
     return reply.send(row);

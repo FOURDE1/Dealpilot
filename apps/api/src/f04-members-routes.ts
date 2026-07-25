@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { withContext, withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { AddMemberInput, MemberListQuery, UpdateMemberInput } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
+import { recordEvent } from './activity.js';
 import { callerOrgIds, conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 
 /**
@@ -167,6 +168,17 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
             [target.id, input.roles],
           );
           // CR-01: the UI shows a distinct notice for a revive vs a new person.
+          await recordEvent(c, {
+            organizationId: input.organization_id,
+            actorUserId: actor.id,
+            entityType: 'membership',
+            entityId: String(reinstated.rows[0]!['id']),
+            action: 'reinstated',
+            changes: {
+              status: { from: target.status, to: 'active' },
+              roles: { from: target.roles, to: input.roles },
+            },
+          });
           return { ...reinstated.rows[0], email: input.email, name: input.name, reinstated: true };
         }
 
@@ -184,6 +196,15 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
            VALUES ($1, $2, $3, $4, 'active') RETURNING *`,
           [newUserId, input.organization_id, input.store_id ?? null, input.roles],
         );
+        await recordEvent(c, {
+          organizationId: input.organization_id,
+          storeId: input.store_id ?? null,
+          actorUserId: actor.id,
+          entityType: 'membership',
+          entityId: String(r.rows[0]!['id']),
+          action: 'created',
+          changes: { roles: { from: null, to: input.roles } },
+        });
         return { ...r.rows[0], email: input.email, name: input.name };
       });
       return await reply.status(201).send(member);
@@ -227,12 +248,14 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
 
         // Identity read (0007 keeps same-org users visible at any membership
         // status, so revoked members can still be listed and reinstated).
-        const before = await c.query<{ email: string; name: string }>(
-          `SELECT u.email, u.name FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.id = $1`,
+        const before = await c.query<{ email: string; name: string; roles: string[]; status: string; store_id: string | null }>(
+          `SELECT u.email, u.name, m.roles, m.status, m.store_id
+           FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.id = $1`,
           [membershipId],
         );
         if (before.rows.length === 0) throw notFound();
-        const identity = before.rows[0]!;
+        const prior = before.rows[0]!;
+        const identity = { email: prior.email, name: prior.name };
 
         const fields = Object.entries(input);
         if (fields.length === 0) {
@@ -252,13 +275,62 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
         // (review 2026-07-25). Same transaction, so no lead is ever left
         // assigned to a revoked member.
         if (input.status && input.status !== 'active') {
-          await c.query(
+          const released = await c.query<{ id: string }>(
             `UPDATE leads
              SET assigned_to = NULL,
                  status = CASE WHEN status = 'assigned' THEN 'new' ELSE status END
-             WHERE assigned_to = $1 AND deleted_at IS NULL`,
+             WHERE assigned_to = $1 AND deleted_at IS NULL
+             RETURNING id`,
             [r.rows[0]!['user_id'] as string],
           );
+          // Each lead really did change hands. One event per lead, so the trail
+          // answers "why did this become unassigned?" at the lead, not only at
+          // the membership — capped by however many that person held.
+          for (const lead of released.rows) {
+            await recordEvent(c, {
+              organizationId: orgId,
+              actorUserId: actor.id,
+              entityType: 'lead',
+              entityId: lead.id,
+              action: 'unassigned',
+              changes: { assigned_to: { from: r.rows[0]!['user_id'], to: null } },
+              reason: 'Member revoked',
+            });
+          }
+        }
+
+        // F-10: who changed someone's authority, and when. A role grant is the
+        // single most security-relevant edit in the product, so it is the last
+        // one that should be reconstructable only from memory.
+        if (input.roles && String(prior.roles) !== String(input.roles)) {
+          await recordEvent(c, {
+            organizationId: orgId,
+            actorUserId: actor.id,
+            entityType: 'membership',
+            entityId: membershipId,
+            action: 'roles_changed',
+            changes: { roles: { from: prior.roles, to: input.roles } },
+          });
+        }
+        if (input.store_id !== undefined && input.store_id !== prior.store_id) {
+          await recordEvent(c, {
+            organizationId: orgId,
+            actorUserId: actor.id,
+            entityType: 'membership',
+            entityId: membershipId,
+            action: 'updated',
+            changes: { store_id: { from: prior.store_id ?? null, to: input.store_id ?? null } },
+          });
+        }
+        if (input.status && input.status !== prior.status) {
+          await recordEvent(c, {
+            organizationId: orgId,
+            actorUserId: actor.id,
+            entityType: 'membership',
+            entityId: membershipId,
+            action: input.status === 'active' ? 'reinstated' : 'revoked',
+            changes: { status: { from: prior.status, to: input.status } },
+          });
         }
         return { ...r.rows[0], ...identity };
       });

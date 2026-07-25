@@ -13,6 +13,7 @@ import { AppError, notFound, parseOrThrow } from './errors.js';
 import { conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import { writeCommissionsForFundedDeal } from './f09-commissions-routes.js';
 import { checklistReadiness, DELIVERY_STAGES, ensureDealItems } from './checklist.js';
+import { diff, recordEvent } from './activity.js';
 
 /**
  * F-05 desking (apiV1.deals) — the A-06 money engine behind the API.
@@ -187,6 +188,14 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
         // creates the deal. This is the moment store policy applies to it; a
         // template edited next week must not change what this deal owes.
         await ensureDealItems(c, input.organization_id, String(r.rows[0]!['id']));
+        await recordEvent(c, {
+          organizationId: input.organization_id,
+          storeId: input.store_id,
+          actorUserId: user.id,
+          entityType: 'deal',
+          entityId: String(r.rows[0]!['id']),
+          action: 'created',
+        });
         return r.rows[0]!;
       });
       return await reply.status(201).send(withDerived(deal));
@@ -332,6 +341,45 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
       );
       if (r.rows.length === 0) throw notFound();
       const updated = r.rows[0]!;
+
+      // F-10 (ADR-009): recorded in THIS transaction, so a deal that moved and
+      // a trail that says it moved cannot come apart. The stage and the money
+      // get their own verbs — "updated" would bury the two changes anyone ever
+      // actually goes looking for.
+      const evt = {
+        organizationId: orgId,
+        storeId: String(updated['store_id']),
+        actorUserId: user.id,
+        entityType: 'deal' as const,
+        entityId: dealId,
+      };
+      const before = current.rows[0]!;
+      if (input.pipeline_stage && input.pipeline_stage !== before['pipeline_stage']) {
+        await recordEvent(c, {
+          ...evt,
+          action: DELIVERY_STAGES.has(input.pipeline_stage) ? 'delivered' : 'stage_changed',
+          changes: { pipeline_stage: { from: before['pipeline_stage'], to: input.pipeline_stage } },
+        });
+      }
+      if (input.funding_status && input.funding_status !== before['funding_status']) {
+        await recordEvent(c, {
+          ...evt,
+          action: 'funding_changed',
+          changes: { funding_status: { from: before['funding_status'], to: input.funding_status } },
+        });
+      }
+      // EVERY writable field, derived from the columns the UPDATE actually
+      // writes — not a hand-picked nine. Changing `province` alone recomputes
+      // both taxes, the amount financed, the payment and the gross that F-09
+      // pays commission on; recording nothing for it made the trail worse than
+      // useless, because it looked complete.
+      const otherChanges = diff(before, input as Record<string, unknown>, [
+        ...INPUT_COLUMNS,
+        'salesperson_id', 'vehicle_id', 'lead_id', 'fi_reserve_cents',
+      ]);
+      if (Object.keys(otherChanges).length > 0) {
+        await recordEvent(c, { ...evt, action: 'updated', changes: otherChanges });
+      }
 
       // F-09: pay is written in the SAME transaction that records the money
       // arriving, so a funded deal and its commission can never disagree.

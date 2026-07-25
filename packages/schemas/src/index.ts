@@ -14,4 +14,5 @@ export * from './intake.js';
 export * from './deal.js';
 export * from './vehicle.js';
 export * from './commission.js';
+export * from './activity.js';
 export * from './checklist.js';
