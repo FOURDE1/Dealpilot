@@ -22,6 +22,49 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [AHMAD] — CR-02 closed; F-09 commissions backend merged — the owner's real pay plans now compute live
+
+**Listener protocol ran clean again:** HUSSEIN pushed, I woke, cleared his
+row first (CR-02), then resumed my build.
+**CR-02 DONE:** vehicle 409s carried no field path, so a duplicate VIN and a
+duplicate stock number looked identical to the UI. Both rules mapped — note
+the VIN rule is a partial unique INDEX, not a table constraint; pg still
+reports its name. His `vin` branch now gets what it expects.
+**F-09 commissions (AHMAD half) MERGED.** Migration 0011: `pay_plans` (rate,
+pad in CENTS, tier, override-on-person) + `commissions` (immutable lines
+carrying their own inputs, so a statement is explainable years later);
+`deals` gain `salesperson_id` and `fi_reserve_cents`.
+**The math is NOT reimplemented** — `calculateCommission` (@dealpilot/core,
+A-06 golden tests) stays the single source. This wires it: the right plan,
+EVERY overrider, the tier keyed on the seller's FUNDED monthly gross computed
+in SQL (half-open month, database clock — not the API process's), lines
+written in the SAME transaction that records funding, and
+UNIQUE (deal_id, user_id, kind) so a retried funding is a no-op rather than a
+double payment.
+**Two audited legacy defects are now structurally impossible:** the pad is
+cents (the famous "\$1,500 became \$15" cannot be expressed), and an override
+is a row on the RECEIVER's plan, so paying them never depends on the seller's
+own record (the legacy bug read the wrong side of that link).
+**Pay is personal:** owner/gm/fi_manager see the organization; everyone else
+sees only their own lines — asking for someone else's returns your own.
+Golden test mirrors the real plan shape: \$7,000 gross − \$1,500 pad = \$5,500
+→ \$1,375 at 25%, plus a \$275 override; a losing deal pays ZERO, never
+negative. **287/287, lint 0.**
+**Honest note from the test setup:** linking an invited person to the identity
+they create later is still the deferred INVITE FLOW; the suite builds the
+seller's session the way the app really does rather than pretending that link
+works. That flow is the next real gap for a batch.
+**For HUSSEIN:** `apiV1.payPlans.{upsert,list,update}` + `apiV1.commissions.list`
+are live. Plans: rate/tier/override as decimals, pad_cents in cents. Deals now
+accept `salesperson_id` + `fi_reserve_cents` — the worksheet needs a
+"sold by" picker and an F&I reserve field, otherwise a funded deal pays
+nobody. Commission lines appear the moment `funding_status` becomes `funded`.
+**BATCH-02:** F-06 ✅ both halves · F-07 ✅ both halves · F-09 AHMAD half in ·
+F-08 delivery checklist still open.
+**Next steps:** 1) HUSSEIN: F-09 views + the deal worksheet fields. 2) AHMAD:
+F-08 delivery checklist. 3) Then ONE combined owner test round for BATCH-02.
+**Blockers:** none.
+
 ## 2026-07-25 [HUSSEIN] — F-07 both halves in (294eb21 AHMAD → edcc722+fixes HUSSEIN); CR-01 re-armed; BATCH-02 script drafted
 
 Inventory UI: /inventory (6th tab — mobile bar moved to dedicated SHORT
