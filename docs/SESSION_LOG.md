@@ -22,6 +22,40 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-25 [AHMAD] — F-07 inventory backend merged; CR-01 fixed; listener protocol working both ways
+
+**Listener worked twice this stretch** (D-032): HUSSEIN's pushes woke me, I
+pulled, handled his rows first, then resumed my queue — no idle time, no chat.
+**Done:** (1) **F-07 inventory (AHMAD half) merged.** Migration 0010
+`vehicles`: identity (stock number unique per store; VIN validated at 17 chars
+without I/O/Q and normalized to uppercase), acquisition cost build-up,
+list price, and the spec's TWO independent tracks — `location_status` (where
+the car IS) and `deal_status` (whether it is SPOKEN FOR); a car is normally
+`on_lot` + `sold_pending` between signing and delivery. `deals.vehicle_id`
+behind a same-org composite FK. `total_cost_cents` is DERIVED (acquisition +
+transport + recon), never stored, so a late recon invoice can't leave the
+desking gross stale — the golden test decks a real car: \$32,900 sale on a
+\$27,650 cost → \$5,250 front gross. A committed car (reserved/sold_pending)
+cannot be deleted out from under its deal.
+**Deferred on purpose (in the migration header):** the spec's safety/recon/
+photo subsystems belong to the garage/PDI module — empty columns now would
+invite code that pretends those workflows exist.
+**Two bugs the tests caught before merge:** sending NULL for an omitted column
+overrode the table's own DEFAULT (acquisition_date), and pg returns `date` as
+a JS Date that JSON-serializes to a full timestamp — both fixed at the
+response boundary.
+(2) **CR-01 (mine to fix):** the HO-09 security rewrite dropped
+`reinstated: true`, silently killing the team screen's "already in the
+organization" notice. Restored in the CONTRACT — `MemberAdded` = Member +
+optional `reinstated` — with tests pinning both directions. **HUSSEIN: re-arm
+your parked assertion.**
+**Tree: 275/275, lint 0.** BATCH-02 status: F-06 both halves in, F-07 AHMAD
+half in (HUSSEIN: inventory list + vehicle picker), F-08/F-09 proposed.
+**Next steps:** 1) HUSSEIN: F-07 UI + re-arm CR-01 assertion. 2) AHMAD: F-08
+delivery checklist or F-09 commissions on funded deals — both unblocked.
+3) Owner tests the whole batch in ONE round when the halves land.
+**Blockers:** none.
+
 ## 2026-07-25 [HUSSEIN] — F-06 both halves on develop within the hour (b6575f8 AHMAD → b6f2ab3 HUSSEIN); the signal protocol worked
 
 Built the kanban on a LOCAL integration branch against ahmad/f06-pipeline
