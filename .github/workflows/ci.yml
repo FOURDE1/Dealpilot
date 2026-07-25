@@ -63,6 +63,13 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Database from migration zero (proves reset path + dev app-role bootstrap)
+        # DB_RESET_CONFIRM because reset() refuses any database not named
+        # *_test — it was wiping a developer's local database. Here the target
+        # is an ephemeral service container that exists for this job alone, so
+        # confirming is exactly what the guard wants: say out loud that you mean
+        # this database.
+        env:
+          DB_RESET_CONFIRM: dealpilot
         run: pnpm --filter @dealpilot/db --fail-if-no-match run db:reset
 
       - name: Build + typecheck
