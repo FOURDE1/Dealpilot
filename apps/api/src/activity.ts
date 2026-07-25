@@ -48,18 +48,34 @@ export async function recordEvent(client: PoolClient, e: EventInput): Promise<vo
  * ("0.2500" for 0.25). A bare String() coercion turns both into a change that
  * never happened — and null vs '' into a change that did happen but is dropped.
  */
+/** Local calendar day of a Date, or the date part of a 'YYYY-MM-DD' string. */
+function calendarDay(v: unknown): string {
+  if (v instanceof Date) {
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${v.getFullYear()}-${p(v.getMonth() + 1)}-${p(v.getDate())}`;
+  }
+  return String(v).slice(0, 10);
+}
+
 function same(a: unknown, b: unknown): boolean {
   const aNull = a === null || a === undefined;
   const bNull = b === null || b === undefined;
   if (aNull || bNull) return aNull && bNull; // null and '' are NOT the same thing
   if (a instanceof Date || b instanceof Date) {
+    // A DATE column arrives from pg as LOCAL midnight; the incoming 'YYYY-MM-DD'
+    // parses as UTC midnight. Comparing epochs makes an unchanged date look
+    // changed on every save, in every timezone west of UTC — Canada included.
+    // Date-only values are therefore compared as calendar days.
+    const dateOnly = (v: unknown) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+    if (dateOnly(a) || dateOnly(b)) return calendarDay(a) === calendarDay(b);
     const t = (v: unknown) => (v instanceof Date ? v.getTime() : new Date(String(v)).getTime());
     return t(a) === t(b);
   }
-  if (typeof a === 'number' || typeof b === 'number') {
-    const n = (v: unknown) => Number(v);
-    return Number.isFinite(n(a)) && Number.isFinite(n(b)) ? n(a) === n(b) : String(a) === String(b);
-  }
+  // NOTE: numeric comparison only when BOTH sides look numeric. Coercing one
+  // side would make same(false, 0) and same('', 0) true, which would silently
+  // drop a real change the first time a boolean- or text-typed column is added.
+  const numeric = (v: unknown) => typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v)));
+  if (numeric(a) && numeric(b)) return Number(a) === Number(b);
   return String(a) === String(b);
 }
 

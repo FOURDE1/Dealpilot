@@ -13,7 +13,7 @@ import {
 } from '@dealpilot/schemas';
 import { AppError, forbidden, notFound, parseOrThrow } from './errors.js';
 import { ensureTemplate } from './checklist.js';
-import { recordEvent } from './activity.js';
+import { diff, recordEvent } from './activity.js';
 
 /**
  * F-01: organization & store administration routes (apiV1.organizations,
@@ -223,6 +223,13 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
           organizationId: orgId, actorUserId: user.id,
           entityType: 'organization', entityId: orgId, action: 'created',
         });
+        // The founding owner grant. Every other role grant is recorded; this one
+        // is the most consequential of all.
+        await recordEvent(c, {
+          organizationId: orgId, actorUserId: user.id,
+          entityType: 'membership', entityId: user.id, action: 'created',
+          changes: { roles: { from: null, to: ['owner'] } },
+        });
         return inserted.rows[0];
       });
       return await reply.status(201).send(org);
@@ -258,18 +265,28 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     const org = await withTenant(pool, orgId, async (c) => {
       await requireMember(c, user.id, ['owner']);
+      const beforeRow = await c.query<Record<string, unknown>>(
+        `SELECT * FROM organizations WHERE id = $1 AND deleted_at IS NULL`,
+        [orgId],
+      );
+      if (beforeRow.rows.length === 0) throw notFound();
+      const prior = beforeRow.rows[0]!;
+
       const fields = Object.entries(input);
-      if (fields.length === 0) {
-        const r = await c.query(`SELECT * FROM organizations WHERE id = $1 AND deleted_at IS NULL`, [orgId]);
-        if (r.rows.length === 0) throw notFound();
-        return r.rows[0];
-      }
+      if (fields.length === 0) return prior;
       const sets = fields.map(([k], i) => `${k} = $${i + 2}`).join(', ');
-      const r = await c.query(
+      const r = await c.query<Record<string, unknown>>(
         `UPDATE organizations SET ${sets} WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
         [orgId, ...fields.map(([, v]) => v)],
       );
       if (r.rows.length === 0) throw notFound();
+      const changed = diff(prior, input as Record<string, unknown>, Object.keys(input));
+      if (Object.keys(changed).length > 0) {
+        await recordEvent(c, {
+          organizationId: orgId, actorUserId: user.id,
+          entityType: 'organization', entityId: orgId, action: 'updated', changes: changed,
+        });
+      }
       return r.rows[0];
     });
     return reply.send(org);
@@ -391,18 +408,28 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
     try {
       const store = await withTenant(pool, orgId, async (c) => {
         await requireMember(c, user.id, STORE_WRITE_ROLES);
+        const beforeRow = await c.query<Record<string, unknown>>(
+          `SELECT * FROM stores WHERE id = $1 AND deleted_at IS NULL`,
+          [storeId],
+        );
+        if (beforeRow.rows.length === 0) throw notFound();
+        const prior = beforeRow.rows[0]!;
+
         const fields = Object.entries(input);
-        if (fields.length === 0) {
-          const r = await c.query(`SELECT * FROM stores WHERE id = $1 AND deleted_at IS NULL`, [storeId]);
-          if (r.rows.length === 0) throw notFound();
-          return r.rows[0];
-        }
+        if (fields.length === 0) return prior;
         const sets = fields.map(([k], i) => `${k} = $${i + 2}`).join(', ');
-        const r = await c.query(
+        const r = await c.query<Record<string, unknown>>(
           `UPDATE stores SET ${sets} WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
           [storeId, ...fields.map(([, v]) => v)],
         );
         if (r.rows.length === 0) throw notFound();
+        const changed = diff(prior, input as Record<string, unknown>, Object.keys(input));
+        if (Object.keys(changed).length > 0) {
+          await recordEvent(c, {
+            organizationId: orgId, storeId, actorUserId: user.id,
+            entityType: 'store', entityId: storeId, action: 'updated', changes: changed,
+          });
+        }
         return r.rows[0];
       });
       return await reply.send(store);

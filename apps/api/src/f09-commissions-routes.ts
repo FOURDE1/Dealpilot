@@ -181,7 +181,7 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
              tier_threshold_cents = EXCLUDED.tier_threshold_cents, tier_rate = EXCLUDED.tier_rate,
              override_on_user_id = EXCLUDED.override_on_user_id, override_rate = EXCLUDED.override_rate,
              active = true
-           RETURNING *`,
+           RETURNING *, (xmax = 0) AS _inserted`,
           [
             input.organization_id, input.user_id, input.store_id ?? null, input.commission_rate,
             input.has_pad, input.pad_cents, input.has_tiered_rate,
@@ -192,20 +192,26 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
         // This is an UPSERT: re-posting quietly rewrites what a person is paid.
         // The row keeps only the new rate, so without this the change leaves no
         // trace at all.
+        // xmax = 0 means this INSERT actually inserted; anything else means the
+        // ON CONFLICT branch rewrote an existing plan. Calling both "updated"
+        // would make a new hire's first plan indistinguishable from a pay cut.
+        const wasInsert = String(r.rows[0]!['_inserted']) === 'true';
         await recordEvent(c, {
           organizationId: input.organization_id,
           storeId: input.store_id ?? null,
           actorUserId: user.id,
           entityType: 'pay_plan',
           entityId: String(r.rows[0]!['id']),
-          action: 'updated',
+          action: wasInsert ? 'created' : 'updated',
           changes: {
-            user_id: input.user_id,
-            commission_rate: input.commission_rate,
-            pad_cents: input.pad_cents,
+            user_id: { from: null, to: input.user_id },
+            commission_rate: { from: null, to: input.commission_rate },
+            pad_cents: { from: null, to: input.pad_cents },
           },
         });
-        return r.rows[0]!;
+        const { _inserted, ...plan } = r.rows[0]!;
+        void _inserted;
+        return plan;
       });
       return await reply.status(201).send(numericToNumbers(plan));
     } catch (err) {
@@ -307,7 +313,14 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
       // and unique, which makes it both the causal order and a sufficient
       // cursor on its own.
       if (query.cursor) {
-        params.push(Number(Buffer.from(query.cursor, 'base64url').toString('utf8')));
+        // A forged or foreign cursor (every other endpoint's is base64 JSON)
+        // decodes to NaN, which Postgres rejects as a bigint — a 500 for what
+        // is a client mistake. Same contract as decodeCursor: 400, never 500.
+        const decoded = Number(Buffer.from(query.cursor, 'base64url').toString('utf8'));
+        if (!Number.isSafeInteger(decoded) || decoded < 0) {
+          throw new AppError(400, 'invalid_cursor', 'That page cursor is not valid');
+        }
+        params.push(decoded);
         where += ` AND seq < $${params.length}`;
       }
       params.push(query.limit + 1);

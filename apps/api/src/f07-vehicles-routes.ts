@@ -215,11 +215,17 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
           { path: 'deal_status', code: 'vehicle_committed', message: 'Release it from the deal first' },
         ]);
       }
-      await c.query(`UPDATE vehicles SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`, [vehicleId]);
-      await recordEvent(c, {
-        organizationId: orgId, actorUserId: user.id,
-        entityType: 'vehicle', entityId: vehicleId, action: 'deleted',
-      });
+      const gone = await c.query(
+        `UPDATE vehicles SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+        [vehicleId],
+      );
+      // Only when a row actually moved — a second DELETE deletes nothing.
+      if (gone.rows.length > 0) {
+        await recordEvent(c, {
+          organizationId: orgId, actorUserId: user.id,
+          entityType: 'vehicle', entityId: vehicleId, action: 'deleted',
+        });
+      }
     });
     return reply.status(204).send();
   });

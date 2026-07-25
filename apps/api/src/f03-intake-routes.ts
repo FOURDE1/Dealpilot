@@ -230,6 +230,18 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): vo
             payload.preferred_language ?? 'fr-CA', payload.vehicle_interest ?? null,
           ],
         );
+        // actor_user_id NULL: a provider's webhook did this, not a person. This
+        // is the call site the nullable column exists for — pretending a job was
+        // someone would be worse than admitting nobody was there.
+        await recordEvent(c, {
+          organizationId: resolved.organization_id,
+          storeId: resolved.store_id,
+          actorUserId: null,
+          entityType: 'lead',
+          entityId: r.rows[0]!.id,
+          action: 'created',
+          changes: { source: resolved.default_source, via: 'intake' },
+        });
         await c.query(`UPDATE intake_keys SET last_used_at = now() WHERE token = $1`, [token]);
         return r.rows[0]!.id;
       });

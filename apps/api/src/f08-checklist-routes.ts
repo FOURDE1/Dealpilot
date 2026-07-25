@@ -81,7 +81,12 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
 
       const sets: string[] = [];
       const params: unknown[] = [dealId, code];
-      if (input.completed !== undefined) {
+      // A tick that is already ticked must not rewrite completed_by: the deal's
+      // legal sign-off would quietly change hands, and the suppressed event
+      // below means nothing would record that it had.
+      const completedChanges = input.completed !== undefined && input.completed !== (target.completed_at !== null);
+      const overriddenChanges = input.overridden !== undefined && input.overridden !== (target.overridden_at !== null);
+      if (completedChanges) {
         // A non-overridable item is the legally required one. Ticking it is a
         // sworn statement that the inspection happened, so it carries the same
         // authority as waiving a soft item — otherwise "cannot be waived" would
@@ -95,11 +100,12 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
       }
       if (input.overridden !== undefined) {
         // Deny by default, and BEFORE any business check: a caller who may not
-        // waive learns nothing about which items are waivable.
+        // waive learns nothing about which items are waivable. The role check
+        // runs even for a no-op, so probing cannot map who may waive what.
         if (!isManager) {
           throw new AppError(403, 'forbidden', 'Only an owner or GM can waive a checklist item');
         }
-        if (input.overridden) {
+        if (input.overridden && overriddenChanges) {
           // The safety inspection is a legal obligation — no role waives it.
           if (!target.overridable) {
             throw new AppError(422, 'hard_block', 'This item cannot be waived', [
@@ -108,9 +114,9 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
           }
           params.push(user.id, input.override_reason);
           sets.push(`overridden_at = now()`, `overridden_by = $${params.length - 1}`, `override_reason = $${params.length}`);
-        } else {
-          // Clearing a waiver erases a manager's recorded reason, and nothing
-          // keeps history — so it is a manager's decision to undo (above).
+        } else if (overriddenChanges) {
+          // Clearing a waiver erases a manager's recorded reason — a manager's
+          // decision to undo (checked above).
           sets.push('overridden_at = NULL', 'overridden_by = NULL', 'override_reason = NULL');
         }
       }
@@ -133,14 +139,14 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
         entityType: 'checklist_item' as const,
         entityId: String(r.rows[0]!['id']),
       };
-      if (input.completed !== undefined && input.completed !== (target.completed_at !== null)) {
+      if (completedChanges) {
         await recordEvent(c, {
           ...evt,
           action: input.completed ? 'checklist_completed' : 'checklist_uncompleted',
           changes: { deal_id: dealId, code, completed: { from: target.completed_at !== null, to: input.completed } },
         });
       }
-      if (input.overridden !== undefined && input.overridden !== (target.overridden_at !== null)) {
+      if (overriddenChanges) {
         await recordEvent(c, {
           ...evt,
           action: input.overridden ? 'checklist_waived' : 'checklist_unwaived',

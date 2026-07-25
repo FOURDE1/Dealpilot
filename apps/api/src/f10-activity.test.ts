@@ -241,8 +241,15 @@ describe('F-10 activity trail', () => {
     );
     expect(unusedEntities, `entity types no code path ever writes: ${unusedEntities.join(', ')}`).toEqual([]);
 
+    // Must match a CALL SITE, not any quoted occurrence: 'delivered' also
+    // appears in DELIVERY_STAGES and 'revoked' in a status comparison, so a
+    // bare quoted-string search made this half of the guard vacuous.
     const unusedActions = ActivityAction.options.filter(
-      (v) => !new RegExp(`'${v}'`).test(code),
+      // Same LINE as an `action:` key, which covers the ternaries
+      // (`action: x ? 'a' : 'b'`) without matching an unrelated quoted string
+      // elsewhere in the file. String.raw so the backslashes reach the RegExp
+      // instead of being eaten by the template literal (\s there is just "s").
+      (v) => !new RegExp(String.raw`action:[^\n]*'` + v + `'`).test(code),
     );
     expect(unusedActions, `actions no code path ever writes: ${unusedActions.join(', ')}`).toEqual([]);
   });
