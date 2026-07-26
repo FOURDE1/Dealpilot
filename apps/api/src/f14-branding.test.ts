@@ -459,3 +459,42 @@ describe('the published palette is complete enough to inject (CR-15)', () => {
     expect(live.palette['ring']!['primary_dark']).toBeDefined();
   });
 });
+
+describe('asking what the app should look like always has an answer', () => {
+  it('a user with no organisation gets null, not a 404', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Most fresh sessions. A 404 here is indistinguishable from an error to the
+    // client: react-query retried it, the shell re-rendered in a loop and raced
+    // an accessibility test (HUSSEIN, F-14 injection increment 1).
+    const fresh = await app!.inject({
+      method: 'POST', url: '/api/auth/sign-up/email',
+      payload: { email: `brand-orgless-${run}@dealpilot.test`, password: 'correct-horse-battery-staple', name: 'New' },
+    });
+    const fsc = fresh.headers['set-cookie'];
+    const freshCookie = (Array.isArray(fsc) ? fsc : [fsc!]).map((c) => c!.split(';')[0]).join('; ');
+
+    const res = await app!.inject({
+      method: 'GET', url: '/api/v1/branding', headers: { cookie: freshCookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toBeNull();
+  });
+
+  it("still refuses to hand over another organisation's brand", async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The permissive answer above must not become a way in: naming someone
+    // else's organisation is still a 404, because membership is checked inside
+    // the tenant transaction, not by whether the caller could name an id.
+    const outsider = await app!.inject({
+      method: 'POST', url: '/api/auth/sign-up/email',
+      payload: { email: `brand-peek-${run}@dealpilot.test`, password: 'correct-horse-battery-staple', name: 'Peek' },
+    });
+    const osc = outsider.headers['set-cookie'];
+    const outCookie = (Array.isArray(osc) ? osc : [osc!]).map((c) => c!.split(';')[0]).join('; ');
+
+    const res = await app!.inject({
+      method: 'GET', url: `/api/v1/branding?organization_id=${orgId}`, headers: { cookie: outCookie },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});

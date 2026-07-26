@@ -69,7 +69,14 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
    */
   app.get('/api/v1/branding', async (request, reply) => {
     const user = sessionUser(request);
-    const orgId = await soleOrg(pool, user.id, (request.query as { organization_id?: string }).organization_id);
+    // A caller with no organisation yet — most fresh sessions — is asking a
+    // question that has a perfectly good answer: no brand applies to you, use
+    // the platform's own. Answering 404 conflated that with "not found", and a
+    // client can only read that as an error: react-query retried, the shell
+    // re-rendered in a loop and raced an accessibility test (found by HUSSEIN
+    // wiring the injection, worked around client-side; fixed at the source).
+    const orgId = await brandingOrg(pool, user.id, (request.query as { organization_id?: string }).organization_id);
+    if (!orgId) return reply.send(null);
     const storeId = (request.query as { store_id?: string }).store_id ?? null;
 
     const row = await withTenant(pool, orgId, async (c) => {
@@ -447,6 +454,26 @@ async function requireStoreInOrg(
 ): Promise<void> {
   const r = await c.query(`SELECT 1 FROM stores WHERE id = $1 AND deleted_at IS NULL`, [storeId]);
   if (r.rows.length === 0) throw notFound();
+}
+
+/**
+ * The organisation whose brand applies to this caller, or null when none does.
+ *
+ * Deliberately NOT the throwing variant: for a read whose whole purpose is
+ * "what should this app look like", every honest answer is a 200. Belonging to
+ * no organisation, or to several without saying which, both mean "the
+ * platform's own look" — not an error a client has to interpret.
+ */
+async function brandingOrg(pool: Pool, userId: string, requested?: string): Promise<string | null> {
+  if (requested) return requested;
+  return withUser(pool, userId, async (c) => {
+    const r = await c.query<{ organization_id: string }>(
+      `SELECT DISTINCT m.organization_id FROM memberships m
+       JOIN organizations o ON o.id = m.organization_id AND o.deleted_at IS NULL
+       WHERE m.status = 'active'`,
+    );
+    return r.rows.length === 1 ? r.rows[0]!.organization_id : null;
+  });
 }
 
 /** The caller's organisation, when they belong to exactly one (F-01 pattern). */

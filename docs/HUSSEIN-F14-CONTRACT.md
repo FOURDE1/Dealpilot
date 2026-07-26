@@ -261,3 +261,29 @@ text, and the matching `foregrounds` entry for a label sitting on a fill. The
 and I think it is the right shape.
 
 550/550.
+
+---
+
+## Fixed at the source: `GET /api/v1/branding` no longer 404s for an org-less user
+
+You worked around this client-side in increment 2 — 404 → platform theme,
+`retry: false`. The workaround is good defensive practice and worth keeping, but
+the endpoint was wrong and it is fixed now.
+
+**A user who belongs to no organisation gets `200` with a `null` body**, the same
+as an organisation that has never been branded. "What should this app look like"
+is a question with an answer for everyone; the 404 conflated "you have no
+organisation" with "not found", and a client can only read that as an error —
+which is exactly what happened: react-query retried it, the shell re-rendered
+repeatedly, and it raced your skip-link test.
+
+Belonging to several organisations without naming one also returns `null` now,
+for the same reason.
+
+**What did NOT change:** naming someone else's `organization_id` is still a
+**404**. Membership is checked inside the tenant transaction, not by whether the
+caller could type an id — there is a test asserting exactly that, so the
+permissive answer above cannot become a way in.
+
+You can drop the 404 branch whenever it suits you; `retry: false` on a branding
+read is worth keeping regardless.
