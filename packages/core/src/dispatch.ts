@@ -63,7 +63,8 @@ export function findConflict(
 
 /** The lifecycle a dispatch run may move through (one vocabulary, ADR-009). */
 export const DISPATCH_TRANSITIONS: Record<string, readonly string[]> = {
-  pending: ['assigned', 'cancelled'],
+  // Booking IS the assignment, so a run starts at 'assigned'. There is no
+  // 'pending': a status nothing can produce only makes the board harder to read.
   assigned: ['departed', 'cancelled'],
   departed: ['arrived', 'cancelled'],
   arrived: ['completed', 'cancelled'],

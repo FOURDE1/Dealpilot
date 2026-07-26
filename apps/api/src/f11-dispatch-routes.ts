@@ -85,6 +85,18 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool): void {
     return reply.send(row);
   });
 
+  /** Retire a chaser. Refused while a live run is counting on it. */
+  app.delete('/api/v1/chasers/:id', async (request, reply) => {
+    const id = idParam(request);
+    const user = sessionUser(request);
+    const orgId = await rowOrg(pool, user.id, 'chaser_vehicles', id);
+    await withTenant(pool, orgId, async (c) => {
+      await requireMember(c, user.id, DISPATCH_ROLES);
+      await retireFleetRow(c, 'chaser_vehicles', 'chaser_vehicle_id', id);
+    });
+    return reply.status(204).send();
+  });
+
   // ---- fleet: dealer plates ----------------------------------------------
   app.post('/api/v1/plates', async (request, reply) => {
     const input = parseOrThrow(CreatePlateInput, request.body);
@@ -134,6 +146,18 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool): void {
       return updateRow(c, 'dealer_plates', id, input);
     });
     return reply.send(row);
+  });
+
+  /** Retire a plate. Refused while a live run is counting on it. */
+  app.delete('/api/v1/plates/:id', async (request, reply) => {
+    const id = idParam(request);
+    const user = sessionUser(request);
+    const orgId = await rowOrg(pool, user.id, 'dealer_plates', id);
+    await withTenant(pool, orgId, async (c) => {
+      await requireMember(c, user.id, DISPATCH_ROLES);
+      await retireFleetRow(c, 'dealer_plates', 'dealer_plate_id', id);
+    });
+    return reply.status(204).send();
   });
 
   // ---- the board ----------------------------------------------------------
@@ -363,6 +387,14 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool): void {
         }
       }
 
+      // A flag cites a specific colliding run. When that run ends, the citation
+      // is stale — the flagged one no longer clashes with anything, and left
+      // alone it sits on the dispatcher's board forever pointing at a delivery
+      // that was cancelled last week.
+      if (input.status && releasesResources(input.status) && !releasesResources(from)) {
+        await clearStaleConflicts(c, orgId, String(prior['store_id']));
+      }
+
       if (input.status && input.status !== from) {
         await recordEvent(c, {
           organizationId: orgId,
@@ -448,6 +480,88 @@ async function pickResource(
   if (free) return { resource: { id: free.id, label: free.label }, conflictWith: null };
   const first = r.rows[0]!;
   return { resource: { id: first.id, label: first.label }, conflictWith: first.clash_deal };
+}
+
+/**
+ * Re-check every flagged run at this store and clear the ones whose collision
+ * has gone away. Cheap (a store has a handful of live runs) and it runs exactly
+ * when a run ends, which is the only moment a collision can disappear.
+ */
+async function clearStaleConflicts(client: PoolClient, orgId: string, storeId: string): Promise<void> {
+  const flagged = await client.query<{
+    id: string; deal_id: string; dealer_plate_id: string | null; chaser_vehicle_id: string | null;
+    booked_at: Date | null; window_hours: number;
+  }>(
+    `SELECT a.id, a.deal_id, a.dealer_plate_id, a.chaser_vehicle_id,
+            d.booked_delivery_at AS booked_at, s.dispatch_conflict_window_hours AS window_hours
+     FROM dispatch_assignments a
+     JOIN deals d ON d.id = a.deal_id AND d.deleted_at IS NULL
+     JOIN stores s ON s.id = a.store_id
+     WHERE a.organization_id = $1 AND a.store_id = $2
+       AND a.conflict_flag = true AND a.deleted_at IS NULL
+       AND a.status IN ('pending','assigned','departed','arrived')`,
+    [orgId, storeId],
+  );
+
+  for (const run of flagged.rows) {
+    if (!run.booked_at) continue;
+    let stillClashes = false;
+    for (const [col, resourceId] of [
+      ['dealer_plate_id', run.dealer_plate_id],
+      ['chaser_vehicle_id', run.chaser_vehicle_id],
+    ] as const) {
+      if (!resourceId) continue;
+      const r = await client.query<{ n: string }>(
+        `SELECT count(*) AS n
+         FROM dispatch_assignments a
+         JOIN deals d ON d.id = a.deal_id AND d.deleted_at IS NULL
+         WHERE a.${col} = $1
+           AND a.deal_id <> $2
+           AND a.deleted_at IS NULL
+           AND a.status IN ('pending','assigned','departed','arrived')
+           AND d.booked_delivery_at IS NOT NULL
+           AND abs(extract(epoch FROM (d.booked_delivery_at - $3::timestamptz))) < $4 * 3600`,
+        [resourceId, run.deal_id, run.booked_at, run.window_hours],
+      );
+      if (Number(r.rows[0]!.n) > 0) stillClashes = true;
+    }
+    if (!stillClashes) {
+      await client.query(
+        `UPDATE dispatch_assignments SET conflict_flag = false, conflict_reason = NULL WHERE id = $1`,
+        [run.id],
+      );
+    }
+  }
+}
+
+/**
+ * Retire a plate or chaser. A live run holding it is a hard no: the run would
+ * be left pointing at a resource that no longer exists, and a dispatcher would
+ * discover it on the morning of a delivery.
+ */
+async function retireFleetRow(
+  client: PoolClient,
+  table: 'dealer_plates' | 'chaser_vehicles',
+  assignmentCol: 'dealer_plate_id' | 'chaser_vehicle_id',
+  id: string,
+): Promise<void> {
+  const held = await client.query(
+    `SELECT 1 FROM dispatch_assignments
+     WHERE ${assignmentCol} = $1 AND deleted_at IS NULL
+       AND status IN ('pending','assigned','departed','arrived')
+     LIMIT 1`,
+    [id],
+  );
+  if (held.rows.length > 0) {
+    throw new AppError(409, 'in_use', 'A booked delivery is counting on this', [
+      { path: 'id', code: 'in_use', message: 'Complete or cancel that run first' },
+    ]);
+  }
+  const gone = await client.query(
+    `UPDATE ${table} SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
+    [id],
+  );
+  if (gone.rows.length === 0) throw notFound();
 }
 
 async function requireLiveStore(client: PoolClient, storeId: string): Promise<void> {

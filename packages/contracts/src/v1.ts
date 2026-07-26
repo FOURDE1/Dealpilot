@@ -230,6 +230,13 @@ export const apiV1 = c.router({
       body: UpdateChaserInput,
       responses: { 200: ChaserVehicle, ...errorResponses },
     },
+    /** Retire it. Refused (409 in_use) while a booked run is counting on it. */
+    retire: {
+      method: 'DELETE',
+      path: '/api/v1/chasers/:id',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 204: z.void(), ...errorResponses },
+    },
   }),
   /** F-11 fleet: dealer plates, for units that are not registered yet. */
   plates: c.router({
@@ -251,6 +258,13 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: UpdatePlateInput,
       responses: { 200: DealerPlate, ...errorResponses },
+    },
+    /** Retire it. Refused (409 in_use) while a booked run is counting on it. */
+    retire: {
+      method: 'DELETE',
+      path: '/api/v1/plates/:id',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 204: z.void(), ...errorResponses },
     },
   }),
   /**

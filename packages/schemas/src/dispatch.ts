@@ -13,7 +13,9 @@ export const FleetStatus = z.enum(['available', 'in_use']);
  * parallel and they drifted; legacy `in_transit` is `departed` here.
  */
 export const DispatchStatus = z.enum([
-  'pending', 'assigned', 'departed', 'arrived', 'completed', 'cancelled',
+  // No 'pending': a run is created assigned, because booking IS the assignment.
+  // A value no code path can produce is a promise the vocabulary does not keep.
+  'assigned', 'departed', 'arrived', 'completed', 'cancelled',
 ]);
 
 export const DispatchCompany = z.enum(['supreme', 'denises_guys']);
