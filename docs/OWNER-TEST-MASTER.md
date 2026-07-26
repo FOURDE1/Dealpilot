@@ -332,3 +332,66 @@ selling something.
 (`document:sign`) — by default only owner/GM/F&I/office hold it, because that
 record is the evidence a delivery rests on. A salesperson can no longer mark a
 bank contract signed. You can change all of this in Roles & permissions.
+
+---
+
+## ROUND 13 — F&I products, scanned pages, and the customer's own notice
+
+> You test at http://localhost:5173 · hassan-test@1dealer.ca / Test-Dealpilot-2026!
+>
+> **Big picture, in one line each:**
+>
+> 1. **F&I is itemised now.** A warranty, a GAP policy, rustproofing — each is
+>    its own line with its own name, and each one puts its OWN agreement in the
+>    customer's paper file. Before this, three of the thirteen document types
+>    could never appear at all, because F&I was one nameless number and there was
+>    nothing to name an agreement after.
+> 2. **A filed page can be checked, not just claimed.** You can attach the
+>    scanned signature page to a document. The system records a fingerprint of
+>    those exact bytes and re-checks it every time the file is opened — if the
+>    file ever changes, it refuses to show it rather than hand you an altered
+>    contract.
+> 3. **The customer hears from you when the driver leaves** — in their language,
+>    with the arrival time in YOUR store's clock.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 13.1 | Open a deal → F&I → add a warranty: name it "Safe-Guard 5 ans", price $2,500, cost $1,500 | It saves, and **the deal's F&I total becomes $2,500** — the total is now the sum of the lines | ⬜ |
+| 13.2 | Open that deal's Documents | A **"Warranty agreement — Safe-Guard 5 ans"** is in the file, named after the product. This document could not exist at all before today | ⬜ |
+| 13.3 | Add a GAP and two aftermarket items (say "Antirouille" and "Protection peinture") | Each gets its own agreement. The two aftermarket ones are **named differently** — a clerk holding the folder can tell them apart | ⬜ |
+| 13.4 | Open the Documents list, close it, open it again, three or four times | The list does **not** grow. (Before the fix, every open added another copy of each aftermarket agreement to the customer's file) | ⬜ |
+| 13.5 | Delete the "Antirouille" line | Its agreement leaves the file. **"Protection peinture" stays.** The F&I total drops by that amount | ⬜ |
+| 13.6 | Try to add a SECOND warranty to the same deal | Refused — "this deal already has a warranty". One warranty, one GAP, as many aftermarket items as you sell | ⬜ |
+| 13.7 | Try to save a product with a cost HIGHER than its price. Then add a good one and try editing its price *down* below its cost | Both refused — the same loss cannot slip in through an edit that the create form would have caught | ⬜ |
+| 13.8 | Take a deal where you typed an F&I number by hand, then add your first product | The typed number is **replaced** by the product total. Check the deal's History — the change is recorded, from what to what. Nothing about money moves silently | ⬜ |
+| 13.9 | On any document, attach a scanned page (PDF or a photo) | It uploads, and the document now shows it has a page on file | ⬜ |
+| 13.10 | Open that attached page back up | It downloads and opens normally | ⬜ |
+| 13.11 | Attach the SAME file again, then attach a DIFFERENT one | The same file changes nothing; a different one is stored **beside** the first, not over it. A corrected scan never erases what was filed before | ⬜ |
+| 13.12 | Attach something that is not a PDF or an image (a .docx, say) | Refused, clearly | ⬜ |
+| 13.13 | Look at a deal where every signature page has been scanned in | It reports the file as **verified** — a different, stronger statement than "someone ticked signed". Nothing is blocked by it yet, on purpose — see D-039, I need your answer | ⬜ |
+| 13.14 | Print a deal's file sheet, then mark the whole stack printed in one go | One action moves them all. If one of them can't make that move, **nothing** moves and it tells you why — a half-marked file is exactly what would fool the booking gate | ⬜ |
+| 13.15 | Book a delivery, put a real email on the customer's lead, then mark the run "departed" | The customer gets an email: their car is on the way, in **French** unless the lead says English, with the arrival time in **your store's timezone** and your store's phone number | ⬜ |
+| 13.16 | Change the arrival time on that run, then change the driver's phone number | The new arrival time earns a second email; the phone correction does not. They are told what matters to them, not every edit | ⬜ |
+| 13.17 | Mark a run departed for a deal whose customer has **no email** on file | The delivery still goes ahead, and the run does **not** claim the customer was notified. (Local testing prints emails to the log rather than sending them — so on your machine the run will correctly say "not notified") | ⬜ |
+| 13.18 | Open a dispatch run → its status feed | Every step of that run in order — booked, departed, arrived — who did it and when | ⬜ |
+
+**Two I need YOU to judge, not me:**
+
+- **13.a** Does the customer email read like something you would sign your
+  dealership's name to? It is deliberately plain — no logo, no tracking, no
+  link. Tell me if you want it branded, or shorter, or with the salesperson's
+  name in it.
+- **13.b** In 13.8, the hand-typed F&I number is replaced by the itemised total.
+  I think that is right — the itemised list is the better record — but it is
+  your money and your call. If you would rather it refuse and make the user
+  clear the old number first, say so.
+
+**Waiting on you (nothing is blocked, but these shape what I build next):**
+D-036 (as-is vs safety inspection), D-037 (do you sell credit life / disability
+insurance?), D-038 (should a funded deal's money be frozen like a delivered
+checklist is?), D-039 (should filing require the scanned pages?). All four are
+written out in `docs/OWNER-DECISIONS-PENDING.md`.
+
+> **Numbering note:** rounds 5 and 10 each appear twice further up this file —
+> a slip from an earlier session. I have not renumbered them under you
+> mid-testing; go by the titles, not the numbers.
