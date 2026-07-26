@@ -54,6 +54,25 @@ the way D-034 froze a delivered checklist).
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — F-14 injection increment 2: focus ring + the churn-bug fix
+
+CR-15 closed by Ahmad (palette now carries foregrounds.*_dark/_hover, a real
+hover.* fill map, and ring.* ≥3:1 per surface, all behind a whole-palette AA
+invariant). Injected the brand FOCUS RING (ring.primary light / primary_dark
+dark) — the one colour token safe before the fill/text role-split, since it is
+UI-graphic (3:1) and the server guarantees each ring against its own surface.
+e2e asserts the branded ring in both themes.
+ALSO fixed a latent bug my increment 1 introduced: GET /api/v1/branding returns
+404 for an org-less user (most fresh e2e users), and my hook threw → react-query
+RETRIED → the shell re-rendered repeatedly → raced the a11y skip-link test's
+immediate Tab press (flaked 3× this session). Now 404/null both resolve to "no
+brand → platform theme", retry:false. Full suite deterministic 26/26.
+STILL DEFERRED (its own slice): the button/link FILL colours need the app's
+dual-role --primary split into --primary (fill for bg-primary) and a new
+--primary-ink (text tone for the 23 text-primary link usages), plus a
+--primary-hover-foreground token + Button change, then inject fills/foregrounds/
+hover/text for both themes with a both-theme contrast e2e. And the theme editor.
+
 ## 2026-07-26 [HUSSEIN] — F-14 branding injection, increment 1 (name + radius); colours held on CR-15
 
 Ahmad's F-14 branding backend merged. Built the boot-time injection:

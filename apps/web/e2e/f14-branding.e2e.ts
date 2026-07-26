@@ -54,4 +54,18 @@ test('published branding shows the tenant name + radius; no brand keeps the plat
     getComputedStyle(document.documentElement).getPropertyValue('--radius').trim(),
   );
   expect(brandedRadius).toBe('0.75rem');
+
+  // The focus ring is the brand's, guaranteed ≥3:1 by the server (CR-15) — a
+  // safe brand colour in both themes (the fills for buttons/links wait on the
+  // token role-split).
+  const ringLight = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--ring').trim(),
+  );
+  expect(ringLight).toMatch(/^oklch\(/);
+  const ringDark = await page.evaluate(() => {
+    document.documentElement.dataset.theme = 'dark';
+    return getComputedStyle(document.documentElement).getPropertyValue('--ring').trim();
+  });
+  expect(ringDark).toMatch(/^oklch\(/);
+  expect(ringDark).not.toBe(ringLight); // the dark ring is derived for the dark surface
 });

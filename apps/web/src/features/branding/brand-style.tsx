@@ -1,15 +1,16 @@
 import { usePublishedBranding, type PublishedBrandingT } from './api.js';
 
 /**
- * F-14 injection — increment 1: the SAFE, contrast-neutral parts of a published
- * brand. Colour injection is deliberately NOT here: the app's `--primary` is
- * dual-role (both `bg-primary` fills and `text-primary` links), while the brand
- * palette separates fills / text / foregrounds precisely because one colour
- * cannot serve both. Mapping a raw fill onto `--primary` breaks link contrast,
- * and the palette carries no dark-mode foreground, so the dark button label
- * would fail AA. Both need work before colours can land: an app token role-split
- * and a server `foregrounds.*_dark` value (CR-15). Until then only radius —
- * which has no contrast dimension — is injected, and the tenant's name is shown.
+ * F-14 injection: the contrast-SAFE parts of a published brand.
+ *
+ * Increment 1: the tenant name + corner radius (no contrast dimension).
+ * Increment 2: the focus RING, now that CR-15 gives `ring.*` guaranteed ≥3:1
+ * against each surface (WCAG 2.4.11). Still deferred — the fills for buttons
+ * and links: the app's `--primary` is dual-role (`bg-primary` AND `text-primary`)
+ * so it needs a token role-split (fills→bg, text→links) before an un-adjusted
+ * brand fill can land there. That is a design-system slice of its own; the
+ * palette now carries every value it needs (fills/foregrounds/hover/text, each
+ * with `_dark`).
  */
 
 const RADIUS_REM: Record<PublishedBrandingT['radius'], string> = {
@@ -19,15 +20,40 @@ const RADIUS_REM: Record<PublishedBrandingT['radius'], string> = {
   lg: '0.75rem',
 };
 
+/** Only well-formed colours reach the stylesheet — a guard against CSS breakout
+ * from a network payload, even one the server computes. */
+const SAFE_COLOR = /^(oklch\([0-9.\s%-]+\)|#[0-9a-fA-F]{3,8})$/;
+
 /** The tenant's own name, or the platform name when unbranded. */
 export function useBrandName(platformName: string): string {
   const branding = usePublishedBranding();
   return branding.data?.display_name?.trim() || platformName;
 }
 
-/** Only the corner radius — no colour, no contrast dimension (see the note). */
+/** Read a palette value only if present and well-formed. */
+function safeAt(branding: PublishedBrandingT, group: string, key: string): string | undefined {
+  const v = branding.palette[group]?.[key];
+  return typeof v === 'string' && SAFE_COLOR.test(v) ? v : undefined;
+}
+
+/**
+ * The corner radius, plus the brand focus ring (CR-15's `ring.*`, ≥3:1 per
+ * surface). Rings are the one colour token safe to inject before the fill/text
+ * role-split: they are UI-graphic (3:1), and the server guarantees each against
+ * its own surface (light and dark).
+ */
 export function brandCss(branding: PublishedBrandingT): string {
-  return `:root{--radius:${RADIUS_REM[branding.radius]};}`;
+  const light: string[] = [`--radius:${RADIUS_REM[branding.radius]};`];
+  const dark: string[] = [];
+
+  const ringLight = safeAt(branding, 'ring', 'primary');
+  const ringDark = safeAt(branding, 'ring', 'primary_dark');
+  if (ringLight) light.push(`--ring:${ringLight};--sidebar-ring:${ringLight};`);
+  if (ringDark) dark.push(`--ring:${ringDark};--sidebar-ring:${ringDark};`);
+
+  const blocks = [`:root{${light.join('')}}`];
+  if (dark.length) blocks.push(`:root[data-theme="dark"]{${dark.join('')}}`);
+  return blocks.join('');
 }
 
 /**

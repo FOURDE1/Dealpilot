@@ -21,10 +21,17 @@ export function usePublishedBranding(opts?: { enabled?: boolean }) {
     enabled: opts?.enabled ?? true,
     // The brand only changes on publish; no need to refetch on every focus.
     staleTime: 5 * 60_000,
+    // A "no brand" answer is normal, not an error to retry — retrying would
+    // churn the shell (re-renders that can race focus) for every unbranded or
+    // org-less user, which is most of them.
+    retry: false,
     queryFn: async ({ signal }) => {
       const res = await apiRequest(routes.branding.current, { signal });
+      // null body (published-none) AND 404 (caller has no org context) both mean
+      // "no brand" → fall back to the platform theme rather than throwing.
+      if (res.status === 404 || res.body === null) return null;
       if (res.status !== 200) fail(res.status, res.body);
-      return res.body === null ? null : PublishedBranding.parse(res.body);
+      return PublishedBranding.parse(res.body);
     },
   });
 }
