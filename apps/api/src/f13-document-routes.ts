@@ -395,6 +395,11 @@ export function registerF13Routes(app: FastifyInstance, pool: Pool, storage: Sto
         params.push(user.id);
         sets.push('printed_at = now()', `printed_by = $${params.length}`);
       }
+      // Recording the envelope id IS the moment it was sent — the column was
+      // there from F-13 and nothing ever stamped it, so a document could carry
+      // an envelope with no record of when it went out (found by the
+      // dead-column guard).
+      if (input.esign_envelope_id && !prior['esign_envelope_id']) sets.push('esign_sent_at = now()');
       if (moved && input.status === 'signed') sets.push('signed_at_delivery = now()');
       if (moved && input.status === 'e_signed') sets.push('esign_signed_at = now()');
       if (moved && input.status === 'filed') {

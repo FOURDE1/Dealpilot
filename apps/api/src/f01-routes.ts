@@ -330,13 +330,20 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
       const store = await withTenant(pool, input.organization_id, async (c) => {
         await requirePermission(c, user.id, 'store:create');
         const r = await c.query(
+          // Every field the input accepts is in this list. CR-12 was one field
+          // accepted here and missing from it — 201, and the value gone.
           `INSERT INTO stores (organization_id, name, code, phone, address_line1, city,
-                               province, postal_code, default_locale, timezone, status)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+                               province, postal_code, default_locale, timezone, status,
+                               bill_of_sale_system, esign_platform,
+                               dispatch_conflict_window_hours)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
           [
             input.organization_id, input.name, input.code, input.phone ?? null,
             input.address_line1 ?? null, input.city ?? null, input.province,
             input.postal_code ?? null, input.default_locale, input.timezone, input.status,
+            // Same defaults as migration 0023/0017 declare on the columns.
+            input.bill_of_sale_system ?? 'CAMS', input.esign_platform ?? null,
+            input.dispatch_conflict_window_hours ?? 4,
           ],
         );
         // F-08: a new store gets the canonical delivery checklist immediately,

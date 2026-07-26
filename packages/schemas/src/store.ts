@@ -17,6 +17,16 @@ const storeCode = z
       .refine((v) => /^[A-Z0-9]+(?:-[A-Z0-9]+)*$/.test(v), withKey(MESSAGE_KEYS.store_code_format)),
   );
 
+/**
+ * Which system prints this store's bill of sale (documents.md §2), and which
+ * e-sign platform it uses. Both were added with F-13 and read by the document
+ * generator; until F-11c's dead-column guard found them, nothing could SET
+ * either, so every store was permanently on the CAMS default and a Merlin
+ * store could not be configured at all.
+ */
+export const BillOfSaleSystem = z.enum(['CAMS', 'Merlin', 'Other']);
+export const StoreEsignPlatform = z.enum(['onespan', 'docusign']);
+
 export const Store = z.object({
   id: Uuid,
   organization_id: Uuid,
@@ -31,6 +41,10 @@ export const Store = z.object({
   /** Quiet-hours + drip scheduling are tenant-local (multi-tenancy.md §3). */
   timezone: z.string().min(1),
   status: StoreStatus,
+  bill_of_sale_system: BillOfSaleSystem,
+  esign_platform: StoreEsignPlatform.nullable(),
+  /** How close two deliveries must be before the board flags them (F-11). */
+  dispatch_conflict_window_hours: z.number().int(),
   created_at: IsoDateTime,
   updated_at: IsoDateTime,
   deleted_at: IsoDateTime.nullable(),
@@ -48,6 +62,13 @@ export const CreateStoreInput = z.strictObject({
   default_locale: Locale.default('fr-CA'),
   timezone: z.string().min(1).default('America/Montreal'),
   status: StoreStatus.default('active'),
+  // Optional, not defaulted: a store is opened first and configured after, and
+  // a `.default()` here would make these REQUIRED in the inferred input type —
+  // breaking every existing caller for the sake of a value the database
+  // already defaults.
+  bill_of_sale_system: BillOfSaleSystem.optional(),
+  esign_platform: StoreEsignPlatform.nullable().optional(),
+  dispatch_conflict_window_hours: z.number().int().min(1).max(24).optional(),
 });
 
 export const UpdateStoreInput = z.strictObject({
@@ -61,6 +82,9 @@ export const UpdateStoreInput = z.strictObject({
   default_locale: Locale.optional(),
   timezone: z.string().min(1).optional(),
   status: StoreStatus.optional(),
+  bill_of_sale_system: BillOfSaleSystem.optional(),
+  esign_platform: StoreEsignPlatform.nullable().optional(),
+  dispatch_conflict_window_hours: z.number().int().min(1).max(24).optional(),
 });
 
 /**
