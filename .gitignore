@@ -28,3 +28,6 @@ cdk.out/
 
 # TypeScript incremental build state
 *.tsbuildinfo
+
+# F-13c local document storage driver (dev/CI)
+apps/*/.storage/

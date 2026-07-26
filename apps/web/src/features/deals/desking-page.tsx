@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePageTitle } from '../../shared/use-page-title.js';
@@ -11,7 +11,9 @@ import { activeMembers, useMembers } from '../team/api.js';
 import { vehicleDisplayName } from '../inventory/labels.js';
 import { leadDisplayName } from '../leads/labels.js';
 import { useCalculateDeal, useCreateDeal, useDeal, useUpdateDealInputs } from './api.js';
-import { DEAL_TYPE_KEYS, PROVINCE_KEYS } from './labels.js';
+import { useCreateFiProduct, useDeleteFiProduct, useFiProducts } from './fi-products-api.js';
+import { DEAL_TYPE_KEYS, FI_KIND_KEYS, PROVINCE_KEYS } from './labels.js';
+import { FiProductKind } from '@dealpilot/schemas';
 
 /** Harmonized-tax provinces — mirrors the engine's tax tables (packages/core). */
 const HST_PROVINCES = new Set<CalculateDealInputT['province']>(['ON', 'NB', 'NL', 'NS', 'PE']);
@@ -115,14 +117,17 @@ function MoneyField({
   label,
   value,
   onChange,
+  readOnly,
+  hint,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
+  readOnly?: boolean;
+  hint?: string;
 }) {
   const { t } = useTranslation('deals');
-  usePageTitle(t('title'));
   const invalid = value.trim() !== '' && parseMoneyToCents(value) === null;
   return (
     <div className="space-y-1">
@@ -131,16 +136,208 @@ function MoneyField({
         id={id}
         inputMode="decimal"
         value={value}
+        readOnly={readOnly || undefined}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={invalid || undefined}
-        aria-describedby={invalid ? `${id}-error` : undefined}
-        className={invalid ? 'border-danger-border' : undefined}
+        aria-describedby={invalid ? `${id}-error` : hint ? `${id}-hint` : undefined}
+        className={invalid ? 'border-danger-border' : readOnly ? 'bg-muted text-muted-foreground' : undefined}
       />
       {invalid ? (
         <p id={`${id}-error`} role="alert" className="text-xs text-danger-text">
           {t('invalidAmount')}
         </p>
+      ) : hint ? (
+        <p id={`${id}-hint`} className="text-xs text-muted-foreground">
+          {hint}
+        </p>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * F-13b: the itemised products behind the deal's F&I numbers. Each one names
+ * an agreement in the paper file; the deal's aggregate price/cost become the
+ * trigger-maintained sum the moment the first product exists.
+ */
+function FiProducts({ dealId, currentFiPriceCents }: { dealId: string; currentFiPriceCents: number }) {
+  const { t, i18n } = useTranslation('deals');
+  const { t: tCommon } = useTranslation('common');
+  const products = useFiProducts(dealId);
+  const create = useCreateFiProduct(dealId);
+  const remove = useDeleteFiProduct(dealId);
+  const [kind, setKind] = useState<'warranty' | 'gap' | 'aftermarket'>('warranty');
+  const [name, setName] = useState('');
+  const [provider, setProvider] = useState('');
+  const [price, setPrice] = useState('');
+  const [cost, setCost] = useState('');
+  const [term, setTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [confirmReplace, setConfirmReplace] = useState(false);
+
+  const priceCents = price.trim() === '' ? 0 : parseMoneyToCents(price);
+  const costCents = cost.trim() === '' ? 0 : parseMoneyToCents(cost);
+  const costAbove = priceCents !== null && costCents !== null && costCents > priceCents;
+  const termInvalid = term.trim() !== '' && (!/^\d+$/.test(term.trim()) || Number(term) < 1 || Number(term) > 120);
+  const canAdd =
+    name.trim() !== '' && priceCents !== null && costCents !== null && !costAbove && !termInvalid && !create.isPending;
+  const hasProducts = (products.data?.length ?? 0) > 0;
+
+  async function add() {
+    if (priceCents === null || costCents === null) return;
+    // The first product REPLACES a hand-typed aggregate (the trigger owns the
+    // sum from then on) — someone's number is about to move, so ask once.
+    if (!hasProducts && currentFiPriceCents > 0 && !confirmReplace) {
+      setConfirmReplace(true);
+      return;
+    }
+    setConfirmReplace(false);
+    setError(null);
+    try {
+      await create.mutateAsync({
+        kind,
+        name: name.trim(),
+        ...(provider.trim() === '' ? {} : { provider: provider.trim() }),
+        price_cents: priceCents,
+        cost_cents: costCents,
+        ...(term.trim() === '' ? {} : { term_months: Number(term) }),
+      });
+      setName('');
+      setProvider('');
+      setPrice('');
+      setCost('');
+      setTerm('');
+    } catch (err) {
+      if (!(err instanceof ApiError)) {
+        setError(t('genericError'));
+        throw err;
+      }
+      setError(
+        err.errorCode === 'product_exists'
+          ? t('productExists', { kind: t(FI_KIND_KEYS[kind]) })
+          : err.errorCode === 'cost_above_price' || err.code === 'cost_above_price'
+            ? t('costAbovePrice')
+            : t('genericError'),
+      );
+    }
+  }
+
+  async function handleRemove(id: string) {
+    setError(null);
+    try {
+      await remove.mutateAsync(id);
+    } catch (err) {
+      setError(t('genericError'));
+      if (!(err instanceof ApiError)) throw err;
+    }
+  }
+
+  return (
+    <div className="space-y-3 border-t border-border pt-3">
+      <h3 className="text-sm font-semibold">{t('fiItemised')}</h3>
+      {products.isPending ? (
+        <p className="text-sm text-muted-foreground">{t('loading')}</p>
+      ) : products.isError ? (
+        <p role="alert" className="text-sm text-danger-text">
+          {t('loadError')}
+        </p>
+      ) : (products.data?.length ?? 0) > 0 ? (
+        <ul className="divide-y divide-border">
+          {products.data?.map((p) => (
+            <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-1.5 text-sm">
+              <span>
+                {p.name}
+                <span className="text-muted-foreground">
+                  {' '}— {t(FI_KIND_KEYS[p.kind])}
+                  {p.provider ? ` · ${p.provider}` : ''}
+                  {p.term_months !== null ? ` · ${t('fiTermShort', { months: p.term_months })}` : ''}
+                </span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="font-mono text-[13px] tabular-nums">
+                  {formatCents(p.price_cents, i18n.language)}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={remove.isPending}
+                  aria-label={t('removeProductFor', { name: p.name })}
+                  onClick={() => void handleRemove(p.id)}
+                >
+                  {t('removeProduct')}
+                </Button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">{t('fiProductsEmpty')}</p>
+      )}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="space-y-1">
+          <Label htmlFor="fi-kind">{t('fiKindLabel')}</Label>
+          <Select id="fi-kind" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+            {FiProductKind.options.map((k) => (
+              <option key={k} value={k}>
+                {t(FI_KIND_KEYS[k])}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="fi-name">{t('fiProductName')}</Label>
+          <Input id="fi-name" value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="fi-provider" optionalText={tCommon('optional')}>
+            {t('fiProvider')}
+          </Label>
+          <Input id="fi-provider" value={provider} maxLength={120} onChange={(e) => setProvider(e.target.value)} />
+        </div>
+        <MoneyField id="fi-product-price" label={t('fiProductPrice')} value={price} onChange={setPrice} />
+        <MoneyField id="fi-product-cost" label={t('fiProductCost')} value={cost} onChange={setCost} />
+        <div className="space-y-1">
+          <Label htmlFor="fi-term" optionalText={tCommon('optional')}>
+            {t('fiTermMonths')}
+          </Label>
+          <Input
+            id="fi-term"
+            inputMode="numeric"
+            value={term}
+            aria-invalid={termInvalid || undefined}
+            aria-describedby={termInvalid ? 'fi-term-error' : undefined}
+            className={termInvalid ? 'border-danger-border' : undefined}
+            onChange={(e) => setTerm(e.target.value)}
+          />
+          {termInvalid ? (
+            <p id="fi-term-error" role="alert" className="text-xs text-danger-text">
+              {t('invalidTerm')}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      {costAbove ? (
+        <p role="alert" className="text-sm text-danger-text">
+          {t('costAbovePrice')}
+        </p>
+      ) : null}
+      {error ? (
+        <p role="alert" className="text-sm text-danger-text">
+          {error}
+        </p>
+      ) : null}
+      <Button
+        type="button"
+        variant={confirmReplace ? 'destructive' : 'outline'}
+        disabled={!canAdd}
+        onClick={() => void add()}
+        onBlur={() => setConfirmReplace(false)}
+      >
+        {confirmReplace
+          ? t('addProductConfirm', { amount: formatCents(currentFiPriceCents, i18n.language) })
+          : t('addProduct')}
+      </Button>
     </div>
   );
 }
@@ -156,6 +353,9 @@ function OutputRow({ label, cents, locale, emphasis }: { label: string; cents: n
 
 export function DeskingPage() {
   const { t, i18n } = useTranslation('deals');
+  // The title used to be set (repeatedly) from inside MoneyField — the page
+  // only had one because money fields happened to render. Owned here now.
+  usePageTitle(t('title'));
   const { leadId = '', dealId = '' } = useParams();
   const isEdit = dealId !== '';
   const navigate = useNavigate();
@@ -214,6 +414,33 @@ export function DeskingPage() {
     setSoldAsIs(d.sold_as_is);
     setPrefilled(true);
   }, [isEdit, prefilled, existing.data]);
+
+  // F-13b: once itemised products exist the trigger owns the deal's F&I sums —
+  // mirror them into the worksheet so the live quote uses the real numbers.
+  const fiProducts = useFiProducts(dealId, { enabled: isEdit });
+  const hasFiProducts = (fiProducts.data?.length ?? 0) > 0;
+  // Latches true while products exist so the products→0 transition can zero the
+  // aggregate. Without it, removing the last product left the stale sum in the
+  // field, and a save re-persisted an F&I amount the trigger had just cleared.
+  const everHadFiProducts = useRef(false);
+  useEffect(() => {
+    if (!isEdit || !prefilled || !fiProducts.data) return;
+    const money = (cents: number) => (cents === 0 ? '' : (cents / 100).toFixed(2));
+    if (fiProducts.data.length > 0) {
+      everHadFiProducts.current = true;
+      const priceStr = money(fiProducts.data.reduce((s, p) => s + p.price_cents, 0));
+      const costStr = money(fiProducts.data.reduce((s, p) => s + p.cost_cents, 0));
+      setDraft((d) =>
+        d.fi_price === priceStr && d.fi_cost === costStr ? d : { ...d, fi_price: priceStr, fi_cost: costStr },
+      );
+    } else if (everHadFiProducts.current) {
+      // The last product was just removed; the trigger has zeroed the deal's
+      // aggregate. Mirror that — a deal that NEVER had products keeps its
+      // hand-typed number (latch still false), which the guard preserves.
+      everHadFiProducts.current = false;
+      setDraft((d) => (d.fi_price === '' && d.fi_cost === '' ? d : { ...d, fi_price: '', fi_cost: '' }));
+    }
+  }, [isEdit, prefilled, fiProducts.data]);
 
   const inputs = useMemo(() => draftToInputs(draft), [draft]);
   useEffect(() => {
@@ -448,10 +675,27 @@ export function DeskingPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <MoneyField id="desk-rebate" label={t('rebate')} value={draft.rebate} onChange={(v) => set('rebate', v)} />
               <MoneyField id="desk-fees" label={t('fees')} value={draft.fees} onChange={(v) => set('fees', v)} />
-              <MoneyField id="desk-fi-price" label={t('fiPrice')} value={draft.fi_price} onChange={(v) => set('fi_price', v)} />
-              <MoneyField id="desk-fi-cost" label={t('fiCost')} value={draft.fi_cost} onChange={(v) => set('fi_cost', v)} />
+              <MoneyField
+                id="desk-fi-price"
+                label={t('fiPrice')}
+                value={draft.fi_price}
+                onChange={(v) => set('fi_price', v)}
+                readOnly={hasFiProducts}
+                hint={hasFiProducts ? t('fiSumHint') : undefined}
+              />
+              <MoneyField
+                id="desk-fi-cost"
+                label={t('fiCost')}
+                value={draft.fi_cost}
+                onChange={(v) => set('fi_cost', v)}
+                readOnly={hasFiProducts}
+                hint={hasFiProducts ? t('fiSumHint') : undefined}
+              />
               <MoneyField id="desk-reserve" label={t('fiReserve')} value={fiReserve} onChange={setFiReserve} />
             </div>
+            {isEdit ? (
+              <FiProducts dealId={dealId} currentFiPriceCents={existing.data?.fi_price_cents ?? 0} />
+            ) : null}
             <label htmlFor="desk-fees-taxable" className="flex items-center gap-2 text-sm max-lg:min-h-11">
               <input
                 id="desk-fees-taxable"

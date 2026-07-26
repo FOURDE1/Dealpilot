@@ -54,6 +54,51 @@ the way D-034 froze a delivered checklist).
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — F-13b F&I products UI + F-13c files/batch UI (→ ROUND 13)
+
+Two of Ahmad's slices landed back-to-back (F-13b itemised F&I, F-13c document
+files); built both UI halves in one batch.
+
+- **F-13b**: an "Itemised F&I products" section on the edit worksheet
+  (features/deals/fi-products-api.ts + FiProducts in desking-page.tsx) — add
+  warranty/GAP/aftermarket with name/provider/price/cost/term, named 409
+  (product_exists) and 422 (cost_above_price) refusals, remove. Once products
+  exist the aggregate F&I price/cost fields go read-only (the trigger owns the
+  sum) and a sum-mirror effect feeds the trigger's totals into the live quote.
+  The FIRST product on a deal with a typed aggregate arms a confirm click
+  (contract asked for it — the typed number is about to be replaced). Per-
+  product agreements render '<translated type> — <product name>'
+  (documentDisplayName splits on ' — '). Activity timeline labels the new
+  deal_fi_product fields + translates the kind enum. Cleanup while there: the
+  page title was being set from INSIDE MoneyField — moved to DeskingPage.
+- **F-13c**: batch "mark all generated/printed" buttons (one transaction,
+  prepare-gated, shown only when >1 eligible), per-row page upload (raw-bytes
+  fetch — apiRequest is JSON-only; client-side type/empty/20MB checks mirror
+  the server; sign-graded for signature copies), an evidence line, and
+  "Voir la page" → blob → new tab with the 409 content_mismatch surfaced as a
+  SERIOUS alert (the file was altered after filing), plus a wet_ink_verified
+  info line. api.ts: useBatchDocuments, useUploadDocumentFile, fetchDocumentFile.
+- **CR-13 FILED**: the F&I trigger re-sums the deal's inputs but the stored
+  engine OUTPUTS (payment, taxes, total_gross) are left behind — live-probed:
+  add a $2,500 warranty, fi_price moves, payment/tax/total_gross don't, so the
+  pipeline card shows the old quote until someone re-saves. Violates F-05's own
+  "outputs must never drift from inputs". Commissions safe (engine reads sale/
+  cost directly). UI mitigates: sum-mirror + save recomputes; e2e saves after
+  product changes. Fix is Ahmad's — recompute outputs in the product routes.
+- e2e: f13 journey extended through both slices (product dance incl. replace-
+  confirm, 409 second warranty, two-aftermarket + orphan cleanup, batch counts,
+  upload evidence + view-page popup). 24/24 local.
+- Owner: Ahmad's combined ROUND 13 (F-13b/c + his F-11c) is authoritative — I
+  dropped my duplicate round on merge and grafted the CR-13 pipeline-card-lag
+  honesty note onto his round instead.
+- Review (18 agents, 5 lenses) found and I FIXED, before push: (major) sum-mirror
+  left a stale F&I aggregate when the last product was removed and a save
+  re-persisted it — latched so products→0 zeroes the field; (major) "Voir la
+  page" called window.open AFTER an await → blocked on Safari, now opened
+  synchronously in the gesture; (minor) upload label mobile target <44px; plus
+  e2e gaps closed (CR-13 stored-payment recompute now numerically asserted,
+  upload sign-grading asserted, a dedicated last-product-zero regression test).
+
 ## 2026-07-26 [HUSSEIN] — F-13 documents panel + CR-10 loss note + CR-11 rails (BATCH → ROUND 12)
 
 AHMAD's F-13 merge picked up automatically (watcher): migrations applied, API

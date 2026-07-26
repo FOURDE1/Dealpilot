@@ -22,6 +22,13 @@ export const DEAL_TYPE_KEYS = {
   cash: 'dealType_cash',
 } as const satisfies Record<DealT['deal_type'], string>;
 
+/** F-13b itemised F&I — one warranty, one GAP, many aftermarket. */
+export const FI_KIND_KEYS = {
+  warranty: 'fiKind_warranty',
+  gap: 'fiKind_gap',
+  aftermarket: 'fiKind_aftermarket',
+} as const satisfies Record<'warranty' | 'gap' | 'aftermarket', string>;
+
 export const PIPELINE_STAGE_KEYS = {
   new: 'stage_new',
   submitted: 'stage_submitted',

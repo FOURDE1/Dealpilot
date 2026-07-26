@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import type { ActivityActionT, ActivityEntityTypeT, ActivityEventT } from '@dealpilot/schemas';
 import { useMembers } from '../team/api.js';
 import { formatCents } from '../deals/money.js';
-import { FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from '../deals/labels.js';
+import { FI_KIND_KEYS, FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from '../deals/labels.js';
 import { LEAD_STATUS_KEYS } from '../leads/labels.js';
 import { DOCUMENT_STATUS_KEYS, DOCUMENT_TYPE_KEYS } from '../documents/labels.js';
 import { useActivity } from './api.js';
@@ -42,6 +42,14 @@ const FIELD_KEYS: Record<string, string> = {
   deal_status: 'field_deal_status',
   location_status: 'field_location_status',
   document_type: 'field_document_type',
+  // F-13b deal_fi_product events.
+  kind: 'field_kind',
+  name: 'field_name',
+  provider: 'field_provider',
+  term_months: 'field_term_months',
+  price_cents: 'field_price',
+  cost_cents: 'field_cost',
+  fi_price_cents: 'field_fi_price',
 };
 
 const ENUM_VALUE_KEYS: Record<string, Record<string, string>> = {
@@ -109,6 +117,9 @@ export function ActivityTimeline({
     }
     if (typeof v === 'string' && field === 'status' && v in DOCUMENT_STATUS_KEYS) {
       return tDocs(DOCUMENT_STATUS_KEYS[v as keyof typeof DOCUMENT_STATUS_KEYS]);
+    }
+    if (typeof v === 'string' && field === 'kind' && v in FI_KIND_KEYS) {
+      return tDeals(FI_KIND_KEYS[v as keyof typeof FI_KIND_KEYS] as never);
     }
     const enumMap = ENUM_VALUE_KEYS[field];
     if (enumMap && typeof v === 'string' && v in enumMap) {

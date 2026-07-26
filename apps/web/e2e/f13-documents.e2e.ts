@@ -11,6 +11,13 @@ import { expect, test } from '@playwright/test';
 const stamp = Date.now();
 const password = 'MotDePasse!2026-f13';
 
+/** The deal row's stored monthly payment ("613,20 $/mois") as a number. */
+async function readMonthly(page: import('@playwright/test').Page): Promise<number> {
+  const text = await page.getByText(/\/mois/).first().innerText();
+  const digits = text.replace(/[^0-9,]/g, '').replace(',', '.');
+  return Number(digits);
+}
+
 test('full F-13 journey: derived file → named refusals → print/e-sign → graded signing → gates open', async ({ page }) => {
   await page.goto('/signup');
   await page.getByLabel('Nom complet').fill('Patron Papier');
@@ -106,9 +113,76 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   await page.getByRole('button', { name: 'Enregistrer les modifications' }).click();
   await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
   await page.getByRole('button', { name: /Documents — / }).click();
+  const docsUnchecked = page.getByRole('dialog');
+  await expect(docsUnchecked.getByText('6 documents ne sont pas encore prêts à voyager.')).toBeVisible();
+  await expect(docsUnchecked.getByText('Renonciation « tel quel »', { exact: true })).toHaveCount(0);
+  await docsUnchecked.getByRole('button', { name: 'Fermer' }).click();
+
+  // F-13b: itemised F&I. A hand-typed aggregate first, so the replace guard
+  // has something to protect.
+  await page.getByRole('link', { name: /Modifier la transaction/ }).click();
+  await page.getByLabel('Produits F&I (prix)').fill('1000');
+  await page.getByRole('button', { name: 'Enregistrer les modifications' }).click();
+  await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
+  // CR-13 mitigation baseline: the STORED monthly payment with $1,000 of F&I,
+  // read off the deal row (monthly_payment_cents — a stored engine output).
+  const paymentWith1k = await readMonthly(page);
+  await page.getByRole('link', { name: /Modifier la transaction/ }).click();
+
+  // The FIRST product replaces the typed aggregate — one armed click, then it
+  // goes through; the aggregate fields fold into a read-only maintained sum.
+  await page.getByLabel('Nom du produit').fill('Or 3 ans');
+  await page.getByLabel('Prix du produit').fill('2500');
+  await page.getByLabel('Coût du produit').fill('1000');
+  await page.getByLabel('Durée (mois)').fill('36');
+  await page.getByRole('button', { name: 'Ajouter le produit' }).click();
+  await page
+    .getByRole('button', { name: /Remplacera le montant F&I saisi \(1\s?000,00\s?\$\)/ })
+    .click();
+  await expect(page.getByText('Or 3 ans', { exact: false }).first()).toBeVisible();
+  await expect(page.getByLabel('Produits F&I (prix)')).toHaveJSProperty('readOnly', true);
+  await expect(page.getByLabel('Produits F&I (prix)')).toHaveValue('2500.00');
+
+  // One warranty per deal — a second is refused BY NAME.
+  await page.getByLabel('Nom du produit').fill('Argent 2 ans');
+  await page.getByRole('button', { name: 'Ajouter le produit' }).click();
+  await expect(page.getByText(/a déjà un produit « Garantie prolongée »/)).toBeVisible();
+
+  // Two aftermarket products are fine — their names tell them apart.
+  await page.getByLabel('Type', { exact: true }).selectOption({ label: 'Produit après-vente' });
+  await page.getByLabel('Nom du produit').fill('Antirouille');
+  await page.getByLabel('Prix du produit').fill('500');
+  await page.getByLabel('Coût du produit').fill('200');
+  await page.getByLabel('Durée (mois)').fill('');
+  await page.getByRole('button', { name: 'Ajouter le produit' }).click();
+  await expect(page.getByRole('button', { name: 'Retirer — Antirouille' })).toBeVisible();
+  await page.getByLabel('Nom du produit').fill('Marchepieds');
+  await page.getByLabel('Prix du produit').fill('400');
+  await page.getByLabel('Coût du produit').fill('100');
+  await page.getByRole('button', { name: 'Ajouter le produit' }).click();
+  await expect(page.getByRole('button', { name: 'Retirer — Marchepieds' })).toBeVisible();
+  await page.getByRole('button', { name: 'Retirer — Marchepieds' }).click();
+  await expect(page.getByRole('button', { name: 'Retirer — Marchepieds' })).toHaveCount(0);
+
+  // Save so the stored quote is recomputed from the new sums (CR-13).
+  await page.getByRole('button', { name: 'Enregistrer les modifications' }).click();
+  await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
+
+  // CR-13 mitigation, proven: $3,000 of itemised F&I (2500 + 500, Marchepieds
+  // removed) is a bigger amount financed than the $1,000 aggregate, so the
+  // STORED payment on the deal row must have risen — the save recomputed the
+  // engine outputs, they did not drift behind the trigger's new sum.
+  const paymentWith3k = await readMonthly(page);
+  expect(paymentWith3k).toBeGreaterThan(paymentWith1k);
+
+  // The file followed the products: an agreement per product, named after it,
+  // and the removed product's agreement is gone with it.
+  await page.getByRole('button', { name: /Documents — / }).click();
   const docs3 = page.getByRole('dialog');
-  await expect(docs3.getByText('6 documents ne sont pas encore prêts à voyager.')).toBeVisible();
-  await expect(docs3.getByText('Renonciation « tel quel »', { exact: true })).toHaveCount(0);
+  await expect(docs3.getByText('8 documents ne sont pas encore prêts à voyager.')).toBeVisible();
+  await expect(docs3.getByText('Garantie prolongée — Or 3 ans', { exact: true })).toBeVisible();
+  await expect(docs3.getByText('Produit après-vente — Antirouille', { exact: true })).toBeVisible();
+  await expect(docs3.getByText(/Marchepieds/)).toHaveCount(0);
 
   // Lifecycle is forward-only: a fresh paper offers ONLY "produce" (no jump
   // to printed or filed), and each step leaves a stamped evidence line.
@@ -117,27 +191,47 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   await docs3.getByRole('button', { name: 'Marquer produit — Contrat de vente' }).click();
   await docs3.getByRole('button', { name: 'Marquer imprimé — Contrat de vente' }).click();
   await expect(docs3.getByText(/Imprimé : Patron Papier, .*2026/)).toBeVisible();
-  await expect(docs3.getByText('5 documents ne sont pas encore prêts à voyager.')).toBeVisible();
+  await expect(docs3.getByText('7 documents ne sont pas encore prêts à voyager.')).toBeVisible();
 
   // E-signing is a legal alternative to printing — it counts as prepared.
   await docs3.getByRole('button', { name: 'Marquer produit — Contrat bancaire' }).click();
   await docs3.getByRole('button', { name: 'Signé électroniquement — Contrat bancaire' }).click();
   await expect(docs3.getByText(/Signé électroniquement : /)).toBeVisible();
-  await expect(docs3.getByText('4 documents ne sont pas encore prêts à voyager.')).toBeVisible();
+  await expect(docs3.getByText('6 documents ne sont pas encore prêts à voyager.')).toBeVisible();
 
-  // Print the remaining four; the banner flips to "ready to travel".
-  for (const name of [
-    'Consentement à la confidentialité',
-    'Divulgation de l’état du véhicule',
-    'Déclaration d’odomètre',
-    'Autorisation de remboursement du solde du prêt (échange)',
-  ]) {
-    await docs3.getByRole('button', { name: `Marquer produit — ${name}` }).click();
-    await docs3.getByRole('button', { name: `Marquer imprimé — ${name}` }).click();
-  }
+  // F-13c: the rest of the stack moves as a STACK — produce the six untouched
+  // papers in one transaction, then print all seven printable ones (the six
+  // plus the e-signed bank contract) in another. Counts pin the eligibility.
+  await docs3.getByRole('button', { name: 'Tout marquer produit (6)' }).click();
+  await docs3.getByRole('button', { name: 'Tout marquer imprimé (7)' }).click();
   await expect(
     docs3.getByText('Dossier prêt à voyager — tous les documents à signer sont imprimés.'),
   ).toBeVisible();
+
+  // F-13c: attach the actual page — the evidence line names who and when, and
+  // the stored page opens back from its hash-checked copy.
+  await docs3
+    .getByLabel('Téléverser la page — Contrat de vente')
+    .setInputFiles({
+      name: 'page.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    });
+  await expect(docs3.getByText(/Page au dossier : Patron Papier, .*2026/)).toBeVisible();
+  const popupPromise = page.waitForEvent('popup');
+  await docs3.getByRole('button', { name: 'Voir la page — Contrat de vente' }).click();
+  const popup = await popupPromise;
+  await popup.close();
+
+  // Take one signature paper all the way to "signed" while we still hold the
+  // right — it becomes the graded-upload probe in the denied step below.
+  await docs3.getByRole('button', { name: 'Mettre au dossier — Déclaration d’odomètre' }).click();
+  await docs3.getByRole('button', { name: 'Signé à la livraison — Déclaration d’odomètre' }).click();
+  await expect(docs3.getByText(/Signé à la livraison : /)).toBeVisible();
+
   // The wet-ink sheet is printable from here.
   await expect(docs3.getByRole('button', { name: 'Imprimer la feuille du dossier' })).toBeVisible();
   await docs3.getByRole('button', { name: 'Fermer' }).click();
@@ -163,6 +257,12 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   await expect(docs4.getByText('Dans le dossier', { exact: true })).toBeVisible();
   // …but the signature step is gone while denied.
   await expect(docs4.getByRole('button', { name: 'Signé à la livraison — Contrat de vente' })).toHaveCount(0);
+  // Uploading the page is graded the same way: a PREPARE-status paper (Contrat
+  // de vente, in the folder) still takes a page…
+  await expect(docs4.getByLabel('Téléverser la page — Contrat de vente')).toBeVisible();
+  // …but attaching the page that EVIDENCES a signature (Déclaration d’odomètre,
+  // already signed) needs document:sign, so its upload is withheld too.
+  await expect(docs4.getByLabel('Téléverser la page — Déclaration d’odomètre')).toHaveCount(0);
   await docs4.getByRole('button', { name: 'Fermer' }).click();
 
   await page.goto('/team/permissions');
@@ -195,4 +295,60 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   const history = page.getByRole('dialog');
   await expect(history.getByText('Document: Contrat de vente').first()).toBeVisible();
   await expect(history.getByText(/Produit → Imprimé/).first()).toBeVisible();
+});
+
+test('F-13b: removing the last F&I product clears the aggregate — no stale sum resurrected on save', async ({ page }) => {
+  const s = stamp + 1;
+  await page.goto('/signup');
+  await page.getByLabel('Nom complet').fill('Patron Zéro');
+  await page.getByLabel('Courriel').fill(`f13z-${s}@1dealer.test`);
+  await page.getByLabel('Mot de passe').fill(password);
+  await page.getByRole('button', { name: 'Créer le compte' }).click();
+  await expect(page).toHaveURL('/');
+
+  await page.goto('/organizations/new');
+  await page.getByLabel("Nom de l'organisation").fill(`Groupe F13Z ${s}`);
+  await page.getByLabel('Identifiant (slug)').fill(`groupe-f13z-${s}`);
+  await page.getByRole('button', { name: "Créer l'organisation" }).click();
+  await page.getByRole('link', { name: 'Nouvelle succursale' }).click();
+  await page.getByLabel('Nom de la succursale').fill('Succursale F13Z');
+  await page.getByLabel('Code').fill(`F13Z-${s % 10000}`);
+  await page.getByRole('button', { name: 'Créer la succursale' }).click();
+
+  await page.goto('/leads/new');
+  await page.getByLabel('Succursale').selectOption({ label: 'Succursale F13Z' });
+  await page.getByLabel('Téléphone').fill('+15145551399');
+  await page.getByLabel('Prénom').fill('Zoé');
+  await page.getByLabel('Nom de famille').fill('Zéro');
+  await page.getByRole('button', { name: 'Créer le prospect' }).click();
+  await page.getByRole('link', { name: 'Créer une transaction' }).click();
+  await page.getByLabel('Prix de vente').fill('20000');
+  await page.getByRole('button', { name: 'Enregistrer la transaction' }).click();
+  await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
+
+  // Add one product: the aggregate becomes its trigger-maintained sum and the
+  // field goes read-only.
+  await page.getByRole('link', { name: /Modifier la transaction/ }).click();
+  await page.getByLabel('Type', { exact: true }).selectOption({ label: 'Produit après-vente' });
+  await page.getByLabel('Nom du produit').fill('Antirouille');
+  await page.getByLabel('Prix du produit').fill('500');
+  await page.getByLabel('Coût du produit').fill('200');
+  await page.getByRole('button', { name: 'Ajouter le produit' }).click();
+  await expect(page.getByRole('button', { name: 'Retirer — Antirouille' })).toBeVisible();
+  await expect(page.getByLabel('Produits F&I (prix)')).toHaveValue('500.00');
+  await expect(page.getByLabel('Produits F&I (prix)')).toHaveJSProperty('readOnly', true);
+
+  // Remove the LAST product: the trigger zeroes the deal aggregate, and the
+  // field must follow it to empty — not keep showing $500 (the bug the review
+  // caught: a stale sum re-persisted on save).
+  await page.getByRole('button', { name: 'Retirer — Antirouille' }).click();
+  await expect(page.getByRole('button', { name: 'Retirer — Antirouille' })).toHaveCount(0);
+  await expect(page.getByLabel('Produits F&I (prix)')).toHaveValue('');
+  await expect(page.getByLabel('Produits F&I (prix)')).toHaveJSProperty('readOnly', false);
+
+  // Save, reopen: the stored aggregate is 0, and nothing resurrected the $500.
+  await page.getByRole('button', { name: 'Enregistrer les modifications' }).click();
+  await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
+  await page.getByRole('link', { name: /Modifier la transaction/ }).click();
+  await expect(page.getByLabel('Produits F&I (prix)')).toHaveValue('');
 });

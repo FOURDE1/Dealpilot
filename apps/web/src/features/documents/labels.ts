@@ -100,7 +100,13 @@ export function documentDisplayName(
   doc: Pick<DealDocumentT, 'document_type' | 'document_name'>,
   translate: (key: (typeof DOCUMENT_TYPE_KEYS)[keyof typeof DOCUMENT_TYPE_KEYS]) => string,
 ): string {
-  return PER_PRODUCT_TYPES.has(doc.document_type)
-    ? doc.document_name
-    : translate(DOCUMENT_TYPE_KEYS[doc.document_type]);
+  if (PER_PRODUCT_TYPES.has(doc.document_type)) {
+    // The server names these '<type label> — <product name>' (core builds the
+    // string). Translate the type half, keep the product half — it is the
+    // distinguisher between two agreements of the same kind.
+    const sep = doc.document_name.indexOf(' — ');
+    const product = sep === -1 ? doc.document_name : doc.document_name.slice(sep + 3);
+    return `${translate(DOCUMENT_TYPE_KEYS[doc.document_type])} — ${product}`;
+  }
+  return translate(DOCUMENT_TYPE_KEYS[doc.document_type]);
 }
