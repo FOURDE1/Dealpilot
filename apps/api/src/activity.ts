@@ -94,6 +94,22 @@ function same(a: unknown, b: unknown): boolean {
  * Recording a field that did not change is noise, and noise is what makes an
  * audit trail stop being read.
  */
+/**
+ * The old value, expressed the way the new one is.
+ *
+ * Only when the incoming value is a number and the stored one is a numeric
+ * STRING — pg's `numeric` rendering. Nothing else is touched: coercing more
+ * widely would turn a genuine text-to-number change into a silent no-op, which
+ * is the opposite of what an audit trail is for.
+ */
+function alignType(from: unknown, to: unknown): unknown {
+  if (typeof to === 'number' && typeof from === 'string' && from.trim() !== '') {
+    const n = Number(from);
+    if (Number.isFinite(n)) return n;
+  }
+  return from ?? null;
+}
+
 export function diff(
   before: Record<string, unknown>,
   next: Record<string, unknown>,
@@ -105,7 +121,13 @@ export function diff(
     const from = before[f];
     const to = next[f];
     if (same(from, to)) continue;
-    out[f] = { from: from ?? null, to: to ?? null };
+    // Recorded in the SAME shape on both sides. pg hands back `numeric` as a
+    // string, so a commission rate edit was landing in the trail as
+    // `{ from: '0.2000', to: 0.3 }` — one side text, the other a number, for
+    // the same field. Anything reading that back has to guess, and this is the
+    // record of who changed someone's pay (found by the pay-plan test the
+    // route-coverage guard asked for).
+    out[f] = { from: alignType(from, to), to: to ?? null };
   }
   return out;
 }

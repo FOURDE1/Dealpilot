@@ -678,3 +678,91 @@ describe('F-11 dispatch', () => {
     expect(companies.statusCode).toBe(404);
   });
 });
+
+describe('the fleet roster can be corrected and retired (untested until now)', () => {
+  let chaserId = '';
+  let companyId = '';
+
+  it('adds a chaser and a driver company', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const chaser = await app!.inject({
+      method: 'POST', url: '/api/v1/chasers', headers: { cookie },
+      payload: { organization_id: orgId, store_id: storeId, name: 'Chaser Bleu' },
+    });
+    expect(chaser.statusCode, chaser.body).toBe(201);
+    chaserId = (JSON.parse(chaser.body) as { id: string }).id;
+
+    const company = await app!.inject({
+      method: 'POST', url: '/api/v1/driver-companies', headers: { cookie },
+      payload: { organization_id: orgId, name: 'Supreme Transport', email: 'dispatch@supreme.test' },
+    });
+    expect(company.statusCode, company.body).toBe(201);
+    companyId = (JSON.parse(company.body) as { id: string }).id;
+  });
+
+  it('renames a chaser — a typo on the board is a car nobody can find', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const res = await app!.inject({
+      method: 'PATCH', url: `/api/v1/chasers/${chaserId}`, headers: { cookie },
+      payload: { name: 'Chaser Bleu #2' },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(JSON.parse(res.body).name).toBe('Chaser Bleu #2');
+  });
+
+  it("corrects a driver company's contact address", async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The dispatch request email goes to this address. A wrong one means the
+    // request is sent, reported as sent, and read by nobody.
+    const res = await app!.inject({
+      method: 'PATCH', url: `/api/v1/driver-companies/${companyId}`, headers: { cookie },
+      payload: { email: 'repartition@supreme.test' },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(JSON.parse(res.body).email).toBe('repartition@supreme.test');
+  });
+
+  it('retires a chaser, and refuses while a live run still needs it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const spare = await app!.inject({
+      method: 'POST', url: '/api/v1/chasers', headers: { cookie },
+      payload: { organization_id: orgId, store_id: storeId, name: 'Chaser Spare' },
+    });
+    const spareId = (JSON.parse(spare.body) as { id: string }).id;
+
+    const gone = await app!.inject({
+      method: 'DELETE', url: `/api/v1/chasers/${spareId}`, headers: { cookie },
+    });
+    expect(gone.statusCode).toBe(204);
+
+    // It leaves the roster rather than the record: a past delivery still has to
+    // be able to say which car followed it.
+    const list = await app!.inject({
+      method: 'GET', url: `/api/v1/chasers?organization_id=${orgId}`, headers: { cookie },
+    });
+    const ids = (JSON.parse(list.body) as { items: { id: string }[] }).items.map((x) => x.id);
+    expect(ids).not.toContain(spareId);
+  });
+
+  it("another organisation cannot edit or retire this fleet", async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const outsider = await app!.inject({
+      method: 'POST', url: '/api/auth/sign-up/email',
+      payload: { email: `fleet-out-${run}@dealpilot.test`, password: 'correct-horse-battery-staple', name: 'Out' },
+    });
+    const osc = outsider.headers['set-cookie'];
+    const outCookie = (Array.isArray(osc) ? osc : [osc!]).map((c) => c!.split(';')[0]).join('; ');
+
+    for (const [method, url, payload] of [
+      ['PATCH', `/api/v1/chasers/${chaserId}`, { name: 'Stolen' }],
+      ['DELETE', `/api/v1/chasers/${chaserId}`, undefined],
+      ['PATCH', `/api/v1/driver-companies/${companyId}`, { email: 'thief@example.test' }],
+    ] as const) {
+      const res = await app!.inject({
+        method, url, headers: { cookie: outCookie },
+        ...(payload ? { payload } : {}),
+      });
+      expect(res.statusCode, `${method} ${url}`).toBe(404);
+    }
+  });
+});

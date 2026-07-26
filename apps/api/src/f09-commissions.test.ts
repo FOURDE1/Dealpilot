@@ -276,3 +276,94 @@ describe('F-09 pay is personal', () => {
     expect(PayPlanPage.parse(JSON.parse(res.body)).items.length).toBe(2);
   });
 });
+
+describe('editing a pay plan (the path nothing had ever called)', () => {
+  let planId = '';
+
+  it('creates a plan to edit', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const res = await app!.inject({
+      method: 'POST', url: '/api/v1/pay-plans', headers: { cookie: cookieOwner },
+      payload: {
+        organization_id: orgId, user_id: managerId,
+        commission_rate: 0.2, has_pad: true, pad_cents: 100_000,
+      },
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    planId = (JSON.parse(res.body) as { id: string }).id;
+  });
+
+  it('changes the rate, and says so in the trail', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // This endpoint decides what people are PAID and had no test at all — found
+    // by the route-coverage guard, not by anything going wrong.
+    const res = await app!.inject({
+      method: 'PATCH', url: `/api/v1/pay-plans/${planId}`, headers: { cookie: cookieOwner },
+      payload: { commission_rate: 0.3, pad_cents: 200_000 },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const plan = PayPlan.parse(JSON.parse(res.body));
+    expect(plan.commission_rate).toBe(0.3);
+    expect(plan.pad_cents).toBe(200_000);
+
+    const trail = await app!.inject({
+      method: 'GET', url: `/api/v1/activity?entity_id=${planId}`, headers: { cookie: cookieOwner },
+    });
+    const events = (JSON.parse(trail.body) as { items: { changes: Record<string, unknown> }[] }).items;
+    const edit = events.find((e) => 'commission_rate' in (e.changes ?? {}));
+    expect(edit, 'somebody changed a commission rate and nothing recorded it').toBeDefined();
+    expect(edit!.changes['commission_rate']).toMatchObject({ from: 0.2, to: 0.3 });
+  });
+
+  it('records nothing when the rate did not actually move', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // pg returns numeric as a string ("0.3000"); a naive comparison reports a
+    // rate change every time the form is saved, and an audit trail that cries
+    // wolf on every save is one nobody reads.
+    const before = await app!.inject({
+      method: 'GET', url: `/api/v1/activity?entity_id=${planId}`, headers: { cookie: cookieOwner },
+    });
+    const countBefore = (JSON.parse(before.body) as { items: unknown[] }).items.length;
+
+    await app!.inject({
+      method: 'PATCH', url: `/api/v1/pay-plans/${planId}`, headers: { cookie: cookieOwner },
+      payload: { commission_rate: 0.3 },
+    });
+
+    const after = await app!.inject({
+      method: 'GET', url: `/api/v1/activity?entity_id=${planId}`, headers: { cookie: cookieOwner },
+    });
+    expect((JSON.parse(after.body) as { items: unknown[] }).items.length).toBe(countBefore);
+  });
+
+  it('refuses a salesperson editing their own pay', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The whole point of `pay_plan:write` being a separate right.
+    const res = await app!.inject({
+      method: 'PATCH', url: `/api/v1/pay-plans/${planId}`, headers: { cookie: sellerCookie },
+      payload: { commission_rate: 0.9 },
+    });
+    expect(res.statusCode).toBe(403);
+
+    const check = await app!.inject({
+      method: 'GET', url: `/api/v1/pay-plans?organization_id=${orgId}`, headers: { cookie: cookieOwner },
+    });
+    const plans = (JSON.parse(check.body) as { items: { id: string; commission_rate: number }[] }).items;
+    expect(plans.find((p) => p.id === planId)!.commission_rate).toBe(0.3);
+  });
+
+  it("another organisation's pay plan is a 404", async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const outsider = await app!.inject({
+      method: 'POST', url: '/api/auth/sign-up/email',
+      payload: { email: `payplan-out-${run}@dealpilot.test`, password: 'correct-horse-battery-staple', name: 'Out' },
+    });
+    const osc = outsider.headers['set-cookie'];
+    const outCookie = (Array.isArray(osc) ? osc : [osc!]).map((c) => c!.split(';')[0]).join('; ');
+    const res = await app!.inject({
+      method: 'PATCH', url: `/api/v1/pay-plans/${planId}`, headers: { cookie: outCookie },
+      payload: { commission_rate: 0.9 },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});
