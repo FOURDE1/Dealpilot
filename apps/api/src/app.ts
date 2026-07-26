@@ -17,7 +17,7 @@ import { registerA13Routes } from './a13-permission-routes.js';
 import { registerF11Routes } from './f11-dispatch-routes.js';
 import { registerF13Routes } from './f13-document-routes.js';
 import { registerF14Routes } from './f14-branding-routes.js';
-import { ALLOWED_CONTENT_TYPES, createStorage, MAX_UPLOAD_BYTES, type StorageDriver } from './storage.js';
+import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
 import { registerF12Routes } from './f12-invitation-routes.js';
 import { registerF08Routes } from './f08-checklist-routes.js';
 
@@ -151,7 +151,7 @@ export async function buildApp(
   // Only the three types a dealership actually scans are parsed, and only up to
   // MAX_UPLOAD_BYTES — an unbounded parser is a way to exhaust a task's memory
   // with one request.
-  for (const contentType of Object.keys(ALLOWED_CONTENT_TYPES)) {
+  for (const contentType of RAW_BODY_CONTENT_TYPES) {
     app.addContentTypeParser(
       contentType,
       { parseAs: 'buffer', bodyLimit: MAX_UPLOAD_BYTES },
@@ -253,7 +253,7 @@ export async function buildApp(
   registerA13Routes(app, pool);
   registerF11Routes(app, pool, mailer);
   registerF13Routes(app, pool, storage);
-  registerF14Routes(app, pool);
+  registerF14Routes(app, pool, storage);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);
 

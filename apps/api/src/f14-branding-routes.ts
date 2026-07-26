@@ -1,8 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool } from '@dealpilot/db';
+import {
+  BRANDING_CONTENT_TYPES,
+  BRANDING_SLOTS,
+  brandingKey,
+  sha256,
+  type BrandingSlot,
+  type StorageDriver,
+} from './storage.js';
 import { formatOklch, parseColor, validateBrandingContrast } from '@dealpilot/core';
 import { UpdateBrandingInput } from '@dealpilot/schemas';
-import { notFound, parseOrThrow } from './errors.js';
+import { AppError, notFound, parseOrThrow } from './errors.js';
 import { idParam, requireMember, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
@@ -37,7 +45,7 @@ const COLOR_COLUMNS = [
   'warning_color', 'danger_color', 'info_color',
 ] as const;
 
-export function registerF14Routes(app: FastifyInstance, pool: Pool): void {
+export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: StorageDriver): void {
   /**
    * What the SPA loads before first paint.
    *
@@ -171,6 +179,143 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool): void {
       return r.rows[0]!;
     });
     return reply.send(row);
+  });
+
+  /**
+   * Upload a brand asset — logo, favicon, email logo, login background.
+   *
+   * Raw bytes with a real content-type, the same shape as a scanned document,
+   * behind the same storage driver. The allowlist is NOT the document one: a
+   * signed bank contract must never be an SVG and a logo must never be a PDF,
+   * and one shared list would have permitted both.
+   */
+  app.post('/api/v1/organizations/:id/branding/assets/:slot', async (request, reply) => {
+    const orgId = idParam(request);
+    const slot = String((request.params as { slot?: string }).slot ?? '') as BrandingSlot;
+    const spec = BRANDING_SLOTS[slot];
+    if (!spec) {
+      throw new AppError(404, 'unknown_slot', 'There is no such brand asset', [
+        { path: 'slot', code: 'unknown_slot', message: slot || '(none)' },
+      ]);
+    }
+
+    const contentType = String(request.headers['content-type'] ?? '').split(';')[0]!.trim();
+    const extension = BRANDING_CONTENT_TYPES[contentType];
+    if (!extension) {
+      throw new AppError(415, 'unsupported_media_type', 'A brand asset must be a PNG, JPEG or SVG', [
+        { path: 'content-type', code: 'unsupported_media_type', message: contentType || '(none)' },
+      ]);
+    }
+    // Email clients render SVG unreliably or not at all. Accepting one here
+    // would produce a logo that looks right in the editor and is missing from
+    // every email the dealership sends.
+    if (spec.raster && extension === 'svg') {
+      throw new AppError(415, 'raster_required', 'This asset must be a PNG or JPEG', [
+        { path: 'content-type', code: 'raster_required', message: 'SVG does not render in email clients' },
+      ]);
+    }
+
+    const body = request.body;
+    if (!Buffer.isBuffer(body) || body.byteLength === 0) {
+      throw new AppError(422, 'empty_file', 'The uploaded file is empty', [
+        { path: 'body', code: 'empty_file', message: 'no bytes' },
+      ]);
+    }
+    if (body.byteLength > spec.maxBytes) {
+      throw new AppError(413, 'payload_too_large', 'That file is too large for this slot', [
+        {
+          path: 'body',
+          code: 'payload_too_large',
+          message: `${Math.round(body.byteLength / 1024)} KB; the limit is ${Math.round(spec.maxBytes / 1024)} KB`,
+        },
+      ]);
+    }
+
+    const user = sessionUser(request);
+    const row = await withTenant(pool, orgId, async (c) => {
+      await requirePermission(c, user.id, 'organization:update');
+      const existing = await c.query<{ id: string }>(
+        `SELECT id FROM tenant_branding
+         WHERE organization_id = $1 AND store_id IS NULL AND deleted_at IS NULL
+         FOR UPDATE`,
+        [orgId],
+      );
+
+      const key = brandingKey(orgId, slot, sha256(body), extension);
+      // Stored before the row points at it: a key with no object behind it is a
+      // logo that 404s on every page load.
+      await storage.put(key, body, contentType);
+
+      // Editing the brand puts it back to draft — an asset is an edit like any
+      // other, so a new logo does not appear on the floor until publish.
+      if (existing.rows.length === 0) {
+        const r = await c.query<Record<string, unknown>>(
+          `INSERT INTO tenant_branding (organization_id, ${spec.column}) VALUES ($1, $2) RETURNING *`,
+          [orgId, key],
+        );
+        return r.rows[0]!;
+      }
+      const r = await c.query<Record<string, unknown>>(
+        `UPDATE tenant_branding SET ${spec.column} = $2, status = 'draft' WHERE id = $1 RETURNING *`,
+        [existing.rows[0]!.id, key],
+      );
+      await recordEvent(c, {
+        organizationId: orgId, storeId: null, actorUserId: user.id,
+        entityType: 'tenant_branding', entityId: String(existing.rows[0]!.id),
+        action: 'updated', parentEntityType: 'organization', parentEntityId: orgId,
+        changes: { [spec.column]: key },
+      });
+      return r.rows[0]!;
+    });
+    return reply.code(201).send(row);
+  });
+
+  /**
+   * Serve a brand asset.
+   *
+   * Locked down hard because this is tenant-supplied content served from the
+   * app's own origin: an SVG is a document that can carry script, and a logo
+   * that could run script would be a stored XSS in every tenant's header. The
+   * CSP below allows nothing at all, `nosniff` stops a PNG being re-read as
+   * HTML, and the sandbox strips script even if the browser is talked into
+   * treating it as a document. Render these with `<img src>` — never inline the
+   * SVG into the DOM, where none of these headers apply.
+   */
+  app.get('/api/v1/branding/assets/:slot', async (request, reply) => {
+    const slot = String((request.params as { slot?: string }).slot ?? '') as BrandingSlot;
+    const spec = BRANDING_SLOTS[slot];
+    if (!spec) throw notFound();
+
+    const user = sessionUser(request);
+    const orgId = await soleOrg(pool, user.id, (request.query as { organization_id?: string }).organization_id);
+    const key = await withTenant(pool, orgId, async (c) => {
+      await requireMember(c, user.id);
+      // From the PUBLISHED snapshot, not the draft column: an unpublished logo
+      // must not appear in the app any more than an unpublished colour does.
+      const r = await c.query<{ key: string | null }>(
+        `SELECT published_snapshot ->> $2 AS key FROM tenant_branding
+         WHERE organization_id = $1 AND store_id IS NULL AND deleted_at IS NULL
+           AND published_snapshot IS NOT NULL`,
+        [orgId, spec.column],
+      );
+      return r.rows[0]?.key ?? null;
+    });
+    if (!key) throw notFound();
+
+    const body = await storage.get(key);
+    const type = key.endsWith('.svg')
+      ? 'image/svg+xml'
+      : key.endsWith('.png')
+        ? 'image/png'
+        : 'image/jpeg';
+    return reply
+      .header('content-type', type)
+      .header('x-content-type-options', 'nosniff')
+      .header('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+      // Content-addressed keys: the bytes at a key never change, so this is
+      // safe to cache hard, and a new logo is a new key.
+      .header('cache-control', 'private, max-age=31536000, immutable')
+      .send(body);
   });
 
   /**

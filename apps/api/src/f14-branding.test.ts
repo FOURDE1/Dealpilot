@@ -262,3 +262,75 @@ describe('who may change the brand', () => {
     expect(write.statusCode).toBe(403);
   });
 });
+
+describe('brand assets', () => {
+  const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  const SVG = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>');
+
+  async function upload(slot: string, body: Buffer, contentType: string) {
+    return app!.inject({
+      method: 'POST', url: `/api/v1/organizations/${orgId}/branding/assets/${slot}`,
+      headers: { cookie, 'content-type': contentType }, payload: body,
+    });
+  }
+
+  it('stores a logo and serves it back only once published', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    expect((await upload('logo_light', SVG, 'image/svg+xml')).statusCode).toBe(201);
+
+    // Unpublished: an asset is an edit like any other and must not appear yet.
+    const early = await app!.inject({
+      method: 'GET', url: '/api/v1/branding/assets/logo_light', headers: { cookie },
+    });
+    expect(early.statusCode).toBe(404);
+
+    await publish();
+    const served = await app!.inject({
+      method: 'GET', url: '/api/v1/branding/assets/logo_light', headers: { cookie },
+    });
+    expect(served.statusCode).toBe(200);
+    expect(Buffer.from(served.rawPayload).equals(SVG)).toBe(true);
+  });
+
+  it('serves tenant-supplied content with the headers that make it inert', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const served = await app!.inject({
+      method: 'GET', url: '/api/v1/branding/assets/logo_light', headers: { cookie },
+    });
+    // An SVG is a document that can carry script. Served from our own origin,
+    // a logo that could run script is a stored XSS in every tenant's header.
+    expect(served.headers['content-security-policy']).toContain("default-src 'none'");
+    expect(served.headers['content-security-policy']).toContain('sandbox');
+    expect(served.headers['x-content-type-options']).toBe('nosniff');
+    expect(served.headers['content-type']).toContain('image/svg+xml');
+  });
+
+  it('refuses an SVG where email clients cannot render one', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // It would look right in the editor and be missing from every email sent.
+    expect((await upload('email_logo', SVG, 'image/svg+xml')).statusCode).toBe(415);
+    expect((await upload('email_logo', PNG, 'image/png')).statusCode).toBe(201);
+  });
+
+  it('refuses a PDF — a logo is not a document', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The document allowlist and the branding allowlist are separate on purpose.
+    expect((await upload('logo_light', PNG, 'application/pdf')).statusCode).toBe(415);
+  });
+
+  it('refuses a file over the slot ceiling, naming the limit', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const huge = Buffer.alloc(250 * 1024, 0x41);
+    const res = await upload('logo_light', huge, 'image/png');
+    expect(res.statusCode).toBe(413);
+    expect(JSON.parse(res.body).error.details[0].message).toContain('limit');
+  });
+
+  it('refuses a slot that does not exist', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    expect((await upload('background_music', PNG, 'image/png')).statusCode).toBe(404);
+  });
+});

@@ -105,5 +105,39 @@ export const ALLOWED_CONTENT_TYPES: Record<string, string> = {
   'image/png': 'png',
 };
 
+/**
+ * What a BRAND asset may be (F-14). A separate list from documents on purpose:
+ * a signed bank contract must never be an SVG, and a logo must never be a PDF.
+ * One shared allowlist would have permitted both.
+ */
+export const BRANDING_CONTENT_TYPES: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/svg+xml': 'svg',
+};
+
+/** Every content type any route parses as raw bytes. */
+export const RAW_BODY_CONTENT_TYPES = [
+  ...new Set([...Object.keys(ALLOWED_CONTENT_TYPES), ...Object.keys(BRANDING_CONTENT_TYPES)]),
+];
+
+/** Per-slot ceilings, from white-labeling.md §2. */
+export const BRANDING_SLOTS = {
+  logo_light: { column: 'logo_light_key', maxBytes: 200 * 1024, raster: false },
+  logo_dark: { column: 'logo_dark_key', maxBytes: 200 * 1024, raster: false },
+  favicon: { column: 'favicon_key', maxBytes: 100 * 1024, raster: false },
+  // Email clients render SVG unreliably or not at all, so this one must be a
+  // raster image — an SVG here is a logo that silently vanishes in Outlook.
+  email_logo: { column: 'email_logo_key', maxBytes: 300 * 1024, raster: true },
+  login_bg: { column: 'login_bg_key', maxBytes: 1024 * 1024, raster: true },
+} as const;
+
+export type BrandingSlot = keyof typeof BRANDING_SLOTS;
+
+/** Server-built, per-tenant prefixed, content-addressed — same rules as documents. */
+export function brandingKey(orgId: string, slot: string, hash: string, extension: string): string {
+  return `org/${orgId}/branding/${slot}/${hash}.${extension}`;
+}
+
 /** 20 MB — a scanned multi-page contract, with room, and not a memory hazard. */
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;

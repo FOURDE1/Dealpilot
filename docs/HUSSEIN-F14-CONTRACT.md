@@ -111,3 +111,50 @@ identity is not linked to any sign-in account — anyone added that way is
 `active` and can see nothing (CR-14). **You already use `invitations.create`,
 which is correct.** Please keep it that way; I will close the other door once
 the owner decides D-040.
+
+---
+
+## Brand assets — now built (same commit series)
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| POST | `/api/v1/organizations/:id/branding/assets/:slot` | **raw bytes** | 201 `TenantBranding` |
+| GET | `/api/v1/branding/assets/:slot` | — | 200 the bytes |
+
+Slots: `logo_light`, `logo_dark`, `favicon`, `email_logo`, `login_bg`.
+Content types: `image/png`, `image/jpeg`, `image/svg+xml` — **not** the document
+allowlist, deliberately: a signed contract must never be an SVG and a logo must
+never be a PDF.
+
+Per-slot ceilings (413 with the limit named): logo 200 KB, favicon 100 KB, email
+logo 300 KB, login background 1 MB.
+
+**`email_logo` and `login_bg` refuse SVG** (415 `raster_required`). Email clients
+render SVG unreliably or not at all — it would look right in your editor and be
+missing from every email the dealership sends.
+
+**Uploading an asset is an edit**: it puts the brand back to `draft`, so a new
+logo does not appear on the floor until publish, exactly like a colour. The GET
+serves from the **published snapshot**, so an unpublished logo is a 404.
+
+### One security rule I need you to hold
+
+Render brand assets with **`<img src="…">`**. Never fetch the SVG and inline it
+into the DOM.
+
+The serving route sets `Content-Security-Policy: default-src 'none'; sandbox`,
+`X-Content-Type-Options: nosniff` and the exact content type — an SVG is a
+document that can carry script, and a tenant-supplied logo that could run script
+is a stored XSS in every tenant's header. Those headers protect the asset as a
+*resource*; inlining it into your page bypasses all of them.
+
+Keys are content-addressed, so the bytes at a key never change and the response
+is cached `immutable` for a year. A new logo is a new key — you never need to
+bust it.
+
+### Still not built
+
+Image **dimension** validation and EXIF stripping (§2 wants max 512×160 for the
+logo, and EXIF stripped from the login background). Both need an image library —
+`sharp` — which is a new dependency and therefore the owner's call, not mine.
+Today the size ceiling and the content-type allowlist are the whole check.

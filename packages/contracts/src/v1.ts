@@ -526,6 +526,26 @@ export const apiV1 = c.router({
       body: UpdateBrandingInput,
       responses: { 200: TenantBranding, ...errorResponses },
     },
+    /**
+     * Upload a brand asset — raw bytes with a real image content-type, like the
+     * document upload. Slots: logo_light | logo_dark | favicon | email_logo |
+     * login_bg.
+     */
+    uploadAsset: {
+      method: 'POST',
+      path: '/api/v1/organizations/:id/branding/assets/:slot',
+      pathParams: z.object({ id: Uuid, slot: z.string() }),
+      body: z.any(),
+      responses: { 201: TenantBranding, ...errorResponses },
+    },
+    /** Serve a PUBLISHED brand asset. Render with `<img src>`, never inlined. */
+    asset: {
+      method: 'GET',
+      path: '/api/v1/branding/assets/:slot',
+      pathParams: z.object({ slot: z.string() }),
+      query: z.object({ organization_id: Uuid.optional() }),
+      responses: { 200: z.any(), ...errorResponses },
+    },
     /** Compute the palette, auto-fix contrast, make it live. */
     publish: {
       method: 'POST',
