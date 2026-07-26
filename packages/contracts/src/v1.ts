@@ -14,6 +14,7 @@ import {
   PermissionMatrix,
   UpdateRolePermissionsInput,
   UpdateUserPermissionInput,
+  UserPermissionOverride,
   ActivityListQuery,
   ChaserVehicle,
   CreateChaserInput,
@@ -376,6 +377,13 @@ export const apiV1 = c.router({
       path: '/api/v1/permissions/role',
       body: UpdateRolePermissionsInput,
       responses: { 200: PermissionMatrix, ...errorResponses },
+    },
+    /** The exceptions that exist, so the screen can show and clear them. */
+    overrides: {
+      method: 'GET',
+      path: '/api/v1/permissions/overrides',
+      query: z.object({ organization_id: Uuid.optional(), user_id: Uuid.optional() }),
+      responses: { 200: z.object({ items: z.array(UserPermissionOverride) }), ...errorResponses },
     },
     /** One person's exception — grant OR deny. null clears it. */
     setUser: {

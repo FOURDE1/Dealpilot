@@ -70,7 +70,15 @@ export function PermissionsPage() {
     const current = matrix.data.matrix[role] ?? [];
     const next = has ? current.filter((p) => p !== permission) : [...current, permission];
     try {
-      await setRole.mutateAsync({ organization_id: orgId, role, permissions: next });
+      // CR-10(a): the version this edit was made against. The server refuses a
+      // save built on a stale view rather than silently undoing whoever saved
+      // in between — the 409 is handled below.
+      await setRole.mutateAsync({
+        organization_id: orgId,
+        role,
+        permissions: next,
+        base_version: matrix.data.versions[role] ?? 'empty',
+      });
       setNotice(t('saved'));
     } catch (err) {
       if (!(err instanceof ApiError)) {

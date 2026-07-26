@@ -90,14 +90,41 @@ export async function seedPermissions(client: PoolClient, orgId: string): Promis
   );
 }
 
-/** The whole matrix, for the settings screen. */
+/**
+ * The whole matrix, plus a version per role.
+ *
+ * The version is the newest `updated_at` in that role's rows. Saving a role
+ * rewrites all of them, so any change moves it — which is exactly what a second
+ * admin's stale save needs to collide with (CR-10).
+ */
 export async function readMatrix(client: PoolClient, orgId: string) {
-  const r = await client.query<{ role: string; permission: string }>(
-    `SELECT role, permission FROM role_permissions
+  const r = await client.query<{ role: string; permission: string; v: string }>(
+    `SELECT role, permission, updated_at::text AS v FROM role_permissions
      WHERE organization_id = $1 AND allowed ORDER BY role, permission`,
     [orgId],
   );
   const matrix: Record<string, string[]> = {};
-  for (const row of r.rows) (matrix[row.role] ??= []).push(row.permission);
-  return { permissions: [...PERMISSIONS], roles: Object.keys(DEFAULT_ROLE_PERMISSIONS), matrix };
+  const versions: Record<string, string> = {};
+  for (const row of r.rows) {
+    (matrix[row.role] ??= []).push(row.permission);
+    if (!versions[row.role] || row.v > versions[row.role]!) versions[row.role] = row.v;
+  }
+  // A role with nothing granted still needs a version to save against.
+  for (const role of Object.keys(DEFAULT_ROLE_PERMISSIONS)) versions[role] ??= 'empty';
+  return {
+    permissions: [...PERMISSIONS],
+    roles: Object.keys(DEFAULT_ROLE_PERMISSIONS),
+    matrix,
+    versions,
+  };
+}
+
+/** The current version of one role, for the compare-and-swap on save. */
+export async function roleVersion(client: PoolClient, orgId: string, role: string): Promise<string> {
+  const r = await client.query<{ v: string | null }>(
+    `SELECT max(updated_at)::text AS v FROM role_permissions
+     WHERE organization_id = $1 AND role = $2 AND allowed`,
+    [orgId, role],
+  );
+  return r.rows[0]?.v ?? 'empty';
 }
