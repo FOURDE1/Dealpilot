@@ -185,3 +185,27 @@ Why this note exists: the table and the resolution query supported store
 overrides from the first commit, and the editor routes hardcoded the group row —
 so a rooftop brand could be created and then never edited or published. Half
 reachable is worse than absent; it is fixed and tested now.
+
+---
+
+## Known gap: the branded LOGIN page cannot be branded yet
+
+Every branding endpoint requires a session (deny-by-default, app.ts
+`PUBLIC_ROUTES`). So a visitor who has not signed in cannot fetch the tenant's
+logo or login background — **do not build the login page expecting branding to
+be available there.** It will 401.
+
+This is not an oversight I can close on my own. To brand a login page the server
+has to know *which tenant* before anyone has authenticated, and §3 resolves that
+from the custom domain or the `{dealer}.dealpilot.app` subdomain — which is the
+custom-domain workstream, and needs paid AWS (ACM + CloudFront), which the owner
+has not authorised during the build.
+
+The alternative is resolving the tenant from something in the URL the visitor
+types, e.g. `/login?org=groupe-hassan`. That works without any infrastructure,
+but it makes a tenant's existence and their logo readable by anyone who guesses
+a slug. Small, but it is a disclosure decision and therefore the owner's, not
+mine. Filed as **D-041**.
+
+Until one of those lands: the login page uses the platform's own default look,
+and branding begins at first paint after sign-in.

@@ -441,6 +441,12 @@ will switch it.
 | 14.7 | Type a colour name like "cornflowerblue" instead of a hex | Refused. A silently-defaulted colour is a brand nobody chose | ⬜ |
 | 14.8 | As a salesperson (not owner/GM), open the app | They **see** the brand but cannot change it | ⬜ |
 
+| 14.9 | Upload a logo (PNG or SVG), publish, reload | Your logo appears. Upload a different one and it replaces it | ⬜ |
+| 14.10 | Try to upload a logo bigger than 200 KB | Refused, and it tells you the limit rather than just failing | ⬜ |
+| 14.11 | Try to use an SVG as the EMAIL logo | Refused — email programs cannot render SVG reliably, so it would look right here and be missing from every email you send | ⬜ |
+| 14.12 | Give ONE rooftop its own colours and name, publish it | That rooftop shows its own brand; your other stores keep the group's. Publishing a rooftop's brand does not touch the group's | ⬜ |
+| 14.13 | Sign out and look at the sign-in page | It is **not** branded — see D-041; I need your answer before it can be | ⬜ |
+
 **One I need YOU to judge:** 14.5 is the whole philosophy of this feature in one
 click. Try it and tell me whether "publish anyway and fix the text" feels right
 for your business, or whether you want it to stop you.

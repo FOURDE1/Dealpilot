@@ -247,6 +247,33 @@ path.
 
 ---
 
+## D-041 — Should the sign-in page carry the dealership's branding?
+
+**Where it stands.** Everything after sign-in can be branded. The sign-in page
+itself cannot, because the server has no way to know which dealership a visitor
+belongs to before they have signed in.
+
+**Two ways to fix it.**
+
+1. **A web address per dealership** — `groupehassan.dealpilot.app`, or their own
+   domain. That is how the plan intends it, it is the better experience, and it
+   is part of the custom-domain work that needs paid AWS. Nothing to decide now
+   beyond "yes, later".
+2. **A dealership name in the link** — `…/login?org=groupe-hassan`. Works today
+   with no infrastructure. The cost: anyone who guesses a name can see that the
+   dealership uses the system, and see their logo. Not a security hole, but it is
+   information you would be publishing.
+
+**What I need from you:** is option 2 acceptable as an interim, or would you
+rather the sign-in page stay plain until the proper web addresses exist? I have
+built neither, because publishing which dealerships are your clients is your
+call.
+
+My recommendation: leave it plain. The gain is one screen; the cost is a list of
+your clients that anybody can probe.
+
+---
+
 ## Already answered — no action needed
 
 - SES over Resend for email (D-029). Built.
