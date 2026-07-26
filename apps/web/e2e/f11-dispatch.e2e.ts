@@ -95,8 +95,15 @@ test('full F-11 journey: fleet roster → book a run → board → status', asyn
   await expect(dupDialog.getByText('Une course existe déjà pour cette transaction.')).toBeVisible();
   await dupDialog.getByRole('button', { name: 'Annuler' }).click();
 
+  // A plate held by the booked run cannot be retired — said in plain words.
+  await page.goto('/organizations');
+  await page.getByRole('link', { name: `Groupe F11 ${stamp}` }).click();
+  await page.getByRole('link', { name: 'Succursale F11' }).click();
+  await page.getByRole('button', { name: `Retirer — P${stamp % 10000}` }).click();
+  await expect(page.getByText(/livraison réservée compte sur cet élément/)).toBeVisible();
+
   // The status track only offers legal moves, and ends stay ended.
-  await page.getByRole('link', { name: 'Livraisons' }).first().click();
+  await page.goto('/dispatch');
   const statusSelect = page.getByLabel('Statut').first();
   await expect(statusSelect.getByRole('option', { name: 'Complétée' })).toHaveCount(0);
   await statusSelect.selectOption({ label: 'Partie' });

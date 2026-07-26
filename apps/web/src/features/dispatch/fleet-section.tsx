@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Label } from '@dealpilot/ui';
 import { ApiError } from '../../shared/api/client.js';
-import { useAddChaser, useAddPlate, useDriverCompanies, useCreateDriverCompany, useFleet } from './api.js';
+import { useAddChaser, useAddPlate, useDriverCompanies, useCreateDriverCompany, useFleet, useRetireChaser, useRetirePlate } from './api.js';
 
 /**
  * Store logistics roster: driver companies (the request email goes to them),
@@ -16,6 +16,8 @@ export function FleetSection({ orgId, storeId }: { orgId: string; storeId: strin
   const addChaser = useAddChaser(storeId);
   const addPlate = useAddPlate(storeId);
   const addCompany = useCreateDriverCompany();
+  const retireChaser = useRetireChaser();
+  const retirePlate = useRetirePlate();
   const [chaserName, setChaserName] = useState('');
   const [plateNumber, setPlateNumber] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -25,8 +27,12 @@ export function FleetSection({ orgId, storeId }: { orgId: string; storeId: strin
   function run(p: Promise<unknown>, clear: () => void) {
     setError(null);
     p.then(clear).catch((err: unknown) => {
-      setError(t('genericError'));
-      if (!(err instanceof ApiError)) throw err;
+      if (!(err instanceof ApiError)) {
+        setError(t('genericError'));
+        throw err;
+      }
+      // 409 in_use: a booked run is counting on this plate/chaser.
+      setError(err.status === 409 && err.code === 'in_use' ? t('inUseByRun') : t('genericError'));
     });
   }
 
@@ -107,10 +113,22 @@ export function FleetSection({ orgId, storeId }: { orgId: string; storeId: strin
           </div>
           <ul className="divide-y divide-border text-sm">
             {(fleet.data?.chasers ?? []).map((c) => (
-              <li key={c.id} className="flex justify-between gap-2 py-1.5">
+              <li key={c.id} className="flex items-center justify-between gap-2 py-1.5">
                 <span>{c.name}</span>
-                <span className="text-xs text-muted-foreground">
-                  {c.status === 'in_use' ? t('inUse') : t('available')}
+                <span className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {c.status === 'in_use' ? t('inUse') : t('available')}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={retireChaser.isPending}
+                    aria-label={t('retireFor', { name: c.name })}
+                    onClick={() => run(retireChaser.mutateAsync(c.id), () => undefined)}
+                  >
+                    {t('retire')}
+                  </Button>
                 </span>
               </li>
             ))}
@@ -138,10 +156,22 @@ export function FleetSection({ orgId, storeId }: { orgId: string; storeId: strin
           </div>
           <ul className="divide-y divide-border text-sm">
             {(fleet.data?.plates ?? []).map((p) => (
-              <li key={p.id} className="flex justify-between gap-2 py-1.5">
+              <li key={p.id} className="flex items-center justify-between gap-2 py-1.5">
                 <span className="font-mono">{p.plate_number}</span>
-                <span className="text-xs text-muted-foreground">
-                  {p.status === 'in_use' ? t('inUse') : t('available')}
+                <span className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    {p.status === 'in_use' ? t('inUse') : t('available')}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={retirePlate.isPending}
+                    aria-label={t('retireFor', { name: p.plate_number })}
+                    onClick={() => run(retirePlate.mutateAsync(p.id), () => undefined)}
+                  >
+                    {t('retire')}
+                  </Button>
                 </span>
               </li>
             ))}

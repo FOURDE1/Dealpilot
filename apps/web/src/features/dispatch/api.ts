@@ -203,6 +203,28 @@ export function useAddChaser(storeId: string) {
   });
 }
 
+export function useRetireChaser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest(routes.chasers.retire, { params: { id } });
+      if (res.status !== 204) fail(res.status, res.body);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fleet'] }),
+  });
+}
+
+export function useRetirePlate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest(routes.plates.retire, { params: { id } });
+      if (res.status !== 204) fail(res.status, res.body);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['fleet'] }),
+  });
+}
+
 export function useAddPlate(storeId: string) {
   const queryClient = useQueryClient();
   return useMutation({

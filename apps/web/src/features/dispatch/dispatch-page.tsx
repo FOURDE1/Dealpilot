@@ -89,7 +89,13 @@ export function DispatchPage() {
         setError(t('genericError'));
         throw err;
       }
-      setError(err.code === 'invalid_transition' ? t('invalidTransition') : t('genericError'));
+      setError(
+        err.code === 'invalid_transition'
+          ? t('invalidTransition')
+          : err.errorCode === 'run_ended' || err.code === 'run_ended'
+            ? t('runEnded')
+            : t('genericError'),
+      );
     }
   }
 
@@ -190,7 +196,9 @@ export function DispatchPage() {
         id: 'actions',
         header: () => <span className="sr-only">{t('actionsCol')}</span>,
         cell: ({ row }) =>
-          row.original.status === 'completed' || row.original.status === 'cancelled' ? null : (
+          row.original.status === 'completed' ||
+          row.original.status === 'cancelled' ||
+          row.original.driver_company_id === null ? null : (
             <span className="flex justify-end gap-1">
               <Button
                 type="button"
@@ -208,8 +216,15 @@ export function DispatchPage() {
                       else setError(t('mailFailed'));
                     })
                     .catch((err: unknown) => {
-                      setError(t('genericError'));
-                      if (!(err instanceof ApiError)) throw err;
+                      if (!(err instanceof ApiError)) {
+                        setError(t('genericError'));
+                        throw err;
+                      }
+                      setError(
+                        err.errorCode === 'no_driver_company' || err.code === 'no_driver_company'
+                          ? t('noDriverCompany')
+                          : t('genericError'),
+                      );
                     });
                 }}
               >
