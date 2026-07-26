@@ -22,6 +22,27 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — F-11/F-11b dispatch UI merged: the delivery run is visible and honest
+
+Board (/dispatch, owner/gm/logistics): every run with customer, type,
+company, the SERVER-PICKED plate and chaser, cash-to-carry loud, conflict
+badge with its reason inline, one legal status track (forward or cancelled —
+mirror of packages/core DISPATCH_TRANSITIONS), resend that reports the
+mailer's truth. Booking from the deal: schedule/addresses/company/cash/notes;
+the F-11b signed-file gate and every 409 flavour are NAMED refusals
+(no-plate and no-chaser point at the store page, not at a phantom duplicate).
+Store page gained the logistics roster (companies with request email,
+chasers, plates — availability derived, never hand-set). Review (22 agents):
+18 confirmed findings, ALL fixed — the high ones: resend parsed the wrong
+response schema (every resend reported failure while the email had gone,
+inviting duplicate cash-carrying requests) and the fleet roster silently
+empty for multi-org users. e2e: gate-refusal → checklist → booking →
+board → resend truth → duplicate named → legal-transitions walk to a frozen
+completed run (22/22 suite; full gates).
+**Every backend slice both agents have shipped now has its UI and its rows
+in OWNER-TEST-MASTER (ROUNDs 1-9).** F-11c and the next batch belong to
+tomorrow's queue with AHMAD.
+
 ## 2026-07-26 [HUSSEIN] — F-12 invitations UI + CR-04 exact history merged; CR-05 filed
 
 Invite flow live end-to-end: Team invites (named 422/409/403 errors), open

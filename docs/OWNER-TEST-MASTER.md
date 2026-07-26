@@ -230,3 +230,18 @@ preference; the button then remembers your choice. Alternative was light-always.
 **Note (CR-05):** on this dev machine, emails land in a log instead of an
 inbox, so the sheet may say "sent" while nothing arrives — we've asked for the
 link to be shown on screen in dev. On the real AWS setup it goes by email.
+
+## ROUND 9 — Deliveries & transport (F-11)
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 9.1 | Organizations → your store → "Logistics" | Add a driver company (name + email), a chaser car and a dealer plate | ⬜ |
+| 9.2 | On a deal, click "Book the delivery" BEFORE ticking the signed file | Refused in plain words: the driver leaves with a complete signed file — pointing you at the checklist | ⬜ |
+| 9.3 | Tick "Wet-ink file" on the checklist, book again with a time, address, the company and cash to collect | Booked; the dialog closes | ⬜ |
+| 9.4 | Dashboard → "View deliveries" | The run is on the board: customer, company, the PLATE and CHASER the system picked, and the cash amount standing out | ⬜ |
+| 9.5 | Move the status | Only real moves are offered (Assigned → Departed → Arrived → Completed, or Cancelled); a completed run is frozen | ⬜ |
+| 9.6 | "Resend request" | It tells the truth: re-sent, or the mail service is down — never a false failure | ⬜ |
+| 9.7 | Book the same deal twice | "A run already exists for this deal." — by name, not a generic error | ⬜ |
+
+**⚠ DECISION:** booking is restricted to owner, GM and logistics (matching the
+API). Salespeople see the board link but get a plain "not allowed" message.
