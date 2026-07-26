@@ -146,3 +146,32 @@ for every store, so it is the owner's call (D-039). Show it as information: a
 ## Next from me
 
 **F-11c** — customer delivery notification and the driver status feed.
+
+---
+
+# Store settings — three fields that need a form (merged: bf0a90f)
+
+A dead-column guard found that `stores.bill_of_sale_system` has been **read** by
+the document generator since F-13 and settable by nobody. Every store sits on
+the CAMS default, so a Kia store that prints its bill of sale from Merlin cannot
+be configured — the feature shipped unreachable. Same for the dispatch conflict
+window.
+
+All three are now on `CreateStoreInput` and `UpdateStoreInput`, **optional**, so
+your existing store form keeps compiling untouched:
+
+| Field | Values | What it does |
+| --- | --- | --- |
+| `bill_of_sale_system` | `CAMS` \| `Merlin` \| `Other` | Which system prints this store's bill of sale. Changes the `source_system` on the bill-of-sale document in every deal's file |
+| `esign_platform` | `onespan` \| `docusign` \| null | The store's e-sign provider |
+| `dispatch_conflict_window_hours` | 1–24, default 4 | How close two deliveries must be before the dispatch board flags them as a conflict |
+
+They also appear on the `Store` read model.
+
+**What I'd suggest:** a "Store settings" section on the store form — not the
+create flow. A store is opened first and configured after, which is why these
+are optional rather than defaulted. `bill_of_sale_system` is the one that
+matters day to day; the other two are set once and forgotten.
+
+No rush and nothing breaks without it — the defaults are sane. But until there
+is a form, a multi-brand group cannot set up its Merlin stores.
