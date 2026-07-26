@@ -11,6 +11,9 @@ import {
   Store,
   ActivityEvent,
   DealDocument,
+  DealFiProduct,
+  CreateFiProductInput,
+  UpdateFiProductInput,
   DealDocumentsResponse,
   DocumentListQuery,
   UpdateDocumentInput,
@@ -421,6 +424,38 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: UpdateDocumentInput,
       responses: { 200: DealDocument, ...errorResponses },
+    },
+  }),
+  /**
+   * F-13b itemised F&I. The per-product agreements in a deal's file are named
+   * after these rows; without them three document types were unreachable.
+   */
+  fiProducts: c.router({
+    forDeal: {
+      method: 'GET',
+      path: '/api/v1/deals/:id/fi-products',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: z.array(DealFiProduct), ...errorResponses },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/deals/:id/fi-products',
+      pathParams: z.object({ id: Uuid }),
+      body: CreateFiProductInput,
+      responses: { 201: DealFiProduct, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/fi-products/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateFiProductInput,
+      responses: { 200: DealFiProduct, ...errorResponses },
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/v1/fi-products/:id',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 204: z.void(), ...errorResponses },
     },
   }),
   /** F-10 activity trail (ADR-009): one entity's history, or the org's recent. */

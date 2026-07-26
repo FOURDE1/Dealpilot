@@ -65,6 +65,10 @@ const BEHAVIOURALLY_COVERED = new Set([
   // F-13: cross-tenant case in apps/api/src/f13-documents.test.ts
   // ("another organization sees none of these documents").
   'deal_documents',
+  // F-13b: cross-tenant case in apps/api/src/f13b-fi-products.test.ts
+  // ("another organisation's product is a 404, not a 403") — PATCH, DELETE and
+  // the deal's list, because each reaches the table by a different route.
+  'deal_fi_products',
 ]);
 
 interface PolicyRow {

@@ -153,6 +153,52 @@ never did. That comment is corrected.
 
 ---
 
+## D-037 — Do you sell insurance-type F&I products? (F-13b)
+
+**Why I am asking.** F-13b gives F&I products their own rows, so a warranty, a
+GAP policy and each aftermarket item now produce their own agreement in the
+customer's file, named after the product. Every one of them is taxed with the
+vehicle, because desking works out the tax base from the deal's single F&I
+total.
+
+Credit life and disability insurance are the exception in the real world —
+they are insurance premiums, not goods, and they are not taxed the same way.
+
+**What I did NOT build.** I left the per-product "taxable" switch out entirely
+rather than putting one in that desking ignores. A box you can tick that
+changes nothing would have quietly overcharged a customer tax and reported it
+as correct.
+
+**What I need from you:** does the group sell credit life, disability, or any
+other insurance-type F&I product? If yes, I will make the tax base read the
+products instead of the deal total, and the switch becomes real. If no, this
+stays as it is and costs nothing.
+
+---
+
+## D-038 — Should a FUNDED deal's money be frozen the way a delivered checklist is?
+
+**Why I am asking.** You answered the same question for the delivery checklist
+(D-034): keep it frozen, and if someone must edit it, force a reason and keep
+the history. Built.
+
+The equivalent gap on the money side already existed before this batch: once a
+deal is funded, its sale price, cost and F&I can still be edited, and the
+commission written at funding is NOT rewritten. So the deal and the pay it
+generated can drift apart. Every change is in the activity trail, so nothing is
+hidden — but nothing stops it either.
+
+**Where it stands:** the pay itself is safe — commission is worked out from the
+sale price, the vehicle cost and the F&I reserve, and F-13b's product rows do
+not touch any of those. What can drift is the deal's reported gross.
+
+**What I need from you:** apply your D-034 answer to funded deals too — mandatory
+reason, owner/GM only, recorded — or leave money editable after funding? I have
+not assumed, because freezing it could block a legitimate correction the day
+before month-end and that is your call, not mine.
+
+---
+
 ## Already answered — no action needed
 
 - SES over Resend for email (D-029). Built.

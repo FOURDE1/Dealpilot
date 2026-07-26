@@ -1,7 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { canAdvanceDocument, requiredDocuments, type DealShape } from '@dealpilot/core';
-import { DocumentListQuery, UpdateDocumentInput } from '@dealpilot/schemas';
+import {
+  CreateFiProductInput,
+  DocumentListQuery,
+  UpdateDocumentInput,
+  UpdateFiProductInput,
+} from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
@@ -46,6 +51,16 @@ export async function generateDocuments(
   if (r.rows.length === 0) throw notFound();
   const d = r.rows[0]!;
 
+  // F-13b: the per-product agreements are named after these rows. Before they
+  // existed the deal carried one aggregate F&I number with no names, so
+  // warranty, GAP and aftermarket agreements could not be produced at all —
+  // three of the thirteen types were unreachable.
+  const products = await client.query<{ kind: 'warranty' | 'gap' | 'aftermarket'; name: string }>(
+    `SELECT kind, name FROM deal_fi_products
+     WHERE deal_id = $1 AND deleted_at IS NULL ORDER BY sort_order, created_at`,
+    [dealId],
+  );
+
   const shape: DealShape = {
     dealType: d.deal_type as DealShape['dealType'],
     province: d.province,
@@ -53,10 +68,7 @@ export async function generateDocuments(
     soldAsIs: d.sold_as_is,
     vehicleType: (d.vehicle_type as 'new' | 'used' | null) ?? undefined,
     billOfSaleSystem: d.bill_of_sale_system as DealShape['billOfSaleSystem'],
-    // F&I products are a single aggregate on the deal today (fi_price_cents),
-    // not per-product rows, so the per-product agreements cannot be derived
-    // yet. Filed as F-13b rather than guessed at — inventing one "F&I product"
-    // document would be worse than showing none.
+    fiProducts: products.rows.map((x) => ({ kind: x.kind, name: x.name })),
   };
 
   const docs = requiredDocuments(shape);
@@ -80,13 +92,20 @@ export async function generateDocuments(
   //
   // Documents no longer required are removed only while untouched — once someone
   // has printed or signed it, it is part of the record and stays.
-  const wanted = docs.map((x) => x.type);
+  //
+  // Keyed by the (type, name) PAIR, not type alone: a deal can carry two aftermarket
+  // agreements, so dropping one of the two products has to remove that one's
+  // agreement and leave the other's. Comparing types only left an orphan
+  // agreement in the file for a product nobody sold.
+  const wantedTypes = docs.map((x) => x.type);
+  const wantedNames = docs.map((x) => x.name);
   await client.query(
     `UPDATE deal_documents SET deleted_at = now()
      WHERE deal_id = $1 AND deleted_at IS NULL
        AND status IN ('not_ready','generated')
-       AND NOT (document_type = ANY($2))`,
-    [dealId, wanted],
+       AND (document_type, document_name) NOT IN (
+             SELECT * FROM unnest($2::text[], $3::text[]))`,
+    [dealId, wantedTypes, wantedNames],
   );
   return added;
 }
@@ -207,6 +226,201 @@ export function registerF13Routes(app: FastifyInstance, pool: Pool): void {
     return reply.send(updated);
   });
 
+  /**
+   * F-13b itemised F&I. Products are the detail behind the deal's aggregate
+   * F&I price and cost, and the agreements in the file are named after them.
+   */
+  app.get('/api/v1/deals/:id/fi-products', async (request, reply) => {
+    const dealId = idParam(request);
+    const user = sessionUser(request);
+    const orgId = await dealOrg(pool, user.id, dealId);
+    const rows = await withTenant(pool, orgId, async (c) => {
+      await requireMember(c, user.id);
+      const r = await c.query(
+        `SELECT * FROM deal_fi_products WHERE deal_id = $1 AND deleted_at IS NULL
+         ORDER BY sort_order, created_at`,
+        [dealId],
+      );
+      return r.rows;
+    });
+    return reply.send(rows);
+  });
+
+  app.post('/api/v1/deals/:id/fi-products', async (request, reply) => {
+    const dealId = idParam(request);
+    const input = parseOrThrow(CreateFiProductInput, request.body);
+    const user = sessionUser(request);
+    const orgId = await dealOrg(pool, user.id, dealId);
+
+    const created = await withTenant(pool, orgId, async (c) => {
+      // F&I price and cost are deal money — the same authority that edits the
+      // deal, not a new permission nobody has been granted.
+      await requirePermission(c, user.id, 'deal:update');
+      const deal = await c.query<{ store_id: string; fi_price_cents: number }>(
+        `SELECT store_id, fi_price_cents FROM deals
+         WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [dealId],
+      );
+      if (deal.rows.length === 0) throw notFound();
+      const priorTotal = deal.rows[0]!.fi_price_cents;
+
+      let row: Record<string, unknown>;
+      try {
+        const r = await c.query<Record<string, unknown>>(
+          `INSERT INTO deal_fi_products
+             (organization_id, store_id, deal_id, kind, name, provider,
+              price_cents, cost_cents, term_months, sort_order)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+           RETURNING *`,
+          [
+            orgId, deal.rows[0]!.store_id, dealId, input.kind, input.name,
+            input.provider ?? null, input.price_cents ?? 0, input.cost_cents ?? 0,
+            input.term_months ?? null, input.sort_order ?? 0,
+          ],
+        );
+        row = r.rows[0]!;
+      } catch (err) {
+        // One warranty and one GAP per deal, mirroring the document file — a
+        // second of either would generate an agreement the unique index then
+        // swallows, leaving a product with no paperwork.
+        if ((err as { code?: string }).code === '23505') {
+          throw new AppError(409, 'product_exists', `This deal already has a ${input.kind} product`, [
+            { path: 'kind', code: 'product_exists', message: input.kind },
+          ]);
+        }
+        throw err;
+      }
+
+      // The trigger has just replaced the deal's aggregate with the sum of its
+      // products. That is the better record, but it is someone's money moving
+      // without them asking — so it is recorded, never silent.
+      const after = await c.query<{ fi_price_cents: number }>(
+        `SELECT fi_price_cents FROM deals WHERE id = $1`,
+        [dealId],
+      );
+      await recordEvent(c, {
+        organizationId: orgId,
+        storeId: String(row['store_id']),
+        actorUserId: user.id,
+        entityType: 'deal_fi_product',
+        entityId: String(row['id']),
+        action: 'created',
+        parentEntityType: 'deal',
+        parentEntityId: dealId,
+        changes: {
+          kind: input.kind,
+          name: input.name,
+          ...(after.rows[0]!.fi_price_cents !== priorTotal
+            ? { fi_price_cents: { from: priorTotal, to: after.rows[0]!.fi_price_cents } }
+            : {}),
+        },
+      });
+      // The file follows the products: a warranty sold means a warranty
+      // agreement in the folder, without anyone remembering to ask for it.
+      await generateDocuments(c, orgId, dealId);
+      return row;
+    });
+    return reply.code(201).send(created);
+  });
+
+  app.patch('/api/v1/fi-products/:id', async (request, reply) => {
+    const productId = idParam(request);
+    const input = parseOrThrow(UpdateFiProductInput, request.body);
+    const user = sessionUser(request);
+    const orgId = await rowOrg(pool, user.id, productId, 'deal_fi_products');
+
+    const updated = await withTenant(pool, orgId, async (c) => {
+      await requirePermission(c, user.id, 'deal:update');
+      const before = await c.query<Record<string, unknown>>(
+        `SELECT * FROM deal_fi_products WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [productId],
+      );
+      if (before.rows.length === 0) throw notFound();
+      const prior = before.rows[0]!;
+
+      // Cost above price stays refused on the way through, not only on the way
+      // in: PATCHing the price down under an untouched cost is the same loss
+      // the create path rejects.
+      const price = (input.price_cents ?? prior['price_cents']) as number;
+      const cost = (input.cost_cents ?? prior['cost_cents']) as number;
+      if (cost > price) {
+        throw new AppError(422, 'cost_above_price', 'Cost is higher than price', [
+          { path: 'cost_cents', code: 'cost_above_price', message: `${cost} > ${price}` },
+        ]);
+      }
+
+      const sets: string[] = [];
+      const params: unknown[] = [productId];
+      for (const [k, v] of Object.entries(input)) {
+        if (!FI_PRODUCT_COLUMNS.has(k)) continue;
+        params.push(v);
+        sets.push(`${k} = $${params.length}`);
+      }
+      if (sets.length === 0) return prior;
+
+      const r = await c.query<Record<string, unknown>>(
+        `UPDATE deal_fi_products SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+        params,
+      );
+      const changes = Object.fromEntries(
+        Object.entries(input)
+          .filter(([k, v]) => FI_PRODUCT_COLUMNS.has(k) && v !== prior[k])
+          .map(([k, v]) => [k, { from: prior[k], to: v }]),
+      );
+      if (Object.keys(changes).length > 0) {
+        await recordEvent(c, {
+          organizationId: orgId,
+          storeId: String(prior['store_id']),
+          actorUserId: user.id,
+          entityType: 'deal_fi_product',
+          entityId: productId,
+          action: 'updated',
+          parentEntityType: 'deal',
+          parentEntityId: String(prior['deal_id']),
+          changes,
+        });
+      }
+      // A renamed product renames its agreement — while that agreement is still
+      // untouched. Once printed it is part of the record and stays as printed.
+      await generateDocuments(c, orgId, String(prior['deal_id']));
+      return r.rows[0]!;
+    });
+    return reply.send(updated);
+  });
+
+  app.delete('/api/v1/fi-products/:id', async (request, reply) => {
+    const productId = idParam(request);
+    const user = sessionUser(request);
+    const orgId = await rowOrg(pool, user.id, productId, 'deal_fi_products');
+
+    await withTenant(pool, orgId, async (c) => {
+      await requirePermission(c, user.id, 'deal:update');
+      const before = await c.query<Record<string, unknown>>(
+        `SELECT * FROM deal_fi_products WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [productId],
+      );
+      if (before.rows.length === 0) throw notFound();
+      const prior = before.rows[0]!;
+
+      await c.query(`UPDATE deal_fi_products SET deleted_at = now() WHERE id = $1`, [productId]);
+      await recordEvent(c, {
+        organizationId: orgId,
+        storeId: String(prior['store_id']),
+        actorUserId: user.id,
+        entityType: 'deal_fi_product',
+        entityId: productId,
+        action: 'deleted',
+        parentEntityType: 'deal',
+        parentEntityId: String(prior['deal_id']),
+        changes: { kind: prior['kind'], name: prior['name'], price_cents: prior['price_cents'] },
+      });
+      // Removing the product removes its unprinted agreement; the deal's F&I
+      // total drops by the trigger in the same transaction.
+      await generateDocuments(c, orgId, String(prior['deal_id']));
+    });
+    return reply.code(204).send();
+  });
+
   /** Everything outstanding across the org — the filing clerk's worklist. */
   app.get('/api/v1/documents', async (request, reply) => {
     const query = parseOrThrow(DocumentListQuery, request.query);
@@ -231,6 +445,10 @@ export function registerF13Routes(app: FastifyInstance, pool: Pool): void {
     return reply.send(page);
   });
 }
+
+const FI_PRODUCT_COLUMNS = new Set([
+  'name', 'provider', 'price_cents', 'cost_cents', 'term_months', 'sort_order',
+]);
 
 const DOCUMENT_COLUMNS = new Set([
   'status', 'notes', 'esign_platform', 'esign_envelope_id',
@@ -275,10 +493,22 @@ async function resolveOrg(pool: Pool, userId: string, selector?: string): Promis
   return orgs[0]!;
 }
 
-async function rowOrg(pool: Pool, userId: string, documentId: string): Promise<string> {
+/**
+ * Which of the caller's orgs owns this row — 404 for everyone else, so a
+ * stranger's id and an id that never existed are indistinguishable (ADR-021).
+ *
+ * `table` is a union of two literals rather than a string: the value reaches
+ * SQL by interpolation, and only a closed set may ever do that.
+ */
+async function rowOrg(
+  pool: Pool,
+  userId: string,
+  rowId: string,
+  table: 'deal_documents' | 'deal_fi_products' = 'deal_documents',
+): Promise<string> {
   for (const orgId of await callerOrgs(pool, userId)) {
     const found = await withTenant(pool, orgId, async (c) => {
-      const r = await c.query('SELECT 1 FROM deal_documents WHERE id = $1', [documentId]);
+      const r = await c.query(`SELECT 1 FROM ${table} WHERE id = $1`, [rowId]);
       return r.rows.length > 0;
     });
     if (found) return orgId;
