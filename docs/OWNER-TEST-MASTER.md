@@ -402,3 +402,49 @@ card included, no re-save needed (an earlier same-day lag was filed as CR-13 and
 fixed before you read this). The F&I total boxes on the worksheet go grey once
 products exist because the itemised list owns them; type your F&I by hand only
 on deals with no product lines.
+
+---
+
+## ROUND 14 — Your own brand (F-14, server half)
+
+> **Heads up:** this round is mostly **API-level**. The screens for it — the
+> colour pickers, the live preview — are Hussein's next piece, and until they
+> land there is nothing to click. I am listing it now so the behaviour is
+> written down before you see it, and so you know what to expect when the editor
+> arrives.
+>
+> **What it is:** the app stops being one dealership's app. Your group's name,
+> colours, font and corner style, from the same single installation that serves
+> everyone else. Nobody rebuilds anything for you.
+
+**The part I want you to know about, because it is a decision I made for you:**
+
+You can pick a colour that is impossible to read — a pale yellow, a near-white.
+The system **does not refuse it**. It keeps your yellow on your buttons exactly
+as you chose it, and quietly darkens the *text* version of it until it can be
+read, keeping the same colour family. It then tells you it did that, with the
+numbers.
+
+I chose that over refusing to publish, because being told "your brand is
+invalid" is worse than being told "your link colour was adjusted from 2.9:1 to
+4.5:1". If you would rather it hard-refuse and make you pick again, say so and I
+will switch it.
+
+| # | What to do | Expected | Status |
+| --- | --- | --- | --- |
+| 14.1 | (When the editor lands) Set your group's display name and a primary colour, save | Saved as a **draft**. Nothing on anyone else's screen changes yet | ⬜ |
+| 14.2 | Look at the app in another browser/window while the draft is unsaved | Still the old look. A draft never repaints the floor | ⬜ |
+| 14.3 | Press publish | Now everyone sees it | ⬜ |
+| 14.4 | Edit the colour again but do NOT publish | The app **keeps the published look** — it does not go blank or revert to grey. Editing neither repaints nor unbrands | ⬜ |
+| 14.5 | Pick a deliberately terrible colour (pale yellow #FDE047) and publish | It publishes. Buttons are your yellow; link/text is a darker version of the same yellow; the confirmation lists the adjustment with before/after numbers | ⬜ |
+| 14.6 | Check dark mode with that same brand | Also readable — a colour can pass on white and be invisible on black, and both are checked | ⬜ |
+| 14.7 | Type a colour name like "cornflowerblue" instead of a hex | Refused. A silently-defaulted colour is a brand nobody chose | ⬜ |
+| 14.8 | As a salesperson (not owner/GM), open the app | They **see** the brand but cannot change it | ⬜ |
+
+**One I need YOU to judge:** 14.5 is the whole philosophy of this feature in one
+click. Try it and tell me whether "publish anyway and fix the text" feels right
+for your business, or whether you want it to stop you.
+
+**Still waiting on you:** D-036 (as-is vs safety), D-037 (insurance-type F&I
+products), D-038 (freeze a funded deal's money?), D-039 (require scans before
+filing?), D-040 (close the old add-a-colleague API door?).

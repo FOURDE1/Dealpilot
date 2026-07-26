@@ -222,6 +222,31 @@ to it rather than be stopped by it.
 
 ---
 
+## D-040 — Close the old "add a colleague" door? (CR-14)
+
+**What I found.** There are two ways to put someone on your team. The invitation
+flow — the one your screens use — works correctly: they get a link, they sign
+up, and their account is tied to their membership.
+
+The other one is an API endpoint left over from before invitations existed. It
+marks somebody **active** on your team immediately, but their membership is not
+tied to any sign-in account. They would log in and see an empty app while your
+team list showed them as active.
+
+**Your screens do not use it**, so you cannot hit this by clicking. It is a door
+in the API that nothing walks through.
+
+**What I need from you:** may I close it? Either it starts sending an invitation
+like everything else, or it is removed. I did not do it unasked because removing
+an endpoint is the kind of change that breaks something you have not shown me
+yet — but leaving a way to add a colleague who can never sign in is not
+something I want to leave standing either.
+
+My recommendation: make it send an invitation. Same button, same result, one
+path.
+
+---
+
 ## Already answered — no action needed
 
 - SES over Resend for email (D-029). Built.
