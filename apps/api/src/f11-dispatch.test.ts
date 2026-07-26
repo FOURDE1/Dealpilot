@@ -39,16 +39,29 @@ async function makeDeal(opts: { tradeIn: boolean; bookedAt: string; wetInk?: boo
   });
   const id = (JSON.parse(res.body) as { id: string }).id;
   await admin.query(`UPDATE deals SET booked_delivery_at = $2 WHERE id = $1`, [id, opts.bookedAt]);
-  // Dispatch will not send a driver without the signed file (§9 gate, which
-  // reads F-08's checklist). These tests are about scheduling, so satisfy it
-  // here — the gate itself has its own test below.
+  // Dispatch will not send a driver until the wet-ink file is PRINTED (§6/§9).
+  // That is now checked against the documents themselves rather than a tick, so
+  // these tests do the real thing: open the file and print it. Scheduling is
+  // what they are about; the gate has its own tests.
   if (opts.wetInk !== false) {
-    await app!.inject({
-      method: 'PATCH', url: `/api/v1/deals/${id}/checklist/wet_ink_file`, headers: { cookie },
-      payload: { completed: true },
-    });
+    await prepareDocuments(id);
   }
   return id;
+}
+
+/** Print every document on the deal — the F&I/office step before a run. */
+async function prepareDocuments(dealId: string) {
+  const res = await app!.inject({
+    method: 'GET', url: `/api/v1/deals/${dealId}/documents`, headers: { cookie },
+  });
+  const { items } = JSON.parse(res.body) as { items: { id: string; requires_signature: boolean }[] };
+  for (const doc of items) {
+    for (const status of doc.requires_signature ? ['generated', 'printed'] : ['generated', 'in_file']) {
+      await app!.inject({
+        method: 'PATCH', url: `/api/v1/documents/${doc.id}`, headers: { cookie }, payload: { status },
+      });
+    }
+  }
 }
 
 async function book(dealId: string) {
@@ -236,10 +249,7 @@ describe('F-11 dispatch', () => {
     });
     const dealId = (JSON.parse(res.body) as { id: string }).id;
     await admin.query(`UPDATE deals SET booked_delivery_at = $2 WHERE id = $1`, [dealId, '2027-02-01T10:00:00Z']);
-    await app!.inject({
-      method: 'PATCH', url: `/api/v1/deals/${dealId}/checklist/wet_ink_file`, headers: { cookie },
-      payload: { completed: true },
-    });
+    await prepareDocuments(dealId);
 
     const booked = await book(dealId);
     expect(booked.statusCode).toBe(201);
@@ -546,20 +556,43 @@ describe('F-11 dispatch', () => {
   it('the signed file must be ready before a driver is sent (§9 gate)', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const dealId = await makeDeal({ tradeIn: true, bookedAt: '2029-05-01T09:00:00Z', wetInk: false });
-    // F-08 gives every new deal its checklist, and wet_ink_file starts undone.
+    // Reaching Signed is what builds the document file (documents.md §3).
+    await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${dealId}`, headers: { cookie },
+      payload: { pipeline_stage: 'submitted' },
+    });
+    await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${dealId}`, headers: { cookie },
+      payload: { pipeline_stage: 'approved' },
+    });
+    await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${dealId}`, headers: { cookie },
+      payload: { pipeline_stage: 'signed' },
+    });
     const res = await app!.inject({
       method: 'POST', url: '/api/v1/dispatch', headers: { cookie },
       payload: { deal_id: dealId, driver_company_id: companyId },
     });
     expect(res.statusCode).toBe(422);
     expect(JSON.parse(res.body).error.code).toBe('wet_ink_not_ready');
+    // And it names the paperwork, rather than just refusing.
+    expect(JSON.parse(res.body).error.details.length).toBeGreaterThan(0);
 
-    // Ticking it on the checklist is what unblocks dispatch — one truth about
-    // the paperwork, not two.
-    await app!.inject({
+    // Waiving the CHECKLIST no longer gets a driver out the door: the gate reads
+    // the documents. This was the bypass — four roles hold checklist:waive.
+    const waived = await app!.inject({
       method: 'PATCH', url: `/api/v1/deals/${dealId}/checklist/wet_ink_file`, headers: { cookie },
-      payload: { completed: true },
+      payload: { overridden: true, override_reason: 'Client is waiting, send it' },
     });
+    expect(waived.statusCode).toBe(422);
+    const stillRefused = await app!.inject({
+      method: 'POST', url: '/api/v1/dispatch', headers: { cookie },
+      payload: { deal_id: dealId, driver_company_id: companyId },
+    });
+    expect(stillRefused.statusCode).toBe(422);
+
+    // Printing the file is what unblocks it — the actual workflow.
+    await prepareDocuments(dealId);
     const after = await app!.inject({
       method: 'POST', url: '/api/v1/dispatch', headers: { cookie },
       payload: { deal_id: dealId, driver_company_id: companyId },

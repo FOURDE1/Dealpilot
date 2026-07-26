@@ -97,6 +97,39 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
       if (current.rows.length === 0) throw notFound();
       const target = current.rows[0]!;
 
+      // F-13: `wet_ink_file` was a bare assertion that the file was ready. The
+      // documents can answer now, so claiming it while paperwork is unprinted is
+      // refused — and the check covers WAIVING too, not only ticking. Waiving it
+      // was the way around the old version of this: dispatch trusts this item,
+      // and four roles hold `checklist:waive`.
+      //
+      // Preparedness, not completion (§6): printed and in the folder. `signed`
+      // happens at the delivery this file is travelling to.
+      if (code === 'wet_ink_file' && (input.completed === true || input.overridden === true)) {
+        const docs = await c.query<{ prepared: boolean | null }>(
+          `SELECT wet_ink_prepared($1) AS prepared`, [dealId],
+        );
+        // null = the deal has no document list (it predates F-13), so there is
+        // nothing to contradict and the claim stands on its own as before.
+        if (docs.rows[0]?.prepared === false) {
+          const missing = await c.query<{ document_name: string }>(
+            `SELECT document_name FROM deal_documents
+             WHERE deal_id = $1 AND deleted_at IS NULL
+               AND ((requires_signature AND status NOT IN ('e_signed','printed','in_file','signed','filed'))
+                 OR (NOT requires_signature AND status NOT IN ('generated','in_file','filed')))
+             ORDER BY sort_order`,
+            [dealId],
+          );
+          throw new AppError(422, 'documents_outstanding', 'The wet-ink file is not ready yet', [
+            ...missing.rows.map((m) => ({
+              path: 'wet_ink_file',
+              code: 'document_not_printed',
+              message: m.document_name,
+            })),
+          ]);
+        }
+      }
+
       const sets: string[] = [];
       const params: unknown[] = [dealId, code];
       // A tick that is already ticked must not rewrite completed_by: the deal's

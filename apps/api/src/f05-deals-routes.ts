@@ -14,6 +14,17 @@ import { conflictFrom, idParam, keysetPage, sessionUser } from './f01-routes.js'
 import { writeCommissionsForFundedDeal } from './f09-commissions-routes.js';
 import { checklistReadiness, DELIVERY_STAGES, ensureDealItems } from './checklist.js';
 import { diff, recordEvent } from './activity.js';
+import { generateDocuments } from './f13-document-routes.js';
+
+/** From Signed onward a deal has committed paperwork (documents.md §3). */
+const SIGNED_ONWARD = new Set<string>([
+  'signed', 'sourcing', 'pending_delivery', 'scheduled', 'delivered', 'complete',
+]);
+
+/** Editing any of these changes WHICH documents the deal needs. */
+const DOC_SHAPE_FIELDS: readonly string[] = [
+  'deal_type', 'province', 'trade_lien_cents', 'vehicle_id', 'sold_as_is',
+];
 import { requirePermission } from './permissions.js';
 
 /**
@@ -321,6 +332,20 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
               : [{ path: 'pipeline_stage', code: 'checklist_missing', message: 'This deal has no checklist' }],
           );
         }
+      }
+
+      // F-13 §3: the document file is built when the deal reaches Signed, and
+      // RE-built whenever the deal's shape changes afterwards. Generating it
+      // lazily on a screen nobody had built meant the wet-ink gate had no rows
+      // to check and passed everything — the gate existed and did nothing.
+      if (input.pipeline_stage && SIGNED_ONWARD.has(input.pipeline_stage)) {
+        await generateDocuments(c, orgId, dealId);
+      } else if (DOC_SHAPE_FIELDS.some((f) => f in input)) {
+        const has = await c.query(
+          `SELECT 1 FROM deal_documents WHERE deal_id = $1 AND deleted_at IS NULL LIMIT 1`,
+          [dealId],
+        );
+        if (has.rows.length > 0) await generateDocuments(c, orgId, dealId);
       }
 
       // Inputs changed ⇒ the engine speaks again: stored outputs must never

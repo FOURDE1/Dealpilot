@@ -92,6 +92,8 @@ export const CreateDealInput = DeskingInputs.extend({
   salesperson_id: Uuid.optional(),
   /** F&I reserve counts toward commissionable gross (commissions §11). */
   fi_reserve_cents: NonNegativeCents.optional(),
+  /** Adds the as-is waiver to the document file (documents.md §3). */
+  sold_as_is: z.boolean().optional(),
 }).strict();
 
 /**
@@ -120,6 +122,8 @@ export const UpdateDealInput = z.strictObject({
   term_months: z.number().int().min(1).max(120).optional(),
   residual_percent: z.number().int().min(0).max(100).optional(),
   tax_exempt: z.boolean().optional(),
+  /** Adds the as-is waiver to the document file (documents.md §3). */
+  sold_as_is: z.boolean().optional(),
   pipeline_stage: PipelineStage.optional(),
   funding_status: FundingStatus.optional(),
   lead_id: Uuid.nullable().optional(),

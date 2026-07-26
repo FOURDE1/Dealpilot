@@ -124,6 +124,35 @@ noted this on the owner test sheets so it does not look like a surprise failure.
 
 ---
 
+## D-036 — Does an "as-is" sale skip the safety inspection? *(F-13, raised 2026-07-26)*
+
+**Two rules we hold both contradict each other, and only you can choose.**
+
+**Your instruction (D-033):** the safety inspection is a legal obligation and
+nobody may waive it. That is what we built — no role can skip it.
+
+**The plan's rule (documents.md §3, delivery.md §2.2):** a vehicle sold **as-is**
+is exempt from the safety inspection, *because* the as-is waiver the customer
+signs discloses exactly that. The paperwork replaces the inspection.
+
+Both are defensible. In Quebec an as-is sale genuinely is a different legal
+transaction, and forcing an inspection on a $2,000 wholesale unit you have
+explicitly sold with no warranty may be the wrong rule. But "nobody can skip
+safety" is a much easier rule to defend if anything ever goes wrong.
+
+**Currently implemented:** your version. Marking a deal as-is adds the waiver
+document to the file and changes **nothing** about the safety inspection.
+
+**What I need from you:** should an as-is deal skip the safety inspection, or
+not? If yes, I would want the as-is waiver to be *signed* before the exemption
+applies — the disclosure is the entire justification, so the exemption should
+depend on it rather than on a checkbox.
+
+I found this because F-13's migration comment claimed the coupling existed. It
+never did. That comment is corrected.
+
+---
+
 ## Already answered — no action needed
 
 - SES over Resend for email (D-029). Built.
