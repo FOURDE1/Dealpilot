@@ -60,6 +60,14 @@ restarted on the new build, Vite restarted. My half shipped in one batch:
   info-only (Carfax) lifecycle needs a stocked used vehicle — not yet in any
   journey; noted for the next inventory-linked slice.
 - Owner: ROUND 12 appended (10 steps, EN).
+- **CR-12 closed both halves same day**: AHMAD persisted sold_as_is + returned
+  it in the row (his input-persistence guard immediately caught a second bug —
+  acquisition_date off-by-one east of UTC); I retired the chained-PATCH
+  workaround, prefilled the checkbox from the row, and made unchecking honest.
+  f13 e2e now proves the DIRECT path: create-with-as-is → 7 papers, box arrives
+  checked on edit, untouched edit keeps the waiver, unchecking retires it.
+  ROUND 12 step 12.7's caveat ("doesn't stick on create — CR-12") is obsolete:
+  ticking as-is at creation works now.
 
 ## 2026-07-26 [HUSSEIN] — CR-10 client half + an honest regression fix on CR-07
 

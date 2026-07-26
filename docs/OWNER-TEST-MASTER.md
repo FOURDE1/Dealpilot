@@ -323,7 +323,7 @@ selling something.
 | 12.4 | In Documents, walk one paper forward: "Mark generated" → "Mark printed" | Each step is stamped with who and when; a paper can never jump a step (no "file it" button until it's been signed) | ⬜ |
 | 12.5 | Print every paper | The banner flips to "File ready to travel"; now the wet-ink tick works and booking stops complaining | ⬜ |
 | 12.6 | "Print the file sheet" | A clean printable checklist of the deal's papers — the sheet that physically travels with the driver | ⬜ |
-| 12.7 | Edit the deal and mark it "Sold as-is", save, reopen Documents | An "As-is waiver" appeared by itself — the list follows the deal's shape. (Ticking as-is while FIRST creating a deal doesn't stick yet — server fix filed as CR-12) | ⬜ |
+| 12.7 | Tick "Sold as-is" on a deal (at creation or by editing), save, reopen Documents | An "As-is waiver" appeared by itself — the list follows the deal's shape. Untick it and the unused waiver leaves the file. (An earlier same-day gap here — the tick not sticking at creation — was found, filed as CR-12, and fixed before you read this) | ⬜ |
 | 12.8 | Open the deal's History | Every document move is there: which paper, from what to what, by whom | ⬜ |
 | 12.9 | Commissions: find your $26,900-on-$70,000 test deal | No more bare "$0.00" — it says "Deal at a loss (−$43,100.00) — no commission." The math was always right; now the screen says why | ⬜ |
 | 12.10 | Open the Pipeline | Empty stages fold into thin side tabs — the board is as wide as your actual work. Click a tab to peek at an empty stage; move a deal into one and it opens by itself | ⬜ |

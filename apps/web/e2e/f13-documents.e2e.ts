@@ -35,11 +35,13 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   await page.getByLabel('Nom de famille').fill('Papier');
   await page.getByRole('button', { name: 'Créer le prospect' }).click();
 
-  // A financed deal with a lien on the trade: bank contract + payoff
-  // authorization on top of the four core papers.
+  // A financed AS-IS deal with a lien on the trade: bank contract, payoff
+  // authorization AND the as-is waiver on top of the four core papers —
+  // the flag survives the CREATE (CR-12 closed server-side).
   await page.getByRole('link', { name: 'Créer une transaction' }).click();
   await page.getByLabel('Prix de vente').fill('20000');
   await page.getByLabel('Solde du prêt (lien)').fill('5000');
+  await page.getByLabel('Vente « tel quel »').check();
   await page.getByRole('button', { name: 'Enregistrer la transaction' }).click();
   await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
 
@@ -47,7 +49,7 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   await page.getByRole('button', { name: /Réserver la livraison/ }).click();
   const bookDialog = page.getByRole('dialog');
   await expect(
-    bookDialog.getByText(/6 documents ne sont pas encore imprimés — la réservation sera refusée/),
+    bookDialog.getByText(/7 documents ne sont pas encore imprimés — la réservation sera refusée/),
   ).toBeVisible();
   await bookDialog.getByRole('button', { name: 'Réserver', exact: true }).click();
   await expect(bookDialog.getByText(/À imprimer : /)).toBeVisible();
@@ -65,11 +67,12 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   await expect(checklist.getByLabel('Dossier signé (original)')).not.toBeChecked();
   await checklist.getByRole('button', { name: 'Fermer' }).click();
 
-  // The document panel: six derived papers, no as-is waiver yet.
+  // The document panel: seven derived papers, the as-is waiver among them —
+  // the CREATE stored the flag directly.
   await page.getByRole('button', { name: /Documents — / }).click();
   const docs = page.getByRole('dialog');
   await expect(docs.getByRole('heading', { name: 'Documents de la transaction' })).toBeVisible();
-  await expect(docs.getByText('6 documents ne sont pas encore prêts à voyager.')).toBeVisible();
+  await expect(docs.getByText('7 documents ne sont pas encore prêts à voyager.')).toBeVisible();
   for (const name of [
     'Contrat bancaire',
     'Contrat de vente',
@@ -77,16 +80,17 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
     'Divulgation de l’état du véhicule',
     'Déclaration d’odomètre',
     'Autorisation de remboursement du solde du prêt (échange)',
+    'Renonciation « tel quel »',
   ]) {
     await expect(docs.getByText(name, { exact: true })).toBeVisible();
   }
-  await expect(docs.getByText('Renonciation « tel quel »', { exact: true })).toHaveCount(0);
   await docs.getByRole('button', { name: 'Fermer' }).click();
 
-  // Re-desk the deal as an as-is sale: the file RE-derives and grows the
-  // waiver — the paper list follows the deal's shape, not its history.
+  // The edit worksheet tells the truth now: the box arrives CHECKED (the row
+  // returns sold_as_is), and an edit that doesn't touch it changes nothing.
   await page.getByRole('link', { name: /Modifier la transaction/ }).click();
-  await page.getByLabel('Vente « tel quel »').check();
+  await expect(page.getByLabel('Vente « tel quel »')).toBeChecked();
+  await page.getByLabel('Prix de vente').fill('21000');
   await page.getByRole('button', { name: 'Enregistrer les modifications' }).click();
   await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
   await page.getByRole('button', { name: /Documents — / }).click();
@@ -95,16 +99,16 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   await expect(docs2.getByText('Renonciation « tel quel »', { exact: true })).toBeVisible();
   await docs2.getByRole('button', { name: 'Fermer' }).click();
 
-  // An edit that DOESN'T touch the as-is box must not clobber the flag: the
-  // waiver would silently vanish from the re-derived file if it did.
+  // Unchecking it re-derives the file the other way: the untouched waiver is
+  // retired — the paper list follows the deal's shape, not its history.
   await page.getByRole('link', { name: /Modifier la transaction/ }).click();
-  await page.getByLabel('Prix de vente').fill('21000');
+  await page.getByLabel('Vente « tel quel »').uncheck();
   await page.getByRole('button', { name: 'Enregistrer les modifications' }).click();
   await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
   await page.getByRole('button', { name: /Documents — / }).click();
   const docs3 = page.getByRole('dialog');
-  await expect(docs3.getByText('7 documents ne sont pas encore prêts à voyager.')).toBeVisible();
-  await expect(docs3.getByText('Renonciation « tel quel »', { exact: true })).toBeVisible();
+  await expect(docs3.getByText('6 documents ne sont pas encore prêts à voyager.')).toBeVisible();
+  await expect(docs3.getByText('Renonciation « tel quel »', { exact: true })).toHaveCount(0);
 
   // Lifecycle is forward-only: a fresh paper offers ONLY "produce" (no jump
   // to printed or filed), and each step leaves a stamped evidence line.
@@ -113,21 +117,20 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   await docs3.getByRole('button', { name: 'Marquer produit — Contrat de vente' }).click();
   await docs3.getByRole('button', { name: 'Marquer imprimé — Contrat de vente' }).click();
   await expect(docs3.getByText(/Imprimé : Patron Papier, .*2026/)).toBeVisible();
-  await expect(docs3.getByText('6 documents ne sont pas encore prêts à voyager.')).toBeVisible();
+  await expect(docs3.getByText('5 documents ne sont pas encore prêts à voyager.')).toBeVisible();
 
   // E-signing is a legal alternative to printing — it counts as prepared.
   await docs3.getByRole('button', { name: 'Marquer produit — Contrat bancaire' }).click();
   await docs3.getByRole('button', { name: 'Signé électroniquement — Contrat bancaire' }).click();
   await expect(docs3.getByText(/Signé électroniquement : /)).toBeVisible();
-  await expect(docs3.getByText('5 documents ne sont pas encore prêts à voyager.')).toBeVisible();
+  await expect(docs3.getByText('4 documents ne sont pas encore prêts à voyager.')).toBeVisible();
 
-  // Print the remaining five; the banner flips to "ready to travel".
+  // Print the remaining four; the banner flips to "ready to travel".
   for (const name of [
     'Consentement à la confidentialité',
     'Divulgation de l’état du véhicule',
     'Déclaration d’odomètre',
     'Autorisation de remboursement du solde du prêt (échange)',
-    'Renonciation « tel quel »',
   ]) {
     await docs3.getByRole('button', { name: `Marquer produit — ${name}` }).click();
     await docs3.getByRole('button', { name: `Marquer imprimé — ${name}` }).click();
