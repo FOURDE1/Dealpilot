@@ -7,7 +7,7 @@ import {
 } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requireMember, sessionUser } from './f01-routes.js';
-import { readMatrix, requirePermission } from './permissions.js';
+import { readMatrix, requirePermission, roleVersion } from './permissions.js';
 import { recordEvent } from './activity.js';
 
 /**
@@ -54,6 +54,28 @@ export function registerA13Routes(app: FastifyInstance, pool: Pool): void {
             path: 'permissions',
             code: 'would_lock_out',
             message: 'Removing member:update_roles from owner would leave nobody able to undo it',
+          },
+        ]);
+      }
+
+      // CR-10(a): two admins with the screen open used to silently undo each
+      // other — the second blind full-set write resurrected whatever the first
+      // revoked, and the audit trail blamed the second admin for a grant they
+      // never chose. The save now only lands on the version it was made against.
+      // FOR UPDATE on the role's rows so the check and the write cannot
+      // interleave with another save.
+      await c.query(
+        `SELECT 1 FROM role_permissions
+         WHERE organization_id = $1 AND role = $2 FOR UPDATE`,
+        [input.organization_id, input.role],
+      );
+      const current = await roleVersion(c, input.organization_id, input.role);
+      if (current !== input.base_version) {
+        throw new AppError(409, 'matrix_changed', 'Someone else changed this role while you were editing', [
+          {
+            path: 'base_version',
+            code: 'matrix_changed',
+            message: 'Reload the permissions screen — saving now would undo their change',
           },
         ]);
       }
@@ -112,6 +134,30 @@ export function registerA13Routes(app: FastifyInstance, pool: Pool): void {
       );
       if (target.rows.length === 0) throw notFound();
 
+      // CR-10(b): an override is evaluated BEFORE the role grant, so denying
+      // member:update_roles to the last person who holds it locks everyone out
+      // of access administration — with no way back but a database console. The
+      // role path already refused this; the override path did not.
+      if (input.permission === 'member:update_roles' && input.allowed === false) {
+        const others = await c.query<{ n: string }>(
+          `SELECT count(*) AS n FROM memberships m
+           WHERE m.organization_id = $1
+             AND m.status = 'active'
+             AND m.user_id <> $2
+             AND has_permission($1, m.user_id, 'member:update_roles')`,
+          [input.organization_id, input.user_id],
+        );
+        if (Number(others.rows[0]!.n) === 0) {
+          throw new AppError(422, 'would_lock_out', 'This would leave nobody able to change permissions', [
+            {
+              path: 'allowed',
+              code: 'would_lock_out',
+              message: 'Give someone else permission administration first',
+            },
+          ]);
+        }
+      }
+
       if (input.allowed === null) {
         await c.query(
           `DELETE FROM user_permissions
@@ -145,6 +191,35 @@ export function registerA13Routes(app: FastifyInstance, pool: Pool): void {
       });
     });
     return reply.status(204).send();
+  });
+
+  /**
+   * CR-10(c): the exceptions were set-only. An admin could grant Marc something
+   * and then have no way to see it, audit it, or take it back — the screen knew
+   * less than the database did.
+   */
+  app.get('/api/v1/permissions/overrides', async (request, reply) => {
+    const user = sessionUser(request);
+    const q = request.query as { organization_id?: string; user_id?: string };
+    const orgId = await resolveOrg(pool, user.id, q.organization_id);
+    const rows = await withTenant(pool, orgId, async (c) => {
+      // Who has an exception is part of knowing who can do what, so it needs
+      // the same power as changing one.
+      await requirePermission(c, user.id, 'member:update_roles');
+      const params: unknown[] = [orgId];
+      let where = 'organization_id = $1';
+      if (q.user_id) {
+        params.push(q.user_id);
+        where += ` AND user_id = $${params.length}`;
+      }
+      const r = await c.query(
+        `SELECT user_id, permission, allowed, reason, granted_by, updated_at
+         FROM user_permissions WHERE ${where} ORDER BY user_id, permission`,
+        params,
+      );
+      return r.rows;
+    });
+    return reply.send({ items: rows });
   });
 
   /** What the SIGNED-IN person may do — so the UI can hide what would 403. */

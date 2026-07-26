@@ -24,8 +24,15 @@ catalogue of 37 permissions and a per-organization matrix the owner edits.
 `role → permissions[]`, so a cell is `matrix[role].includes(permission)`.
 
 **Saving a role replaces its whole set.** `PUT /permissions/role` takes
-`{organization_id, role, permissions[]}` and the list is complete — anything
-absent is revoked. Send the full set, not a delta.
+`{organization_id, role, permissions[], base_version}` and the list is complete
+— anything absent is revoked. Send the full set, not a delta.
+
+**`base_version` is required** (CR-10a). It comes from `versions[role]` in the
+matrix you loaded. Two admins with the screen open used to silently undo each
+other: the second blind full-set write resurrected whatever the first revoked,
+and the audit trail blamed the second admin for a grant they never chose. A
+stale save now gets **409 `matrix_changed`** — their edit is fine, their VIEW is
+old, so the message should offer a reload rather than sound like a failure.
 
 **Two refusals to render properly:**
 - **422 `would_lock_out`** — removing `member:update_roles` from `owner`. There
@@ -34,6 +41,12 @@ absent is revoked. Send the full set, not a delta.
 - **403** — a member who may read the matrix but not change it. Reading the
   rules is deliberately open: someone who cannot see why they were refused just
   files a support ticket.
+
+**Reading the exceptions.** `GET /api/v1/permissions/overrides` (optionally
+`?user_id=`) lists what exists — who has an exception, whether it grants or
+denies, the reason, and who set it. Needs `member:update_roles`, same as setting
+one. Without this the screen was set-only and an admin could never take back
+what they had granted.
 
 **Per-person exceptions.** `PUT /permissions/user` takes
 `{organization_id, user_id, permission, allowed, reason?}`.

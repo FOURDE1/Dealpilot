@@ -181,6 +181,15 @@ export const UpdateRolePermissionsInput = z.strictObject({
   role: Role,
   /** The complete set for this role. Absent permissions are revoked. */
   permissions: z.array(Permission),
+  /**
+   * The version this edit was made against, from the matrix you loaded.
+   *
+   * Without it, two admins with the screen open silently undo each other: the
+   * second save is a blind full-set write that resurrects whatever the first
+   * one revoked — and the audit trail blames the second admin for a grant they
+   * never chose (CR-10, Hussein).
+   */
+  base_version: z.string(),
 });
 
 export const UpdateUserPermissionInput = z.strictObject({
@@ -198,6 +207,18 @@ export const PermissionMatrix = z.object({
   roles: z.array(Role),
   /** role → the permissions it currently holds. */
   matrix: z.record(z.string(), z.array(Permission)),
+  /** role → the version to send back when saving that role (see above). */
+  versions: z.record(z.string(), z.string()),
+});
+
+/** An exception on one person, so the screen can show and clear what exists. */
+export const UserPermissionOverride = z.object({
+  user_id: Uuid,
+  permission: Permission,
+  allowed: z.boolean(),
+  reason: z.string().nullable(),
+  granted_by: Uuid.nullable(),
+  updated_at: IsoDateTime,
 });
 
 export { ROLES };

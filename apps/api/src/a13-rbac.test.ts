@@ -123,11 +123,16 @@ describe('A-13 RBAC', () => {
     const current = await app!.inject({
       method: 'GET', url: `/api/v1/permissions?organization_id=${orgId}`, headers: { cookie: ownerCookie },
     });
-    const salesperson = (JSON.parse(current.body) as { matrix: Record<string, string[]> }).matrix['salesperson']!;
+    const loaded = JSON.parse(current.body) as { matrix: Record<string, string[]>; versions: Record<string, string> };
+    const salesperson = loaded.matrix['salesperson']!;
 
     const put = await app!.inject({
       method: 'PUT', url: '/api/v1/permissions/role', headers: { cookie: ownerCookie },
-      payload: { organization_id: orgId, role: 'salesperson', permissions: [...salesperson, 'vehicle:create'] },
+      payload: {
+        organization_id: orgId, role: 'salesperson',
+        permissions: [...salesperson, 'vehicle:create'],
+        base_version: loaded.versions['salesperson'],
+      },
     });
     expect(put.statusCode).toBe(200);
 
@@ -135,9 +140,15 @@ describe('A-13 RBAC', () => {
     expect((await sellerCreatesVehicle()).statusCode).toBe(201);
 
     // And revoking it takes the power straight back.
+    const reloaded = JSON.parse((await app!.inject({
+      method: 'GET', url: `/api/v1/permissions?organization_id=${orgId}`, headers: { cookie: ownerCookie },
+    })).body) as { versions: Record<string, string> };
     await app!.inject({
       method: 'PUT', url: '/api/v1/permissions/role', headers: { cookie: ownerCookie },
-      payload: { organization_id: orgId, role: 'salesperson', permissions: salesperson },
+      payload: {
+        organization_id: orgId, role: 'salesperson', permissions: salesperson,
+        base_version: reloaded.versions['salesperson'],
+      },
     });
     expect((await sellerCreatesVehicle()).statusCode).toBe(403);
   });
@@ -193,7 +204,7 @@ describe('A-13 RBAC', () => {
     if (!dbUp) return ctx.skip();
     const res = await app!.inject({
       method: 'PUT', url: '/api/v1/permissions/role', headers: { cookie: ownerCookie },
-      payload: { organization_id: orgId, role: 'owner', permissions: ['deal:create'] },
+      payload: { organization_id: orgId, role: 'owner', permissions: ['deal:create'], base_version: 'whatever' },
     });
     // There would be no way back without a database console.
     expect(res.statusCode).toBe(422);
@@ -204,7 +215,7 @@ describe('A-13 RBAC', () => {
     if (!dbUp) return ctx.skip();
     const res = await app!.inject({
       method: 'PUT', url: '/api/v1/permissions/role', headers: { cookie: sellerCookie },
-      payload: { organization_id: orgId, role: 'salesperson', permissions: [...PERMISSIONS] },
+      payload: { organization_id: orgId, role: 'salesperson', permissions: [...PERMISSIONS], base_version: 'x' },
     });
     // Otherwise the whole thing is decoration.
     expect(res.statusCode).toBe(403);
@@ -237,7 +248,7 @@ describe('A-13 RBAC', () => {
 
     const write = await app!.inject({
       method: 'PUT', url: '/api/v1/permissions/role', headers: { cookie: rivalCookie },
-      payload: { organization_id: orgId, role: 'salesperson', permissions: [...PERMISSIONS] },
+      payload: { organization_id: orgId, role: 'salesperson', permissions: [...PERMISSIONS], base_version: 'x' },
     });
     expect([403, 404]).toContain(write.statusCode);
 
@@ -247,6 +258,95 @@ describe('A-13 RBAC', () => {
       [orgId],
     );
     expect(Number(still.rows[0]!.n)).toBeLessThan(PERMISSIONS.length);
+  });
+
+  it('two admins cannot silently undo each other (CR-10a)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const load = async () => JSON.parse((await app!.inject({
+      method: 'GET', url: `/api/v1/permissions?organization_id=${orgId}`, headers: { cookie: ownerCookie },
+    })).body) as { matrix: Record<string, string[]>; versions: Record<string, string> };
+
+    // Both admins open the screen and see the same thing.
+    const adminA = await load();
+    const adminB = await load();
+
+    const first = await app!.inject({
+      method: 'PUT', url: '/api/v1/permissions/role', headers: { cookie: ownerCookie },
+      payload: {
+        organization_id: orgId, role: 'bdc_agent',
+        permissions: adminA.matrix['bdc_agent']!.filter((p) => p !== 'lead:assign'),
+        base_version: adminA.versions['bdc_agent'],
+      },
+    });
+    expect(first.statusCode).toBe(200);
+
+    // B saves from the stale page. Before this it resurrected lead:assign, and
+    // the audit trail credited B with a grant they never chose.
+    const second = await app!.inject({
+      method: 'PUT', url: '/api/v1/permissions/role', headers: { cookie: ownerCookie },
+      payload: {
+        organization_id: orgId, role: 'bdc_agent',
+        permissions: adminB.matrix['bdc_agent']!,
+        base_version: adminB.versions['bdc_agent'],
+      },
+    });
+    expect(second.statusCode).toBe(409);
+    expect(JSON.parse(second.body).error.code).toBe('matrix_changed');
+
+    const now = await load();
+    expect(now.matrix['bdc_agent']).not.toContain('lead:assign');
+  });
+
+  it('an override cannot brick access administration either (CR-10b)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const me = await app!.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie: ownerCookie } });
+    const ownerId = (JSON.parse(me.body) as { user: { id: string } }).user.id;
+
+    // The role path refused this; the override is evaluated FIRST and did not,
+    // so denying the sole owner left nobody able to change permissions.
+    const res = await app!.inject({
+      method: 'PUT', url: '/api/v1/permissions/user', headers: { cookie: ownerCookie },
+      payload: {
+        organization_id: orgId, user_id: ownerId,
+        permission: 'member:update_roles', allowed: false, reason: 'testing the lockout',
+      },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(JSON.parse(res.body).error.code).toBe('would_lock_out');
+
+    const check = await app!.inject({
+      method: 'GET', url: `/api/v1/permissions?organization_id=${orgId}`, headers: { cookie: ownerCookie },
+    });
+    expect(check.statusCode).toBe(200);
+  });
+
+  it('existing exceptions can be read back, not just written (CR-10c)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await app!.inject({
+      method: 'PUT', url: '/api/v1/permissions/user', headers: { cookie: ownerCookie },
+      payload: {
+        organization_id: orgId, user_id: sellerId, permission: 'fleet:manage',
+        allowed: true, reason: 'Sam moves cars between stores on Saturdays',
+      },
+    });
+    const res = await app!.inject({
+      method: 'GET', url: `/api/v1/permissions/overrides?organization_id=${orgId}&user_id=${sellerId}`,
+      headers: { cookie: ownerCookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const { items } = JSON.parse(res.body) as {
+      items: { permission: string; allowed: boolean; reason: string | null }[];
+    };
+    const found = items.find((i) => i.permission === 'fleet:manage')!;
+    // An admin has to be able to SEE an exception to ever remove it.
+    expect(found.allowed).toBe(true);
+    expect(found.reason).toContain('Saturdays');
+
+    const denied = await app!.inject({
+      method: 'GET', url: `/api/v1/permissions/overrides?organization_id=${orgId}`,
+      headers: { cookie: sellerCookie },
+    });
+    expect(denied.statusCode).toBe(403);
   });
 
   it('deny by default: an organization with no matrix grants nothing', async (ctx) => {
