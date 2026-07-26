@@ -24,6 +24,12 @@ const VEHICLE_COLUMNS = [
   'location_status', 'location_details',
 ] as const;
 
+/** YYYY-MM-DD from a Date's local parts — never via UTC. */
+function localDate(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 function withTotalCost(row: Record<string, unknown>): Record<string, unknown> {
   const n = (k: string) => Number(row[k] ?? 0);
   const acquired = row['acquisition_date'];
@@ -31,8 +37,13 @@ function withTotalCost(row: Record<string, unknown>): Record<string, unknown> {
     ...row,
     // pg maps `date` to a JS Date, which JSON-serializes to a full timestamp;
     // an acquisition DATE has no time of day, so send it as YYYY-MM-DD.
-    acquisition_date:
-      acquired instanceof Date ? acquired.toISOString().slice(0, 10) : acquired,
+    //
+    // From the LOCAL parts, not toISOString(): pg builds that Date at local
+    // midnight, so converting to UTC first moves the day backwards on any
+    // server ahead of UTC. A car acquired on 1 July was being reported as
+    // acquired on 30 June — caught by the accepted-but-not-stored guard, which
+    // is the second real bug it found on its first run.
+    acquisition_date: acquired instanceof Date ? localDate(acquired) : acquired,
     total_cost_cents: n('acquisition_cost_cents') + n('transport_cost_cents') + n('recon_cost_cents'),
   };
 }
