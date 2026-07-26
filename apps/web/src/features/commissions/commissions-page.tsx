@@ -88,8 +88,19 @@ export function CommissionsPage() {
       {
         accessorKey: 'gross_for_commission_cents',
         header: t('grossForCommission'),
+        // CR-10: a losing deal floors the commissionable gross at zero — showing
+        // a bare $0.00 reads as a broken calculation. Say WHY, with the number.
         cell: ({ row }) => (
-          <span className="font-mono tabular-nums">{formatCents(row.original.gross_for_commission_cents, locale)}</span>
+          <span className="block">
+            <span className="font-mono tabular-nums">
+              {formatCents(row.original.gross_for_commission_cents, locale)}
+            </span>
+            {row.original.total_gross_cents < 0 && row.original.gross_for_commission_cents === 0 ? (
+              <span className="mt-0.5 block max-w-52 text-xs text-danger-text">
+                {t('atLoss', { gross: formatCents(row.original.total_gross_cents, locale) })}
+              </span>
+            ) : null}
+          </span>
         ),
       },
       {

@@ -12,11 +12,16 @@ import { can, usePermissionsMine } from '../../shared/permissions.js';
 import { usePermissionMatrix, useSetRolePermissions, useSetUserPermission, useUserOverrides } from './api.js';
 
 /** Grouped the way a dealer thinks, not the way the schema is spelled. */
-const GROUPS: { key: string; prefixes: string[] }[] = [
+/**
+ * Exported for the coverage test: every permission MUST match a prefix here,
+ * or it silently disappears from the only screen that can grant it.
+ */
+export const GROUPS: { key: string; prefixes: string[] }[] = [
   { key: 'group_team', prefixes: ['member:'] },
   { key: 'group_leads', prefixes: ['lead:', 'intake_key:'] },
   { key: 'group_inventory', prefixes: ['vehicle:'] },
   { key: 'group_deals', prefixes: ['deal:', 'checklist:'] },
+  { key: 'group_documents', prefixes: ['document:'] },
   { key: 'group_money', prefixes: ['pay_plan:', 'commission:'] },
   { key: 'group_dispatch', prefixes: ['dispatch:', 'fleet:'] },
   { key: 'group_settings', prefixes: ['organization:', 'store:', 'activity:'] },
@@ -29,6 +34,7 @@ const RISKY: Partial<Record<PermissionT, string>> = {
   'commission:read_all': 'hint_read_all',
   'member:update_roles': 'hint_update_roles',
   'intake_key:manage': 'hint_intake_key',
+  'document:sign': 'hint_document_sign',
 };
 
 export function PermissionsPage() {

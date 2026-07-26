@@ -22,6 +22,45 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — F-13 documents panel + CR-10 loss note + CR-11 rails (BATCH → ROUND 12)
+
+AHMAD's F-13 merge picked up automatically (watcher): migrations applied, API
+restarted on the new build, Vite restarted. My half shipped in one batch:
+
+- **F-13 documents dialog** on every deal (lead page + pipeline card): the
+  derived paper list, forward-only lifecycle buttons graded by
+  document:prepare/document:sign (mirrors in features/documents/labels.ts),
+  PREPARED/COMPLETE banners, stamped evidence lines (printed/e-signed/signed/
+  filed by-who-when), printable wet-ink sheet (print CSS scoped with
+  body:has(.print-sheet) — the first cut blanked EVERY browser print in the
+  app; the review caught it). Booking and the wet-ink checklist tick now
+  refuse with the actual document names, refetched at refusal time so the
+  list is the server's truth, translated.
+- **Permissions matrix**: new "Documents" group — Ahmad's two new permissions
+  were INVISIBLE on the matrix (no group prefix matched; the only screen that
+  can grant them). groups-coverage.test.ts now fails the build if a future
+  permission has no group.
+- **CR-10**: losing deal shows "Transaction à perte (−43 100,00 $) — aucune
+  commission." under the floored $0.00 (e2e replays the owner's exact deal).
+- **CR-11**: empty kanban columns fold into 40px vertical rails; click to
+  peek, auto-open on receiving a card, focus follows expand/collapse.
+- **CR-12 FILED to AHMAD**: sold_as_is is write-only — POST /deals drops it
+  (not in INPUT_COLUMNS), the Deal row schema omits it (no prefill possible),
+  and PATCH regenerates documents BEFORE writing the new shape. Worksheet
+  ships the as-is checkbox anyway: create chains the working PATCH, edit only
+  ever sends true (never false — no read-back means unchecking can't be
+  trusted). e2e proves an untouched edit does NOT clobber the waiver.
+- Adversarial review: 6 lenses → 26 findings → 23 confirmed → all fixed
+  (print-CSS blanking and stale-refusal-names were the majors; plus rail
+  focus loss, 16px collapse target, missing status roles, FR «lien»→«solde du
+  prêt», per-product F&I names preserved for F-13b, prefix invalidation).
+- e2e: new f13 journey (named refusals → e-sign branch → deny document:sign
+  via override → sign button vanishes → clear → signing works → history);
+  f06/f08/f09/f11 updated to the new gate reality. 24/24. Known gap: the
+  info-only (Carfax) lifecycle needs a stocked used vehicle — not yet in any
+  journey; noted for the next inventory-linked slice.
+- Owner: ROUND 12 appended (10 steps, EN).
+
 ## 2026-07-26 [HUSSEIN] — CR-10 client half + an honest regression fix on CR-07
 
 CR-10 (AHMAD's server fixes) finished client-side: the matrix save carries

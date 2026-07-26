@@ -11,6 +11,7 @@ import { leadDisplayName } from '../leads/labels.js';
 import { usePipelineDeals, useUpdateDealTracks } from './api.js';
 import { ChecklistDialog } from '../checklists/checklist-dialog.js';
 import { DealActivityDialog } from '../activity/activity-dialog.js';
+import { DocumentsDialog } from '../documents/documents-dialog.js';
 import { CHECKLIST_CODE_KEYS } from '../checklists/labels.js';
 import { checklistKeys } from '../checklists/api.js';
 import { useQueryClient } from '@tanstack/react-query';
@@ -38,6 +39,9 @@ export function PipelinePage() {
   const [error, setError] = useState<string | null>(null);
   const [checklistDeal, setChecklistDeal] = useState<DealT | null>(null);
   const [activityDeal, setActivityDeal] = useState<DealT | null>(null);
+  const [documentsDeal, setDocumentsDeal] = useState<DealT | null>(null);
+  // CR-11: stages the user chose to look at even though they hold no cards.
+  const [openedEmpty, setOpenedEmpty] = useState<ReadonlySet<string>>(new Set());
 
   const leadName = useMemo(() => {
     const map = new Map<string, string>();
@@ -164,15 +168,60 @@ export function PipelinePage() {
         >
           {PipelineStage.options.map((stage) => {
             const cards = byStage.get(stage) ?? [];
+            const stageLabel = t(PIPELINE_STAGE_KEYS[stage]);
+            // CR-11: ten stages is a long horizontal haul on a laptop — empty
+            // columns fold into slim rails, so the board is as wide as its
+            // WORK, not its vocabulary. A column with cards is always open.
+            if (cards.length === 0 && !openedEmpty.has(stage)) {
+              return (
+                <section key={stage} aria-label={stageLabel} className="flex shrink-0 snap-start">
+                  <button
+                    type="button"
+                    id={`rail-${stage}`}
+                    aria-expanded={false}
+                    aria-label={t('expandStage', { stage: stageLabel })}
+                    className="flex min-h-40 w-10 items-start justify-center rounded-lg border border-border bg-muted/40 py-3 text-xs font-medium text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                    onClick={() => {
+                      setOpenedEmpty((s) => new Set(s).add(stage));
+                      // The rail unmounts — keep the keyboard where the user was.
+                      requestAnimationFrame(() => document.getElementById(`collapse-${stage}`)?.focus());
+                    }}
+                  >
+                    <span className="[writing-mode:vertical-rl]">{stageLabel}</span>
+                  </button>
+                </section>
+              );
+            }
             return (
               <section
                 key={stage}
-                aria-label={t(PIPELINE_STAGE_KEYS[stage])}
+                aria-label={stageLabel}
                 className="w-64 shrink-0 snap-start rounded-lg border border-border bg-muted/40 p-2"
               >
                 <h2 className="flex items-baseline justify-between px-1 pb-2 text-sm font-semibold">
-                  {t(PIPELINE_STAGE_KEYS[stage])}
-                  <span className="font-mono text-xs text-muted-foreground">{cards.length}</span>
+                  {stageLabel}
+                  {cards.length === 0 ? (
+                    <button
+                      type="button"
+                      id={`collapse-${stage}`}
+                      aria-expanded={true}
+                      aria-label={t('collapseStage', { stage: stageLabel })}
+                      className="min-h-6 text-xs font-normal text-muted-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring max-lg:min-h-11"
+                      onClick={() => {
+                        setOpenedEmpty((s) => {
+                          const next = new Set(s);
+                          next.delete(stage);
+                          return next;
+                        });
+                        // The column folds back to its rail — follow it.
+                        requestAnimationFrame(() => document.getElementById(`rail-${stage}`)?.focus());
+                      }}
+                    >
+                      {t('collapseAction')}
+                    </button>
+                  ) : (
+                    <span className="font-mono text-xs text-muted-foreground">{cards.length}</span>
+                  )}
                 </h2>
                 <div className="space-y-2">
                   {cards.map((d) => (
@@ -209,6 +258,16 @@ export function PipelinePage() {
                         onClick={() => setChecklistDeal(d)}
                       >
                         {t('checklistAction')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="w-full justify-start px-0"
+                        aria-label={t('documentsFor', { name: leadName.get(d.lead_id ?? '') ?? d.id.slice(0, 8) })}
+                        onClick={() => setDocumentsDeal(d)}
+                      >
+                        {t('documentsAction')}
                       </Button>
                       <Button
                         type="button"
@@ -274,6 +333,11 @@ export function PipelinePage() {
         deal={checklistDeal}
         dealLabel={checklistDeal?.lead_id ? leadName.get(checklistDeal.lead_id) : undefined}
         onClose={() => setChecklistDeal(null)}
+      />
+      <DocumentsDialog
+        deal={documentsDeal}
+        dealLabel={documentsDeal?.lead_id ? leadName.get(documentsDeal.lead_id) : undefined}
+        onClose={() => setDocumentsDeal(null)}
       />
     </div>
   );

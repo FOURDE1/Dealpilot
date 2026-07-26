@@ -80,4 +80,31 @@ test('full F-09 journey: pay plan → sold-by deal → funded → $1,375 line', 
   await expect(page.getByText(/5\s?500,00/)).toBeVisible(); // commissionable gross
   await expect(page.getByText(/1\s?375,00/).first()).toBeVisible(); // the line amount
   await expect(page.getByText('25 %')).toBeVisible();
+
+  // CR-10: a LOSING deal pays nothing — and the table says why instead of
+  // showing a bare $0.00 (the owner's $26,900-on-$70,000 test read as broken).
+  await page.goto('/leads/new');
+  await page.getByLabel('Succursale').selectOption({ label: 'Succursale F09' });
+  await page.getByLabel('Téléphone').fill('+15145551101');
+  await page.getByLabel('Prénom').fill('Perte');
+  await page.getByLabel('Nom de famille').fill('Sèche');
+  await page.getByRole('button', { name: 'Créer le prospect' }).click();
+  await page.getByRole('link', { name: 'Créer une transaction' }).click();
+  await page.getByLabel('Vendu par').selectOption({ label: 'Vicky Vendeuse' });
+  await page.getByLabel('Prix de vente').fill('26900');
+  await page.getByLabel('Coût du véhicule').fill('70000');
+  await page.getByRole('button', { name: 'Enregistrer la transaction' }).click();
+  await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
+  await page.getByRole('link', { name: 'Pipeline' }).first().click();
+  const lossCard = page
+    .getByRole('region', { name: 'Nouvelle' })
+    .getByRole('article')
+    .filter({ hasText: 'Perte Sèche' });
+  await lossCard.getByLabel('Financement').selectOption({ label: 'Financé' });
+  await expect(lossCard.getByLabel('Financement')).toHaveValue('funded');
+  await page.getByRole('link', { name: 'Tableau de bord' }).first().click();
+  await page.getByRole('link', { name: 'Voir les commissions' }).click();
+  await expect(
+    page.getByText(/Transaction à perte \(-43\s?100,00\s?\$\) — aucune commission\./),
+  ).toBeVisible();
 });

@@ -44,11 +44,22 @@ test('full F-06 journey: deal → kanban New → stage moves → funding track',
   const colNew = page.getByRole('region', { name: 'Nouvelle' });
   await expect(colNew.getByRole('link', { name: 'Chantal Pipeline' })).toBeVisible();
 
-  // Move the stage: card leaves "Nouvelle", lands in "Approuvée".
+  // CR-11: only the column with work is open — the other nine fold into
+  // slim rails so "Complétée" is not a ten-column scroll away.
+  await expect(page.getByRole('button', { name: 'Afficher l’étape Complétée (vide)' })).toBeVisible();
+  await page.getByRole('button', { name: 'Afficher l’étape Perdue (vide)' }).click();
+  const colLost = page.getByRole('region', { name: 'Perdue' });
+  await expect(colLost.getByRole('button', { name: 'Réduire l’étape Perdue' })).toBeVisible();
+  await colLost.getByRole('button', { name: 'Réduire l’étape Perdue' }).click();
+  await expect(page.getByRole('button', { name: 'Afficher l’étape Perdue (vide)' })).toBeVisible();
+
+  // Move the stage: card leaves "Nouvelle", lands in "Approuvée" — the
+  // emptied column folds, the receiving one opens by itself.
   await colNew.getByLabel('Étape').selectOption({ label: 'Approuvée' });
   const colApproved = page.getByRole('region', { name: 'Approuvée' });
   await expect(colApproved.getByRole('link', { name: 'Chantal Pipeline' })).toBeVisible();
   await expect(colNew.getByRole('link', { name: 'Chantal Pipeline' })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Afficher l’étape Nouvelle (vide)' })).toBeVisible();
 
   // Funding moves independently of the stage.
   await colApproved.getByLabel('Financement').selectOption({ label: 'Financé' });

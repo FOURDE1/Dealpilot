@@ -14,6 +14,7 @@ import { ChecklistDialog } from '../checklists/checklist-dialog.js';
 import { ActivityTimeline } from '../activity/activity-timeline.js';
 import { DealActivityDialog } from '../activity/activity-dialog.js';
 import { BookDispatchDialog } from '../dispatch/book-dialog.js';
+import { DocumentsDialog } from '../documents/documents-dialog.js';
 import { DEAL_TYPE_KEYS, FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from '../deals/labels.js';
 import { formatCents } from '../deals/money.js';
 import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
@@ -40,6 +41,7 @@ export function LeadDetailPage() {
   const [checklistDeal, setChecklistDeal] = useState<DealT | null>(null);
   const [activityDeal, setActivityDeal] = useState<DealT | null>(null);
   const [dispatchDeal, setDispatchDeal] = useState<DealT | null>(null);
+  const [documentsDeal, setDocumentsDeal] = useState<DealT | null>(null);
 
   async function handleStatusChange(status: LeadStatusT) {
     setFeedback(null);
@@ -234,6 +236,16 @@ export function LeadDetailPage() {
                     >
                       {td('checklistAction')}
                     </button>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11"
+                      aria-label={td('documentsFor', {
+                        name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.deal_type === 'cash' ? d.amount_financed_cents : d.monthly_payment_cents, i18n.language)}`,
+                      })}
+                      onClick={() => setDocumentsDeal(d)}
+                    >
+                      {td('documentsAction')}
+                    </button>
                   </span>
                 </li>
               ))}
@@ -264,6 +276,11 @@ export function LeadDetailPage() {
         deal={dispatchDeal}
         dealLabel={dispatchDeal ? td(DEAL_TYPE_KEYS[dispatchDeal.deal_type]) : undefined}
         onClose={() => setDispatchDeal(null)}
+      />
+      <DocumentsDialog
+        deal={documentsDeal}
+        dealLabel={documentsDeal ? td(DEAL_TYPE_KEYS[documentsDeal.deal_type]) : undefined}
+        onClose={() => setDocumentsDeal(null)}
       />
     </div>
   );

@@ -304,3 +304,31 @@ selling something.
 | 11.3 | Untick "Manage roles" for Owner | Refused, worded as protection — you cannot lock yourself out | ⬜ |
 | 11.4 | "Exception for one person": deny someone one permission with a reason | Their button disappears even though their role keeps it — deny wins | ⬜ |
 | 11.5 | Check the risky rows (safety sign-off, everyone's pay, manage roles) | Each carries a one-line warning about what it really hands out | ⬜ |
+
+## ROUND 12 — The paper file (F-13), the loss note (your finding), the shorter board (your finding)
+
+> You test at http://localhost:5173 · hassan-test@1dealer.ca / Test-Dealpilot-2026!
+> Big picture: every deal now carries its own PAPER FILE — the system derives
+> which documents that exact deal needs (a financed deal needs a bank contract,
+> an Ontario deal an OMVIC disclosure, a trade with money owing a lien payoff
+> authorization…), and NOBODY can send a driver until every paper that needs a
+> signature is actually printed. The "signed file" tick and the delivery booking
+> both stopped trusting people's word — they check the papers.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 12.1 | Open any lead with a deal → "Documents" | The deal's paper list appears: bank contract, bill of sale, privacy consent, condition disclosure, odometer statement — with where each one stands | ⬜ |
+| 12.2 | On a fresh deal, try "Book the delivery" | The form warns you up front, and refuses — NAMING each document that is not printed yet | ⬜ |
+| 12.3 | On the delivery checklist, tick "Wet-ink file" before printing anything | Refused, again naming the papers. The tick is no longer a promise | ⬜ |
+| 12.4 | In Documents, walk one paper forward: "Mark generated" → "Mark printed" | Each step is stamped with who and when; a paper can never jump a step (no "file it" button until it's been signed) | ⬜ |
+| 12.5 | Print every paper | The banner flips to "File ready to travel"; now the wet-ink tick works and booking stops complaining | ⬜ |
+| 12.6 | "Print the file sheet" | A clean printable checklist of the deal's papers — the sheet that physically travels with the driver | ⬜ |
+| 12.7 | Edit the deal and mark it "Sold as-is", save, reopen Documents | An "As-is waiver" appeared by itself — the list follows the deal's shape. (Ticking as-is while FIRST creating a deal doesn't stick yet — server fix filed as CR-12) | ⬜ |
+| 12.8 | Open the deal's History | Every document move is there: which paper, from what to what, by whom | ⬜ |
+| 12.9 | Commissions: find your $26,900-on-$70,000 test deal | No more bare "$0.00" — it says "Deal at a loss (−$43,100.00) — no commission." The math was always right; now the screen says why | ⬜ |
+| 12.10 | Open the Pipeline | Empty stages fold into thin side tabs — the board is as wide as your actual work. Click a tab to peek at an empty stage; move a deal into one and it opens by itself | ⬜ |
+
+**Also worth knowing:** marking a paper "signed" or "filed" is a graded right
+(`document:sign`) — by default only owner/GM/F&I/office hold it, because that
+record is the evidence a delivery rests on. A salesperson can no longer mark a
+bank contract signed. You can change all of this in Roles & permissions.

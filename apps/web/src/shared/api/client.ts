@@ -31,6 +31,12 @@ export class ApiError extends Error {
     readonly errorCode?: string,
     /** Every detail code — one per offending item when the server lists them. */
     readonly detailCodes?: string[],
+    /**
+     * Every detail message. For list-shaped refusals (F-13's
+     * `documents_outstanding`, dispatch's `wet_ink_not_ready`) each message is
+     * the NAME of an offending item, and showing them is the whole point.
+     */
+    readonly detailMessages?: string[],
   ) {
     super(`API ${status}`);
   }
@@ -92,6 +98,7 @@ export function failFromResponse(status: number, body: unknown): never {
     details[0]?.code,
     parsed.success ? parsed.data.error.code : undefined,
     details.map((d) => d.code).filter((c): c is string => typeof c === 'string'),
+    details.map((d) => d.message).filter((m): m is string => typeof m === 'string'),
   );
 }
 

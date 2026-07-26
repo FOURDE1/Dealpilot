@@ -5,6 +5,8 @@ import type { DealChecklistItemT, DealT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
 import { useMembers } from '../team/api.js';
 import { can, usePermissionsMine } from '../../shared/permissions.js';
+import { useDealDocuments } from '../documents/api.js';
+import { docPrepared, documentDisplayName } from '../documents/labels.js';
 import { useDealChecklist, useUpdateChecklistItem } from './api.js';
 
 function ItemRow({
@@ -16,6 +18,7 @@ function ItemRow({
   memberName,
   onError,
   dealId,
+  refreshUnpreparedDocNames,
 }: {
   item: DealChecklistItemT;
   dealFrozen: boolean;
@@ -25,6 +28,7 @@ function ItemRow({
   memberName: (id: string | null) => string | null;
   onError: (msg: string | null) => void;
   dealId: string;
+  refreshUnpreparedDocNames: () => Promise<string[]>;
 }) {
   const { t, i18n } = useTranslation('checklist');
   const update = useUpdateChecklistItem(dealId);
@@ -54,6 +58,18 @@ function ItemRow({
       if (!(err instanceof ApiError)) {
         onError(t('genericError'));
         throw err;
+      }
+      // F-13: claiming (or waiving) the wet-ink tick while paperwork is
+      // unprinted is refused with the actual document names — refetched so the
+      // list is the server's truth, translated; its own names as fallback.
+      if (err.errorCode === 'documents_outstanding') {
+        const names = await refreshUnpreparedDocNames();
+        onError(
+          t('documentsOutstanding', {
+            items: (names.length > 0 ? names : (err.detailMessages ?? [])).join(' · '),
+          }),
+        );
+        return false;
       }
       onError(
         err.status === 409
@@ -199,7 +215,19 @@ export function ChecklistDialog({
   onClose: () => void;
 }) {
   const { t } = useTranslation('checklist');
+  const { t: tDocs } = useTranslation('documents');
   const checklist = useDealChecklist(deal?.id ?? '', { enabled: deal !== null });
+  // F-13: the wet-ink tick is refused while paperwork is unprinted — the
+  // refusal names each paper from a fresh fetch, in the user's language.
+  // Mounting the query also generates the deal's list server-side, arming
+  // the gate.
+  const documents = useDealDocuments(deal?.id ?? '', { enabled: deal !== null });
+  const refreshUnpreparedDocNames = async (): Promise<string[]> => {
+    const fresh = await documents.refetch();
+    return (fresh.data?.items ?? [])
+      .filter((d) => !docPrepared(d))
+      .map((d) => documentDisplayName(d, tDocs));
+  };
   const members = useMembers(deal?.organization_id, { enabled: deal !== null });
   // Evidence must keep naming its author even after they leave the org.
   const removed = useMembers(deal?.organization_id, { enabled: deal !== null, status: 'revoked' });
@@ -266,6 +294,7 @@ export function ChecklistDialog({
                   canSignSafety={canSignSafety}
                   memberName={memberName}
                   onError={setError}
+                  refreshUnpreparedDocNames={refreshUnpreparedDocNames}
                 />
               ))}
             </ul>

@@ -101,6 +101,8 @@ export function useUpdateDealTracks(orgId?: string) {
       );
       void queryClient.invalidateQueries({ queryKey: dealKeys.all });
       void queryClient.invalidateQueries({ queryKey: ['activity'] });
+      // Reaching Signed generates the document file server-side (F-13).
+      void queryClient.invalidateQueries({ queryKey: ['documents'] });
       // Funding writes commission lines in the same transaction server-side.
       if (updated.funding_status === 'funded') {
         void queryClient.invalidateQueries({ queryKey: ['commissions'] });
@@ -133,6 +135,8 @@ export function useUpdateDealInputs() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: dealKeys.all });
       void queryClient.invalidateQueries({ queryKey: ['activity'] });
+      // Editing the deal's shape re-derives WHICH documents it needs (F-13).
+      void queryClient.invalidateQueries({ queryKey: ['documents'] });
     },
   });
 }

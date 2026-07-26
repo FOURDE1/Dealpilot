@@ -53,15 +53,32 @@ test('full F-11 journey: fleet roster → book a run → board → status', asyn
   await page.getByRole('button', { name: 'Enregistrer la transaction' }).click();
   await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
 
-  // The signed-file gate refuses a run before the paperwork is ready.
+  // F-13: the gate reads the DOCUMENTS and refuses a run by naming the
+  // unprinted papers — the checklist tick alone is no longer enough.
   await page.getByRole('button', { name: /Réserver la livraison/ }).click();
   const gateDialog = page.getByRole('dialog');
   await gateDialog.getByLabel(/Moment prévu/).fill('2026-08-01T14:00');
   await gateDialog.getByRole('button', { name: 'Réserver', exact: true }).click();
-  await expect(gateDialog.getByText(/dossier signé complet/)).toBeVisible();
+  await expect(gateDialog.getByText(/À imprimer : /)).toBeVisible();
   await gateDialog.getByRole('button', { name: 'Annuler' }).click();
 
-  // Tick the signed file on the checklist, then book for real.
+  // Print the paper file (F-13), tick the signed file, then book for real.
+  await page.getByRole('button', { name: /Documents — / }).click();
+  const f13docs = page.getByRole('dialog');
+  for (const name of [
+    'Contrat bancaire',
+    'Contrat de vente',
+    'Consentement à la confidentialité',
+    'Divulgation de l’état du véhicule',
+    'Déclaration d’odomètre',
+  ]) {
+    await f13docs.getByRole('button', { name: `Marquer produit — ${name}` }).click();
+    await f13docs.getByRole('button', { name: `Marquer imprimé — ${name}` }).click();
+  }
+  await expect(
+    f13docs.getByText('Dossier prêt à voyager — tous les documents à signer sont imprimés.'),
+  ).toBeVisible();
+  await f13docs.getByRole('button', { name: 'Fermer' }).click();
   await page.getByRole('button', { name: /Liste de livraison/ }).click();
   const chk = page.getByRole('dialog');
   await chk.getByLabel('Dossier signé (original)').click();

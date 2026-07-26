@@ -87,6 +87,22 @@ test('full F-08 journey: gate blocks → tick/waive → deliver → frozen', asy
   await expect(page.getByText(/Livraison bloquée — éléments en attente/)).toBeVisible();
   await expect(page.getByText(/obligation légale/)).toHaveCount(0);
 
+  // F-13: the wet-ink tick is refused until the paper file is printed — print
+  // the five papers this financed deal derives, then settle everything else.
+  await colNew.getByRole('button', { name: /Documents — / }).click();
+  const f13docs = page.getByRole('dialog');
+  for (const name of [
+    'Contrat bancaire',
+    'Contrat de vente',
+    'Consentement à la confidentialité',
+    'Divulgation de l’état du véhicule',
+    'Déclaration d’odomètre',
+  ]) {
+    await f13docs.getByRole('button', { name: `Marquer produit — ${name}` }).click();
+    await f13docs.getByRole('button', { name: `Marquer imprimé — ${name}` }).click();
+  }
+  await f13docs.getByRole('button', { name: 'Fermer' }).click();
+
   // Settle everything else.
   await colNew.getByRole('button', { name: /Liste de livraison/ }).click();
   const dialog2 = page.getByRole('dialog');

@@ -170,6 +170,11 @@ export function DeskingPage() {
   const sellers = activeMembers(members.data?.items);
   const [soldBy, setSoldBy] = useState('');
   const [fiReserve, setFiReserve] = useState('');
+  // null = untouched. The Deal row does not return sold_as_is (CR-12), so an
+  // edit cannot prefill it — and with no read-back, this form only ever SETS
+  // the flag (never false: unchecking an untouched box must not clobber a
+  // genuinely as-is deal). Unsetting waits for CR-12's prefill.
+  const [soldAsIs, setSoldAsIs] = useState<boolean | null>(null);
   // Provenance of the sale price: only an auto-filled (never user-typed) price
   // may be replaced or cleared when the picked car changes.
   const [prefilledPrice, setPrefilledPrice] = useState<string | null>(null);
@@ -243,10 +248,11 @@ export function DeskingPage() {
             vehicle_id: vehicleId === '' ? null : vehicleId,
             salesperson_id: soldBy === '' ? null : soldBy,
             fi_reserve_cents: reserveCents,
+            ...(soldAsIs === true ? { sold_as_is: true } : {}),
           },
         });
       } else {
-        await createDeal.mutateAsync({
+        const created = await createDeal.mutateAsync({
           ...inputs,
           organization_id: lead.data.organization_id,
           store_id: lead.data.store_id,
@@ -255,6 +261,13 @@ export function DeskingPage() {
           ...(soldBy === '' ? {} : { salesperson_id: soldBy }),
           fi_reserve_cents: reserveCents,
         });
+        // CR-12: POST /deals silently drops sold_as_is (its INSERT column list
+        // omits it) while PATCH writes it. Until the server fix lands, the tick
+        // is applied through the path that works — otherwise a 201 would come
+        // back with the flag quietly lost and no as-is waiver in the file.
+        if (soldAsIs === true) {
+          await updateDeal.mutateAsync({ id: created.id, body: { sold_as_is: true } });
+        }
       }
       void navigate(`/leads/${leadId}`);
     } catch (err) {
@@ -412,6 +425,22 @@ export function DeskingPage() {
               />
               {t('taxExempt')}
             </label>
+            <div className="space-y-1">
+              <label htmlFor="desk-as-is" className="flex items-center gap-2 text-sm max-lg:min-h-11">
+                <input
+                  id="desk-as-is"
+                  type="checkbox"
+                  checked={soldAsIs === true}
+                  aria-describedby="desk-as-is-hint"
+                  onChange={(e) => setSoldAsIs(e.target.checked)}
+                  className="size-4 accent-[var(--primary)]"
+                />
+                {t('soldAsIs')}
+              </label>
+              <p id="desk-as-is-hint" className="text-xs text-muted-foreground">
+                {t('soldAsIsHint')}
+              </p>
+            </div>
           </section>
 
           <section className="space-y-3 rounded-lg border border-border bg-card p-4">

@@ -4,6 +4,7 @@ import { useMembers } from '../team/api.js';
 import { formatCents } from '../deals/money.js';
 import { FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from '../deals/labels.js';
 import { LEAD_STATUS_KEYS } from '../leads/labels.js';
+import { DOCUMENT_STATUS_KEYS, DOCUMENT_TYPE_KEYS } from '../documents/labels.js';
 import { useActivity } from './api.js';
 
 const ACTION_KEYS = {
@@ -40,6 +41,7 @@ const FIELD_KEYS: Record<string, string> = {
   roles: 'field_roles',
   deal_status: 'field_deal_status',
   location_status: 'field_location_status',
+  document_type: 'field_document_type',
 };
 
 const ENUM_VALUE_KEYS: Record<string, Record<string, string>> = {
@@ -96,9 +98,18 @@ export function ActivityTimeline({
 
   const { t: tDeals } = useTranslation('deals');
   const { t: tLeads } = useTranslation('leads');
+  const { t: tDocs } = useTranslation('documents');
 
   const renderValue = (field: string, v: unknown): string => {
     if (field.endsWith('_cents') && typeof v === 'number') return formatCents(v, i18n.language);
+    // F-13 document events: their `status` values and types never collide with
+    // the lead-status vocabulary, so a plain value lookup is unambiguous.
+    if (typeof v === 'string' && field === 'document_type' && v in DOCUMENT_TYPE_KEYS) {
+      return tDocs(DOCUMENT_TYPE_KEYS[v as keyof typeof DOCUMENT_TYPE_KEYS]);
+    }
+    if (typeof v === 'string' && field === 'status' && v in DOCUMENT_STATUS_KEYS) {
+      return tDocs(DOCUMENT_STATUS_KEYS[v as keyof typeof DOCUMENT_STATUS_KEYS]);
+    }
     const enumMap = ENUM_VALUE_KEYS[field];
     if (enumMap && typeof v === 'string' && v in enumMap) {
       const key = enumMap[v as keyof typeof enumMap] as string;

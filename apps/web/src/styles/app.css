@@ -1,2 +1,28 @@
 @import 'tailwindcss';
 @import '@dealpilot/ui/tokens.css';
+
+/*
+ * F-13 wet-ink sheet: printing while the documents dialog is open shows ONLY
+ * the .print-sheet block. visibility (not display) so the portal ancestors
+ * keep their layout while everything else disappears from the paper.
+ * Scoped with :has() — without it, Ctrl+P on ANY page printed blank.
+ */
+@media print {
+  body:has(.print-sheet) * {
+    visibility: hidden;
+  }
+  .print-sheet,
+  .print-sheet * {
+    visibility: visible;
+  }
+  .print-sheet {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 24px;
+    background: #fff;
+    color: #000;
+  }
+}
