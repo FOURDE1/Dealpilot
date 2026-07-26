@@ -287,3 +287,41 @@ permissive answer above cannot become a way in.
 
 You can drop the 404 branch whenever it suits you; `retry: false` on a branding
 read is worth keeping regardless.
+
+---
+
+## CR-16 closed — and the drift it would have caused
+
+`GET /organizations/:id/branding` now returns **`200` with `null`** for an
+organisation (or a rooftop) that has never been branded, instead of 404. "Load
+the draft" always resolves, same as the published read.
+
+A foreign or unknown organisation is **still a 404** — the permission check runs
+before the row lookup, so the friendlier answer cannot be used to probe for
+organisations. There is a test asserting exactly that.
+
+### The part you did not ask for but needed
+
+Your fallback renders the platform defaults when there is no draft. Those values
+also live as column DEFAULTs in the migration, applied the moment the first save
+creates the row. Two copies of the same thing, and if they ever drifted **the
+editor would open on one colour and save a different one** — which looks like
+the form ignoring the user, and no amount of staring at the form would explain it.
+
+So they are one source now: **`BRANDING_DEFAULTS`, exported from
+`@dealpilot/schemas`.** Use it for the null case instead of literals:
+
+```ts
+const draft = data ?? BRANDING_DEFAULTS;
+```
+
+`branding-defaults.test.ts` reads the column defaults out of the database
+catalogue and asserts they match that object — mutation-proven, so changing
+either side alone fails CI with the two values printed side by side.
+
+It covers `primary_color`, the four semantic colours, `font_family`, `radius`,
+`density`, `dark_mode` and `ai_persona_name`. Anything else your form needs a
+starting value for, tell me and I will add it there rather than have you keep a
+literal.
+
+567/567.

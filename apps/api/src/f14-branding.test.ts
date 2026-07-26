@@ -498,3 +498,56 @@ describe('asking what the app should look like always has an answer', () => {
     expect(res.statusCode).toBe(404);
   });
 });
+
+describe('loading the theme editor always resolves (CR-16)', () => {
+  it('a never-branded organisation gets null, not a 404', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const fresh = await app!.inject({
+      method: 'POST', url: '/api/auth/sign-up/email',
+      payload: { email: `brand-fresh-${run}@dealpilot.test`, password: 'correct-horse-battery-staple', name: 'Fresh' },
+    });
+    const fsc = fresh.headers['set-cookie'];
+    const freshCookie = (Array.isArray(fsc) ? fsc : [fsc!]).map((c) => c!.split(';')[0]).join('; ');
+    const org = await app!.inject({
+      method: 'POST', url: '/api/v1/organizations', headers: { cookie: freshCookie },
+      payload: { name: 'Groupe Vierge', slug: `groupe-vierge-${run}` },
+    });
+    const freshOrg = (JSON.parse(org.body) as { id: string }).id;
+
+    const res = await app!.inject({
+      method: 'GET', url: `/api/v1/organizations/${freshOrg}/branding`, headers: { cookie: freshCookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toBeNull();
+  });
+
+  it('a rooftop with no override of its own also resolves', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const store = await app!.inject({
+      method: 'POST', url: '/api/v1/stores', headers: { cookie },
+      payload: { organization_id: orgId, name: 'Unbranded lot', code: `UNB-${run.slice(-4)}`, province: 'QC' },
+    });
+    const storeId = (JSON.parse(store.body) as { id: string }).id;
+    const res = await app!.inject({
+      method: 'GET', url: `/api/v1/organizations/${orgId}/branding?store_id=${storeId}`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body)).toBeNull();
+  });
+
+  it("but another organisation's editor is still a 404", async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The friendlier answer above must not become a way to probe for orgs.
+    const outsider = await app!.inject({
+      method: 'POST', url: '/api/auth/sign-up/email',
+      payload: { email: `brand-probe-${run}@dealpilot.test`, password: 'correct-horse-battery-staple', name: 'Probe' },
+    });
+    const osc = outsider.headers['set-cookie'];
+    const outCookie = (Array.isArray(osc) ? osc : [osc!]).map((c) => c!.split(';')[0]).join('; ');
+    const res = await app!.inject({
+      method: 'GET', url: `/api/v1/organizations/${orgId}/branding`, headers: { cookie: outCookie },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});

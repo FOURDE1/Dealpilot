@@ -519,7 +519,8 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       /** Omit store_id for the group brand; pass one for a rooftop sub-brand. */
       query: z.object({ store_id: Uuid.optional() }),
-      responses: { 200: TenantBranding, ...errorResponses },
+      /** null = never branded; start from BRANDING_DEFAULTS. */
+      responses: { 200: TenantBranding.nullable(), ...errorResponses },
     },
     update: {
       method: 'PUT',

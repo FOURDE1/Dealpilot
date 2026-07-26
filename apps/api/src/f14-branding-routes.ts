@@ -128,7 +128,14 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
       );
       return r.rows[0] ?? null;
     });
-    if (!row) throw notFound();
+    // A tenant who has never opened the editor has no draft row, and "load the
+    // draft" is a question that should always resolve — the same shape as the
+    // published read (CR-16, Hussein). null means "start from the platform
+    // defaults", which are exported as BRANDING_DEFAULTS so the editor is not
+    // holding a second copy of them.
+    //
+    // A foreign or unknown organisation is still a 404: requirePermission above
+    // throws before this line, so the friendlier answer cannot leak existence.
     return reply.send(row);
   });
 

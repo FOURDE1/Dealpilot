@@ -132,6 +132,32 @@ export const UpdateBrandingInput = z
     path: ['font_woff2_key'],
   });
 
+/**
+ * What a brand starts as, before anyone has chosen anything.
+ *
+ * Exported because the theme editor needs it: a tenant with no draft row gets
+ * `null`, and the editor has to render SOMETHING in the form. Without this it
+ * would hold its own copy of these values, which would then drift from the
+ * database defaults the moment either side changed — and the drift would show
+ * up as an editor that opens on one colour and saves a different one.
+ *
+ * `branding-defaults.test.ts` reads the column defaults out of the database and
+ * asserts they match this object, so the two cannot disagree.
+ */
+export const BRANDING_DEFAULTS = {
+  primary_color: 'oklch(0.55 0.2 262)',
+  accent_color: null,
+  success_color: null,
+  warning_color: null,
+  danger_color: null,
+  info_color: null,
+  font_family: 'inter',
+  radius: 'md',
+  density: 'comfortable',
+  dark_mode: 'derived',
+  ai_persona_name: 'Alex',
+} as const;
+
 /** What the SPA loads before first paint — published only, no draft ever. */
 export const PublishedBranding = z.object({
   organization_id: Uuid,
