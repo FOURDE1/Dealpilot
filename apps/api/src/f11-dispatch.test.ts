@@ -75,7 +75,7 @@ beforeAll(async () => {
   await reset(admin, migrationsDir, ADMIN_URL);
   ({ app } = await buildApp(
     { DATABASE_URL: APP_URL, NODE_ENV: 'test' },
-    { mailer: { async send(m) { sent.push(m); return true; } } },
+    { mailer: { deliversToRecipient: true, async send(m) { sent.push(m); return true; } } },
   ));
 
   const signUp = await app!.inject({

@@ -27,6 +27,16 @@ export interface EmailMessage {
 
 export interface Mailer {
   send(message: EmailMessage): Promise<boolean>;
+  /**
+   * Whether a successful send actually reaches the recipient's inbox.
+   *
+   * The dev log transport returns true from send() — it did what it was asked —
+   * but the message went to pino, which nobody's customer or new colleague is
+   * reading. Callers that hand out a one-time link (invitations) need to know
+   * the difference so they can surface the link instead of telling someone an
+   * email is on its way that never will be (CR-05, Hussein).
+   */
+  readonly deliversToRecipient: boolean;
 }
 
 const SEND_TIMEOUT_MS = 10_000;
@@ -34,6 +44,8 @@ const SEND_TIMEOUT_MS = 10_000;
 export function createMailer(env: Env, logger: FastifyBaseLogger): Mailer {
   if (env.EMAIL_TRANSPORT === 'log') {
     return {
+      // It writes a log line; it does not reach anybody.
+      deliversToRecipient: false,
       async send(message) {
         // Subject/recipient only — bodies can carry tokens (CLAUDE.md: no
         // secrets in logs). The token is visible in dev via the link below.
@@ -49,6 +61,8 @@ export function createMailer(env: Env, logger: FastifyBaseLogger): Mailer {
   });
 
   return {
+    // SES puts it in a real inbox.
+    deliversToRecipient: true,
     async send(message) {
       try {
         await client.send(
