@@ -48,15 +48,26 @@ transaction by a database trigger. Two consequences for the worksheet:
 
 1. After any product write, **re-read the deal** — its F&I numbers and every
    derived total (taxes, amount financed, payment, gross) will have moved.
+
+   > **This was false when I wrote it, and you caught it (CR-13).** The trigger
+   > moved `fi_price_cents` and nothing recomputed the quote beside it, so the
+   > stored payment, taxes and gross stayed at their pre-product values until
+   > someone re-saved the worksheet. It is true now: all three product paths
+   > recompute in the same transaction, there is a drift guard asserting it
+   > after every path that can move a deal's inputs, and removing the fix makes
+   > that guard fail. Your worksheet mitigation is no longer needed, though it
+   > does no harm.
 2. Adding the first product to a deal with a hand-entered F&I number
    **replaces** that number. It is recorded in the activity trail with
    `fi_price_cents: {from, to}`, so it is auditable — but the user will see
    their typed value change. Worth a one-line confirmation before the first
    product on a deal whose `fi_price_cents` is non-zero.
 
-**The F&I box on the worksheet should become read-only once products exist**,
-with an "itemise" affordance. Editing both is two sources of truth and the
-trigger will win.
+**The F&I box on the worksheet must become read-only once products exist.** This
+is now enforced server-side too: PATCHing `fi_price_cents` or `fi_cost_cents` on
+a deal that has products is a **422 `fi_is_itemised`**. Refused rather than
+accepted-and-later-overwritten, which would have been CR-12 in reverse. On a
+deal with no products the plain F&I box keeps working exactly as before.
 
 **Documents update themselves.** Adding, renaming or removing a product
 regenerates the deal's file in the same transaction — so after a product write,

@@ -1,13 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
-import { computeDeal, type DeskingInput } from '@dealpilot/core';
 import {
   CalculateDealInput,
   CreateDealInput,
   DealListQuery,
   UpdateDealInput,
   type DeskingInputsT,
-  type DeskingOutputsT,
 } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { conflictFrom, idParam, keysetPage, sessionUser } from './f01-routes.js';
@@ -15,6 +13,7 @@ import { writeCommissionsForFundedDeal } from './f09-commissions-routes.js';
 import { checklistReadiness, DELIVERY_STAGES, ensureDealItems } from './checklist.js';
 import { diff, recordEvent } from './activity.js';
 import { generateDocuments } from './f13-document-routes.js';
+import { computeOutputs, INPUT_COLUMNS, OUTPUT_COLUMNS } from './deal-outputs.js';
 
 /** From Signed onward a deal has committed paperwork (documents.md §3). */
 const SIGNED_ONWARD = new Set<string>([
@@ -39,73 +38,6 @@ import { requirePermission } from './permissions.js';
  * (that is the sales floor's job); status moves are free within the vocabulary
  * until the approval workflow slice lands.
  */
-
-/** Wire shape (cents + basis points) → the engine's input shape. */
-function toEngineInput(i: DeskingInputsT): DeskingInput {
-  return {
-    salePriceCents: i.sale_price_cents,
-    ...(i.msrp_cents === undefined ? {} : { msrpCents: i.msrp_cents }),
-    vehicleCostCents: i.vehicle_cost_cents,
-    provinceCode: i.province,
-    dealType: i.deal_type,
-    interestRatePct: i.interest_rate_bps / 100,
-    termMonths: i.term_months,
-    // HO-05: a lease is priced from a money factor, a lease term and a
-    // residual — not from the finance fields. Without this mapping the engine
-    // silently used its defaults, so a saved lease stored a rate and term that
-    // had nothing to do with its payment. MF = APR / 2400 (industry standard).
-    moneyFactor: i.interest_rate_bps / 100 / 2400,
-    leaseTermMonths: i.term_months,
-    residualPercent: i.residual_percent,
-    cashDownCents: i.cash_down_cents,
-    taxExempt: i.tax_exempt,
-    ...(i.trade_allowance_cents || i.trade_acv_cents || i.trade_lien_cents
-      ? {
-          trades: [
-            {
-              allowanceCents: i.trade_allowance_cents,
-              acvCents: i.trade_acv_cents,
-              lienCents: i.trade_lien_cents,
-            },
-          ],
-        }
-      : {}),
-    ...(i.rebate_cents ? { rebatesCents: [i.rebate_cents] } : {}),
-    ...(i.fees_cents ? { fees: [{ amountCents: i.fees_cents, taxable: i.fees_taxable }] } : {}),
-    ...(i.fi_price_cents || i.fi_cost_cents
-      ? { fiProducts: [{ priceCents: i.fi_price_cents, costCents: i.fi_cost_cents, taxable: true }] }
-      : {}),
-  };
-}
-
-function computeOutputs(i: DeskingInputsT): DeskingOutputsT {
-  const d = computeDeal(toEngineInput(i));
-  const monthly = i.deal_type === 'lease' ? d.leaseMonthlyCents : d.financeMonthlyCents;
-  return {
-    gst_cents: d.taxes.gst_cents,
-    pst_cents: d.taxes.pst_cents,
-    hst_cents: d.taxes.hst_cents,
-    tax_total_cents: d.taxes.total_cents,
-    amount_financed_cents: i.deal_type === 'cash' ? d.cashTotalDueCents : d.amountFinancedCents,
-    monthly_payment_cents: monthly,
-    biweekly_payment_cents: Math.round((monthly * 12) / 26),
-    weekly_payment_cents: Math.round((monthly * 12) / 52),
-    front_gross_cents: d.frontGrossCents,
-    total_gross_cents: d.totalGrossCents,
-  };
-}
-
-const INPUT_COLUMNS = [
-  'province', 'deal_type', 'sale_price_cents', 'msrp_cents', 'vehicle_cost_cents',
-  'cash_down_cents', 'trade_allowance_cents', 'trade_acv_cents', 'trade_lien_cents',
-  'rebate_cents', 'fees_cents', 'fees_taxable', 'fi_price_cents', 'fi_cost_cents',
-  'interest_rate_bps', 'term_months', 'residual_percent', 'tax_exempt',
-] as const;
-
-const OUTPUT_COLUMNS = [
-  'gst_cents', 'pst_cents', 'hst_cents', 'tax_total_cents',
-  'amount_financed_cents', 'monthly_payment_cents', 'front_gross_cents', 'total_gross_cents',
-] as const;
 
 /** Stored outputs + the derived payment frequencies the contract promises. */
 function withDerived(row: Record<string, unknown>): Record<string, unknown> {
@@ -299,6 +231,27 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
         [dealId],
       );
       if (current.rows.length === 0) throw notFound();
+
+      // Once a deal has itemised F&I, its aggregate is DERIVED (F-13b's
+      // trigger). Letting this route write it too would leave two sources of
+      // truth for the same money, disagreeing until the next product write
+      // silently overwrote whatever was typed here. Refused rather than
+      // accepted-and-discarded, which is the CR-12 mistake in reverse.
+      if (input.fi_price_cents !== undefined || input.fi_cost_cents !== undefined) {
+        const itemised = await c.query(
+          `SELECT 1 FROM deal_fi_products WHERE deal_id = $1 AND deleted_at IS NULL LIMIT 1`,
+          [dealId],
+        );
+        if (itemised.rows.length > 0) {
+          throw new AppError(422, 'fi_is_itemised', 'This deal’s F&I comes from its products', [
+            {
+              path: 'fi_price_cents',
+              code: 'fi_is_itemised',
+              message: 'Edit the F&I products instead — the deal total is their sum',
+            },
+          ]);
+        }
+      }
 
       // F-08: 'delivered' is a claim about the real world, so it has to be
       // earned — every REQUIRED checklist item done or waived-with-a-reason

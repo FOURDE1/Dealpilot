@@ -18,6 +18,7 @@ import { AppError, notFound, parseOrThrow } from './errors.js';
 import { idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
+import { recomputeDealOutputs } from './deal-outputs.js';
 
 /**
  * F-13 deal documents (documents.md).
@@ -526,6 +527,11 @@ export function registerF13Routes(app: FastifyInstance, pool: Pool, storage: Sto
       // The file follows the products: a warranty sold means a warranty
       // agreement in the folder, without anyone remembering to ask for it.
       await generateDocuments(c, orgId, dealId);
+      // …and so does the QUOTE. The trigger moved fi_price_cents; without this
+      // the payment, taxes and gross stored beside it are the pre-warranty
+      // numbers, and every screen that reads the stored quote shows them
+      // (CR-13). Same transaction: the two can never be seen disagreeing.
+      await recomputeDealOutputs(c, dealId);
       return row;
     });
     return reply.code(201).send(created);
@@ -591,6 +597,7 @@ export function registerF13Routes(app: FastifyInstance, pool: Pool, storage: Sto
       // A renamed product renames its agreement — while that agreement is still
       // untouched. Once printed it is part of the record and stays as printed.
       await generateDocuments(c, orgId, String(prior['deal_id']));
+      await recomputeDealOutputs(c, String(prior['deal_id']));
       return r.rows[0]!;
     });
     return reply.send(updated);
@@ -623,8 +630,10 @@ export function registerF13Routes(app: FastifyInstance, pool: Pool, storage: Sto
         changes: { kind: prior['kind'], name: prior['name'], price_cents: prior['price_cents'] },
       });
       // Removing the product removes its unprinted agreement; the deal's F&I
-      // total drops by the trigger in the same transaction.
+      // total drops by the trigger in the same transaction, and the quote
+      // follows it down.
       await generateDocuments(c, orgId, String(prior['deal_id']));
+      await recomputeDealOutputs(c, String(prior['deal_id']));
     });
     return reply.code(204).send();
   });
