@@ -4,6 +4,7 @@ import {
   BRANDING_CONTENT_TYPES,
   BRANDING_SLOTS,
   brandingKey,
+  MAX_BRANDING_BYTES,
   sha256,
   type BrandingSlot,
   type StorageDriver,
@@ -224,7 +225,14 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
    * signed bank contract must never be an SVG and a logo must never be a PDF,
    * and one shared list would have permitted both.
    */
-  app.post('/api/v1/organizations/:id/branding/assets/:slot', async (request, reply) => {
+  app.post(
+    '/api/v1/organizations/:id/branding/assets/:slot',
+    // Stop reading at the largest slot's ceiling instead of the parser's 20 MB:
+    // the handler would reject anything above it anyway, and buffering first
+    // lets one authenticated caller hold 19 MB per request that was never
+    // going to be stored.
+    { bodyLimit: MAX_BRANDING_BYTES },
+    async (request, reply) => {
     const orgId = idParam(request);
     const slot = String((request.params as { slot?: string }).slot ?? '') as BrandingSlot;
     const spec = BRANDING_SLOTS[slot];
@@ -306,7 +314,8 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
       return r.rows[0]!;
     });
     return reply.code(201).send(row);
-  });
+    },
+  );
 
   /**
    * Serve a brand asset.

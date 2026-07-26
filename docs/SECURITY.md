@@ -94,3 +94,75 @@ Per-topic implementation reference: OWASP Cheat Sheet Series
 | Date | Risk | Rationale | Revisit |
 | ---- | ---- | --------- | ------- |
 | 2026-07-23 | Formal legal review (Law 25 / PIPEDA / CASL / Bill 96 counsel sign-off) deferred | Owner decision — prioritize the build; compliance engine is designed in from day one per the ADRs | **Mandatory before public AI launch** — the AI outbound engine does not go live without it |
+
+---
+
+## Audit — file upload and tenant-supplied content (2026-07-26, AHMAD)
+
+Triggered by CLAUDE.md's rule to audit after upload work. Two upload paths
+shipped this session: scanned documents (F-13c) and brand assets (F-14b), plus a
+route that serves tenant-supplied bytes from the application's own origin.
+
+### The one that mattered: stored XSS via a brand logo
+
+An SVG is a document that can carry script. A tenant uploads their logo; the app
+serves it from its own origin; if a browser ever treats it as a document rather
+than an image, that script runs with the application's origin — in **every**
+tenant's header, since the same deployment serves everyone.
+
+Mitigated in `GET /api/v1/branding/assets/:slot`:
+`Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`,
+`X-Content-Type-Options: nosniff`, and an explicit content type. `sandbox` strips
+script even if the response is opened directly in a tab.
+
+**The residual risk is on the client, and is documented rather than mitigated in
+code:** these headers protect the asset as a *resource*. Inlining the SVG into
+the DOM (`dangerouslySetInnerHTML`, `<svg>{...}</svg>`) bypasses every one of
+them. The contract note tells HUSSEIN to render brand assets with `<img src>`
+and never inline them. That is a convention, not an enforcement — if this
+codebase grows an inline-SVG helper, this is the reason it must not be pointed
+at tenant assets.
+
+### Fixed here: buffering an upload the route was always going to refuse
+
+The raw-body parser accepted 20 MB for every binary route, including brand
+assets whose largest slot is 1 MB. An authenticated caller could make the
+process hold 19 MB per concurrent request that was certain to be rejected. The
+branding upload now carries a route-level `bodyLimit` at the largest slot, so
+Fastify stops reading there. Outcome was a 413 either way; the difference is
+memory.
+
+### Checked and found sound
+
+- **Storage keys are server-built** from ids the server already trusts, never
+  from a request, and the local driver additionally refuses a resolved path
+  outside its root. The traversal check cannot fire today; it stays because the
+  day a key is built from user input, "cannot" becomes "did not".
+- **Tenant isolation on every branding route.** Naming another organisation's
+  `organization_id` is a 404 — membership is checked inside the tenant
+  transaction, not by whether the caller could type an id. Asserted for the
+  published read, the draft read, PUT, publish, and both asset routes.
+- **Content-type allowlists are per-purpose**, not shared: a signed contract may
+  not be an SVG and a logo may not be a PDF. One shared list would have
+  permitted both.
+- **`Cache-Control: private`** on assets — a shared cache must never be able to
+  hand one dealership's logo to another.
+- **Content-addressed keys**: re-uploading identical bytes is idempotent, and a
+  corrected scan lands beside the original rather than overwriting evidence.
+- **Document integrity**: every read recomputes the SHA-256 and refuses to serve
+  bytes that no longer match, so an altered contract is refused rather than
+  laundered into evidence.
+
+### Accepted, with reasons
+
+- **No image dimension or EXIF validation.** §2 wants max 512×160 logos and EXIF
+  stripped from the login background; both need `sharp`, a new dependency, which
+  is the owner's decision. Today the size ceiling and content-type allowlist are
+  the whole check. A wrongly-sized logo is a cosmetic problem; the EXIF gap
+  means a login background could carry the photographer's GPS coordinates, which
+  is worth closing before that field is used in anger.
+- **No rate limit on upload endpoints.** They require a session and are bounded
+  per request; a per-tenant quota belongs with the billing work.
+- **The local storage driver is dev/CI only.** `loadEnv` refuses to boot
+  production on it, because two Fargate tasks with their own disks would accept
+  a signed contract and lose it.

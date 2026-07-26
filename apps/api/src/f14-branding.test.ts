@@ -551,3 +551,33 @@ describe('loading the theme editor always resolves (CR-16)', () => {
     expect(res.statusCode).toBe(404);
   });
 });
+
+describe('an upload is refused before the process buffers it', () => {
+  it('stops reading a body far above the largest slot', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The handler would refuse this anyway. The point is that Fastify stops at
+    // the route ceiling rather than buffering the parser's 20 MB first — one
+    // authenticated caller should not be able to make the process hold 19 MB
+    // per request that was never going to be stored.
+    const huge = Buffer.alloc(4 * 1024 * 1024, 0x41);
+    const res = await app!.inject({
+      method: 'POST', url: `/api/v1/organizations/${orgId}/branding/assets/logo_light`,
+      headers: { cookie, 'content-type': 'image/png' }, payload: huge,
+    });
+    expect(res.statusCode).toBe(413);
+    expect(JSON.parse(res.body).error.code).toBe('payload_too_large');
+  });
+
+  it('still names the slot limit for a file just over it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Under the route ceiling, so it reaches the handler and gets the helpful
+    // message rather than a bare transport-level refusal.
+    const over = Buffer.alloc(250 * 1024, 0x41);
+    const res = await app!.inject({
+      method: 'POST', url: `/api/v1/organizations/${orgId}/branding/assets/logo_light`,
+      headers: { cookie, 'content-type': 'image/png' }, payload: over,
+    });
+    expect(res.statusCode).toBe(413);
+    expect(JSON.parse(res.body).error.details[0].message).toContain('limit');
+  });
+});

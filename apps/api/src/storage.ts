@@ -141,3 +141,15 @@ export function brandingKey(orgId: string, slot: string, hash: string, extension
 
 /** 20 MB — a scanned multi-page contract, with room, and not a memory hazard. */
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+/**
+ * The largest any BRAND asset may be — the ceiling of the per-slot limits.
+ *
+ * Applied at the route so Fastify stops reading at this point, rather than
+ * buffering the parser's 20 MB and having the handler reject it afterwards. The
+ * outcome was already a 413 either way; the difference is whether the process
+ * holds 19 MB it was always going to throw away, once per concurrent request.
+ */
+export const MAX_BRANDING_BYTES = Math.max(
+  ...Object.values(BRANDING_SLOTS).map((slot) => slot.maxBytes),
+);
