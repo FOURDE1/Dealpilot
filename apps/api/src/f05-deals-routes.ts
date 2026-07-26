@@ -180,7 +180,7 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
         if (input.lead_id) await requireLeadInOrg(c, input.lead_id);
         if (input.vehicle_id) await requireVehicleInOrg(c, input.vehicle_id);
         const cols = ['organization_id', 'store_id', 'lead_id', 'vehicle_id', 'salesperson_id',
-          'fi_reserve_cents', ...INPUT_COLUMNS, ...OUTPUT_COLUMNS];
+          'fi_reserve_cents', 'sold_as_is', ...INPUT_COLUMNS, ...OUTPUT_COLUMNS];
         const values: unknown[] = [
           input.organization_id,
           input.store_id,
@@ -188,6 +188,7 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
           input.vehicle_id ?? null,
           input.salesperson_id ?? null,
           input.fi_reserve_cents ?? 0,
+          input.sold_as_is ?? false,
           ...INPUT_COLUMNS.map((k) => (input as Record<string, unknown>)[k] ?? null),
           ...OUTPUT_COLUMNS.map((k) => (outputs as unknown as Record<string, number>)[k]),
         ];

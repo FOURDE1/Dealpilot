@@ -67,6 +67,8 @@ export const Deal = DeskingInputs.extend({
   vehicle_id: Uuid.nullable(),
   salesperson_id: Uuid.nullable(),
   fi_reserve_cents: NonNegativeCents,
+  /** Adds the as-is waiver to the document file (documents.md §3). */
+  sold_as_is: z.boolean(),
   pipeline_stage: PipelineStage,
   funding_status: FundingStatus,
   funded_at: IsoDateTime.nullable(),
