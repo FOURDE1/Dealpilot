@@ -174,11 +174,26 @@ flagged so a dispatcher can look at it, because you can fix a flagged run and
 you cannot fix a refusal. The window is **4 hours** either side, and it is
 per-store — say the word if your geography wants something different.
 
-**⚠ NOT BUILT YET (F-11b), so don't look for it:** the driver dispatch email,
-the driver-company roster, pickup/delivery addresses, cash-to-collect, special
-instructions, the wet-ink gate before booking, and the customer "your car is on
-its way" notification. The scheduling core is done; the paperwork around it is
-the next slice.
+## ROUND 7 — Dispatch paperwork (F-11b)
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 7.1 | Settings → Driver companies: add one with a real email you can open | Saved. Leave the store blank to make it usable by every store | ⬜ |
+| 7.2 | **Try to book a delivery before ticking "Wet-ink file" on the checklist** | **Refused** — a driver must not leave without the signed file | ⬜ |
+| 7.3 | Tick "Wet-ink file", then book, choosing that driver company | Booked, and an email goes out | ⬜ |
+| 7.4 | Read that email | French first then English; both addresses; cash to collect; and it says **why** the second driver is coming | ⬜ |
+| 7.5 | Book one with a trade-in | The email says the driver returns in the trade — no second driver | ⬜ |
+| 7.6 | Add cash to collect, e.g. $1,500 | Shows as "1 500,00 $" and "$1,500.00" — a driver carrying money should see it in their own language | ⬜ |
+| 7.7 | Hit "Resend" on a booked run | Goes out again | ⬜ |
+| 7.8 | Book a run with no driver company | Allowed — you may drive it yourself. Nothing is emailed | ⬜ |
+
+**7.2 is a real workflow change:** you now cannot send a driver before the
+signed file is ticked (or waived, with a reason) on the delivery checklist. We
+used the checklist you already have rather than inventing a second place to
+track the same paperwork. If that is too strict for how your store runs, say so.
+
+**⚠ STILL NOT BUILT:** the customer "your car is on its way" notification and
+the driver's own status updates feed. Everything else in dispatch is done.
 
 ## ROUND 5 — Look, feel and accessibility (app-wide pass)
 
