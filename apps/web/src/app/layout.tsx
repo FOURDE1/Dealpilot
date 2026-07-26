@@ -5,6 +5,7 @@ import { signOut, useSession } from '../shared/auth/client.js';
 import { queryClient } from '../shared/api/queryClient.js';
 import { LanguageSwitcher } from '../shared/i18n/language-switcher.js';
 import { ThemeToggle } from '../shared/theme-toggle.js';
+import { BrandStyle, useBrandName } from '../features/branding/brand-style.js';
 
 // `/pipeline` returns with its feature slice — a dead route belongs in no nav.
 const NAV_ITEMS = [
@@ -28,6 +29,8 @@ export function AppLayout() {
   const { t } = useTranslation(['common', 'nav']);
   const { data: session } = useSession();
   const navigate = useNavigate();
+  // F-14: the tenant's own name in place of the platform name, when published.
+  const brandName = useBrandName(t('common:appName'));
 
   async function handleSignOut() {
     await signOut();
@@ -39,6 +42,8 @@ export function AppLayout() {
 
   return (
     <div className="flex min-h-svh bg-background text-foreground">
+      {/* F-14: paint the tenant's published brand over the platform defaults. */}
+      <BrandStyle />
       <a
         href="#main"
         className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:left-2 focus:top-2"
@@ -46,7 +51,7 @@ export function AppLayout() {
         {t('common:skipToContent')}
       </a>
       <aside className="hidden w-[var(--sidebar-width)] shrink-0 flex-col border-e border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
-        <p className="px-5 pt-5 pb-3 text-lg font-bold">{t('common:appName')}</p>
+        <p className="px-5 pt-5 pb-3 text-lg font-bold">{brandName}</p>
         <nav aria-label={t('nav:mainNav')} className="flex flex-col gap-1 px-3">
           {NAV_ITEMS.map((item) => (
             <NavLink
@@ -70,7 +75,7 @@ export function AppLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[var(--topbar-height)] items-center justify-between gap-4 border-b border-border bg-card px-4">
-          <p className="text-sm font-semibold lg:hidden">{t('common:appName')}</p>
+          <p className="text-sm font-semibold lg:hidden">{brandName}</p>
           <div className="ms-auto flex items-center gap-2 sm:gap-3">
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {session?.user.name || session?.user.email}

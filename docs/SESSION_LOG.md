@@ -54,6 +54,39 @@ the way D-034 froze a delivered checklist).
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — F-14 branding injection, increment 1 (name + radius); colours held on CR-15
+
+Ahmad's F-14 branding backend merged. Built the boot-time injection:
+usePublishedBranding() (GET /api/v1/branding, null = platform default, any
+member) + a BrandStyle in the authed shell. FIRST cut mapped the whole palette
+onto the app's CSS vars — the adversarial review (12 agents) proved it with
+NUMBERS: three verified WCAG blockers. The dark-mode primary button label fell
+to ~2.5:1 for normal brand colours (the palette has no dark foreground, so I'd
+reused the light one on the derived light dark-fill); --primary-hover collapsed
+to the base fill (I'd mapped a text tone into a fill slot); and the app's
+dual-role --primary (bg-primary AND text-primary) can't take a raw un-adjusted
+brand fill without breaking link contrast. I did NOT ship broken contrast.
+Pivoted increment 1 to the contrast-NEUTRAL parts: the tenant's display_name
+replaces the platform name in the shell, and the brand radius is applied — both
+zero-contrast-risk, real white-label wins. Filed CR-15 (server needs
+foregrounds.*_dark + a hover fill; my side needs an app token role-split) before
+colours can land. e2e: name replaces platform name, radius applies, unbranded
+tenant unchanged. The review earning its cost again — a naive palette map looked
+fine and was AA-failing in dark mode on its own fixture colour.
+
+## 2026-07-26 [HUSSEIN] — Store settings form (S-01)
+
+A "Store settings" fieldset on the store EDIT page: bill_of_sale_system (drives
+the bill-of-sale document source), esign_platform (None → null), and a
+client-validated dispatch conflict window (1–24). Prefilled once; PATCH sends
+only user-changed fields. Review (10 agents, 4 fixed): the submit diff now
+compares against an OPEN-TIME baseline ref (a window-focus refetch could
+otherwise revert a colleague's concurrent edit — fixes the pre-existing fields
+too); dropped two typed-t() casts that opted 3 labels out of key-checking; FR
+"défaut 4" → "par défaut : 4"; e2e clears e-sign to None for the null round-trip.
+Next up: F-14 UI (Ahmad's branding backend merged) — CSS-var injection + theme
+editor.
+
 ## 2026-07-26 [HUSSEIN] — F-11c dispatch status feed + notified indicator; CR-13 client follow-up
 
 - **F-11c UI**: a per-run status feed (features/dispatch/status-feed-dialog.tsx
