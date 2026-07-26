@@ -10,3 +10,4 @@ export * from './desking.js';
 export * from './commission.js';
 export * from './dispatch.js';
 export * from './documents.js';
+export * from './branding.js';

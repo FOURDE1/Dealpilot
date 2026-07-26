@@ -11,6 +11,9 @@ import {
   Store,
   ActivityEvent,
   DealDocument,
+  PublishedBranding,
+  TenantBranding,
+  UpdateBrandingInput,
   BatchDocumentInput,
   DealFiProduct,
   CreateFiProductInput,
@@ -495,6 +498,41 @@ export const apiV1 = c.router({
       path: '/api/v1/fi-products/:id',
       pathParams: z.object({ id: Uuid }),
       responses: { 204: z.void(), ...errorResponses },
+    },
+  }),
+  /**
+   * F-14 white-label branding (ADR-018). Draft and published are different
+   * things on purpose: the SPA is only ever handed a published palette.
+   */
+  branding: c.router({
+    /** What the SPA loads before first paint. `null` = the platform default. */
+    current: {
+      method: 'GET',
+      path: '/api/v1/branding',
+      query: z.object({ organization_id: Uuid.optional(), store_id: Uuid.optional() }),
+      responses: { 200: PublishedBranding.nullable(), ...errorResponses },
+    },
+    /** The editor's view of the draft. */
+    get: {
+      method: 'GET',
+      path: '/api/v1/organizations/:id/branding',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: TenantBranding, ...errorResponses },
+    },
+    update: {
+      method: 'PUT',
+      path: '/api/v1/organizations/:id/branding',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateBrandingInput,
+      responses: { 200: TenantBranding, ...errorResponses },
+    },
+    /** Compute the palette, auto-fix contrast, make it live. */
+    publish: {
+      method: 'POST',
+      path: '/api/v1/organizations/:id/branding/publish',
+      pathParams: z.object({ id: Uuid }),
+      body: z.object({}).optional(),
+      responses: { 200: TenantBranding, ...errorResponses },
     },
   }),
   /** F-10 activity trail (ADR-009): one entity's history, or the org's recent. */

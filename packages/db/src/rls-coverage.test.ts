@@ -69,6 +69,11 @@ const BEHAVIOURALLY_COVERED = new Set([
   // ("another organisation's product is a 404, not a 403") — PATCH, DELETE and
   // the deal's list, because each reaches the table by a different route.
   'deal_fi_products',
+  // F-14: cross-tenant case in apps/api/src/f14-branding.test.ts
+  // ("another organisation's branding is a 404, and its brand never leaks") —
+  // GET, PUT and publish, because a leak on any one of them hands a rival
+  // dealership's identity out.
+  'tenant_branding',
 ]);
 
 interface PolicyRow {
