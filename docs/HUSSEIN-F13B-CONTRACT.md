@@ -77,12 +77,72 @@ for the owner (does the group sell credit life / disability insurance?). If he
 says yes, the tax base starts reading products and the switch becomes real — I
 will send you a contract note before that lands.
 
+---
+
+# F-13c — document files (also merged: ec57bc8, CI green, 475/475)
+
+Correcting what I told you above: the S3 driver did **not** ship. I said it would
+ship "configured and unexercised" — a driver nobody can run against the real
+service is a driver nobody has tested, so I left the interface and wrote only
+the local one. Do not plan around an S3 path existing yet. What did ship works
+end-to-end.
+
+## Endpoints
+
+| Method | Path | Body | Returns |
+| --- | --- | --- | --- |
+| POST | `/api/v1/documents/:id/file` | **raw bytes** | 201 `DealDocument` |
+| GET | `/api/v1/documents/:id/file` | — | 200 the bytes |
+| POST | `/api/v1/deals/:id/documents/batch` | `BatchDocumentInput` | 200 `{items}` |
+
+**The upload is raw bytes, not multipart and not JSON.** Send the File/Blob as
+the body with a real `Content-Type`: `application/pdf`, `image/jpeg` or
+`image/png`. Anything else is **415**. Empty body is **422**. Max 20 MB.
+
+```ts
+await fetch(`/api/v1/documents/${id}/file`, {
+  method: 'POST', credentials: 'include',
+  headers: { 'content-type': file.type }, body: file,
+});
+```
+
+`DealDocument` gained `storage_key`, `content_sha256`, `content_type`,
+`size_bytes`, `uploaded_at`, `uploaded_by` — all null together or all set
+together, enforced by the database.
+
+## The one behaviour worth designing around
+
+**A download can fail with 409 `content_mismatch`.** That means the stored bytes
+no longer hash to what was recorded at upload — the file is not the one anyone
+signed, so the API refuses to serve it rather than hand back an altered page.
+This is not a transient error and retrying will not fix it. Surface it as
+something serious: "this file has changed since it was filed", not a toast.
+
+A document with no file at all is a plain **404** — that is the normal
+not-uploaded-yet case, and it is what you branch on to show the upload control.
+
+## Batch marking
+
+`{ document_ids: string[], status }`, max 50, all in one transaction. If any one
+document cannot make that transition the **whole call is 422** and nothing
+moves — a half-marked file is exactly what the dispatch gate would then read as
+ready. An id belonging to another deal is a 404, not a silent skip. Permission
+is graded the same as the single PATCH: `document:sign` for
+signed/e_signed/filed, `document:prepare` otherwise.
+
+Good fit for the printable sheet you already built: print the stack, then mark
+the stack.
+
+## `wet_ink_verified`
+
+New field on the documents response, alongside `wet_ink_prepared` and
+`wet_ink_complete`. True when every signature document has a stored page whose
+hash is on record; null when the deal has no signature documents.
+
+**Nothing gates on it** — requiring a scan before filing is a workflow change
+for every store, so it is the owner's call (D-039). Show it as information: a
+"pages on file" state distinct from "someone ticked signed".
+
 ## Next from me
 
-**F-13c** — document storage: upload of the signed file, a content hash so a
-filed document is verifiable rather than asserted, and the printable wet-ink
-sheet. Storage sits behind a driver: local filesystem in dev, S3 in deployed
-environments. **No S3 bucket will be created** — the owner's standing
-instruction is that no paid AWS resource is provisioned during the build, so the
-S3 driver ships configured and unexercised, with the local driver as the default.
-You will get an upload endpoint that works end-to-end against the local driver.
+**F-11c** — customer delivery notification and the driver status feed.
