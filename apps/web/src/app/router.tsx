@@ -51,6 +51,9 @@ const VehicleDetailPage = lazy(() =>
 const CommissionsPage = lazy(() =>
   import('../features/commissions/commissions-page.js').then((m) => ({ default: m.CommissionsPage })),
 );
+const InvitationAcceptPage = lazy(() =>
+  import('../features/invitations/accept-page.js').then((m) => ({ default: m.InvitationAcceptPage })),
+);
 
 function RouteSkeleton() {
   return (
@@ -64,6 +67,11 @@ const lazyPage = (page: ReactNodeLike) => <Suspense fallback={<RouteSkeleton />}
 type ReactNodeLike = Parameters<typeof Suspense>[0]['children'];
 
 export const router = createBrowserRouter([
+  {
+    // PUBLIC: the invitation email lands here; no session required to preview.
+    path: '/invitations/:token',
+    element: lazyPage(<InvitationAcceptPage />),
+  },
   {
     path: '/login',
     element: <RedirectIfAuthed>{lazyPage(<SignInPage />)}</RedirectIfAuthed>,

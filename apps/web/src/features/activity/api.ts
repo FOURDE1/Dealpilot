@@ -30,11 +30,9 @@ async function fetchPages(
 }
 
 /**
- * One entity's history, newest first. organization_id is REQUIRED knowledge —
- * the endpoint 400s for multi-org users without it. For deals, the deal's
- * checklist events live under entity_type 'checklist_item' keyed by ITEM id
- * (deal id only inside changes.deal_id) — until CR-04 gives a server-side
- * deal filter, we fetch the org's checklist events and keep this deal's.
+ * One entity's history, newest first — including what happened UNDER it
+ * (CR-04 parent roll-up). organization_id is required knowledge: the endpoint
+ * 400s for multi-org users without it.
  */
 export function useActivity(
   entityType: ActivityEntityTypeT,
@@ -46,22 +44,12 @@ export function useActivity(
     queryKey: [...activityKeys.entity(entityType, entityId), orgId ?? 'single-org'],
     enabled: (opts?.enabled ?? true) && entityId !== '',
     queryFn: async ({ signal }) => {
-      const base = await fetchPages(
+      // CR-04: the server rolls up child events (checklist acts and future
+      // dispatch/documents) under entity_id — one exact query.
+      return fetchPages(
         { entity_type: entityType, entity_id: entityId, organization_id: orgId },
         signal,
       );
-      if (entityType !== 'deal') return base;
-      const checklist = await fetchPages(
-        { entity_type: 'checklist_item', organization_id: orgId },
-        signal,
-      );
-      const mine = checklist.items.filter(
-        (e) => (e.changes as { deal_id?: unknown }).deal_id === entityId,
-      );
-      const items = [...base.items, ...mine].sort((a, b) =>
-        b.created_at.localeCompare(a.created_at),
-      );
-      return { items, truncated: base.truncated || checklist.truncated };
     },
   });
 }

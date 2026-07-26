@@ -19,8 +19,10 @@ import { ROLES, type MemberT, type RoleT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
 import { useOrganizations } from '../organizations/api.js';
 import { useSession } from '../../shared/auth/client.js';
-import { useAddMember, useMembers, useUpdateMember } from './api.js';
+import { useMembers, useUpdateMember } from './api.js';
 import { PayPlanDialog } from '../commissions/pay-plan-dialog.js';
+import { useCreateInvitation, useInvitations, useRevokeInvitation } from '../invitations/api.js';
+import type { InvitationT } from '@dealpilot/schemas';
 
 export const ROLE_KEYS = {
   owner: 'role_owner',
@@ -94,8 +96,11 @@ export function TeamPage() {
   const [orgFilter, setOrgFilter] = useState('');
   const orgId = multiOrg ? orgFilter || orgs.data?.items[0]?.id : orgs.data?.items[0]?.id;
   const members = useMembers(orgId, { enabled: !noOrg });
-  const addMember = useAddMember(orgId);
   const updateMember = useUpdateMember(orgId);
+  const invitations = useInvitations(multiOrg ? orgId : undefined, { enabled: !noOrg });
+  const createInvitation = useCreateInvitation(orgId);
+  const revokeInvitation = useRevokeInvitation(orgId);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
   const me = members.data?.items.find((m) => m.user_id === session?.user.id);
   const canWrite = me?.roles.some((r) => WRITE_ROLES.has(r)) ?? false;
   const canPay = me?.roles.some((r) => PAY_ROLES.has(r)) ?? false;
@@ -124,9 +129,21 @@ export function TeamPage() {
       return;
     }
     if (!orgId) return;
+    setInviteLink(null);
     try {
-      const result = await addMember.mutateAsync({ organization_id: orgId, email, name, roles });
-      if (result.reinstated) setNotice(t('reinstatedNotice'));
+      const inv = await createInvitation.mutateAsync({
+        organization_id: orgId,
+        email,
+        ...(name.trim() === '' ? {} : { name: name.trim() }),
+        roles,
+      });
+      if (inv.accept_url) {
+        // Email delivery failed — hand the owner the link instead of a dead end.
+        setNotice(t('emailNotSent'));
+        setInviteLink(inv.accept_url);
+      } else {
+        setNotice(t('inviteSent', { email: inv.email }));
+      }
       setName('');
       setEmail('');
       setRoles(['salesperson']);
@@ -146,7 +163,25 @@ export function TeamPage() {
     }
   }
 
-  const columns = useMemo<ColumnDef<MemberT, unknown>[]>(
+  type RosterRow = MemberT & { __invitationId?: string };
+  const rosterRows = useMemo<RosterRow[]>(() => {
+    const invited: RosterRow[] = (invitations.data?.items ?? []).map((inv: InvitationT) => ({
+      id: inv.id,
+      user_id: inv.id,
+      organization_id: inv.organization_id,
+      store_id: inv.store_id,
+      roles: inv.roles,
+      status: 'invited' as const,
+      email: inv.email,
+      name: inv.name ?? inv.email,
+      created_at: inv.created_at,
+      updated_at: inv.updated_at,
+      __invitationId: inv.id,
+    }));
+    return [...(members.data?.items ?? []), ...invited];
+  }, [members.data, invitations.data]);
+
+  const columns = useMemo<ColumnDef<RosterRow, unknown>[]>(
     () => [
       { accessorKey: 'name', header: t('name') },
       {
@@ -168,7 +203,20 @@ export function TeamPage() {
         id: 'actions',
         header: () => <span className="sr-only">{t('actionsCol')}</span>,
         cell: ({ row }) =>
-          !canWrite || row.original.status === 'revoked' ? null : (
+          !canWrite || row.original.status === 'revoked' ? null : row.original.__invitationId ? (
+            <span className="flex justify-end gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={revokeInvitation.isPending}
+                aria-label={t('revokeInviteFor', { name: row.original.email })}
+                onClick={() => void revokeInvitation.mutateAsync(row.original.__invitationId ?? '')}
+              >
+                {t('revokeInvite')}
+              </Button>
+            </span>
+          ) : (
             <span className="flex justify-end gap-1">
               <Button
                 type="button"
@@ -282,21 +330,37 @@ export function TeamPage() {
           </p>
         ) : null}
         {notice ? (
-          <p role="status" className="text-sm text-success-text">
+          <p role="status" className={`text-sm ${inviteLink ? 'text-warning-text' : 'text-success-text'}`}>
             {notice}
           </p>
         ) : null}
-        <Button type="submit" disabled={addMember.isPending || name.trim() === '' || email.trim() === ''}>
-          {addMember.isPending ? t('adding') : t('add')}
+        {inviteLink ? (
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="min-w-64 flex-1 space-y-1">
+              <Label htmlFor="invite-link">{t('inviteLink')}</Label>
+              <Input id="invite-link" readOnly value={inviteLink} className="font-mono text-[12px]" onFocus={(e) => e.target.select()} />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void navigator.clipboard.writeText(inviteLink)}
+            >
+              {t('copyLink')}
+            </Button>
+          </div>
+        ) : null}
+        <Button type="submit" disabled={createInvitation.isPending || email.trim() === ''}>
+          {createInvitation.isPending ? t('inviting') : t('invite')}
         </Button>
       </form>
       ) : null}
 
       <DataTable
         columns={columns}
-        data={members.data?.items}
-        isPending={orgs.isPending || members.isPending}
-        isError={members.isError}
+        data={rosterRows}
+        isPending={orgs.isPending || members.isPending || invitations.isPending}
+        isError={members.isError || invitations.isError}
         loadingMessage={t('loading')}
         errorMessage={t('loadError')}
         emptyMessage={t('empty')}
