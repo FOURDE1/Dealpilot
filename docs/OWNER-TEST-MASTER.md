@@ -209,3 +209,18 @@ the driver's own status updates feed. Everything else in dispatch is done.
 
 **⚠ DECISION (theme default):** first visit follows your device's light/dark
 preference; the button then remembers your choice. Alternative was light-always.
+
+## ROUND 8 — Inviting your team for real (F-12)
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 8.1 | Team → fill name, email, roles → "Invite" | The person appears as **Invited** in the roster; a real email goes out (on this test machine the link shows on screen instead — see note) | ⬜ |
+| 8.2 | Open the invitation link (private window) | It names your organization and the roles; the email address is pre-filled and locked | ⬜ |
+| 8.3 | Create the password and accept | You land in the app as that person; back on your account, they are **Active** | ⬜ |
+| 8.4 | Invite the same email again | "Already on the team" — no duplicate | ⬜ |
+| 8.5 | Invite someone and "Cancel invitation" before they accept | The Invited row disappears; their link stops working | ⬜ |
+| 8.6 | While someone is only Invited, open a lead's Assign list | They are NOT offered — they don't have an account yet (on purpose; tell us if that feels wrong: D-035) | ⬜ |
+
+**Note (CR-05):** on this dev machine, emails land in a log instead of an
+inbox, so the sheet may say "sent" while nothing arrives — we've asked for the
+link to be shown on screen in dev. On the real AWS setup it goes by email.

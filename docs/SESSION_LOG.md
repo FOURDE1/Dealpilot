@@ -22,6 +22,27 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — F-12 invitations UI + CR-04 exact history merged; CR-05 filed
+
+Invite flow live end-to-end: Team invites (named 422/409/403 errors), open
+invitations as first-class Invited roster rows with cancel; email-failure
+hands the owner a copyable accept link; /invitations/:token accept screen —
+public preview (org + roles), locked prefilled email, inline sign-up/in,
+wrong_account said plainly, token scrubbed from the address bar and never in
+an API path. Invited people stay OUT of assignee pickers on purpose (D-035
+surfaced, not hidden). Activity timelines ride CR-04's parent roll-up
+(client merge deleted; entity_type kept OFF the wire — it filtered the
+children back out; e2e proves waiver reasons in deal histories). Team e2e
+reworked to the REAL journey: invite → named-error → accept → assign →
+revoke releases leads → reinstate → multi-org (22 e2e green, full gates).
+Two process notes: a mid-work push went out with red e2e (the shell chain
+used ';' where '&&' belonged) — Ahmad hot-fixed lint on develop before my
+own fix landed; commits now go through a strict gates→e2e→push chain. And a
+stale Vite module graph after dist rebuilds masqueraded as regressions —
+dev-server restart is now part of the verify ritual after package rebuilds.
+CR-05 filed (dev mailer strands the owner without the link). OWNER ROUND 8
+appended. Next: F-11/F-11b dispatch UI.
+
 ## 2026-07-26 [HUSSEIN] — /ui-review app-wide: 43 live-proven findings closed (a9d295e)
 
 Ran the repo's /ui-review as a 50-agent audit (5 lenses driving the REAL UI
