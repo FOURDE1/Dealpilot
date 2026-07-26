@@ -22,6 +22,26 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — /ui-review app-wide: 43 live-proven findings closed (a9d295e)
+
+Ran the repo's /ui-review as a 50-agent audit (5 lenses driving the REAL UI
++ reading code; every claim adversarially verified; ~3M tokens). 43 confirmed
+findings, all fixed in one hardening pass — the two that mattered most:
+(1) the success/warning/danger SURFACE tokens never generated CSS, so the
+waived badge and readiness banners had been shipping unstyled — root-caused
+to the @theme mapping in packages/ui build-css and fixed at the token layer
+with the contrast gate extended to every pair the app actually uses (all AA,
+both themes); (2) dark mode existed in the tokens but was UNREACHABLE — a
+persisted theme toggle now defaults to the OS preference (fork logged in the
+owner sheet). Also: skip link, per-route titles, aria-describedby on every
+inline error, noValidate (no English browser bubbles), optional-field
+markers, phone hint, zero horizontal scroll at 320-360 on every screen,
+dialogs scroll not clip, kanban focus restore + live announcements +
+hard-block wording, commissions in the sidebar with customer-named deal
+links, dealer-readable history. e2e grew shell a11y guards; 21/21.
+OWNER-TEST-MASTER gained ROUND 5. Next: F-12 invitations UI (contract is
+posted) then F-11 dispatch UI; CR-04 exact filter follow-up.
+
 ## 2026-07-26 [HUSSEIN] — F-10 timeline merged: the trail is visible, whole and org-scoped; CR-04 filed
 
 History section on every lead + History dialog on every deal (pipeline card

@@ -179,3 +179,18 @@ the driver-company roster, pickup/delivery addresses, cash-to-collect, special
 instructions, the wet-ink gate before booking, and the customer "your car is on
 its way" notification. The scheduling core is done; the paperwork around it is
 the next slice.
+
+## ROUND 5 — Look, feel and accessibility (app-wide pass)
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 5.1 | Top bar → the new theme button ("Dark mode") | The whole app flips to a dark look and REMEMBERS it after closing the browser | ⬜ |
+| 5.2 | On your phone, open every tab | Nothing scrolls sideways anywhere; all six tabs fit; the current tab has a blue marker line | ⬜ |
+| 5.3 | Waive a checklist item | The "Waived" tag now has an amber background (it used to be plain text) | ⬜ |
+| 5.4 | Press Tab on any page, first thing | An "Aller au contenu / Skip to content" button appears — Enter jumps past the menu | ⬜ |
+| 5.5 | Look at your browser tabs | Each page names itself (e.g. "Prospects — 1Dealer"), not just "1Dealer" | ⬜ |
+| 5.6 | Commissions in the left menu | It is there now; the deal column names the customer and clicks through to them | ⬜ |
+| 5.7 | Open a lead's History | Field names in plain words ("Statut", "Étape") and values in French/English — no more computer codes | ⬜ |
+
+**⚠ DECISION (theme default):** first visit follows your device's light/dark
+preference; the button then remembers your choice. Alternative was light-always.
