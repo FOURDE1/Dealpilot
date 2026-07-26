@@ -10,6 +10,10 @@ import {
   Organization,
   Store,
   ActivityEvent,
+  DealDocument,
+  DealDocumentsResponse,
+  DocumentListQuery,
+  UpdateDocumentInput,
   Permission,
   PermissionMatrix,
   UpdateRolePermissionsInput,
@@ -391,6 +395,32 @@ export const apiV1 = c.router({
       path: '/api/v1/permissions/user',
       body: UpdateUserPermissionInput,
       responses: { 204: z.void(), ...errorResponses },
+    },
+  }),
+  /**
+   * F-13 deal documents: which papers this deal needs, derived from its own
+   * shape, and whether the signed file is actually complete.
+   */
+  documents: c.router({
+    forDeal: {
+      method: 'GET',
+      path: '/api/v1/deals/:id/documents',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: DealDocumentsResponse, ...errorResponses },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/documents',
+      query: DocumentListQuery,
+      responses: { 200: paginated(DealDocument), ...errorResponses },
+    },
+    /** Move a document along its lifecycle, or record its e-sign details. */
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/documents/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateDocumentInput,
+      responses: { 200: DealDocument, ...errorResponses },
     },
   }),
   /** F-10 activity trail (ADR-009): one entity's history, or the org's recent. */

@@ -57,6 +57,16 @@ export const PERMISSIONS = [
   /** Correcting a DELIVERED deal's checklist — costs a reason (D-034). */
   'checklist:correct_delivered',
 
+  // --- documents ----------------------------------------------------------
+  /** Print and assemble the wet-ink file. Day-to-day admin work. */
+  'document:prepare',
+  /**
+   * Record that a customer signed a legal document, or file the signed copy.
+   * Deliberately NOT the same authority as ticking a checkbox: this is the
+   * evidence a delivery rests on, and eight of ten roles held `checklist:complete`.
+   */
+  'document:sign',
+
   // --- money --------------------------------------------------------------
   'pay_plan:read',
   'pay_plan:write',
@@ -95,6 +105,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
     'vehicle:create', 'vehicle:update',
     'deal:create', 'deal:update', 'deal:change_stage',
     'checklist:complete', 'checklist:waive',
+    'document:prepare', 'document:sign',
     'dispatch:read', 'dispatch:book',
     'activity:read',
   ],
@@ -114,6 +125,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
     'checklist:complete', 'checklist:waive',
     // The F&I office is who chases funding, so they see the whole pay picture.
     'pay_plan:read', 'commission:read_all',
+    // F&I prepares the wet-ink file and witnesses the signatures.
+    'document:prepare', 'document:sign',
     'activity:read',
   ],
 
@@ -135,6 +148,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
     'member:read',
     'dispatch:read', 'dispatch:book', 'dispatch:update', 'fleet:manage',
     'checklist:complete',
+    // A driver's team prints and carries the file; they do not witness signing.
+    'document:prepare',
     'activity:read',
   ],
 
@@ -143,6 +158,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
     'lead:update',
     'deal:update',
     'checklist:complete',
+    // The office assembles files and files the signed copies afterwards.
+    'document:prepare', 'document:sign',
     'activity:read',
   ],
 

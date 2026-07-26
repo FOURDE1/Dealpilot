@@ -18,6 +18,7 @@ import { AppError, notFound, parseOrThrow } from './errors.js';
 import { conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import { recordEvent } from './activity.js';
 import { requirePermission } from './permissions.js';
+import { generateDocuments } from './f13-document-routes.js';
 import { dispatchRequestMessage, type Mailer } from './email.js';
 
 /**
@@ -289,26 +290,63 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
       if (deal.rows.length === 0) throw notFound();
       const d = deal.rows[0]!;
 
-      // §9 booking gate. The spec reaches for a `deals.wet_ink_file_status`
-      // column; F-08 already models this as the `wet_ink_file` item on the
-      // deal's delivery checklist — with who signed it off, when, and the
-      // manager waiver path for the cases judged acceptable. Reading that
-      // instead of inventing a second truth about the same paperwork.
-      const wetInk = await c.query<{ ready: boolean }>(
-        `SELECT (completed_at IS NOT NULL OR overridden_at IS NOT NULL) AS ready
-         FROM deal_checklist_items WHERE deal_id = $1 AND code = 'wet_ink_file'`,
+      // §9 booking gate, reading the DOCUMENTS (F-13) rather than a human's
+      // tick.
+      //
+      // It used to read F-08's `wet_ink_file` checklist item, which is a soft
+      // item — so anyone with `checklist:waive` (four roles by default) could
+      // waive it and send a driver with an incomplete file. The tick is a
+      // convenience for staff; it is not evidence, and a gate built on it was
+      // one PATCH away from meaningless.
+      //
+      // The question is PREPAREDNESS (§6): every signature document printed or
+      // later, physically in the folder. Not completion — `signed` means signed
+      // AT delivery, so gating the trip on it would demand an outcome that can
+      // only exist after the trip.
+      // Build the file if this deal somehow has none: a car being dispatched has
+      // been sold, so it HAS paperwork, and "no list" must not become the way the
+      // gate is passed. Only genuinely pre-F-13 deals — where generation finds
+      // nothing to do — fall through to the tick below.
+      await generateDocuments(c, orgId, input.deal_id);
+      const prepared = await c.query<{ prepared: boolean | null }>(
+        `SELECT wet_ink_prepared($1) AS prepared`,
         [input.deal_id],
       );
-      // No checklist row at all means a deal that predates F-08 — not a reason
-      // to strand a delivery, so only an explicit "not done" blocks.
-      if (wetInk.rows.length > 0 && !wetInk.rows[0]!.ready) {
-        throw new AppError(422, 'wet_ink_not_ready', 'The signed file is not ready', [
-          {
+      // NULL = the deal has no document list (it predates F-13). Nothing to
+      // assert either way, so it must not be stranded — fall back to the
+      // checklist tick for those, as before.
+      if (prepared.rows[0]?.prepared === false) {
+        const missing = await c.query<{ document_name: string }>(
+          `SELECT document_name FROM deal_documents
+           WHERE deal_id = $1 AND deleted_at IS NULL
+             AND ((requires_signature AND status NOT IN ('e_signed','printed','in_file','signed','filed'))
+               OR (NOT requires_signature AND status NOT IN ('generated','in_file','filed')))
+           ORDER BY sort_order`,
+          [input.deal_id],
+        );
+        throw new AppError(422, 'wet_ink_not_ready', 'The wet-ink file is not ready to travel', [
+          ...missing.rows.map((m) => ({
             path: 'deal_id',
-            code: 'wet_ink_not_ready',
-            message: 'A driver must leave with a complete signed file — tick or waive it on the checklist first',
-          },
+            code: 'document_not_printed',
+            message: m.document_name,
+          })),
         ]);
+      }
+      if (prepared.rows[0]?.prepared === null) {
+        const wetInk = await c.query<{ ready: boolean }>(
+          `SELECT (completed_at IS NOT NULL OR overridden_at IS NOT NULL) AS ready
+           FROM deal_checklist_items WHERE deal_id = $1 AND code = 'wet_ink_file'`,
+          [input.deal_id],
+        );
+        if (wetInk.rows.length > 0 && !wetInk.rows[0]!.ready) {
+          throw new AppError(422, 'wet_ink_not_ready', 'The signed file is not ready', [
+            {
+              path: 'deal_id',
+              code: 'wet_ink_not_ready',
+              message: 'Tick or waive the wet-ink file on the checklist first',
+            },
+          ]);
+        }
       }
 
       const bookedAt = input.booked_delivery_at ? new Date(input.booked_delivery_at) : d.booked_delivery_at;

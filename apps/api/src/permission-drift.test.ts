@@ -108,7 +108,7 @@ describe('permission drift', () => {
     const dangerous = [
       'organization:delete', 'pay_plan:write', 'commission:read_all',
       'member:update_roles', 'checklist:sign_safety', 'checklist:correct_delivered',
-      'intake_key:manage',
+      'intake_key:manage', 'document:sign',
     ] as const;
     const floorRoles = ['salesperson', 'bdc_agent', 'logistics', 'wholesale_manager'] as const;
     for (const role of floorRoles) {

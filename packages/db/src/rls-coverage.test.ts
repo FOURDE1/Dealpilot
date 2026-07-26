@@ -62,6 +62,9 @@ const BEHAVIOURALLY_COVERED = new Set([
   // A-13: cross-tenant case in apps/api/src/a13-rbac.test.ts
   // ("another organization cannot read or change this matrix").
   'role_permissions', 'user_permissions',
+  // F-13: cross-tenant case in apps/api/src/f13-documents.test.ts
+  // ("another organization sees none of these documents").
+  'deal_documents',
 ]);
 
 interface PolicyRow {
