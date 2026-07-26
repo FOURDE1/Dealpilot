@@ -3,8 +3,9 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { CreateIntakeKeyInput, IntakeLeadPayload, StoreListQuery, Uuid } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
+import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
-import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser, STORE_WRITE_ROLES } from './f01-routes.js';
+import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 
 /**
  * F-03 lead intake (leads.md §10). Two surfaces:
@@ -68,7 +69,7 @@ export function registerIntakeKeyRoutes(app: FastifyInstance, pool: Pool, apiBas
     const token = newToken();
     const secret = newSecret();
     const key = await withTenant(pool, input.organization_id, async (c) => {
-      await requireMember(c, user.id, STORE_WRITE_ROLES);
+      await requirePermission(c, user.id, 'intake_key:manage');
       await requireLiveStore(c, input.store_id);
       const r = await c.query(
         `INSERT INTO intake_keys (organization_id, store_id, label, provider, default_source, token, secret)
@@ -133,7 +134,7 @@ export function registerIntakeKeyRoutes(app: FastifyInstance, pool: Pool, apiBas
     const user = sessionUser(request);
     const orgId = await keyOrg(pool, user.id, keyId);
     await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, STORE_WRITE_ROLES);
+      await requireMember(c, user.id);
       const revoked = await c.query(
         `UPDATE intake_keys SET active = false, revoked_at = now()
          WHERE id = $1 AND revoked_at IS NULL RETURNING id`,

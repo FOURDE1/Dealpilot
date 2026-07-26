@@ -2,8 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { CreateVehicleInput, UpdateVehicleInput, VehicleListQuery } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
+import { requirePermission } from './permissions.js';
 import { diff, recordEvent } from './activity.js';
-import { conflictFrom, idParam, keysetPage, requireMember, sessionUser, STORE_WRITE_ROLES } from './f01-routes.js';
+import { conflictFrom, idParam, keysetPage, sessionUser } from './f01-routes.js';
 
 /**
  * F-07 inventory (apiV1.vehicles). Same tenancy model as the other slices:
@@ -67,7 +68,7 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     try {
       const vehicle = await withTenant(pool, input.organization_id, async (c) => {
-        await requireMember(c, user.id);
+        await requirePermission(c, user.id, 'vehicle:create');
         await requireLiveStore(c, input.store_id);
         // Only columns the caller actually provided: sending NULL for an
         // omitted field would override the table's own default (acquisition_date
@@ -162,7 +163,7 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
     const orgId = await vehicleOrg(pool, user.id, vehicleId);
     try {
       const vehicle = await withTenant(pool, orgId, async (c) => {
-        await requireMember(c, user.id);
+        await requirePermission(c, user.id, 'vehicle:update');
         const beforeRow = await c.query<Record<string, unknown>>(
           `SELECT * FROM vehicles WHERE id = $1 AND deleted_at IS NULL`,
           [vehicleId],
@@ -203,7 +204,7 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     const orgId = await vehicleOrg(pool, user.id, vehicleId);
     await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, STORE_WRITE_ROLES);
+      await requirePermission(c, user.id, 'vehicle:delete');
       // A car that is spoken for must not vanish from under its deal.
       const r = await c.query<{ deal_status: string }>(
         `SELECT deal_status FROM vehicles WHERE id = $1 AND deleted_at IS NULL`,

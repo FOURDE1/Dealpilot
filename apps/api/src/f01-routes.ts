@@ -11,8 +11,9 @@ import {
   UpdateStoreInput,
   Uuid,
 } from '@dealpilot/schemas';
-import { AppError, forbidden, notFound, parseOrThrow } from './errors.js';
+import { AppError, notFound, parseOrThrow } from './errors.js';
 import { ensureTemplate } from './checklist.js';
+import { requirePermission, seedPermissions } from './permissions.js';
 import { diff, recordEvent } from './activity.js';
 
 /**
@@ -30,7 +31,6 @@ import { diff, recordEvent } from './activity.js';
  *   `owner` membership commit atomically inside withTenant(newOrgId).
  */
 
-export const STORE_WRITE_ROLES = ['owner', 'gm'] as const;
 
 // -- helpers ----------------------------------------------------------------
 
@@ -66,7 +66,12 @@ async function rolesIn(client: PoolClient, userId: string): Promise<string[]> {
  * soft-deleted organization → 404 (never leak). A deleted org is fully locked
  * down — no reads or writes through any tenant path (review 2026-07-24).
  */
-export async function requireMember(client: PoolClient, userId: string, writeRoles?: readonly string[]): Promise<string[]> {
+/**
+ * Membership only. The ROLE parameter is gone: what a person may DO is the
+ * catalogue's question now (A-13), and leaving a back door here would let an
+ * access rule drift back into a route file.
+ */
+export async function requireMember(client: PoolClient, userId: string): Promise<string[]> {
   const roles = await rolesIn(client, userId);
   if (roles.length === 0) throw notFound();
   // Explicitly keyed on the tenant GUC: under DUAL context (org + user) the
@@ -77,7 +82,6 @@ export async function requireMember(client: PoolClient, userId: string, writeRol
      WHERE id = NULLIF(current_setting('app.org_id', true), '')::uuid AND deleted_at IS NULL`,
   );
   if (alive.rows.length === 0) throw notFound();
-  if (writeRoles && !roles.some((r) => writeRoles.includes(r))) throw forbidden();
   return roles;
 }
 
@@ -219,6 +223,9 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
            VALUES ($1, $2, NULL, '{owner}')`,
           [user.id, orgId],
         );
+        // The matrix exists before anyone can hit a permission check, so an
+        // organization is never briefly one where nobody can do anything.
+        await seedPermissions(c, orgId);
         await recordEvent(c, {
           organizationId: orgId, actorUserId: user.id,
           entityType: 'organization', entityId: orgId, action: 'created',
@@ -264,7 +271,7 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
     const input = parseOrThrow(UpdateOrganizationInput, request.body);
     const user = sessionUser(request);
     const org = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, ['owner']);
+      await requirePermission(c, user.id, 'organization:update');
       const beforeRow = await c.query<Record<string, unknown>>(
         `SELECT * FROM organizations WHERE id = $1 AND deleted_at IS NULL`,
         [orgId],
@@ -299,7 +306,7 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
       // requireMember's liveness gate makes a repeat delete 404 — the one
       // delete semantic everywhere (soft delete per ADR-009; purge is a
       // platform-side flow later).
-      await requireMember(c, user.id, ['owner']);
+      await requirePermission(c, user.id, 'organization:delete');
       const gone = await c.query(
         `UPDATE organizations SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
         [orgId],
@@ -321,7 +328,7 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     try {
       const store = await withTenant(pool, input.organization_id, async (c) => {
-        await requireMember(c, user.id, STORE_WRITE_ROLES);
+        await requirePermission(c, user.id, 'store:create');
         const r = await c.query(
           `INSERT INTO stores (organization_id, name, code, phone, address_line1, city,
                                province, postal_code, default_locale, timezone, status)
@@ -407,7 +414,7 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
     const orgId = await storeOrg(pool, user.id, storeId);
     try {
       const store = await withTenant(pool, orgId, async (c) => {
-        await requireMember(c, user.id, STORE_WRITE_ROLES);
+        await requirePermission(c, user.id, 'store:update');
         const beforeRow = await c.query<Record<string, unknown>>(
           `SELECT * FROM stores WHERE id = $1 AND deleted_at IS NULL`,
           [storeId],
@@ -443,7 +450,7 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     const orgId = await storeOrg(pool, user.id, storeId);
     await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, STORE_WRITE_ROLES);
+      await requirePermission(c, user.id, 'store:delete');
       const gone = await c.query(
         `UPDATE stores SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
         [storeId],
