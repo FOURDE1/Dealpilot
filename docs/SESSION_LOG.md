@@ -126,6 +126,64 @@ twice (his and mine). ONE owner round: docs/OWNER-TEST-BATCH-02.md.**
 **Owner also owes two decisions: D-033 (who signs off safety), D-035/invite
 flow (next batch scope).**
 
+## 2026-07-26 [AHMAD] — end of the overnight run: F-10/F-11/F-11b/F-12 in, 394/394, CI green
+
+**Shipped and merged, both halves where Hussein had one:**
+- **F-10 activity trail** (ADR-009) — every state change writes an append-only
+  row in the same transaction as the change. `parent_entity_id` rolls a child's
+  events up under its parent (CR-04), so a deal's history includes its checklist
+  and its dispatch without the caller knowing those entities exist.
+- **F-11 dispatch** — drivers/chaser rule and conflict window in `packages/core`
+  with golden tests, store-scoped fleets, one status vocabulary, transactional
+  resource lifecycle.
+- **F-11b dispatch paperwork** — driver-company roster replacing the two-name
+  enum, addresses, cash-to-collect, special instructions, the FR/EN driver
+  request email, and the signed-file gate that reads F-08's checklist rather
+  than inventing a parallel column.
+- **F-12 invitations** (D-035) — an invited member can actually log in. Hashed
+  single-use token, never stored raw, never in a URL; accepting requires a
+  session whose email IS the invited one.
+- **CR-03/04/05 closed** (Hussein's, all three correct); **CR-06 filed and
+  already fixed** by him.
+
+**Guards added, because every defect this session was invisible to review:**
+contract-drift (routes vs apiV1, both directions), RLS coverage (catalog-driven,
+covers tables not yet written), no-dead-vocabulary, and a `db:reset` guard that
+refuses any database not named `*_test`.
+
+**The four mistakes worth inheriting, all mine:**
+1. **A claim in a comment is a claim in the product.** F-10's migration said
+   "every state change" while four endpoints of twenty-three emitted anything.
+   Measure a coverage claim against the code, or do not make it.
+2. **A test that reaches its precondition with raw SQL is testing the database.**
+   F-11's conflict detection was unreachable through the API — a booked plate
+   was never offered again, so a real double-booking came back as "no plate
+   available", the inverse of the rule. The test that "proved" it manufactured
+   the state by hand.
+3. **A local gate passing is not CI green.** Three pushes went red behind a
+   passing local run, from a guard I added without auditing its callers.
+4. **Never edit an applied migration.** CI rebuilds from zero, so it is the one
+   environment that cannot catch it; every database with history would refuse to
+   upgrade. Prove the chain with `db:migrate` against a database that has data.
+   (1) and (2) are in memory; (3) and (4) are rules in CLAUDE.md now.
+
+**Owner state:** dev stack on migration 20, upgraded IN PLACE with his data
+intact, seeded, running current code, and walked end-to-end. Nine test rounds
+stacked in `docs/OWNER-TEST-MASTER.md`, every decision we took on his behalf
+written up with the alternative.
+
+**Decisions taken by delegation** (he authorized continuous work): D-033 safety
+sign-off = owner/gm; D-034 delivered checklist frozen; D-035 invitations =
+option A. All reversible, all documented.
+
+**In progress:** nothing of mine is half-built.
+
+**Next steps:** (1) documents / immutable bill of sale — next in the plan's
+parity order, and the first module needing the PDF pipeline (Playwright workers,
+tenant branding, FR-first per ADR-018/021), so it wants a fresh session rather
+than the tail of this one. (2) F-11c: customer "on its way" notification and the
+driver status feed. (3) Owner: rounds 1-9.
+
 ## 2026-07-26 [AHMAD] — CI red for three pushes (my guard), and a migration-immutability violation (also mine)
 
 Two self-inflicted problems, both found late, both fixed. Writing them down
