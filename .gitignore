@@ -30,4 +30,4 @@ cdk.out/
 *.tsbuildinfo
 
 # F-13c local document storage driver (dev/CI)
-apps/*/.storage/
+.storage/
