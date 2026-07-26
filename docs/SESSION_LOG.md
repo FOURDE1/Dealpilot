@@ -1,3 +1,35 @@
+## 2026-07-26 — AHMAD: CR-12 + F-13b
+
+**CR-12 (Hussein's finding).** `sold_as_is` was accepted by the API and thrown
+away — missing from the INSERT column list and from the read model. Fixed both
+halves, then generalised it: `input-persistence.test.ts` compares what each
+Create input ACCEPTS against what comes back, so the next field added to a
+schema and forgotten in a column list fails in CI. It found a second real bug on
+its first run — `acquisition_date` came back a day early, because pg builds a
+`date` at LOCAL midnight and the normaliser converted through UTC. Production
+runs in ca-central-1, where it would have hidden.
+
+**F-13b.** Three of thirteen document types were unreachable: warranty, GAP and
+aftermarket agreements were in the CHECK, the catalogue and eighteen golden
+tests, and no deal could produce them, because F&I was one unnamed aggregate.
+`deal_fi_products` gives products rows and names; the deal's F&I totals become
+their trigger-maintained sum. The reachability guard reads the document-type
+CHECK from the database and fails if any value cannot be produced by a real
+deal — building its F&I shape from the kinds the TABLE can store, not from a
+literal, since a literal is how the dead types looked covered for so long.
+
+Two holes found while wiring it: aftermarket agreements had no unique key, so
+every page load added another copy to the customer's file; and stale-document
+cleanup compared types only, so removing one of two aftermarket products left an
+orphan agreement.
+
+**Filed for the owner:** D-037 (per-product taxability — deliberately NOT built
+as a switch desking would ignore), D-038 (should a funded deal's money be frozen
+the way D-034 froze a delivered checklist).
+
+**State:** develop at 707e7c2, CI green, 463/463. Next: F-13c document storage
+(local driver; S3 driver configured but no bucket created — no paid AWS).
+
 # SESSION_LOG.md — Persistent Memory
 
 > Newest entry on top. Claude: update this at the end of every working session
