@@ -448,3 +448,18 @@ for your business, or whether you want it to stop you.
 **Still waiting on you:** D-036 (as-is vs safety), D-037 (insurance-type F&I
 products), D-038 (freeze a funded deal's money?), D-039 (require scans before
 filing?), D-040 (close the old add-a-colleague API door?).
+
+## ROUND 15 — Store settings (the Merlin fix)
+
+> A store is opened first and configured after. These three settings live on
+> the store's EDIT page (open a store from its organization, scroll to "Store
+> settings"). They were readable by the system since the paperwork feature but
+> settable by nobody — so every store sat on the CAMS default.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 15.1 | Open a store → "Store settings" → set "Bill of sale system" to Merlin, save | Saved. Reopen the store — it still says Merlin | ⬜ |
+| 15.2 | On a deal at that store, open Documents → the bill of sale | Its source now reads Merlin instead of CAMS — the setting reaches the paperwork | ⬜ |
+| 15.3 | Set the e-sign platform (OneSpan or DocuSign), then clear it back to None | Both persist and prefill on reopen | ⬜ |
+| 15.4 | Set the "Conflict window" to 30 | Refused before you can save — it must be 1 to 24 hours | ⬜ |
+| 15.5 | Set it to 6, save; then book two deliveries ~5 hours apart | They flag as a conflict (within your 6-hour window) where 4 hours apart would not have | ⬜ |

@@ -57,12 +57,36 @@ test('full F-01 journey: org create/edit + store create/edit', async ({ page }) 
   await expect(page.getByRole('heading', { name: 'Succursales' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Kia Mont-Laurier' })).toBeVisible();
 
-  // Edit the store.
+  // Edit the store, and set its store settings (Ahmad's F-13b/c contract):
+  // a multi-brand group needs to point a store at Merlin, set its e-sign
+  // provider, and tune the dispatch conflict window.
   await page.getByRole('link', { name: 'Kia Mont-Laurier' }).click();
   await expect(page.getByRole('heading', { name: 'Modifier la succursale' })).toBeVisible();
   await page.getByLabel('Nom de la succursale').fill('Kia Mont-Laurier Centre');
+  await page.getByLabel('Système du contrat de vente').selectOption({ label: 'Merlin' });
+  await page.getByLabel('Plateforme de signature électronique').selectOption({ label: 'OneSpan' });
+  // Out-of-range window blocks the save until corrected — the message says so.
+  await page.getByLabel('Fenêtre de conflit (heures)').fill('30');
+  await expect(page.getByText('Entrez un nombre entier de 1 à 24.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Enregistrer' })).toBeDisabled();
+  await page.getByLabel('Fenêtre de conflit (heures)').fill('6');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.getByRole('link', { name: 'Kia Mont-Laurier Centre' })).toBeVisible();
+
+  // The settings persisted: reopen and they are prefilled from the store.
+  await page.getByRole('link', { name: 'Kia Mont-Laurier Centre' }).click();
+  await expect(page.getByLabel('Système du contrat de vente')).toHaveValue('Merlin');
+  await expect(page.getByLabel('Plateforme de signature électronique')).toHaveValue('onespan');
+  await expect(page.getByLabel('Fenêtre de conflit (heures)')).toHaveValue('6');
+
+  // Clearing e-sign back to None must persist as null — the '' → null write and
+  // the null → '' prefill are the reverse of the path just exercised.
+  await page.getByLabel('Plateforme de signature électronique').selectOption({ label: 'Aucune' });
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.getByRole('link', { name: 'Kia Mont-Laurier Centre' })).toBeVisible();
+  await page.getByRole('link', { name: 'Kia Mont-Laurier Centre' }).click();
+  await expect(page.getByLabel('Plateforme de signature électronique')).toHaveValue('');
+  await page.getByRole('link', { name: 'Retour aux organisations' }).first().click();
 
   // List page shows the renamed organization.
   await page.getByRole('link', { name: 'Retour aux organisations' }).click();

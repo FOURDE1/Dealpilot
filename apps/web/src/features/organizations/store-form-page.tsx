@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { BackLink } from '../../shared/ui/back-link.js';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Label, Select } from '@dealpilot/ui';
+import { BillOfSaleSystem, StoreEsignPlatform } from '@dealpilot/schemas';
 import type { Locale } from '@dealpilot/i18n';
 import { useCreateStore, useStore, useUpdateStore } from './api.js';
 import { formErrorMessage } from './form-error.js';
@@ -29,19 +30,32 @@ export function StoreFormPage() {
   const [province, setProvince] = useState<Province>('QC');
   const [city, setCity] = useState('');
   const [locale, setLocale] = useState<Locale>('fr-CA');
+  // F-13b/F-13c store settings (Ahmad's contract) — configured after opening.
+  const [bosSystem, setBosSystem] = useState<'CAMS' | 'Merlin' | 'Other'>('CAMS');
+  const [esign, setEsign] = useState<'' | 'onespan' | 'docusign'>('');
+  const [conflictWindow, setConflictWindow] = useState('4');
   const [error, setError] = useState<string | null>(null);
   const alertRef = useRef<HTMLParagraphElement>(null);
   // Populate ONCE per store — a background refetch must never clobber edits.
   const initializedFor = useRef<string | null>(null);
+  // The values the form OPENED with. The submit diff compares against this, not
+  // the live query: refetchOnWindowFocus can replace existing.data with a
+  // colleague's concurrent change, and diffing an untouched field against that
+  // would PATCH the stale open-time value back over it (silent revert).
+  const baseline = useRef<NonNullable<typeof existing.data> | null>(null);
 
   useEffect(() => {
     if (isEdit && existing.data && initializedFor.current !== existing.data.id) {
       initializedFor.current = existing.data.id;
+      baseline.current = existing.data;
       setName(existing.data.name);
       setCode(existing.data.code);
       setProvince(existing.data.province);
       setCity(existing.data.city ?? '');
       setLocale(existing.data.default_locale);
+      setBosSystem(existing.data.bill_of_sale_system);
+      setEsign(existing.data.esign_platform ?? '');
+      setConflictWindow(String(existing.data.dispatch_conflict_window_hours));
     }
   }, [isEdit, existing.data]);
 
@@ -54,14 +68,26 @@ export function StoreFormPage() {
     setError(null);
     try {
       if (isEdit) {
-        if (!existing.data) return; // form is only rendered once loaded
-        // PATCH only what changed — never rewrite unrelated fields.
+        const base = baseline.current;
+        if (!base) return; // form is only rendered once loaded
+        // PATCH only what the USER changed (diff vs the open-time baseline) —
+        // never rewrite unrelated fields, and never revert a concurrent edit.
         const changes: Parameters<typeof updateStore.mutateAsync>[0] = {};
-        if (name !== existing.data.name) changes.name = name;
-        if (code !== existing.data.code) changes.code = code;
-        if (province !== existing.data.province) changes.province = province;
-        if ((city || null) !== existing.data.city) changes.city = city || null;
-        if (locale !== existing.data.default_locale) changes.default_locale = locale;
+        if (name !== base.name) changes.name = name;
+        if (code !== base.code) changes.code = code;
+        if (province !== base.province) changes.province = province;
+        if ((city || null) !== base.city) changes.city = city || null;
+        if (locale !== base.default_locale) changes.default_locale = locale;
+        if (bosSystem !== base.bill_of_sale_system) changes.bill_of_sale_system = bosSystem;
+        if ((esign || null) !== base.esign_platform) changes.esign_platform = esign || null;
+        const window = Number(conflictWindow);
+        if (
+          conflictWindow.trim() !== '' &&
+          Number.isInteger(window) &&
+          window !== base.dispatch_conflict_window_hours
+        ) {
+          changes.dispatch_conflict_window_hours = window;
+        }
         if (Object.keys(changes).length > 0) await updateStore.mutateAsync(changes);
       } else {
         // timezone/status mirror the server defaults; dedicated fields come
@@ -83,6 +109,10 @@ export function StoreFormPage() {
     }
   }
 
+  const windowNum = Number(conflictWindow);
+  const windowInvalid =
+    conflictWindow.trim() !== '' &&
+    (!/^\d+$/.test(conflictWindow.trim()) || windowNum < 1 || windowNum > 24);
   const busy = createStore.isPending || updateStore.isPending;
   if (isEdit && existing.isPending) {
     return (
@@ -153,6 +183,67 @@ export function StoreFormPage() {
             <option value="en-CA">{t('localeEn')}</option>
           </Select>
         </div>
+        {isEdit ? (
+          <fieldset className="space-y-4 rounded-md border border-border p-4">
+            <legend className="px-1 text-sm font-semibold">{t('storeSettings')}</legend>
+            <div className="space-y-1">
+              <Label htmlFor="store-bos">{t('billOfSaleSystem')}</Label>
+              <Select
+                id="store-bos"
+                value={bosSystem}
+                aria-describedby="store-bos-hint"
+                onChange={(e) => setBosSystem(e.target.value as typeof bosSystem)}
+              >
+                {BillOfSaleSystem.options.map((s) => (
+                  <option key={s} value={s}>
+                    {t(`bos_${s}`)}
+                  </option>
+                ))}
+              </Select>
+              <p id="store-bos-hint" className="text-xs text-muted-foreground">
+                {t('billOfSaleSystemHint')}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="store-esign">{t('esignPlatform')}</Label>
+                <Select
+                  id="store-esign"
+                  value={esign}
+                  onChange={(e) => setEsign(e.target.value as typeof esign)}
+                >
+                  <option value="">{t('esignNone')}</option>
+                  {StoreEsignPlatform.options.map((p) => (
+                    <option key={p} value={p}>
+                      {t(`esign_${p}`)}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="store-window">{t('conflictWindow')}</Label>
+                <Input
+                  id="store-window"
+                  inputMode="numeric"
+                  value={conflictWindow}
+                  aria-invalid={windowInvalid || undefined}
+                  aria-describedby={windowInvalid ? 'store-window-error' : 'store-window-hint'}
+                  className={windowInvalid ? 'border-danger-border' : undefined}
+                  onChange={(e) => setConflictWindow(e.target.value)}
+                />
+                {windowInvalid ? (
+                  <p id="store-window-error" role="alert" className="text-xs text-danger-text">
+                    {t('conflictWindowError')}
+                  </p>
+                ) : (
+                  <p id="store-window-hint" className="text-xs text-muted-foreground">
+                    {t('conflictWindowHint')}
+                  </p>
+                )}
+              </div>
+            </div>
+          </fieldset>
+        ) : null}
         {error ? (
           <p
             ref={alertRef}
@@ -163,7 +254,7 @@ export function StoreFormPage() {
             {error}
           </p>
         ) : null}
-        <Button type="submit" className="w-full" disabled={busy}>
+        <Button type="submit" className="w-full" disabled={busy || windowInvalid}>
           {busy ? t('saving') : isEdit ? t('save') : t('createStore')}
         </Button>
       </form>
