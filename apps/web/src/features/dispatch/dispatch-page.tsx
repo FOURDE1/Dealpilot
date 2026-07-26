@@ -12,6 +12,7 @@ import { useLeadNames } from '../leads/api.js';
 import { leadDisplayName } from '../leads/labels.js';
 import { formatCents } from '../deals/money.js';
 import { useDispatchList, useDriverCompanies, useOrgFleet, useResendDispatchEmail, useUpdateDispatch } from './api.js';
+import { DispatchStatusFeedDialog } from './status-feed-dialog.js';
 import { can, usePermissionsMine } from '../../shared/permissions.js';
 
 export const DISPATCH_STATUS_KEYS = {
@@ -60,6 +61,7 @@ export function DispatchPage() {
   const resend = useResendDispatchEmail();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [feedRun, setFeedRun] = useState<DispatchAssignmentT | null>(null);
 
   const dealCustomer = useMemo(() => {
     const names = new Map<string, string>();
@@ -190,46 +192,78 @@ export function DispatchPage() {
         ),
       },
       {
+        id: 'notified',
+        header: t('notifiedCol'),
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.customer_notified_at ? (
+            <span className="rounded bg-success-bg px-1.5 py-0.5 text-xs font-medium text-success-text">
+              {t('notifiedTag')}
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">{t('notNotifiedTag')}</span>
+          ),
+      },
+      {
         id: 'actions',
         header: () => <span className="sr-only">{t('actionsCol')}</span>,
-        cell: ({ row }) =>
-          !canUpdate ||
-          row.original.status === 'completed' ||
-          row.original.status === 'cancelled' ||
-          row.original.driver_company_id === null ? null : (
+        cell: ({ row }) => {
+          const showResend =
+            canUpdate &&
+            row.original.status !== 'completed' &&
+            row.original.status !== 'cancelled' &&
+            row.original.driver_company_id !== null;
+          return (
             <span className="flex justify-end gap-1">
+              {/* F-11c: the run's status feed — booked, departed, arrived. */}
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                disabled={resend.isPending}
-                aria-label={t('resendFor', { name: dealCustomer.get(row.original.deal_id) ?? '' })}
-                onClick={() => {
-                  setError(null);
-                  setNotice(null);
-                  resend
-                    .mutateAsync(row.original.id)
-                    .then(({ sent }) => {
-                      if (sent) setNotice(t('resendOk'));
-                      else setError(t('mailFailed'));
-                    })
-                    .catch((err: unknown) => {
-                      if (!(err instanceof ApiError)) {
-                        setError(t('genericError'));
-                        throw err;
-                      }
-                      setError(
-                        err.errorCode === 'no_driver_company' || err.code === 'no_driver_company'
-                          ? t('noDriverCompany')
-                          : t('genericError'),
-                      );
-                    });
-                }}
+                aria-label={
+                  dealCustomer.get(row.original.deal_id)
+                    ? t('statusFeedFor', { name: dealCustomer.get(row.original.deal_id) ?? '' })
+                    : t('statusFeedForRun', { ref: row.original.deal_id.slice(0, 8) })
+                }
+                onClick={() => setFeedRun(row.original)}
               >
-                {t('resend')}
+                {t('statusFeed')}
               </Button>
+              {showResend ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={resend.isPending}
+                  aria-label={t('resendFor', { name: dealCustomer.get(row.original.deal_id) ?? '' })}
+                  onClick={() => {
+                    setError(null);
+                    setNotice(null);
+                    resend
+                      .mutateAsync(row.original.id)
+                      .then(({ sent }) => {
+                        if (sent) setNotice(t('resendOk'));
+                        else setError(t('mailFailed'));
+                      })
+                      .catch((err: unknown) => {
+                        if (!(err instanceof ApiError)) {
+                          setError(t('genericError'));
+                          throw err;
+                        }
+                        setError(
+                          err.errorCode === 'no_driver_company' || err.code === 'no_driver_company'
+                            ? t('noDriverCompany')
+                            : t('genericError'),
+                        );
+                      });
+                  }}
+                >
+                  {t('resend')}
+                </Button>
+              ) : null}
             </span>
-          ),
+          );
+        },
       },
     ],
     [t, i18n.language, dealCustomer, companyName, update.isPending, resend.isPending, orgFleet.data, canUpdate],
@@ -302,6 +336,11 @@ export function DispatchPage() {
           {t('companiesLink')}
         </Link>
       </p>
+      <DispatchStatusFeedDialog
+        run={feedRun}
+        runLabel={feedRun ? dealCustomer.get(feedRun.deal_id) : undefined}
+        onClose={() => setFeedRun(null)}
+      />
     </div>
   );
 }

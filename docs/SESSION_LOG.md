@@ -54,6 +54,27 @@ the way D-034 froze a delivered checklist).
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — F-11c dispatch status feed + notified indicator; CR-13 client follow-up
+
+- **F-11c UI**: a per-run status feed (features/dispatch/status-feed-dialog.tsx
+  + useDispatchStatusUpdates reading Ahmad's dedicated /dispatch/:id/status-updates
+  endpoint — localizes the dispatch statuses the generic timeline would leave
+  raw) opened from a "Suivi" button on every board row, and a "notified/not
+  notified" column + banner from customer_notified_at (honest: the dev mailer
+  logs, so it stays "not notified" — the run never claims a message it didn't
+  send). e2e asserts both before/after departure + the feed lines.
+- Adversarial review (13 agents): fixed a11y — the feed `<ol>` needed
+  role="list" (WebKit drops list semantics under Tailwind's list-style:none);
+  the new board column shared the header "Customer" with the name column
+  (renamed to Notified/Avisé); the Suivi button aria-label fell back to a bare
+  "Suivi — " for unresolved names (now a run-id ref). 6 findings rejected.
+- **CR-13 CLIENT FOLLOW-UP (Ahmad's fix landed 2e65fb0)**: he now recomputes
+  outputs on every product path AND 422s (fi_is_itemised) a PATCH that carries
+  fi_price_cents/fi_cost_cents on an itemised deal. My edit-save was sending the
+  mirrored sums → 422 → no navigation. Fixed: the worksheet strips both F&I
+  aggregates from the PATCH when the deal has products (the trigger owns them).
+  Caught by the full suite after the merge, fixed, 25/25 green.
+
 ## 2026-07-26 [HUSSEIN] — F-13b F&I products UI + F-13c files/batch UI (→ ROUND 13)
 
 Two of Ahmad's slices landed back-to-back (F-13b itemised F&I, F-13c document

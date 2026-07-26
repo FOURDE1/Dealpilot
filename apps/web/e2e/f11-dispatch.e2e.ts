@@ -119,8 +119,12 @@ test('full F-11 journey: fleet roster → book a run → board → status', asyn
   await page.getByRole('button', { name: `Retirer — P${stamp % 10000}` }).click();
   await expect(page.getByText(/livraison réservée compte sur cet élément/)).toBeVisible();
 
-  // The status track only offers legal moves, and ends stay ended.
+  // F-11c: before departure the customer has not been told. The dev mailer
+  // logs instead of sending, so departing must NOT claim they were notified.
   await page.goto('/dispatch');
+  await expect(page.getByRole('cell', { name: 'Non avisé' })).toBeVisible();
+
+  // The status track only offers legal moves, and ends stay ended.
   const statusSelect = page.getByLabel('Statut').first();
   await expect(statusSelect.getByRole('option', { name: 'Complétée' })).toHaveCount(0);
   await statusSelect.selectOption({ label: 'Partie' });
@@ -131,4 +135,19 @@ test('full F-11 journey: fleet roster → book a run → board → status', asyn
   await expect(statusSelect).toHaveValue('completed');
   await expect(statusSelect).toBeDisabled();
   await expect(page.getByRole('button', { name: /Renvoyer la demande/ })).toHaveCount(0);
+  // On the dev mailer the departure email only reaches pino, so the honest
+  // state stays "not notified" — the run never claims a message it did not send.
+  await expect(page.getByRole('cell', { name: 'Non avisé' })).toBeVisible();
+
+  // F-11c: the run's status feed reads the trail — booked, then every move,
+  // newest first, each with who and when.
+  await page.getByRole('button', { name: /Suivi — Livia Cliente/ }).click();
+  const feed = page.getByRole('dialog');
+  await expect(feed.getByRole('heading', { name: 'Suivi de la course' })).toBeVisible();
+  await expect(feed.getByText('Client pas encore avisé (aucun courriel n’a été envoyé).')).toBeVisible();
+  await expect(feed.getByText('Course réservée')).toBeVisible();
+  await expect(feed.getByText('Statut : Partie')).toBeVisible();
+  await expect(feed.getByText('Statut : Arrivée')).toBeVisible();
+  await expect(feed.getByText('Statut : Complétée')).toBeVisible();
+  await feed.getByRole('button', { name: 'Fermer' }).click();
 });
