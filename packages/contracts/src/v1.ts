@@ -205,6 +205,13 @@ export const apiV1 = c.router({
    * bookings come from.
    */
   dispatch: c.router({
+    /** F-11c: what happened to this run, in order — read from the activity trail. */
+    statusUpdates: {
+      method: 'GET',
+      path: '/api/v1/dispatch/:id/status-updates',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: z.object({ items: z.array(ActivityEvent) }), ...errorResponses },
+    },
     book: {
       method: 'POST',
       path: '/api/v1/dispatch',

@@ -19,7 +19,7 @@ import { conflictFrom, idParam, keysetPage, requireMember, sessionUser } from '.
 import { recordEvent } from './activity.js';
 import { requirePermission } from './permissions.js';
 import { generateDocuments } from './f13-document-routes.js';
-import { dispatchRequestMessage, type Mailer } from './email.js';
+import { customerEtaMessage, dispatchRequestMessage, type Mailer } from './email.js';
 
 /**
  * F-11 dispatch (dispatch-transport.md). Who drives the car to the customer,
@@ -497,6 +497,35 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
    * Move a run along, or record the driver and ETAs. Ending it — completed or
    * cancelled — puts the plate and chaser back in the SAME transaction.
    */
+  /**
+   * The run's status feed — what happened to this delivery, in order.
+   *
+   * Read from the activity trail rather than a `status_updates` table of its
+   * own. Every one of these events is already recorded there by the route that
+   * caused it, and a second table would be a second truth about the same run:
+   * the shape of bug this project keeps finding, where two records of one fact
+   * disagree and nobody knows which is right. The trail is append-only and no
+   * part of the application can edit a row in it, which is more than a
+   * purpose-built table would have given.
+   */
+  app.get('/api/v1/dispatch/:id/status-updates', async (request, reply) => {
+    const id = idParam(request);
+    const user = sessionUser(request);
+    const orgId = await rowOrg(pool, user.id, 'dispatch_assignments', id);
+    const items = await withTenant(pool, orgId, async (c) => {
+      await requireMember(c, user.id);
+      const r = await c.query(
+        `SELECT * FROM activity_events
+         WHERE organization_id = $1 AND entity_type = 'dispatch_assignment' AND entity_id = $2
+         ORDER BY seq DESC
+         LIMIT 200`,
+        [orgId, id],
+      );
+      return r.rows;
+    });
+    return reply.send({ items });
+  });
+
   app.patch('/api/v1/dispatch/:id', async (request, reply) => {
     const id = idParam(request);
     const input = parseOrThrow(UpdateDispatchInput, request.body);
@@ -592,7 +621,95 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
       }
       return r.rows[0]!;
     });
+
+    // F-11c: the customer hears that their car left.
+    //
+    // AFTER the transaction, never inside it: an SMTP call inside an open
+    // transaction holds row locks for as long as the network takes, and a
+    // rollback after a sent email cannot unsend it. Send first, stamp second —
+    // the failure mode that way is a duplicate notice, and the other way round
+    // it is a deal that says the customer was told when nobody told them.
+    const justDeparted = input.status === 'departed' && String(updated['status']) === 'departed';
+    const etaMoved =
+      input.eta_arrival !== undefined &&
+      String(updated['status']) === 'departed' &&
+      updated['customer_notified_at'] !== null;
+    if (justDeparted || etaMoved) {
+      await notifyCustomer(pool, mailer, orgId, id);
+    }
     return reply.send(updated);
+  });
+}
+
+/**
+ * Tell the customer their vehicle is on the way, in their own language.
+ *
+ * Silent when there is nobody to tell — a deal with no lead, or a lead with no
+ * email address. It does NOT stamp `customer_notified_at` in that case: a
+ * timestamp saying the customer was notified when no message was sent is the
+ * kind of record that gets quoted back at a dealership in a complaint.
+ */
+async function notifyCustomer(
+  pool: Pool,
+  mailer: Mailer,
+  orgId: string,
+  assignmentId: string,
+): Promise<void> {
+  const notice = await withTenant(pool, orgId, async (c) => {
+    const r = await c.query<{
+      email: string | null; first_name: string | null; preferred_language: string | null;
+      driver_name: string | null; eta_arrival: Date | null;
+      store_name: string; store_phone: string | null; store_timezone: string;
+      year: number | null; make: string | null; model: string | null;
+    }>(
+      `SELECT l.email, l.first_name, l.preferred_language,
+              a.driver_name, a.eta_arrival,
+              s.name AS store_name, s.phone AS store_phone, s.timezone AS store_timezone,
+              v.year, v.make, v.model
+       FROM dispatch_assignments a
+       JOIN deals d ON d.id = a.deal_id
+       JOIN stores s ON s.id = a.store_id
+       LEFT JOIN leads l ON l.id = d.lead_id
+       LEFT JOIN vehicles v ON v.id = d.vehicle_id
+       WHERE a.id = $1 AND a.deleted_at IS NULL`,
+      [assignmentId],
+    );
+    return r.rows[0] ?? null;
+  });
+  if (!notice?.email) return;
+
+  const locale = notice.preferred_language === 'en-CA' ? 'en-CA' : 'fr-CA';
+  const vehicle = [notice.year, notice.make, notice.model].filter(Boolean).join(' ') || 'votre véhicule';
+  const sent = await mailer.send(
+    customerEtaMessage({
+      to: notice.email,
+      locale,
+      customerName: notice.first_name,
+      vehicle,
+      storeName: notice.store_name,
+      // In the STORE's timezone, not the server's. Fargate runs in UTC, so
+      // formatting without it would tell a Montreal customer their car arrives
+      // at 14:00 when the driver is knocking at 10:00.
+      etaArrival: notice.eta_arrival
+        ? notice.eta_arrival.toLocaleString(locale, {
+            dateStyle: 'full', timeStyle: 'short', timeZone: notice.store_timezone,
+          })
+        : null,
+      driverName: notice.driver_name,
+      storePhone: notice.store_phone,
+    }),
+  );
+  // Only a message that actually REACHED somebody is recorded as one. The dev
+  // log transport returns true from send() — it did what it was asked — but the
+  // message went to pino, and stamping on that would put "customer notified" on
+  // a run nobody outside the building ever heard about. Same distinction CR-05
+  // drew for invitation links.
+  if (!sent || !mailer.deliversToRecipient) return;
+  await withTenant(pool, orgId, async (c) => {
+    await c.query(
+      `UPDATE dispatch_assignments SET customer_notified_at = now() WHERE id = $1`,
+      [assignmentId],
+    );
   });
 }
 

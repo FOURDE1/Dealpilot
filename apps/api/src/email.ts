@@ -232,3 +232,62 @@ export function dispatchRequestMessage(r: DispatchRequest): EmailMessage {
     text: [...fr.filter((l) => l !== ''), '', '— — —', '', ...en.filter((l) => l !== '')].join('\n'),
   };
 }
+
+export interface CustomerEtaNotice {
+  to: string;
+  /** The customer's own language — not a bilingual wall (Bill 96 §; D-002). */
+  locale: 'fr-CA' | 'en-CA';
+  customerName: string | null;
+  vehicle: string;
+  storeName: string;
+  /** Already formatted in the customer's locale by the caller. */
+  etaArrival: string | null;
+  driverName: string | null;
+  storePhone: string | null;
+}
+
+/**
+ * F-11c: telling the customer their car is on the way.
+ *
+ * In ONE language, theirs. The driver request is bilingual because a dispatch
+ * company serves both markets from one inbox; a customer has a stated
+ * preference and sending them two copies of the same paragraph reads as a form
+ * letter. Quebec French is the default when nothing is stated.
+ *
+ * No link, no attachment, no tracking pixel: this is a courtesy message about a
+ * car and a time, and anything else in it would be a reason for a customer to
+ * distrust the next one.
+ */
+export function customerEtaMessage(n: CustomerEtaNotice): EmailMessage {
+  const fr = [
+    n.customerName ? `Bonjour ${n.customerName},` : 'Bonjour,',
+    '',
+    `Votre véhicule est en route : ${n.vehicle}`,
+    n.etaArrival ? `Heure d'arrivée prévue : ${n.etaArrival}` : 'Nous vous confirmerons l’heure d’arrivée sous peu.',
+    n.driverName ? `Chauffeur : ${n.driverName}` : '',
+    '',
+    `Une question ? Répondez à ce courriel${n.storePhone ? ` ou appelez-nous au ${n.storePhone}` : ''}.`,
+    '',
+    n.storeName,
+  ];
+  const en = [
+    n.customerName ? `Hello ${n.customerName},` : 'Hello,',
+    '',
+    `Your vehicle is on its way: ${n.vehicle}`,
+    n.etaArrival ? `Estimated arrival: ${n.etaArrival}` : 'We will confirm the arrival time shortly.',
+    n.driverName ? `Driver: ${n.driverName}` : '',
+    '',
+    `Questions? Reply to this email${n.storePhone ? ` or call us at ${n.storePhone}` : ''}.`,
+    '',
+    n.storeName,
+  ];
+  const body = n.locale === 'en-CA' ? en : fr;
+  return {
+    to: n.to,
+    subject:
+      n.locale === 'en-CA'
+        ? `Your vehicle is on its way — ${n.vehicle}`
+        : `Votre véhicule est en route — ${n.vehicle}`,
+    text: body.filter((l) => l !== '').join('\n'),
+  };
+}
