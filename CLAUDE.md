@@ -97,7 +97,12 @@ proceed without asking.
 - Coverage is a floor, not a goal: aim ~75–85% overall, 90%+ on money/auth/data
   integrity paths. Never chase 100%.
 - **Evidence before claims:** never say "done", "fixed", or "passing" without running
-  the checks and showing real output. Exercise changed behavior end-to-end, not just
+  the checks and showing real output. A local run is not CI: check the actual CI
+  verdict before reporting a push as green (2026-07-26 — three red pushes went
+  unnoticed behind a passing local gate).
+- **Never edit an applied migration.** CI rebuilds from zero and cannot catch it;
+  every database with history will refuse to upgrade. Write a forward migration,
+  and prove the chain with `db:migrate` against a database that already has data. Exercise changed behavior end-to-end, not just
   the unit tests. Run `/quality-gate` before commits, PRs, releases, and after any
   non-trivial change; for trivial edits (typo, comment, user-dictated config value)
   its checks + self-review sections suffice.

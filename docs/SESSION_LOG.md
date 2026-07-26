@@ -64,6 +64,52 @@ twice (his and mine). ONE owner round: docs/OWNER-TEST-BATCH-02.md.**
 **Owner also owes two decisions: D-033 (who signs off safety), D-035/invite
 flow (next batch scope).**
 
+## 2026-07-26 [AHMAD] — CI red for three pushes (my guard), and a migration-immutability violation (also mine)
+
+Two self-inflicted problems, both found late, both fixed. Writing them down
+because the pattern in each is more useful than the fix.
+
+**1. CI was red for three pushes and I did not look.** The `db:reset` guard I
+added — the one that stops the CLI wiping a developer's database — also refused
+CI's ephemeral container, which is named `dealpilot`, not `*_test`. My local
+gate passed 373/373 every time, so nothing prompted me to check. I had told the
+owner "CI green" on the strength of a local run.
+*Fix:* CI now sets `DB_RESET_CONFIRM`, which is exactly what the guard asks for:
+say out loud which database you mean. The guard is right and stays.
+*Lesson:* adding a guard means auditing every caller, and "tests pass locally"
+is not "CI is green" — a distinction I had already been burned by earlier the
+same night.
+
+**2. I edited migration 0014 twice AFTER it was merged and applied** (F-12 added
+`invitation`, F-11 added `dispatch_assignment`), and 0016 once. Applied
+migrations are immutable and the runner enforces it — but CI rebuilds from zero
+on every run, so it is the one environment where the defect cannot surface.
+Hussein's local database, and later staging and production, would have refused
+to migrate with a checksum mismatch and needed hand repair.
+*Fix:* 0014 and 0016 restored byte-for-byte to their merged form; the vocabulary
+they were edited to add now lives in a forward-only 0018.
+*Proof it is the real fix:* the dev database, which already held the original
+0014, migrated 14 → 18 IN PLACE with the owner's account, org and store intact —
+the exact upgrade that would have failed. Plus 373/373 from zero.
+*Lesson:* a green CI that resets from zero cannot tell you your migration chain
+is upgradable. Run `db:migrate` against a database that already has history.
+
+**Verified end-to-end on the live stack afterwards** (F-10, F-11, F-12 together):
+invitation created with no token in the response, forged token 404, revoke 204;
+a trade-in books 1 driver and no chaser; a second delivery takes the second
+plate; a third is FLAGGED rather than refused — through the API alone, which is
+the thing the first cut could not do; arriving without departing refused; the
+plate returns on completion; an ended run refuses edits; and dispatch events
+roll up under the deal (CR-04). Smoke data removed; the owner's environment has
+his account, org and store and nothing else.
+
+**State:** develop at 373/373, CI green, stack running on current code and
+seeded. Owner rounds 1-6 waiting in `docs/OWNER-TEST-MASTER.md`.
+
+**Next steps:** (1) Hussein — F-12 invite/accept screens, then the dispatch
+board. (2) Ahmad — F-11b dispatch paperwork, or documents/bill-of-sale, next in
+the plan's parity order.
+
 ## 2026-07-26 [AHMAD] — F-11 dispatch merged, after a review found the headline feature unreachable
 
 **Done (373/373):** the dispatch scheduling core — drivers/chaser rule and
