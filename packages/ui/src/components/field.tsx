@@ -7,8 +7,21 @@ import { cn } from '../lib/cn.js';
  * H-05; these are the visual primitives it will build on.
  */
 
-export function Label({ className, ...props }: LabelHTMLAttributes<HTMLLabelElement>) {
-  return <label className={cn('block text-[13px] font-medium', className)} {...props} />;
+export function Label({
+  className,
+  optionalText,
+  children,
+  ...props
+}: LabelHTMLAttributes<HTMLLabelElement> & { optionalText?: string }) {
+  return (
+    <label className={cn('block text-[13px] font-medium', className)} {...props}>
+      {children}
+      {optionalText ? (
+        // Leading space keeps the ACCESSIBLE name well-formed ("VIN (optional)").
+        <span className="font-normal text-muted-foreground"> ({optionalText})</span>
+      ) : null}
+    </label>
+  );
 }
 
 const fieldClasses =

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '../../shared/use-page-title.js';
 import { BackLink } from '../../shared/ui/back-link.js';
 import { Button, Input, Label, Select } from '@dealpilot/ui';
 import { LocationStatus, VehicleDealStatus, type VehicleT } from '@dealpilot/schemas';
@@ -21,6 +22,7 @@ export function VehicleDetailPage() {
   const { vehicleId = '' } = useParams();
   const vehicle = useVehicle(vehicleId);
   const update = useUpdateVehicle(vehicleId);
+  usePageTitle(vehicle.data ? vehicleDisplayName(vehicle.data) : undefined);
   const [reconDraft, setReconDraft] = useState<string | null>(null);
   const [listDraft, setListDraft] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<'saved' | 'error' | null>(null);
@@ -139,11 +141,12 @@ export function VehicleDetailPage() {
               inputMode="decimal"
               value={recon}
               aria-invalid={reconInvalid || undefined}
+              aria-describedby={reconInvalid ? 'veh-recon-error' : undefined}
               className={reconInvalid ? 'border-danger-border' : undefined}
               onChange={(e) => setReconDraft(e.target.value)}
             />
             {reconInvalid ? (
-              <p role="alert" className="text-xs text-danger-text">
+              <p id="veh-recon-error" role="alert" className="text-xs text-danger-text">
                 {t('invalidAmount')}
               </p>
             ) : null}
@@ -155,11 +158,12 @@ export function VehicleDetailPage() {
               inputMode="decimal"
               value={list}
               aria-invalid={listInvalid || undefined}
+              aria-describedby={listInvalid ? 'veh-list-error' : undefined}
               className={listInvalid ? 'border-danger-border' : undefined}
               onChange={(e) => setListDraft(e.target.value)}
             />
             {listInvalid ? (
-              <p role="alert" className="text-xs text-danger-text">
+              <p id="veh-list-error" role="alert" className="text-xs text-danger-text">
                 {t('invalidAmount')}
               </p>
             ) : null}

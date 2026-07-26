@@ -67,7 +67,9 @@ export function FormItem({ className, ...props }: HTMLAttributes<HTMLDivElement>
   return <div className={cn('space-y-1', className)} {...props} />;
 }
 
-export function FormLabel(props: LabelHTMLAttributes<HTMLLabelElement>) {
+export function FormLabel(
+  props: LabelHTMLAttributes<HTMLLabelElement> & { optionalText?: string },
+) {
   const { id } = useField();
   return <Label htmlFor={id} {...props} />;
 }

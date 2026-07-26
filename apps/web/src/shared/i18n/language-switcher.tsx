@@ -10,14 +10,15 @@ import { currentLocale, setLocale } from './index.js';
 export function LanguageSwitcher() {
   const { t } = useTranslation('common');
   const target = currentLocale() === 'fr-CA' ? 'en-CA' : 'fr-CA';
+  const targetCode = target === 'en-CA' ? 'EN' : 'FR';
   return (
     <Button
       variant="ghost"
       size="sm"
-      aria-label={t('switchLanguage')}
+      aria-label={`${targetCode} — ${t('switchLanguage')}`}
       onClick={() => setLocale(target)}
     >
-      {target === 'en-CA' ? 'EN' : 'FR'}
+      {targetCode}
     </Button>
   );
 }

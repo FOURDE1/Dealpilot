@@ -21,10 +21,12 @@ export function DialogContent({
 }: ComponentProps<typeof BaseDialog.Popup> & { children: ReactNode }) {
   return (
     <BaseDialog.Portal>
-      <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-foreground/40 transition-opacity duration-fast" />
+      <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-foreground/40 motion-safe:transition-opacity motion-safe:duration-fast" />
       <BaseDialog.Popup
         className={cn(
           'fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg',
+          // Every dialog must scroll rather than clip on small viewports.
+          'max-h-[85svh] overflow-y-auto',
           'border border-border bg-card p-6 text-card-foreground shadow-lg outline-none',
           className,
         )}

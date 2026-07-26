@@ -1,3 +1,4 @@
+import { initTheme } from './shared/theme.js';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -8,6 +9,9 @@ import { i18n } from './shared/i18n/index.js';
 import './shared/i18n/zod-errors.js';
 import { router } from './app/router.js';
 import './styles/app.css';
+
+// Set data-theme before first paint (stored choice or OS preference).
+initTheme();
 
 const container = document.getElementById('root');
 if (!container) {

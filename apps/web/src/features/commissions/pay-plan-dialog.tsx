@@ -111,7 +111,7 @@ export function PayPlanDialog({
           </p>
         ) : (
           <div className="mt-3 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="plan-rate">{t('rate')}</Label>
                 <Input
@@ -119,11 +119,12 @@ export function PayPlanDialog({
                   inputMode="decimal"
                   value={rate}
                   aria-invalid={rateInvalid || undefined}
+                  aria-describedby={rateInvalid ? 'plan-rate-error' : undefined}
                   className={rateInvalid ? 'border-danger-border' : undefined}
                   onChange={(e) => setRate(e.target.value)}
                 />
                 {rateInvalid ? (
-                  <p role="alert" className="text-xs text-danger-text">
+                  <p id="plan-rate-error" role="alert" className="text-xs text-danger-text">
                     {t('invalidRate')}
                   </p>
                 ) : null}
@@ -135,11 +136,12 @@ export function PayPlanDialog({
                   inputMode="decimal"
                   value={pad}
                   aria-invalid={padInvalid || undefined}
+                  aria-describedby={padInvalid ? 'plan-pad-error' : undefined}
                   className={padInvalid ? 'border-danger-border' : undefined}
                   onChange={(e) => setPad(e.target.value)}
                 />
                 {padInvalid ? (
-                  <p role="alert" className="text-xs text-danger-text">
+                  <p id="plan-pad-error" role="alert" className="text-xs text-danger-text">
                     {t('invalidAmount')}
                   </p>
                 ) : null}
@@ -156,7 +158,7 @@ export function PayPlanDialog({
               {t('tierOn')}
             </label>
             {tierOn ? (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <Label htmlFor="plan-tier-threshold">{t('tierThreshold')}</Label>
                   <Input
@@ -164,11 +166,12 @@ export function PayPlanDialog({
                     inputMode="decimal"
                     value={tierThreshold}
                     aria-invalid={thresholdInvalid || undefined}
+                  aria-describedby={thresholdInvalid ? 'plan-tier-threshold-error' : undefined}
                     className={thresholdInvalid ? 'border-danger-border' : undefined}
                     onChange={(e) => setTierThreshold(e.target.value)}
                   />
                   {thresholdInvalid ? (
-                    <p role="alert" className="text-xs text-danger-text">
+                    <p id="plan-tier-threshold-error" role="alert" className="text-xs text-danger-text">
                       {t('invalidAmount')}
                     </p>
                   ) : null}
@@ -180,18 +183,19 @@ export function PayPlanDialog({
                     inputMode="decimal"
                     value={tierRate}
                     aria-invalid={tierRateInvalid || undefined}
+                  aria-describedby={tierRateInvalid ? 'plan-tier-rate-error' : undefined}
                     className={tierRateInvalid ? 'border-danger-border' : undefined}
                     onChange={(e) => setTierRate(e.target.value)}
                   />
                   {tierRateInvalid ? (
-                    <p role="alert" className="text-xs text-danger-text">
+                    <p id="plan-tier-rate-error" role="alert" className="text-xs text-danger-text">
                       {t('invalidRate')}
                     </p>
                   ) : null}
                 </div>
               </div>
             ) : null}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="plan-override-on">{t('overrideOn')}</Label>
                 <Select id="plan-override-on" value={overrideOn} onChange={(e) => setOverrideOn(e.target.value)}>
@@ -219,11 +223,12 @@ export function PayPlanDialog({
                   value={overrideRate}
                   disabled={overrideOn === ''}
                   aria-invalid={overrideRateInvalid || undefined}
+                  aria-describedby={overrideRateInvalid ? 'plan-override-rate-error' : undefined}
                   className={overrideRateInvalid ? 'border-danger-border' : undefined}
                   onChange={(e) => setOverrideRate(e.target.value)}
                 />
                 {overrideRateInvalid ? (
-                  <p role="alert" className="text-xs text-danger-text">
+                  <p id="plan-override-rate-error" role="alert" className="text-xs text-danger-text">
                     {t('invalidRate')}
                   </p>
                 ) : null}

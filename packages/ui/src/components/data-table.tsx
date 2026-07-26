@@ -81,8 +81,9 @@ export function DataTable<T>({
                 const canSort = header.column.getCanSort();
                 return (
                   <th
+                    data-slot="th"
                     key={header.id}
-                    className="px-4 py-2.5 text-start"
+                    className="relative px-4 py-2.5 text-start"
                     aria-sort={sortDir === 'asc' ? 'ascending' : sortDir === 'desc' ? 'descending' : undefined}
                   >
                     {canSort ? (

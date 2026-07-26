@@ -1,11 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '../../shared/use-page-title.js';
 import { BackLink } from '../../shared/ui/back-link.js';
 import { DataTable, Label, Select, type ColumnDef } from '@dealpilot/ui';
 import type { CommissionT } from '@dealpilot/schemas';
 import { useOrganizations } from '../organizations/api.js';
 import { useMembers } from '../team/api.js';
+import { usePipelineDeals } from '../deals/api.js';
+import { useLeadNames } from '../leads/api.js';
+import { leadDisplayName } from '../leads/labels.js';
 import { formatCents } from '../deals/money.js';
 import { useCommissions } from './api.js';
 
@@ -29,12 +33,23 @@ export function monthTotal(items: readonly Pick<CommissionT, 'amount_cents' | 'f
 
 export function CommissionsPage() {
   const { t, i18n } = useTranslation('commissions');
+  usePageTitle(t('title'));
   const orgs = useOrganizations();
   const multiOrg = (orgs.data?.items.length ?? 0) > 1;
   const [orgFilter, setOrgFilter] = useState('');
   const orgId = multiOrg ? orgFilter || orgs.data?.items[0]?.id : orgs.data?.items[0]?.id;
   const commissions = useCommissions(multiOrg ? orgId : undefined, { enabled: !orgs.isPending });
   const members = useMembers(orgId, { enabled: !orgs.isPending });
+  const deals = usePipelineDeals(multiOrg ? orgId : undefined, { enabled: !orgs.isPending });
+  const leads = useLeadNames(multiOrg ? orgId : undefined, { enabled: !orgs.isPending });
+  const dealLead = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const l of leads.data ?? []) names.set(l.id, leadDisplayName(l) ?? l.phone);
+    const map = new Map<string, { leadId: string | null; label: string }>();
+    for (const d of deals.data?.items ?? [])
+      map.set(d.id, { leadId: d.lead_id, label: d.lead_id ? (names.get(d.lead_id) ?? '…') : '—' });
+    return map;
+  }, [deals.data, leads.data]);
   const memberName = useMemo(() => {
     const map = new Map<string, string>();
     for (const m of members.data?.items ?? []) map.set(m.user_id, m.name);
@@ -59,11 +74,16 @@ export function CommissionsPage() {
       {
         accessorKey: 'deal_id',
         header: t('deal'),
-        cell: ({ row }) => (
-          <Link to="/pipeline" className="font-mono text-[13px] text-primary underline-offset-4 hover:underline">
-            {row.original.deal_id.slice(0, 8)}
-          </Link>
-        ),
+        cell: ({ row }) => {
+          const ref = dealLead.get(row.original.deal_id);
+          return ref?.leadId ? (
+            <Link to={`/leads/${ref.leadId}`} className="text-primary underline-offset-4 hover:underline">
+              {ref.label}
+            </Link>
+          ) : (
+            <span className="font-mono text-[13px]">{row.original.deal_id.slice(0, 8)}</span>
+          );
+        },
       },
       {
         accessorKey: 'gross_for_commission_cents',
@@ -86,7 +106,7 @@ export function CommissionsPage() {
         ),
       },
     ],
-    [t, locale, memberName],
+    [t, locale, memberName, dealLead],
   );
 
   const total = monthTotal(commissions.data?.items ?? []);

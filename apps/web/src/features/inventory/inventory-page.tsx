@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '../../shared/use-page-title.js';
 import {
   Button,
   DataTable,
@@ -51,6 +52,8 @@ const INITIAL: Draft = {
 
 export function InventoryPage() {
   const { t, i18n } = useTranslation('inventory');
+  const { t: tCommon } = useTranslation('common');
+  usePageTitle(t('title'));
   const orgs = useOrganizations();
   const multiOrg = (orgs.data?.items.length ?? 0) > 1;
   const [orgFilter, setOrgFilter] = useState('');
@@ -178,6 +181,7 @@ export function InventoryPage() {
       </header>
 
       <form
+        noValidate
         onSubmit={(e) => void handleAdd(e)}
         className="space-y-3 rounded-lg border border-border bg-card p-4"
         aria-labelledby="inv-add-title"
@@ -211,12 +215,13 @@ export function InventoryPage() {
               inputMode="numeric"
               value={draft.year}
               aria-invalid={yearInvalid || undefined}
+              aria-describedby={yearInvalid ? 'inv-year-error' : undefined}
               className={yearInvalid ? 'border-danger-border' : undefined}
               onChange={(e) => set('year', e.target.value)}
               required
             />
             {yearInvalid ? (
-              <p role="alert" className="text-xs text-danger-text">
+              <p id="inv-year-error" role="alert" className="text-xs text-danger-text">
                 {t('invalidYear')}
               </p>
             ) : null}
@@ -230,7 +235,7 @@ export function InventoryPage() {
             <Input id="inv-model" value={draft.model} onChange={(e) => set('model', e.target.value)} required />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="inv-vin">{t('vin')}</Label>
+            <Label htmlFor="inv-vin" optionalText={tCommon('optional')}>{t('vin')}</Label>
             <Input id="inv-vin" className="font-mono" value={draft.vin} onChange={(e) => set('vin', e.target.value)} />
           </div>
           <div className="space-y-1">
@@ -248,65 +253,69 @@ export function InventoryPage() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="inv-acq-cost">{t('acquisitionCost')}</Label>
+            <Label htmlFor="inv-acq-cost" optionalText={tCommon('optional')}>{t('acquisitionCost')}</Label>
             <Input
               id="inv-acq-cost"
               inputMode="decimal"
               value={draft.acquisition_cost}
               aria-invalid={moneyInvalid(draft.acquisition_cost) || undefined}
+              aria-describedby={moneyInvalid(draft.acquisition_cost) ? 'inv-acq-cost-error' : undefined}
               className={moneyInvalid(draft.acquisition_cost) ? 'border-danger-border' : undefined}
               onChange={(e) => set('acquisition_cost', e.target.value)}
             />
             {moneyInvalid(draft.acquisition_cost) ? (
-              <p role="alert" className="text-xs text-danger-text">
+              <p id="inv-acq-cost-error" role="alert" className="text-xs text-danger-text">
                 {t('invalidAmount')}
               </p>
             ) : null}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="inv-transport">{t('transportCost')}</Label>
+            <Label htmlFor="inv-transport" optionalText={tCommon('optional')}>{t('transportCost')}</Label>
             <Input
               id="inv-transport"
               inputMode="decimal"
               value={draft.transport_cost}
               aria-invalid={moneyInvalid(draft.transport_cost) || undefined}
+              aria-describedby={moneyInvalid(draft.transport_cost) ? 'inv-transport-error' : undefined}
               className={moneyInvalid(draft.transport_cost) ? 'border-danger-border' : undefined}
               onChange={(e) => set('transport_cost', e.target.value)}
             />
             {moneyInvalid(draft.transport_cost) ? (
-              <p role="alert" className="text-xs text-danger-text">
+              <p id="inv-transport-error" role="alert" className="text-xs text-danger-text">
                 {t('invalidAmount')}
               </p>
             ) : null}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="inv-recon">{t('reconCost')}</Label>
+            <Label htmlFor="inv-recon" optionalText={tCommon('optional')}>{t('reconCost')}</Label>
             <Input
               id="inv-recon"
               inputMode="decimal"
               value={draft.recon_cost}
               aria-invalid={moneyInvalid(draft.recon_cost) || undefined}
+              aria-describedby={moneyInvalid(draft.recon_cost) ? 'inv-recon-error' : undefined}
               className={moneyInvalid(draft.recon_cost) ? 'border-danger-border' : undefined}
               onChange={(e) => set('recon_cost', e.target.value)}
             />
             {moneyInvalid(draft.recon_cost) ? (
-              <p role="alert" className="text-xs text-danger-text">
+              <p id="inv-recon-error" role="alert" className="text-xs text-danger-text">
                 {t('invalidAmount')}
               </p>
             ) : null}
           </div>
           <div className="space-y-1">
-            <Label htmlFor="inv-list">{t('listPrice')}</Label>
+            <Label htmlFor="inv-list" optionalText={tCommon('optional')}>{t('listPrice')}</Label>
             <Input
               id="inv-list"
               inputMode="decimal"
               value={draft.list_price}
               aria-invalid={moneyInvalid(draft.list_price) || undefined}
+              aria-describedby={moneyInvalid(draft.list_price) ? 'inv-list-error' : undefined}
               className={moneyInvalid(draft.list_price) ? 'border-danger-border' : undefined}
               onChange={(e) => set('list_price', e.target.value)}
             />
             {moneyInvalid(draft.list_price) ? (
-              <p role="alert" className="text-xs text-danger-text">
+              <p id="inv-list-error" role="alert" className="text-xs text-danger-text">
                 {t('invalidAmount')}
               </p>
             ) : null}

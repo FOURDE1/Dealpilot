@@ -61,11 +61,11 @@ function ItemRow({
   }
 
   return (
-    <li className="space-y-1 py-2">
+    <li className="space-y-1 py-2 max-lg:py-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <label
           htmlFor={`chk-${item.code}`}
-          className={`flex items-center gap-2 text-sm ${waived ? 'text-muted-foreground line-through' : ''}`}
+          className={`flex min-h-6 items-center gap-2 text-sm ${waived ? 'text-muted-foreground line-through' : ''}`}
         >
           <input
             id={`chk-${item.code}`}
@@ -132,6 +132,12 @@ function ItemRow({
               id={`waive-reason-${item.code}`}
               value={reason}
               maxLength={300}
+              aria-invalid={reason.trim() !== '' && reason.trim().length < 3 ? true : undefined}
+              aria-describedby={
+                reason.trim() !== '' && reason.trim().length < 3
+                  ? `waive-reason-${item.code}-error`
+                  : undefined
+              }
               onChange={(e) => setReason(e.target.value)}
             />
           </div>
@@ -151,8 +157,19 @@ function ItemRow({
           >
             {t('confirmWaive')}
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setWaiving(false);
+              setReason('');
+            }}
+          >
+            {t('cancel')}
+          </Button>
           {reason.trim() !== '' && reason.trim().length < 3 ? (
-            <p role="alert" className="w-full text-xs text-danger-text">
+            <p id={`waive-reason-${item.code}-error`} role="alert" className="w-full text-xs text-danger-text">
               {t('reasonTooShort')}
             </p>
           ) : null}

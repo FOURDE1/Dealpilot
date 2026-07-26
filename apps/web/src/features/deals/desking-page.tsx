@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '../../shared/use-page-title.js';
 import { Button, Input, Label, Select } from '@dealpilot/ui';
 import { CalculateDealInput, ProvinceCA, type CalculateDealInputT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
@@ -121,6 +122,7 @@ function MoneyField({
   onChange: (v: string) => void;
 }) {
   const { t } = useTranslation('deals');
+  usePageTitle(t('title'));
   const invalid = value.trim() !== '' && parseMoneyToCents(value) === null;
   return (
     <div className="space-y-1">
@@ -131,10 +133,11 @@ function MoneyField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={invalid || undefined}
+        aria-describedby={invalid ? `${id}-error` : undefined}
         className={invalid ? 'border-danger-border' : undefined}
       />
       {invalid ? (
-        <p role="alert" className="text-xs text-danger-text">
+        <p id={`${id}-error`} role="alert" className="text-xs text-danger-text">
           {t('invalidAmount')}
         </p>
       ) : null}
@@ -403,11 +406,12 @@ export function DeskingPage() {
                   inputMode="decimal"
                   value={draft.rate}
                   aria-invalid={rateInvalid || undefined}
+                  aria-describedby={rateInvalid ? 'desk-rate-error' : undefined}
                   className={rateInvalid ? 'border-danger-border' : undefined}
                   onChange={(e) => set('rate', e.target.value)}
                 />
                 {rateInvalid ? (
-                  <p role="alert" className="text-xs text-danger-text">
+                  <p id="desk-rate-error" role="alert" className="text-xs text-danger-text">
                     {t('invalidRate')}
                   </p>
                 ) : null}
@@ -419,11 +423,12 @@ export function DeskingPage() {
                   inputMode="numeric"
                   value={draft.term}
                   aria-invalid={termInvalid || undefined}
+                  aria-describedby={termInvalid ? 'desk-term-error' : undefined}
                   className={termInvalid ? 'border-danger-border' : undefined}
                   onChange={(e) => set('term', e.target.value)}
                 />
                 {termInvalid ? (
-                  <p role="alert" className="text-xs text-danger-text">
+                  <p id="desk-term-error" role="alert" className="text-xs text-danger-text">
                     {t('invalidTerm')}
                   </p>
                 ) : null}
@@ -436,11 +441,12 @@ export function DeskingPage() {
                     inputMode="numeric"
                     value={draft.residual}
                     aria-invalid={residualInvalid || undefined}
+                    aria-describedby={residualInvalid ? 'desk-residual-error' : undefined}
                     className={residualInvalid ? 'border-danger-border' : undefined}
                     onChange={(e) => set('residual', e.target.value)}
                   />
                   {residualInvalid ? (
-                    <p role="alert" className="text-xs text-danger-text">
+                    <p id="desk-residual-error" role="alert" className="text-xs text-danger-text">
                       {t('invalidResidual')}
                     </p>
                   ) : null}

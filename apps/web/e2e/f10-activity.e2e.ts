@@ -38,7 +38,7 @@ test('full F-10 journey: lead + deal histories record the acts', async ({ page }
   const history = page.locator('div').filter({ has: page.getByRole('heading', { name: 'Historique' }) }).last();
   await expect(history.getByText('Création', { exact: true }).first()).toBeVisible();
   await expect(history.getByText(/Modification — Patron Trace/).first()).toBeVisible();
-  await expect(history.getByText(/status: new → contacted/).first()).toBeVisible();
+  await expect(history.getByText(/Statut: Nouveau → Contacté/).first()).toBeVisible();
 
   // The deal's history records stage and funding moves.
   await page.getByRole('link', { name: 'Créer une transaction' }).click();
@@ -54,7 +54,7 @@ test('full F-10 journey: lead + deal histories record the acts', async ({ page }
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('Étape changée').first()).toBeVisible();
   await expect(dialog.getByText('Financement changé').first()).toBeVisible();
-  await expect(dialog.getByText(/pipeline_stage: new → submitted/).first()).toBeVisible();
+  await expect(dialog.getByText(/Étape: Nouvelle → Soumise/).first()).toBeVisible();
   await expect(dialog.getByText('Création', { exact: true }).first()).toBeVisible();
   await dialog.getByRole('button', { name: 'Fermer' }).click();
 

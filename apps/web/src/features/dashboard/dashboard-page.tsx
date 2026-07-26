@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '../../shared/use-page-title.js';
 import { useSession } from '../../shared/auth/client.js';
 import { useOrganizations } from '../organizations/api.js';
 import { useLeads } from '../leads/api.js';
@@ -21,6 +22,7 @@ function StatTile({ label, value }: { label: string; value: number }) {
 /** Live lead overview — real data from the same endpoints the Leads page uses. */
 export function DashboardPage() {
   const { t } = useTranslation('dashboard');
+  usePageTitle(t('statsTitle'));
   const { t: tLeads } = useTranslation('leads');
   const { data: session } = useSession();
   const orgs = useOrganizations();

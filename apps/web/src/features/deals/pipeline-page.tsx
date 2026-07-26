@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '../../shared/use-page-title.js';
 import { Button, Label, Select } from '@dealpilot/ui';
 import { PipelineStage, type DealT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
@@ -23,6 +24,7 @@ import { formatCents } from './money.js';
  */
 export function PipelinePage() {
   const { t, i18n } = useTranslation('deals');
+  usePageTitle(t('pipelineTitle'));
   const { t: tCheck } = useTranslation('checklist');
   const { t: tActivity } = useTranslation('activity');
   const orgs = useOrganizations();
@@ -51,6 +53,7 @@ export function PipelinePage() {
   }, [deals.data]);
 
   const pendingId = update.isPending ? update.variables?.id : null;
+  const [liveStatus, setLiveStatus] = useState('');
 
   function codeToLabel(dealId: string, code: string): string {
     // Prefer the deal's own (store-renamable) labels when the panel was opened;
@@ -67,7 +70,19 @@ export function PipelinePage() {
     if (pendingId === deal.id) return; // one in-flight move per deal
     setError(null);
     try {
-      await update.mutateAsync({ id: deal.id, body: patch });
+      const updated = await update.mutateAsync({ id: deal.id, body: patch });
+      // The card re-mounts in its new column — put focus (and say what happened)
+      // back where the user was working.
+      setLiveStatus(
+        patch.pipeline_stage
+          ? t('movedTo', { stage: t(PIPELINE_STAGE_KEYS[updated.pipeline_stage]) })
+          : t('fundingSet', { funding: t(FUNDING_STATUS_KEYS[updated.funding_status]) }),
+      );
+      requestAnimationFrame(() => {
+        document
+          .getElementById(patch.pipeline_stage ? `stage-${deal.id}` : `funding-${deal.id}`)
+          ?.focus();
+      });
     } catch (err) {
       if (!(err instanceof ApiError)) {
         setError(t('genericError'));
@@ -120,6 +135,9 @@ export function PipelinePage() {
           {error}
         </p>
       ) : null}
+      <p aria-live="polite" role="status" className="sr-only">
+        {liveStatus}
+      </p>
 
       {deals.isPending || orgs.isPending ? (
         <p className="text-sm text-muted-foreground" aria-busy="true">

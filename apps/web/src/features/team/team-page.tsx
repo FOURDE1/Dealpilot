@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '../../shared/use-page-title.js';
 import {
   buttonVariants,
   Button,
@@ -55,6 +56,7 @@ function RoleCheckboxes({
   idPrefix: string;
 }) {
   const { t } = useTranslation('team');
+  usePageTitle(t('title'));
   return (
     <fieldset className="space-y-1.5">
       <legend className="text-sm font-medium">{t('rolesCol')}</legend>
@@ -84,6 +86,7 @@ function RoleCheckboxes({
 
 export function TeamPage() {
   const { t } = useTranslation('team');
+  usePageTitle(t('title'));
   const orgs = useOrganizations();
   const { data: session } = useSession();
   const noOrg = orgs.isSuccess && orgs.data.items.length === 0;
@@ -246,6 +249,7 @@ export function TeamPage() {
 
       {canWrite ? (
       <form
+        noValidate
         onSubmit={(e) => void handleAdd(e)}
         className="space-y-3 rounded-lg border border-border bg-card p-4"
         aria-labelledby="team-add-title"

@@ -34,11 +34,11 @@ test('full F-07 journey: stock a car → desk it → golden gross → sold', asy
   await page.getByLabel('Année').fill('2023');
   await page.getByLabel('Marque').fill('Kia');
   await page.getByLabel('Modèle').fill('Sportage');
-  await page.getByLabel('NIV').fill('KNDPMCAC5P7000001');
-  await page.getByLabel('Coût d’acquisition').fill('25000');
-  await page.getByLabel('Transport', { exact: true }).fill('650');
-  await page.getByLabel('Reconditionnement').fill('2000');
-  await page.getByLabel('Prix affiché').fill('32900');
+  await page.getByLabel(/^NIV/).fill('KNDPMCAC5P7000001');
+  await page.getByLabel(/^Coût d’acquisition/).fill('25000');
+  await page.getByLabel(/^Transport \(/).fill('650');
+  await page.getByLabel(/^Reconditionnement/).fill('2000');
+  await page.getByLabel(/^Prix affiché/).fill('32900');
   await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
   await expect(page.getByRole('cell', { name: '2023 Kia Sportage' })).toBeVisible();
   await expect(page.getByText(/27\s?650,00/)).toBeVisible(); // derived total cost
@@ -48,7 +48,7 @@ test('full F-07 journey: stock a car → desk it → golden gross → sold', asy
   await page.getByLabel('Année').fill('2023');
   await page.getByLabel('Marque').fill('Kia');
   await page.getByLabel('Modèle').fill('Sportage');
-  await page.getByLabel('NIV').fill('KNDPMCAC5P7000001');
+  await page.getByLabel(/^NIV/).fill('KNDPMCAC5P7000001');
   await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
   await expect(page.getByText('Ce NIV est déjà dans l’inventaire.')).toBeVisible();
 

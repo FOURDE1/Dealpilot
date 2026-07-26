@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '../../shared/use-page-title.js';
 import { DataTable, buttonVariants, type ColumnDef } from '@dealpilot/ui';
 import type { LeadT } from '@dealpilot/schemas';
 import { Label, Select } from '@dealpilot/ui';
@@ -12,6 +13,7 @@ import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js
 
 export function LeadsPage() {
   const { t, i18n } = useTranslation('leads');
+  usePageTitle(t('title'));
   const orgs = useOrganizations();
   const multiOrg = (orgs.data?.items.length ?? 0) > 1;
   const [orgFilter, setOrgFilter] = useState('');
@@ -86,9 +88,9 @@ export function LeadsPage() {
 
   return (
     <div className="space-y-4">
-      <header className="flex items-center justify-between gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-y-2 gap-3">
         <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <span className="flex items-center gap-4">
+        <span className="flex flex-wrap items-center gap-4">
           <label htmlFor="my-leads" className="flex items-center gap-2 text-sm max-lg:min-h-11">
             <input
               id="my-leads"

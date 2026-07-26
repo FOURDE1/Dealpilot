@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { BackLink } from '../../shared/ui/back-link.js';
 import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '../../shared/use-page-title.js';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -10,6 +11,7 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormHint,
   FormLabel,
   FormMessage,
   Input,
@@ -53,6 +55,8 @@ import { LEAD_SOURCE_KEYS } from './labels.js';
  */
 export function LeadNewPage() {
   const { t } = useTranslation('leads');
+  const { t: tCommon } = useTranslation('common');
+  usePageTitle(t('newLead'));
   const { t: tCommonLocale } = useTranslation('orgs');
   const navigate = useNavigate();
   const createLead = useCreateLead();
@@ -165,9 +169,10 @@ export function LeadNewPage() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>{t('phone')}</FormLabel>
-                <FormControl>
-                  <Input type="tel" inputMode="tel" autoComplete="tel" placeholder="+15145551234" {...field} />
+                <FormControl hasHint>
+                  <Input type="tel" inputMode="tel" autoComplete="off" placeholder="+15145551234" {...field} />
                 </FormControl>
+                <FormHint>{t('phoneHint')}</FormHint>
                 <FormMessage />
               </FormItem>
             )}
@@ -178,7 +183,7 @@ export function LeadNewPage() {
               name="first_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('firstName')}</FormLabel>
+                  <FormLabel optionalText={tCommon('optional')}>{t('firstName')}</FormLabel>
                   <FormControl>
                     <Input {...field} value={field.value ?? ''} />
                   </FormControl>
@@ -191,7 +196,7 @@ export function LeadNewPage() {
               name="last_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('lastName')}</FormLabel>
+                  <FormLabel optionalText={tCommon('optional')}>{t('lastName')}</FormLabel>
                   <FormControl>
                     <Input {...field} value={field.value ?? ''} />
                   </FormControl>
@@ -224,7 +229,7 @@ export function LeadNewPage() {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('email')}</FormLabel>
+                <FormLabel optionalText={tCommon('optional')}>{t('email')}</FormLabel>
                 <FormControl>
                   <Input type="email" inputMode="email" autoComplete="off" {...field} value={field.value ?? ''} />
                 </FormControl>
@@ -256,7 +261,7 @@ export function LeadNewPage() {
             name="vehicle_interest"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('vehicleInterest')}</FormLabel>
+                <FormLabel optionalText={tCommon('optional')}>{t('vehicleInterest')}</FormLabel>
                 <FormControl>
                   <Input {...field} value={field.value ?? ''} />
                 </FormControl>

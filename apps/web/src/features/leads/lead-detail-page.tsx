@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { BackLink } from '../../shared/ui/back-link.js';
 import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '../../shared/use-page-title.js';
 import { buttonVariants, Label, Select } from '@dealpilot/ui';
 import { LEAD_STATUSES, type LeadStatusT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
@@ -25,6 +26,7 @@ export function LeadDetailPage() {
   const lead = useLead(leadId);
   const updateLead = useUpdateLead(leadId);
   const deals = useDealsForLead(leadId, lead.data?.organization_id);
+  usePageTitle(lead.data ? (leadDisplayName(lead.data) ?? lead.data.phone) : undefined);
   const members = useMembers(lead.data?.organization_id, { enabled: lead.isSuccess });
   const assignees = activeMembers(members.data?.items);
   const assignedTo = lead.data?.assigned_to ?? null;
@@ -171,14 +173,14 @@ export function LeadDetailPage() {
           ) : (
             <ul className="divide-y divide-border">
               {deals.data.items.map((d) => (
-                <li key={d.id} className="flex items-baseline justify-between gap-4 py-1.5 text-sm">
+                <li key={d.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-1.5 text-sm">
                   <span>
                     {td(DEAL_TYPE_KEYS[d.deal_type])}
                     <span className="text-muted-foreground">
                       {' '}— {td(PIPELINE_STAGE_KEYS[d.pipeline_stage])} · {td(FUNDING_STATUS_KEYS[d.funding_status])}
                     </span>
                   </span>
-                  <span className="flex items-center gap-2">
+                  <span className="flex flex-wrap items-center gap-2">
                     <span className="font-mono tabular-nums">
                       {d.deal_type === 'cash'
                         ? formatCents(d.amount_financed_cents, i18n.language)
@@ -190,7 +192,7 @@ export function LeadDetailPage() {
                       type="button"
                       className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11"
                       aria-label={ta('historyFor', {
-                        name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.monthly_payment_cents, i18n.language)}`,
+                        name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.deal_type === 'cash' ? d.amount_financed_cents : d.monthly_payment_cents, i18n.language)}`,
                       })}
                       onClick={() => setActivityDeal(d)}
                     >
@@ -200,7 +202,7 @@ export function LeadDetailPage() {
                       type="button"
                       className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11"
                       aria-label={td('checklistFor', {
-                        name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.monthly_payment_cents, i18n.language)}`,
+                        name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.deal_type === 'cash' ? d.amount_financed_cents : d.monthly_payment_cents, i18n.language)}`,
                       })}
                       onClick={() => setChecklistDeal(d)}
                     >

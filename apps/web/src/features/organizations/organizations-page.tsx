@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { usePageTitle } from '../../shared/use-page-title.js';
 import { buttonVariants } from '@dealpilot/ui';
 import type { OrganizationT } from '@dealpilot/schemas';
 import { useOrganizations } from './api.js';
@@ -24,11 +25,12 @@ const TIER_KEYS = {
 
 export function OrganizationsPage() {
   const { t } = useTranslation('orgs');
+  usePageTitle(t('title'));
   const orgs = useOrganizations();
 
   return (
     <div className="space-y-4">
-      <header className="flex items-center justify-between gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-y-2 gap-3">
         <h1 className="text-2xl font-semibold">{t('title')}</h1>
         <Link to="/organizations/new" className={buttonVariants()}>
           {t('newOrg')}

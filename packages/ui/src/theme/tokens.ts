@@ -124,6 +124,11 @@ export const semanticLight = {
   'warning-text': primitives.status.warningText,
   'danger-text': primitives.status.dangerDeep,
   'info-text': primitives.status.infoStrong,
+  // Status surfaces: tint fills the *-text colors sit on (AA-gated pairs).
+  'success-bg': primitives.status.successTint,
+  'warning-bg': primitives.status.warningTint,
+  'danger-bg': '#FEE2E2',
+  'danger-border': primitives.status.dangerStrong,
   border: primitives.neutralLight.border,
   // shadcn semantic: --input is the form-field BORDER; the fill is --input-bg.
   input: primitives.neutralLight.border,
@@ -177,6 +182,10 @@ export const semanticDark: Record<keyof typeof semanticLight, string> = {
   'warning-text': primitives.status.warningDark,
   'danger-text': primitives.status.dangerDark,
   'info-text': primitives.status.infoDark,
+  'success-bg': primitives.status.successTintDark,
+  'warning-bg': primitives.status.warningTintDark,
+  'danger-bg': '#450A0A',
+  'danger-border': primitives.status.dangerDark,
   border: primitives.neutralDark.border,
   input: primitives.neutralDark.border,
   'input-bg': primitives.neutralDark.card,

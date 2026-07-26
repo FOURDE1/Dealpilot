@@ -2,6 +2,8 @@ import { useTranslation } from 'react-i18next';
 import type { ActivityActionT, ActivityEntityTypeT, ActivityEventT } from '@dealpilot/schemas';
 import { useMembers } from '../team/api.js';
 import { formatCents } from '../deals/money.js';
+import { FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from '../deals/labels.js';
+import { LEAD_STATUS_KEYS } from '../leads/labels.js';
 import { useActivity } from './api.js';
 
 const ACTION_KEYS = {
@@ -21,6 +23,30 @@ const ACTION_KEYS = {
   revoked: 'action_revoked',
   reinstated: 'action_reinstated',
 } as const satisfies Record<ActivityActionT, string>;
+
+/** Dealer-facing names for the most common wire fields; raw name otherwise. */
+const FIELD_KEYS: Record<string, string> = {
+  status: 'field_status',
+  pipeline_stage: 'field_pipeline_stage',
+  funding_status: 'field_funding_status',
+  assigned_to: 'field_assigned_to',
+  salesperson_id: 'field_salesperson',
+  sale_price_cents: 'field_sale_price',
+  vehicle_cost_cents: 'field_vehicle_cost',
+  cash_down_cents: 'field_cash_down',
+  fi_reserve_cents: 'field_fi_reserve',
+  list_price_cents: 'field_list_price',
+  recon_cost_cents: 'field_recon_cost',
+  roles: 'field_roles',
+  deal_status: 'field_deal_status',
+  location_status: 'field_location_status',
+};
+
+const ENUM_VALUE_KEYS: Record<string, Record<string, string>> = {
+  pipeline_stage: PIPELINE_STAGE_KEYS,
+  funding_status: FUNDING_STATUS_KEYS,
+  status: LEAD_STATUS_KEYS,
+};
 
 function changeValue(v: unknown): string {
   if (v === null || v === undefined) return '—';
@@ -68,11 +94,22 @@ export function ActivityTimeline({
     );
   };
 
+  const { t: tDeals } = useTranslation('deals');
+  const { t: tLeads } = useTranslation('leads');
+
   const renderValue = (field: string, v: unknown): string => {
     if (field.endsWith('_cents') && typeof v === 'number') return formatCents(v, i18n.language);
+    const enumMap = ENUM_VALUE_KEYS[field];
+    if (enumMap && typeof v === 'string' && v in enumMap) {
+      const key = enumMap[v as keyof typeof enumMap] as string;
+      return field === 'status' ? tLeads(key as never) : tDeals(key as never);
+    }
     const name = resolveUser(v);
     return name ?? changeValue(v);
   };
+
+  const fieldLabel = (field: string): string =>
+    field in FIELD_KEYS ? t(FIELD_KEYS[field] as never) : field;
 
   if (activity.isPending)
     return <p className="text-sm text-muted-foreground">{t('loading')}</p>;
@@ -115,8 +152,8 @@ export function ActivityTimeline({
                   const c = change as { from?: unknown; to?: unknown };
                   const hasFromTo = c !== null && typeof c === 'object' && ('from' in c || 'to' in c);
                   return (
-                    <li key={field} className="font-mono text-xs text-muted-foreground">
-                      {field}
+                    <li key={field} className="text-xs text-muted-foreground">
+                      {fieldLabel(field)}
                       {hasFromTo
                         ? `: ${renderValue(field, c.from)} → ${renderValue(field, c.to)}`
                         : `: ${renderValue(field, change)}`}
