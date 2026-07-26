@@ -1,7 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 import {
   Deal,
   DeskingOutputs,
+  UpdateDealInput,
   paginated,
   type CalculateDealInputT,
   type CreateDealInputT,
@@ -103,6 +105,34 @@ export function useUpdateDealTracks(orgId?: string) {
       if (updated.funding_status === 'funded') {
         void queryClient.invalidateQueries({ queryKey: ['commissions'] });
       }
+    },
+  });
+}
+
+export function useDeal(id: string, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['deals', 'one', id] as const,
+    enabled: (opts?.enabled ?? true) && id !== '',
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.deals.get, { params: { id }, signal });
+      if (res.status !== 200) fail(res.status, res.body);
+      return Deal.parse(res.body);
+    },
+  });
+}
+
+/** CR-07: re-desking an existing deal — the server recomputes on input edits. */
+export function useUpdateDealInputs() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, body }: { id: string; body: z.input<typeof UpdateDealInput> }) => {
+      const res = await apiRequest(routes.deals.update, { params: { id }, body });
+      if (res.status !== 200) fail(res.status, res.body);
+      return Deal.parse(res.body);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: dealKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ['activity'] });
     },
   });
 }

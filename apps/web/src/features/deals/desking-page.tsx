@@ -10,7 +10,7 @@ import { useVehicles } from '../inventory/api.js';
 import { activeMembers, useMembers } from '../team/api.js';
 import { vehicleDisplayName } from '../inventory/labels.js';
 import { leadDisplayName } from '../leads/labels.js';
-import { useCalculateDeal, useCreateDeal } from './api.js';
+import { useCalculateDeal, useCreateDeal, useDeal, useUpdateDealInputs } from './api.js';
 import { DEAL_TYPE_KEYS, PROVINCE_KEYS } from './labels.js';
 
 /** Harmonized-tax provinces — mirrors the engine's tax tables (packages/core). */
@@ -156,7 +156,8 @@ function OutputRow({ label, cents, locale, emphasis }: { label: string; cents: n
 
 export function DeskingPage() {
   const { t, i18n } = useTranslation('deals');
-  const { leadId = '' } = useParams();
+  const { leadId = '', dealId = '' } = useParams();
+  const isEdit = dealId !== '';
   const navigate = useNavigate();
   const lead = useLead(leadId);
   const vehicles = useVehicles(lead.data?.organization_id, {
@@ -172,11 +173,45 @@ export function DeskingPage() {
   // Provenance of the sale price: only an auto-filled (never user-typed) price
   // may be replaced or cleared when the picked car changes.
   const [prefilledPrice, setPrefilledPrice] = useState<string | null>(null);
+  const existing = useDeal(dealId, { enabled: isEdit });
   const [draft, setDraft] = useState<Draft>(INITIAL);
+  const [prefilled, setPrefilled] = useState(false);
   const [debounced, setDebounced] = useState<CalculateDealInputT | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const createDeal = useCreateDeal();
+  const updateDeal = useUpdateDealInputs();
   const locale = i18n.language;
+
+  // Edit mode: the worksheet opens on the deal's own numbers, once.
+  useEffect(() => {
+    if (!isEdit || prefilled || !existing.data) return;
+    const d = existing.data;
+    const money = (cents: number) => (cents === 0 ? '' : (cents / 100).toFixed(2));
+    setDraft({
+      province: d.province,
+      deal_type: d.deal_type,
+      sale_price: (d.sale_price_cents / 100).toFixed(2),
+      msrp: d.msrp_cents === null ? '' : (d.msrp_cents / 100).toFixed(2),
+      vehicle_cost: money(d.vehicle_cost_cents),
+      cash_down: money(d.cash_down_cents),
+      trade_allowance: money(d.trade_allowance_cents),
+      trade_acv: money(d.trade_acv_cents),
+      trade_lien: money(d.trade_lien_cents),
+      rebate: money(d.rebate_cents),
+      fees: money(d.fees_cents),
+      fees_taxable: d.fees_taxable,
+      fi_price: money(d.fi_price_cents),
+      fi_cost: money(d.fi_cost_cents),
+      rate: d.interest_rate_bps === 0 ? '' : (d.interest_rate_bps / 100).toFixed(2).replace(/\.?0+$/, ''),
+      term: String(d.term_months),
+      residual: String(d.residual_percent),
+      tax_exempt: d.tax_exempt,
+    });
+    setVehicleId(d.vehicle_id ?? '');
+    setSoldBy(d.salesperson_id ?? '');
+    setFiReserve(money(d.fi_reserve_cents));
+    setPrefilled(true);
+  }, [isEdit, prefilled, existing.data]);
 
   const inputs = useMemo(() => draftToInputs(draft), [draft]);
   useEffect(() => {
@@ -516,10 +551,10 @@ export function DeskingPage() {
           <Button
             type="button"
             className="w-full"
-            disabled={inputs === null || stale || reserveInvalid || createDeal.isPending}
+            disabled={inputs === null || stale || reserveInvalid || createDeal.isPending || updateDeal.isPending || (isEdit && !prefilled)}
             onClick={() => void handleSave()}
           >
-            {createDeal.isPending ? t('saving') : t('save')}
+            {createDeal.isPending || updateDeal.isPending ? t('saving') : isEdit ? t('saveChanges') : t('save')}
           </Button>
         </aside>
       </div>

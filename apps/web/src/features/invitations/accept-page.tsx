@@ -60,6 +60,14 @@ export function InvitationAcceptPage() {
         ? await signUp.email({ email, password, name: name.trim() })
         : await signIn.email({ email, password });
     if (res.error) {
+      // Returning member (owner-found, CR-08): the account exists — switch to
+      // sign-in instead of leaving them on a dead "could not create" message.
+      if (mode === 'signup' && res.error.code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL') {
+        setMode('signin');
+        setPassword('');
+        setError(t('accountExists', { email }));
+        return;
+      }
       setError(mode === 'signup' ? t('signUpFailed') : t('signInFailed'));
       return;
     }

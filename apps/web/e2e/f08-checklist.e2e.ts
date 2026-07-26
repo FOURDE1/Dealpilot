@@ -54,6 +54,8 @@ test('full F-08 journey: gate blocks → tick/waive → deliver → frozen', asy
   await dialog.getByLabel('Assurance du client').click();
   await expect(dialog.getByLabel('Assurance du client')).toBeChecked();
   await expect(dialog.getByText('1 de 10 éléments réglés.')).toBeVisible();
+  // CR-09: the record says WHEN, next to WHO.
+  await expect(dialog.getByText(/Fait — Patron Livraison, .*2026/)).toBeVisible();
   await dialog.getByRole('listitem').filter({ hasText: 'Chèque annulé' }).getByRole('button', { name: 'Exempter' }).click();
   await expect(dialog.getByRole('button', { name: 'Exempter avec cette raison' })).toBeDisabled();
   await dialog.getByLabel('Raison de l’exemption').fill('Prélèvement automatique déjà au dossier');

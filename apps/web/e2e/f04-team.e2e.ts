@@ -128,4 +128,25 @@ test('full team journey: invite → accept → assign → revoke → reinstate',
   await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeHidden();
   await orgScope.selectOption({ label: `Groupe F04 ${stamp}` });
   await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeVisible();
+
+  // CR-08 (owner-found): someone who left and comes back. Revoke, re-invite —
+  // the accept screen must flip to sign-in for the existing account.
+  await page.getByRole('button', { name: 'Retirer — Marc Vendeur' }).click();
+  await page.getByRole('button', { name: 'Oui, retirer' }).click();
+  await expect(page.getByRole('cell', { name: 'Marc Vendeur', exact: true })).toBeHidden();
+  await page.getByLabel('Nom', { exact: true }).fill('Marc Vendeur');
+  await page.getByLabel('Courriel').fill(`marc-${stamp}@1dealer.test`);
+  await page.getByRole('button', { name: 'Inviter', exact: true }).click();
+  await expect(page.getByText('Le courriel n’est pas parti')).toBeVisible();
+  const rejoinUrl = await page.getByLabel('Lien d’invitation').inputValue();
+  const rejoinToken = rejoinUrl.split('/').pop() ?? '';
+  await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await page.goto(`/invitations/${rejoinToken}`);
+  await page.getByLabel('Nom complet').fill('Marc Vendeur');
+  await page.getByLabel('Mot de passe').fill('MotDePasse!2026-marc');
+  await page.getByRole('button', { name: 'Créer le compte et accepter' }).click();
+  await expect(page.getByText(/Un compte existe déjà pour/)).toBeVisible();
+  await page.getByLabel('Mot de passe').fill('MotDePasse!2026-marc');
+  await page.getByRole('button', { name: 'Se connecter et accepter' }).click();
+  await expect(page).toHaveURL('/');
 });

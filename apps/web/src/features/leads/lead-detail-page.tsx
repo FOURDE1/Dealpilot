@@ -196,6 +196,15 @@ export function LeadDetailPage() {
                             amount: formatCents(d.monthly_payment_cents, i18n.language),
                           })}
                     </span>
+                    <Link
+                      to={`/leads/${leadId}/desk/${d.id}`}
+                      className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11 max-lg:inline-flex max-lg:items-center"
+                      aria-label={td('editDealFor', {
+                        name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.deal_type === 'cash' ? d.amount_financed_cents : d.monthly_payment_cents, i18n.language)}`,
+                      })}
+                    >
+                      {td('editDeal')}
+                    </Link>
                     {canDispatch ? (
                     <button
                       type="button"

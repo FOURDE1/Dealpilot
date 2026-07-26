@@ -31,6 +31,12 @@ function ItemRow({
   const [reason, setReason] = useState('');
   const [confirmUnwaive, setConfirmUnwaive] = useState(false);
   const label = i18n.language.startsWith('fr') ? item.label_fr : item.label_en;
+  const when = (iso: string | null) =>
+    iso === null
+      ? ''
+      : new Intl.DateTimeFormat(i18n.language, { dateStyle: 'medium', timeStyle: 'short' }).format(
+          new Date(iso),
+        );
   const waived = item.overridden_at !== null;
   const done = item.completed_at !== null;
   const isSafety = item.code === 'safety';
@@ -81,7 +87,7 @@ function ItemRow({
         <span className="flex items-center gap-2">
           {done ? (
             <span className="text-xs text-success-text">
-              {t('doneBy', { name: memberName(item.completed_by) ?? t('formerMember') })}
+              {t('doneByAt', { name: memberName(item.completed_by) ?? t('formerMember'), at: when(item.completed_at) })}
             </span>
           ) : null}
           {waived ? (
@@ -118,8 +124,9 @@ function ItemRow({
       </div>
       {waived ? (
         <p className="text-xs text-muted-foreground">
-          {t('waivedByWithReason', {
+          {t('waivedByAtWithReason', {
             name: memberName(item.overridden_by) ?? t('formerMember'),
+            at: when(item.overridden_at),
             reason: item.override_reason ?? '',
           })}
         </p>

@@ -101,6 +101,7 @@ export const router = createBrowserRouter([
       { path: 'leads/new', element: lazyPage(<LeadNewPage />) },
       { path: 'leads/:leadId', element: lazyPage(<LeadDetailPage />) },
       { path: 'leads/:leadId/desk', element: lazyPage(<DeskingPage />) },
+      { path: 'leads/:leadId/desk/:dealId', element: lazyPage(<DeskingPage />) },
       { path: 'team', element: lazyPage(<TeamPage />) },
       { path: 'pipeline', element: lazyPage(<PipelinePage />) },
       { path: 'inventory', element: lazyPage(<InventoryPage />) },

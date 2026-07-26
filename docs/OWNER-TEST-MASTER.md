@@ -258,3 +258,11 @@ link to be shown on screen in dev. On the real AWS setup it goes by email.
 
 **⚠ DECISION:** booking is restricted to owner, GM and logistics (matching the
 API). Salespeople see the board link but get a plain "not allowed" message.
+
+## ROUND 10 — Your findings, fixed (retest)
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 10.1 | Open a deal → "Edit" → change the price → save | The worksheet opens on the deal's numbers; the payment recomputes — re-desking works | ⬜ |
+| 10.2 | Remove someone who had an account, re-invite them, open their link, try "create account" | It switches to sign-in by itself with a plain message; their password gets them in and re-joined | ⬜ |
+| 10.3 | Tick a checklist item | It now says who AND when, to the minute | ⬜ |

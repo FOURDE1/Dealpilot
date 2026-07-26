@@ -86,4 +86,12 @@ test('full F-05 journey: desk a QC deal → golden numbers → ON HST → save',
   await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
   await expect(page.getByRole('heading', { name: 'Danielle Acheteuse', exact: true })).toBeVisible();
   await expect(page.getByText(/640,09\s?\$\/mois/)).toBeVisible();
+
+  // CR-07: re-desking. The worksheet opens on the deal's own numbers and PATCHes.
+  await page.getByRole('link', { name: /Modifier la transaction/ }).click();
+  await expect(page.getByLabel('Prix de vente')).toHaveValue('35000.00');
+  await page.getByLabel('Prix de vente').fill('36000');
+  await page.getByRole('button', { name: 'Enregistrer les modifications' }).click();
+  await expect(page).toHaveURL(/\/leads\/[0-9a-f-]+$/);
+  await expect(page.getByText(/640,09\s?\$\/mois/)).toHaveCount(0); // recomputed
 });
