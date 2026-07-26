@@ -95,7 +95,7 @@ export function TeamPage() {
   const createInvitation = useCreateInvitation();
   const revokeInvitation = useRevokeInvitation();
   const [inviteLink, setInviteLink] = useState<string | null>(null);
-  const mine = usePermissionsMine(multiOrg ? orgId : undefined, { enabled: !noOrg });
+  const mine = usePermissionsMine(multiOrg ? orgId : undefined, { enabled: !orgs.isPending && !noOrg });
   const canWrite = can(mine.data, 'member:invite');
   const canEditRoles = can(mine.data, 'member:update_roles');
   const canRevoke = can(mine.data, 'member:revoke');
@@ -411,7 +411,7 @@ export function TeamPage() {
                     {m.roles.map((r) => t(ROLE_KEYS[r])).join(', ')}
                   </span>
                 </span>
-                {canWrite ? (
+                {canEditRoles ? (
                   <Button
                     type="button"
                     variant="outline"

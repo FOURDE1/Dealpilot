@@ -24,8 +24,8 @@ const GROUPS: { key: string; prefixes: string[] }[] = [
 
 /** The ones where a wrong tick has consequences — say so next to the box. */
 const RISKY: Partial<Record<PermissionT, string>> = {
+  'checklist:correct_delivered': 'hint_coming',
   'checklist:sign_safety': 'hint_sign_safety',
-  'checklist:correct_delivered': 'hint_correct_delivered',
   'commission:read_all': 'hint_read_all',
   'member:update_roles': 'hint_update_roles',
   'intake_key:manage': 'hint_intake_key',
@@ -91,6 +91,16 @@ export function PermissionsPage() {
     if (!orgId || overrideUser === '') return;
     setError(null);
     setNotice(null);
+    // The matrix path refuses locking the owner out; the override path must
+    // not become the back door (server guard filed as CR-10).
+    if (overridePermission === 'member:update_roles' && overrideMode === 'false') {
+      setError(t('wouldLockOut'));
+      return;
+    }
+    if (overrideReason.trim().length < 3 && overrideMode !== 'null') {
+      setError(t('reasonRequired'));
+      return;
+    }
     try {
       await setUser.mutateAsync({
         organization_id: orgId,
@@ -99,7 +109,7 @@ export function PermissionsPage() {
         allowed: overrideMode === 'null' ? null : overrideMode === 'true',
         ...(overrideReason.trim() === '' ? {} : { reason: overrideReason.trim() }),
       });
-      setNotice(t('overrideSaved'));
+      setNotice(overrideMode === 'null' ? t('overrideCleared') : t('overrideSaved'));
       setOverrideReason('');
     } catch (err) {
       if (!(err instanceof ApiError)) {
@@ -131,16 +141,18 @@ export function PermissionsPage() {
           </Select>
         </div>
       ) : null}
-      {error ? (
-        <p role="alert" className="text-sm text-danger-text">
-          {error}
-        </p>
-      ) : null}
-      {notice ? (
-        <p role="status" className="text-sm text-success-text">
-          {notice}
-        </p>
-      ) : null}
+      <div aria-live="polite" className="sticky top-0 z-20 bg-background">
+        {error ? (
+          <p role="alert" className="py-1 text-sm text-danger-text">
+            {error}
+          </p>
+        ) : null}
+        {notice ? (
+          <p role="status" className="py-1 text-sm text-success-text">
+            {notice}
+          </p>
+        ) : null}
+      </div>
 
       {matrix.isPending || orgs.isPending ? (
         <p className="text-sm text-muted-foreground" aria-busy="true">
@@ -153,7 +165,7 @@ export function PermissionsPage() {
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] border-collapse text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-background">
               <tr>
                 <th className="sticky left-0 bg-background p-2 text-start font-medium">{t('permissionCol')}</th>
                 {roles.map((r) => (
@@ -194,7 +206,7 @@ export function PermissionsPage() {
                               role: tTeam(ROLE_KEYS[role]),
                             })}
                             onChange={() => void toggle(role, permission, has)}
-                            className="size-5 accent-[var(--primary)]"
+                            className="size-6 accent-[var(--primary)]"
                           />
                         </td>
                       );

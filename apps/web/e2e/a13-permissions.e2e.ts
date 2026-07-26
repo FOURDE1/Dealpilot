@@ -48,7 +48,6 @@ test('full A-13 journey: matrix → guard → grant to role → deny to person',
   await expect(page.getByLabel('Exempter un élément de la liste — Directeur des ventes')).toBeChecked();
 
   // The lock-out guard speaks as protection.
-  await page.getByLabel('Gérer les rôles — Propriétaire').uncheck({ force: true }).catch(() => undefined);
   await page.getByLabel('Gérer les rôles — Propriétaire').click();
   await expect(page.getByText(/Refusé pour votre protection/)).toBeVisible();
   await expect(page.getByLabel('Gérer les rôles — Propriétaire')).toBeChecked();

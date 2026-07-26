@@ -193,6 +193,7 @@ export function DispatchPage() {
         id: 'actions',
         header: () => <span className="sr-only">{t('actionsCol')}</span>,
         cell: ({ row }) =>
+          !canUpdate ||
           row.original.status === 'completed' ||
           row.original.status === 'cancelled' ||
           row.original.driver_company_id === null ? null : (

@@ -10,6 +10,7 @@ import { useDealChecklist, useUpdateChecklistItem } from './api.js';
 function ItemRow({
   item,
   dealFrozen,
+  canComplete,
   canWaive: canWaiveProp,
   canSignSafety,
   memberName,
@@ -18,6 +19,7 @@ function ItemRow({
 }: {
   item: DealChecklistItemT;
   dealFrozen: boolean;
+  canComplete: boolean;
   canWaive: boolean;
   canSignSafety: boolean;
   memberName: (id: string | null) => string | null;
@@ -38,8 +40,9 @@ function ItemRow({
         );
   const waived = item.overridden_at !== null;
   const done = item.completed_at !== null;
-  const isSafety = item.code === 'safety';
-  const canTick = !dealFrozen && (!isSafety || canSignSafety);
+  // Server truth: an unwaivable item is the legally-gated one.
+  const isSafety = !item.overridable;
+  const canTick = !dealFrozen && (isSafety ? canSignSafety : canComplete);
   const mayWaive = !dealFrozen && item.overridable && canWaiveProp && !done;
 
   async function send(body: Parameters<typeof update.mutateAsync>[0]['body']): Promise<boolean> {
@@ -202,7 +205,8 @@ export function ChecklistDialog({
   const removed = useMembers(deal?.organization_id, { enabled: deal !== null, status: 'revoked' });
   const [error, setError] = useState<string | null>(null);
 
-  const mine = usePermissionsMine(undefined, { enabled: deal !== null });
+  const mine = usePermissionsMine(deal?.organization_id, { enabled: deal !== null });
+  const canComplete = can(mine.data, 'checklist:complete');
   const canWaive = can(mine.data, 'checklist:waive');
   const canSignSafety = can(mine.data, 'checklist:sign_safety');
   const dealFrozen = deal?.delivered_at !== null && deal !== null;
@@ -257,6 +261,7 @@ export function ChecklistDialog({
                   item={item}
                   dealId={deal?.id ?? ''}
                   dealFrozen={dealFrozen}
+                  canComplete={canComplete}
                   canWaive={canWaive}
                   canSignSafety={canSignSafety}
                   memberName={memberName}

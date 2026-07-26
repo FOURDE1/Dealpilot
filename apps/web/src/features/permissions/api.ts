@@ -31,7 +31,12 @@ export function useSetRolePermissions() {
       if (res.status !== 200) fail(res.status, res.body);
       return PermissionMatrix.parse(res.body);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['permissions'] }),
+    onSuccess: (matrix, body) => {
+      // The PUT answers with the authoritative matrix — write it straight in.
+      queryClient.setQueriesData({ queryKey: ['permissions', 'matrix'] }, () => matrix);
+      void queryClient.invalidateQueries({ queryKey: ['permissions'] });
+      void body;
+    },
   });
 }
 

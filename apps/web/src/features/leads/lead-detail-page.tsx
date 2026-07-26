@@ -30,7 +30,7 @@ export function LeadDetailPage() {
   const deals = useDealsForLead(leadId, lead.data?.organization_id);
   usePageTitle(lead.data ? (leadDisplayName(lead.data) ?? lead.data.phone) : undefined);
   const members = useMembers(lead.data?.organization_id, { enabled: lead.isSuccess });
-  const mine = usePermissionsMine(undefined, { enabled: lead.isSuccess });
+  const mine = usePermissionsMine(lead.data?.organization_id, { enabled: lead.isSuccess });
   const canDispatch = can(mine.data, 'dispatch:book');
   const assignees = activeMembers(members.data?.items);
   const assignedTo = lead.data?.assigned_to ?? null;

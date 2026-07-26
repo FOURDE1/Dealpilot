@@ -294,3 +294,13 @@ deny-by-default everywhere, one readable place defining who can do what, a test
 that fails the build if a developer sneaks a rule back into the code, and an
 audit trail of every change. Anyone who tells you a system is finished-secure is
 selling something.
+
+## ROUND 11 — Roles & permissions (A-13, your D-033)
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 11.1 | Team → "Roles & permissions" | The full picture: every action, grouped, against every role — the answer to "what can a BDC agent do?" | ⬜ |
+| 11.2 | Tick "Waive a checklist item" for Salesperson | Saved; reload — still ticked. Your salespeople can now waive (org-wide) | ⬜ |
+| 11.3 | Untick "Manage roles" for Owner | Refused, worded as protection — you cannot lock yourself out | ⬜ |
+| 11.4 | "Exception for one person": deny someone one permission with a reason | Their button disappears even though their role keeps it — deny wins | ⬜ |
+| 11.5 | Check the risky rows (safety sign-off, everyone's pay, manage roles) | Each carries a one-line warning about what it really hands out | ⬜ |

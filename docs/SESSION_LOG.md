@@ -22,6 +22,24 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — A-13 permissions UI merged: the matrix is readable, editable and honest; CR-10 filed
+
+/team/permissions: 37 permissions grouped for a dealer × 10 roles, org-wide
+ticks, the lock-out guard worded as protection, risky rows annotated (incl.
+'correction screen coming' on the one dead permission), per-person
+exceptions (grant / DENY-beats-role / clear, reason REQUIRED client-side),
+sticky headers, aria-live feedback, 24px targets. Every client role mirror
+is gone — team/checklist/dispatch/lead controls hide on /permissions/mine
+with the RIGHT permission each (invite vs update_roles vs revoke; complete
+vs waive vs sign_safety keyed on the server's overridable flag; read vs
+update on dispatch). Review (22 agents): 19 confirmed findings — 16 fixed
+client-side; the three needing the server are CR-10 (cross-admin lost
+updates on the full-set PUT; the override path bypassing would_lock_out;
+no GET for existing overrides). e2e: matrix defaults → lock-out refusal →
+role grant persisting → a second real session gaining the button → a
+personal deny taking it away (23/23 suite; full gates).
+Owner ROUND 11 appended.
+
 ## 2026-07-26 [HUSSEIN] — F-11/F-11b dispatch UI merged: the delivery run is visible and honest
 
 Board (/dispatch, owner/gm/logistics): every run with customer, type,
