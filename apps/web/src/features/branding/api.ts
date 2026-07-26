@@ -56,7 +56,9 @@ export function useBrandingDraft(orgId: string, opts?: { enabled?: boolean }) {
     retry: false,
     queryFn: async ({ signal }) => {
       const res = await apiRequest(routes.branding.get, { params: { id: orgId }, signal });
-      if (res.status === 404) return null; // no draft yet — editor uses defaults
+      // Never-branded → 200 with a null body (CR-16 fix); a stale 404 means the
+      // same. Either way the editor opens on the shared defaults.
+      if (res.status === 404 || res.body === null) return null;
       if (res.status !== 200) fail(res.status, res.body);
       return TenantBranding.parse(res.body);
     },

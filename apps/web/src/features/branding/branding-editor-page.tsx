@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { BackLink } from '../../shared/ui/back-link.js';
 import { usePageTitle } from '../../shared/use-page-title.js';
 import { Button, Input, Label, Select } from '@dealpilot/ui';
-import { Radius, Density, DarkMode, type UpdateBrandingInput } from '@dealpilot/schemas';
+import { BRANDING_DEFAULTS, Radius, Density, DarkMode, type UpdateBrandingInput } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
 import { can, usePermissionsMine } from '../../shared/permissions.js';
 import { useBrandingDraft, usePublishBranding, useUpdateBranding, type TenantBrandingT } from './api.js';
@@ -45,19 +45,23 @@ const COLOR_FIELDS = [
   { key: 'info_color', label: 'colorInfo', required: false },
 ] as const satisfies readonly { key: keyof Draft; label: string; required: boolean }[];
 
-/** A never-branded org has no draft yet; the editor opens on these. */
+/**
+ * A never-branded org has no draft yet; the editor opens on these. Derived from
+ * the SHARED BRANDING_DEFAULTS (CR-16) — the column defaults and this form must
+ * be one value, or the editor would open on one colour and save another.
+ */
 const PLATFORM_DEFAULT: Draft = {
   display_name: '',
-  primary_color: '#2563EB',
-  accent_color: '',
-  success_color: '',
-  warning_color: '',
-  danger_color: '',
-  info_color: '',
-  font_family: 'inter',
-  radius: 'md',
-  density: 'comfortable',
-  dark_mode: 'derived',
+  primary_color: BRANDING_DEFAULTS.primary_color,
+  accent_color: BRANDING_DEFAULTS.accent_color ?? '',
+  success_color: BRANDING_DEFAULTS.success_color ?? '',
+  warning_color: BRANDING_DEFAULTS.warning_color ?? '',
+  danger_color: BRANDING_DEFAULTS.danger_color ?? '',
+  info_color: BRANDING_DEFAULTS.info_color ?? '',
+  font_family: BRANDING_DEFAULTS.font_family,
+  radius: BRANDING_DEFAULTS.radius,
+  density: BRANDING_DEFAULTS.density,
+  dark_mode: BRANDING_DEFAULTS.dark_mode,
 };
 
 function fromBranding(b: TenantBrandingT | null): Draft {
