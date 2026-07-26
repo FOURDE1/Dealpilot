@@ -9,7 +9,7 @@ import { useOrganizations } from '../organizations/api.js';
 import { useMembers } from '../team/api.js';
 import { ROLE_KEYS } from '../team/team-page.js';
 import { can, usePermissionsMine } from '../../shared/permissions.js';
-import { usePermissionMatrix, useSetRolePermissions, useSetUserPermission } from './api.js';
+import { usePermissionMatrix, useSetRolePermissions, useSetUserPermission, useUserOverrides } from './api.js';
 
 /** Grouped the way a dealer thinks, not the way the schema is spelled. */
 const GROUPS: { key: string; prefixes: string[] }[] = [
@@ -44,6 +44,7 @@ export function PermissionsPage() {
   const mine = usePermissionsMine(scope, { enabled: !orgs.isPending });
   const canEdit = can(mine.data, 'member:update_roles');
   const members = useMembers(orgId, { enabled: !orgs.isPending });
+  const overrides = useUserOverrides(scope, { enabled: !orgs.isPending });
   const setRole = useSetRolePermissions();
   const setUser = useSetUserPermission();
   const [error, setError] = useState<string | null>(null);
@@ -88,9 +89,12 @@ export function PermissionsPage() {
       setError(
         err.errorCode === 'would_lock_out' || err.code === 'would_lock_out'
           ? t('wouldLockOut')
-          : err.status === 403
-            ? t('readOnly')
-            : t('genericError'),
+          : err.status === 409 &&
+              (err.errorCode === 'matrix_changed' || err.code === 'matrix_changed')
+            ? t('matrixChanged')
+            : err.status === 403
+              ? t('readOnly')
+              : t('genericError'),
       );
     }
   }
@@ -290,6 +294,59 @@ export function PermissionsPage() {
           <Button type="button" disabled={setUser.isPending || overrideUser === ''} onClick={() => void applyOverride()}>
             {setUser.isPending ? t('saving') : t('applyOverride')}
           </Button>
+
+          {overrides.isError ? (
+            <p role="alert" className="text-sm text-danger-text">
+              {t('loadError')}
+            </p>
+          ) : (overrides.data?.length ?? 0) > 0 ? (
+            <div className="space-y-1 border-t border-border pt-3">
+              <h3 className="text-sm font-semibold">{t('existingOverrides')}</h3>
+              <ul className="divide-y divide-border text-sm">
+                {overrides.data?.map((o) => {
+                  const who = members.data?.items.find((m) => m.user_id === o.user_id)?.name ?? '—';
+                  return (
+                    <li key={`${o.user_id}-${o.permission}`} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
+                      <span>
+                        {who} — {t(`perm_${o.permission.replace(':', '_')}` as never)}{' '}
+                        <span className={o.allowed ? 'text-success-text' : 'text-danger-text'}>
+                          {o.allowed ? t('overrideAllow') : t('overrideDeny')}
+                        </span>
+                        {o.reason ? (
+                          <span className="block text-xs text-muted-foreground">{o.reason}</span>
+                        ) : null}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={setUser.isPending}
+                        aria-label={t('clearFor', { name: who })}
+                        onClick={() => {
+                          setError(null);
+                          setNotice(null);
+                          setUser
+                            .mutateAsync({
+                              organization_id: orgId ?? '',
+                              user_id: o.user_id,
+                              permission: o.permission,
+                              allowed: null,
+                            })
+                            .then(() => setNotice(t('overrideCleared')))
+                            .catch((err: unknown) => {
+                              setError(t('genericError'));
+                              if (!(err instanceof ApiError)) throw err;
+                            });
+                        }}
+                      >
+                        {t('clearOverride')}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
         </section>
       ) : null}
     </div>

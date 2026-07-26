@@ -234,15 +234,28 @@ export function DeskingPage() {
     try {
       const reserveCents = fiReserve.trim() === '' ? 0 : parseMoneyToCents(fiReserve);
       if (reserveCents === null) return; // invalid reserve must never save as $0
-      await createDeal.mutateAsync({
-        ...inputs,
-        organization_id: lead.data.organization_id,
-        store_id: lead.data.store_id,
-        lead_id: lead.data.id,
-        ...(vehicleId === '' ? {} : { vehicle_id: vehicleId }),
-        ...(soldBy === '' ? {} : { salesperson_id: soldBy }),
-        fi_reserve_cents: reserveCents ?? 0,
-      });
+      if (isEdit) {
+        // Re-desking (CR-07): same fields minus identity — the server recomputes.
+        await updateDeal.mutateAsync({
+          id: dealId,
+          body: {
+            ...inputs,
+            vehicle_id: vehicleId === '' ? null : vehicleId,
+            salesperson_id: soldBy === '' ? null : soldBy,
+            fi_reserve_cents: reserveCents,
+          },
+        });
+      } else {
+        await createDeal.mutateAsync({
+          ...inputs,
+          organization_id: lead.data.organization_id,
+          store_id: lead.data.store_id,
+          lead_id: lead.data.id,
+          ...(vehicleId === '' ? {} : { vehicle_id: vehicleId }),
+          ...(soldBy === '' ? {} : { salesperson_id: soldBy }),
+          fi_reserve_cents: reserveCents,
+        });
+      }
       void navigate(`/leads/${leadId}`);
     } catch (err) {
       setSaveError(t('saveError'));

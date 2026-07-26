@@ -22,6 +22,24 @@
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — CR-10 client half + an honest regression fix on CR-07
+
+CR-10 (AHMAD's server fixes) finished client-side: the matrix save carries
+its base_version and a stale save shows 'someone changed this row — grid
+reloaded, recheck and click again' instead of silently winning; the new
+GET /permissions/overrides renders as 'Exceptions in force' — every
+exception visible with its reason and a one-click Clear (e2e: the deny is
+listed, cleared, and the salesperson's button returns).
+THE HONEST PART: my CR-07 edit-deal fix was BROKEN in a way its own e2e
+missed once — a patch-script string mismatch silently left handleSave on
+the CREATE branch, so 'editing' a deal quietly created a duplicate while
+the prefilled worksheet and the edit label looked right. The recompute
+assertion caught it on the next full run; the branch is now real (verified:
+one deal, PATCH on the wire, payment recomputed). Lesson recorded: scripted
+multi-block edits must assert every replacement landed — a printed
+'wired' is not proof.
+23/23 e2e, full gates.
+
 ## 2026-07-26 [HUSSEIN] — A-13 permissions UI merged: the matrix is readable, editable and honest; CR-10 filed
 
 /team/permissions: 37 permissions grouped for a dealer × 10 roles, org-wide

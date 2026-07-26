@@ -4,6 +4,7 @@ import {
   PermissionMatrix,
   UpdateRolePermissionsInput,
   UpdateUserPermissionInput,
+  UserPermissionOverride,
 } from '@dealpilot/schemas';
 import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
 
@@ -36,6 +37,22 @@ export function useSetRolePermissions() {
       queryClient.setQueriesData({ queryKey: ['permissions', 'matrix'] }, () => matrix);
       void queryClient.invalidateQueries({ queryKey: ['permissions'] });
       void body;
+    },
+  });
+}
+
+/** The exceptions that exist — so they can be seen, audited and cleared. */
+export function useUserOverrides(orgId?: string, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['permissions', 'overrides', orgId ?? 'single-org'] as const,
+    enabled: opts?.enabled ?? true,
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.permissions.overrides, {
+        query: { organization_id: orgId },
+        signal,
+      });
+      if (res.status !== 200) fail(res.status, res.body);
+      return z.object({ items: z.array(UserPermissionOverride) }).parse(res.body).items;
     },
   });
 }

@@ -105,4 +105,27 @@ test('full A-13 journey: matrix → guard → grant to role → deny to person',
   await page.goto(leadUrl);
   await page.getByRole('button', { name: /Liste de livraison/ }).click();
   await expect(page.getByRole('dialog').getByRole('button', { name: 'Exempter' })).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button', { name: 'Fermer' }).click();
+
+  // The exception is VISIBLE in force, and clearing it restores the role's right.
+  await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await page.goto('/login');
+  await page.getByLabel('Courriel').fill(`a13-${stamp}@1dealer.test`);
+  await page.getByLabel('Mot de passe').fill(password);
+  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await expect(page).toHaveURL('/');
+  await page.goto('/team/permissions');
+  await expect(page.getByText('Exceptions en vigueur')).toBeVisible();
+  await expect(page.getByText('En période de revue')).toBeVisible();
+  await page.getByRole('button', { name: 'Effacer l’exception — Marc Acces' }).click();
+  await expect(page.getByText('Exception effacée', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await page.goto('/login');
+  await page.getByLabel('Courriel').fill(`marc-a13-${stamp}@1dealer.test`);
+  await page.getByLabel('Mot de passe').fill('MotDePasse!2026-marc13');
+  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await expect(page).toHaveURL('/');
+  await page.goto(leadUrl);
+  await page.getByRole('button', { name: /Liste de livraison/ }).click();
+  await expect(page.getByRole('dialog').getByRole('button', { name: 'Exempter' }).first()).toBeVisible();
 });
