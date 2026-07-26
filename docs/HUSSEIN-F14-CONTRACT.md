@@ -90,15 +90,10 @@ must not disagree about what is readable.
 - `font_family: 'custom'` requires `font_woff2_key`, else 422. A custom font
   with no file falls back silently and the tenant thinks their brand shipped.
 - An empty PUT body is 422.
-- Asset fields are **keys, not URLs** (`logo_light_key`, `favicon_key`, …). The
-  upload endpoint that fills them is not built yet — see below.
+- Asset fields are **keys, not URLs** (`logo_light_key`, `favicon_key`, …), filled
+  by the upload endpoint documented at the end of this file.
 
 ## Not built yet
-
-**Asset upload.** The columns and the contract are there; there is no endpoint
-to put bytes behind them. It will reuse F-13c's storage driver, so the shape
-will be the same raw-bytes POST you already use for documents. Until then, a
-tenant can brand by colour, name, font, radius and density, but not by logo.
 
 **Custom domains and billing.** Phase 2's other two workstreams need paid
 AWS/Stripe; the standing instruction is that no paid resource is provisioned
