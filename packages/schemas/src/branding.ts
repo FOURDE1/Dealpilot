@@ -93,7 +93,9 @@ export const TenantBranding = z.object({
 /** Defaults-free (the F-05 lesson): a PUT carries only what it changes. */
 export const UpdateBrandingInput = z
   .strictObject({
-    store_id: Uuid.nullable().optional(),
+    // No `store_id` here on purpose: the scope is a query parameter, so a brand
+    // can never be moved to a different rooftop by a field sitting in a payload
+    // beside a set of colours.
     display_name: z.string().trim().min(1).max(120).nullable().optional(),
     legal_name: z.string().trim().min(1).max(200).nullable().optional(),
     support_email: z.email().nullable().optional(),

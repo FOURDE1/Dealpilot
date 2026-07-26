@@ -40,6 +40,20 @@ const BRANDING_COLUMNS = [
   'radius', 'density', 'dark_mode',
 ] as const;
 
+/**
+ * Which brand a request is editing: the group's, or one rooftop's.
+ *
+ * A store-level row is the sub-brand case in section 3 — a group whose Kia
+ * rooftop carries Kia's colours and whose used-car lot carries its own. The
+ * resolution query has always PREFERRED a store row over the group row; without
+ * this the table could hold one that no route could edit or publish, which is
+ * worse than not supporting it at all.
+ */
+function scopeOf(request: { query: unknown }): string | null {
+  const raw = (request.query as { store_id?: string } | undefined)?.store_id;
+  return raw && raw.length > 0 ? raw : null;
+}
+
 const COLOR_COLUMNS = [
   'primary_color', 'accent_color', 'success_color',
   'warning_color', 'danger_color', 'info_color',
@@ -96,13 +110,14 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
   /** The editor's view: the draft as it stands, published or not. */
   app.get('/api/v1/organizations/:id/branding', async (request, reply) => {
     const orgId = idParam(request);
+    const storeId = scopeOf(request);
     const user = sessionUser(request);
     const row = await withTenant(pool, orgId, async (c) => {
       await requirePermission(c, user.id, 'organization:update');
       const r = await c.query<Record<string, unknown>>(
         `SELECT * FROM tenant_branding
-         WHERE organization_id = $1 AND store_id IS NULL AND deleted_at IS NULL`,
-        [orgId],
+         WHERE organization_id = $1 AND store_id IS NOT DISTINCT FROM $2 AND deleted_at IS NULL`,
+        [orgId, storeId],
       );
       return r.rows[0] ?? null;
     });
@@ -117,11 +132,12 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
   app.put('/api/v1/organizations/:id/branding', async (request, reply) => {
     const orgId = idParam(request);
     const input = parseOrThrow(UpdateBrandingInput, request.body);
+    const storeId = scopeOf(request);
     const user = sessionUser(request);
 
     const row = await withTenant(pool, orgId, async (c) => {
       await requirePermission(c, user.id, 'organization:update');
-      if (input.store_id) await requireStoreInOrg(c, input.store_id);
+      if (storeId) await requireStoreInOrg(c, storeId);
 
       // Colours are normalised to OKLCH on the way IN, so the database never
       // holds two spellings of the same colour and the CHECK constraint means
@@ -132,26 +148,31 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
         if (typeof v === 'string') normalized[col] = toOklch(v);
       }
 
-      const cols = BRANDING_COLUMNS.filter((k) => k in normalized);
+      // The scope comes from the URL, never the body: a `store_id` sitting in a
+      // payload beside a set of colours is a way to move a brand to a different
+      // rooftop by accident.
+      delete normalized['store_id'];
+      const cols = BRANDING_COLUMNS.filter((k) => k !== 'store_id' && k in normalized);
       const existing = await c.query<{ id: string }>(
         `SELECT id FROM tenant_branding
-         WHERE organization_id = $1 AND store_id IS NULL AND deleted_at IS NULL
+         WHERE organization_id = $1 AND store_id IS NOT DISTINCT FROM $2 AND deleted_at IS NULL
          FOR UPDATE`,
-        [orgId],
+        [orgId, storeId],
       );
 
       if (existing.rows.length === 0) {
-        const insertCols = ['organization_id', ...cols];
+        const insertCols = ['organization_id', 'store_id', ...cols];
         const r = await c.query<Record<string, unknown>>(
           `INSERT INTO tenant_branding (${insertCols.join(', ')})
            VALUES (${insertCols.map((_, i) => `$${i + 1}`).join(', ')})
            RETURNING *`,
-          [orgId, ...cols.map((k) => normalized[k] ?? null)],
+          [orgId, storeId, ...cols.map((k) => normalized[k] ?? null)],
         );
         await recordEvent(c, {
           organizationId: orgId, storeId: null, actorUserId: user.id,
           entityType: 'tenant_branding', entityId: String(r.rows[0]!['id']),
           action: 'created', parentEntityType: 'organization', parentEntityId: orgId,
+          changes: { scope: storeId ? 'store' : 'organization' },
         });
         return r.rows[0]!;
       }
@@ -199,6 +220,7 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
       ]);
     }
 
+    const storeId = scopeOf(request);
     const contentType = String(request.headers['content-type'] ?? '').split(';')[0]!.trim();
     const extension = BRANDING_CONTENT_TYPES[contentType];
     if (!extension) {
@@ -234,11 +256,12 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
     const user = sessionUser(request);
     const row = await withTenant(pool, orgId, async (c) => {
       await requirePermission(c, user.id, 'organization:update');
+      if (storeId) await requireStoreInOrg(c, storeId);
       const existing = await c.query<{ id: string }>(
         `SELECT id FROM tenant_branding
-         WHERE organization_id = $1 AND store_id IS NULL AND deleted_at IS NULL
+         WHERE organization_id = $1 AND store_id IS NOT DISTINCT FROM $2 AND deleted_at IS NULL
          FOR UPDATE`,
-        [orgId],
+        [orgId, storeId],
       );
 
       const key = brandingKey(orgId, slot, sha256(body), extension);
@@ -250,8 +273,9 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
       // other, so a new logo does not appear on the floor until publish.
       if (existing.rows.length === 0) {
         const r = await c.query<Record<string, unknown>>(
-          `INSERT INTO tenant_branding (organization_id, ${spec.column}) VALUES ($1, $2) RETURNING *`,
-          [orgId, key],
+          `INSERT INTO tenant_branding (organization_id, store_id, ${spec.column})
+           VALUES ($1, $2, $3) RETURNING *`,
+          [orgId, storeId, key],
         );
         return r.rows[0]!;
       }
@@ -292,11 +316,16 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
       await requireMember(c, user.id);
       // From the PUBLISHED snapshot, not the draft column: an unpublished logo
       // must not appear in the app any more than an unpublished colour does.
+      // Store override first, then the group brand — the same order the palette
+      // resolves in, or a rooftop ends up with its own colours under the
+      // group's logo.
       const r = await c.query<{ key: string | null }>(
-        `SELECT published_snapshot ->> $2 AS key FROM tenant_branding
-         WHERE organization_id = $1 AND store_id IS NULL AND deleted_at IS NULL
-           AND published_snapshot IS NOT NULL`,
-        [orgId, spec.column],
+        `SELECT published_snapshot ->> $3 AS key FROM tenant_branding
+         WHERE organization_id = $1 AND deleted_at IS NULL AND published_snapshot IS NOT NULL
+           AND (store_id = $2 OR store_id IS NULL)
+         ORDER BY store_id NULLS LAST
+         LIMIT 1`,
+        [orgId, scopeOf(request), spec.column],
       );
       return r.rows[0]?.key ?? null;
     });
@@ -328,15 +357,16 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
    */
   app.post('/api/v1/organizations/:id/branding/publish', async (request, reply) => {
     const orgId = idParam(request);
+    const storeId = scopeOf(request);
     const user = sessionUser(request);
 
     const row = await withTenant(pool, orgId, async (c) => {
       await requirePermission(c, user.id, 'organization:update');
       const current = await c.query<Record<string, unknown>>(
         `SELECT * FROM tenant_branding
-         WHERE organization_id = $1 AND store_id IS NULL AND deleted_at IS NULL
+         WHERE organization_id = $1 AND store_id IS NOT DISTINCT FROM $2 AND deleted_at IS NULL
          FOR UPDATE`,
-        [orgId],
+        [orgId, storeId],
       );
       if (current.rows.length === 0) throw notFound();
       const b = current.rows[0]!;

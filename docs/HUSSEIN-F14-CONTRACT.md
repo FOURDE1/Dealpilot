@@ -153,3 +153,35 @@ Image **dimension** validation and EXIF stripping (§2 wants max 512×160 for th
 logo, and EXIF stripped from the login background). Both need an image library —
 `sharp` — which is a new dependency and therefore the owner's call, not mine.
 Today the size ceiling and the content-type allowlist are the whole check.
+
+---
+
+## Rooftop sub-brands — the scope is a query parameter
+
+A group can brand itself once, or give an individual rooftop its own sub-brand
+(§3). Every editor endpoint takes an optional `?store_id=`:
+
+| Scope | Call |
+| --- | --- |
+| The group brand | `PUT /api/v1/organizations/:id/branding` |
+| One rooftop | `PUT /api/v1/organizations/:id/branding?store_id=…` |
+
+Same for `GET`, `publish` and asset upload. Reading is
+`GET /api/v1/branding?store_id=…`, which the app should always pass when the
+user has a store selected.
+
+**Resolution is store-first, then group.** A rooftop with its own brand gets it;
+every other rooftop inherits the group's. A store with no override is never a
+404 and never sees a different rooftop's brand.
+
+The two drafts are separate rows with separate publish states: publishing a
+rooftop's brand does not touch the group's, and vice versa.
+
+**`store_id` is NOT in the request body** — it was, briefly, and I removed it.
+A `store_id` sitting in a payload beside a set of colours is a way to move a
+brand to a different rooftop by accident. The scope belongs in the URL.
+
+Why this note exists: the table and the resolution query supported store
+overrides from the first commit, and the editor routes hardcoded the group row —
+so a rooftop brand could be created and then never edited or published. Half
+reachable is worse than absent; it is fixed and tested now.

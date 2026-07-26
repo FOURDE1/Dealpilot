@@ -334,3 +334,88 @@ describe('brand assets', () => {
     expect((await upload('background_music', PNG, 'image/png')).statusCode).toBe(404);
   });
 });
+
+describe('a rooftop can carry its own sub-brand', () => {
+  let storeA = '';
+  let storeB = '';
+
+  it('sets up two stores under the group brand', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    for (const [code, name] of [['SUB-A', 'Kia rooftop'], ['SUB-B', 'Used car lot']] as const) {
+      const res = await app!.inject({
+        method: 'POST', url: '/api/v1/stores', headers: { cookie },
+        payload: { organization_id: orgId, name, code: `${code}-${run.slice(-4)}`, province: 'QC' },
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      const id = (JSON.parse(res.body) as { id: string }).id;
+      if (code === 'SUB-A') storeA = id;
+      else storeB = id;
+    }
+    // The group brand from the earlier tests is what both inherit today.
+    const groupBrand = await current();
+    expect(groupBrand).not.toBeNull();
+  });
+
+  it('publishes a store override without touching the group brand', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const groupBefore = await current();
+
+    const saved = await app!.inject({
+      method: 'PUT', url: `/api/v1/organizations/${orgId}/branding?store_id=${storeA}`,
+      headers: { cookie }, payload: { display_name: 'Kia rooftop', primary_color: '#166534' },
+    });
+    expect(saved.statusCode, saved.body).toBe(200);
+    expect(JSON.parse(saved.body).store_id).toBe(storeA);
+
+    const published = await app!.inject({
+      method: 'POST', url: `/api/v1/organizations/${orgId}/branding/publish?store_id=${storeA}`,
+      headers: { cookie }, payload: {},
+    });
+    // Before the scope was threaded through, this published the GROUP row —
+    // a store override could be created and then never edited or published.
+    expect(published.statusCode, published.body).toBe(200);
+    expect(JSON.parse(published.body).store_id).toBe(storeA);
+
+    // The group's own brand is untouched by a rooftop publishing its own.
+    expect(await current()).toEqual(groupBefore);
+  });
+
+  it('serves the override to its own store and the group brand to the others', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const forA = await app!.inject({
+      method: 'GET', url: `/api/v1/branding?store_id=${storeA}`, headers: { cookie },
+    });
+    expect(JSON.parse(forA.body).display_name).toBe('Kia rooftop');
+
+    const forB = await app!.inject({
+      method: 'GET', url: `/api/v1/branding?store_id=${storeB}`, headers: { cookie },
+    });
+    // No override of its own, so it inherits the group's — not a 404, and not
+    // the other rooftop's brand.
+    expect(JSON.parse(forB.body).display_name).toBe((await current())!.display_name);
+  });
+
+  it('keeps the two drafts separate', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const groupDraft = await app!.inject({
+      method: 'GET', url: `/api/v1/organizations/${orgId}/branding`, headers: { cookie },
+    });
+    const storeDraft = await app!.inject({
+      method: 'GET', url: `/api/v1/organizations/${orgId}/branding?store_id=${storeA}`,
+      headers: { cookie },
+    });
+    expect(JSON.parse(groupDraft.body).store_id).toBeNull();
+    expect(JSON.parse(storeDraft.body).store_id).toBe(storeA);
+    expect(JSON.parse(groupDraft.body).id).not.toBe(JSON.parse(storeDraft.body).id);
+  });
+
+  it("refuses a store that is not this organisation's", async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const res = await app!.inject({
+      method: 'PUT',
+      url: `/api/v1/organizations/${orgId}/branding?store_id=00000000-0000-4000-8000-000000000000`,
+      headers: { cookie }, payload: { primary_color: '#000000' },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});
