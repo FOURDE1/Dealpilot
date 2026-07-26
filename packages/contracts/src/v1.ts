@@ -14,6 +14,10 @@ import {
   ChaserVehicle,
   CreateChaserInput,
   CreateDispatchInput,
+  CreateDriverCompanyInput,
+  DriverCompany,
+  DriverCompanyListQuery,
+  UpdateDriverCompanyInput,
   CreateInvitationInput,
   CreatePlateInput,
   DealerPlate,
@@ -200,6 +204,14 @@ export const apiV1 = c.router({
       query: DispatchListQuery,
       responses: { 200: paginated(DispatchAssignment), ...errorResponses },
     },
+    /** Send the driver request again — the first bounced, or plans changed. */
+    resend: {
+      method: 'POST',
+      path: '/api/v1/dispatch/:id/resend',
+      pathParams: z.object({ id: Uuid }),
+      body: z.object({}).optional(),
+      responses: { 200: z.object({ sent: z.boolean() }), ...errorResponses },
+    },
     /** Move the run along, or record the driver and ETAs. */
     update: {
       method: 'PATCH',
@@ -207,6 +219,31 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: UpdateDispatchInput,
       responses: { 200: DispatchAssignment, ...errorResponses },
+    },
+  }),
+  /**
+   * F-11b driver companies: the roster that replaced a two-name enum. A company
+   * with no store belongs to the whole group.
+   */
+  driverCompanies: c.router({
+    create: {
+      method: 'POST',
+      path: '/api/v1/driver-companies',
+      body: CreateDriverCompanyInput,
+      responses: { 201: DriverCompany, ...errorResponses },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/driver-companies',
+      query: DriverCompanyListQuery,
+      responses: { 200: paginated(DriverCompany), ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/driver-companies/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateDriverCompanyInput,
+      responses: { 200: DriverCompany, ...errorResponses },
     },
   }),
   /** F-11 fleet: the follow cars that bring drivers home. */

@@ -231,7 +231,7 @@ export async function buildApp(
   registerF09Routes(app, pool);
   // The invitation link points at the WEB app, not the API — WEB_ORIGIN is
   // already the one origin allowed to call us with credentials (H-03).
-  registerF11Routes(app, pool);
+  registerF11Routes(app, pool, mailer);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);
 

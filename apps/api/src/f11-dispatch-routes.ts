@@ -4,7 +4,10 @@ import { canTransition, driverRequirement, releasesResources } from '@dealpilot/
 import {
   CreateChaserInput,
   CreateDispatchInput,
+  CreateDriverCompanyInput,
   CreatePlateInput,
+  DriverCompanyListQuery,
+  UpdateDriverCompanyInput,
   DispatchListQuery,
   FleetListQuery,
   UpdateChaserInput,
@@ -14,6 +17,7 @@ import {
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import { recordEvent } from './activity.js';
+import { dispatchRequestMessage, type Mailer } from './email.js';
 
 /**
  * F-11 dispatch (dispatch-transport.md). Who drives the car to the customer,
@@ -33,7 +37,7 @@ import { recordEvent } from './activity.js';
 /** Who may touch the fleet and the board. */
 const DISPATCH_ROLES = ['owner', 'gm', 'logistics'] as const;
 
-export function registerF11Routes(app: FastifyInstance, pool: Pool): void {
+export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mailer): void {
   // ---- fleet: chasers -----------------------------------------------------
   app.post('/api/v1/chasers', async (request, reply) => {
     const input = parseOrThrow(CreateChaserInput, request.body);
@@ -160,6 +164,104 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool): void {
     return reply.status(204).send();
   });
 
+
+  // ---- driver companies ---------------------------------------------------
+  /**
+   * The roster that replaces the hardcoded two-name enum (§9). A company with a
+   * NULL store belongs to the whole group.
+   */
+  app.post('/api/v1/driver-companies', async (request, reply) => {
+    const input = parseOrThrow(CreateDriverCompanyInput, request.body);
+    const user = sessionUser(request);
+    try {
+      const row = await withTenant(pool, input.organization_id, async (c) => {
+        await requireMember(c, user.id, DISPATCH_ROLES);
+        if (input.store_id) await requireLiveStore(c, input.store_id);
+        const r = await c.query<Record<string, unknown>>(
+          `INSERT INTO driver_companies
+             (organization_id, store_id, name, email, phone, contact_name, service_area, rate_info)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+          [
+            input.organization_id, input.store_id ?? null, input.name, input.email,
+            input.phone ?? null, input.contact_name ?? null,
+            input.service_area ?? null, input.rate_info ?? null,
+          ],
+        );
+        return r.rows[0]!;
+      });
+      return await reply.status(201).send(row);
+    } catch (err) {
+      throw conflictFrom(err) ?? err;
+    }
+  });
+
+  app.get('/api/v1/driver-companies', async (request, reply) => {
+    const query = parseOrThrow(DriverCompanyListQuery, request.query);
+    const user = sessionUser(request);
+    const orgId = await resolveOrg(pool, user.id, query.organization_id);
+    const page = await withTenant(pool, orgId, async (c) => {
+      await requireMember(c, user.id, DISPATCH_ROLES);
+      const params: unknown[] = [orgId];
+      let where = 'organization_id = $1 AND deleted_at IS NULL';
+      if (query.store_id) {
+        params.push(query.store_id);
+        // A group-wide company (NULL store) is usable by every store.
+        where += ` AND (store_id = $${params.length} OR store_id IS NULL)`;
+      }
+      return keysetPage(c, `SELECT * FROM driver_companies WHERE ${where}`, params, query);
+    });
+    return reply.send(page);
+  });
+
+  app.patch('/api/v1/driver-companies/:id', async (request, reply) => {
+    const id = idParam(request);
+    const input = parseOrThrow(UpdateDriverCompanyInput, request.body);
+    const user = sessionUser(request);
+    const orgId = await rowOrg(pool, user.id, 'driver_companies', id);
+    const row = await withTenant(pool, orgId, async (c) => {
+      await requireMember(c, user.id, DISPATCH_ROLES);
+      const fields = Object.entries(input).filter(([k]) => DRIVER_COMPANY_COLUMNS.has(k));
+      if (fields.length === 0) {
+        const r = await c.query<Record<string, unknown>>(
+          `SELECT * FROM driver_companies WHERE id = $1 AND deleted_at IS NULL`, [id],
+        );
+        if (r.rows.length === 0) throw notFound();
+        return r.rows[0]!;
+      }
+      const sets = fields.map(([k], n) => `${k} = $${n + 2}`).join(', ');
+      const r = await c.query<Record<string, unknown>>(
+        `UPDATE driver_companies SET ${sets} WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+        [id, ...fields.map(([, v]) => v)],
+      );
+      if (r.rows.length === 0) throw notFound();
+      return r.rows[0]!;
+    });
+    return reply.send(row);
+  });
+
+  /** Send the driver request again — the first one bounced, or plans changed. */
+  app.post('/api/v1/dispatch/:id/resend', async (request, reply) => {
+    const id = idParam(request);
+    const user = sessionUser(request);
+    const orgId = await rowOrg(pool, user.id, 'dispatch_assignments', id);
+    const req = await withTenant(pool, orgId, async (c) => {
+      await requireMember(c, user.id, DISPATCH_ROLES);
+      return buildDispatchRequest(c, id);
+    });
+    if (!req) {
+      throw new AppError(422, 'no_driver_company', 'This run has no driver company to email', [
+        { path: 'driver_company_id', code: 'no_driver_company', message: 'Assign a driver company first' },
+      ]);
+    }
+    const sent = await mailer.send(dispatchRequestMessage(req));
+    if (sent) {
+      await withTenant(pool, orgId, async (c) => {
+        await c.query(`UPDATE dispatch_assignments SET email_sent_at = now() WHERE id = $1`, [id]);
+      });
+    }
+    return reply.send({ sent });
+  });
+
   // ---- the board ----------------------------------------------------------
   /**
    * Book a run. The server picks the plate and chaser: the caller does not get
@@ -186,6 +288,28 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool): void {
       );
       if (deal.rows.length === 0) throw notFound();
       const d = deal.rows[0]!;
+
+      // §9 booking gate. The spec reaches for a `deals.wet_ink_file_status`
+      // column; F-08 already models this as the `wet_ink_file` item on the
+      // deal's delivery checklist — with who signed it off, when, and the
+      // manager waiver path for the cases judged acceptable. Reading that
+      // instead of inventing a second truth about the same paperwork.
+      const wetInk = await c.query<{ ready: boolean }>(
+        `SELECT (completed_at IS NOT NULL OR overridden_at IS NOT NULL) AS ready
+         FROM deal_checklist_items WHERE deal_id = $1 AND code = 'wet_ink_file'`,
+        [input.deal_id],
+      );
+      // No checklist row at all means a deal that predates F-08 — not a reason
+      // to strand a delivery, so only an explicit "not done" blocks.
+      if (wetInk.rows.length > 0 && !wetInk.rows[0]!.ready) {
+        throw new AppError(422, 'wet_ink_not_ready', 'The signed file is not ready', [
+          {
+            path: 'deal_id',
+            code: 'wet_ink_not_ready',
+            message: 'A driver must leave with a complete signed file — tick or waive it on the checklist first',
+          },
+        ]);
+      }
 
       const bookedAt = input.booked_delivery_at ? new Date(input.booked_delivery_at) : d.booked_delivery_at;
       if (!bookedAt) {
@@ -245,13 +369,19 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool): void {
         `INSERT INTO dispatch_assignments
            (organization_id, store_id, deal_id, chaser_vehicle_id, dealer_plate_id,
             has_trade_in, num_drivers_needed, dispatch_company, status,
-            conflict_flag, conflict_reason, assigned_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'assigned',$9,$10, now())
+            conflict_flag, conflict_reason, assigned_at,
+            driver_company_id, dispatch_type, pickup_address, delivery_address,
+            cash_to_collect_cents, special_instructions)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'assigned',$9,$10, now(),
+                 $11,$12,$13,$14,$15,$16)
          RETURNING *`,
         [
           orgId, d.store_id, input.deal_id, chaser?.resource.id ?? null, plate.resource.id,
           hasTradeIn, numDrivers, input.dispatch_company ?? null,
           conflict.flag, conflict.reason,
+          input.driver_company_id ?? null, input.dispatch_type ?? 'delivery',
+          input.pickup_address ?? null, input.delivery_address ?? null,
+          input.cash_to_collect_cents ?? 0, input.special_instructions ?? null,
         ],
       );
 
@@ -278,6 +408,20 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool): void {
         reason: conflict.reason,
       });
       return r.rows[0]!;
+    }).then(async (row) => {
+      // Sent AFTER the transaction commits, deliberately: a driver company must
+      // never be summoned for a booking that rolled back. The trade-off is that
+      // a mail failure leaves a valid run unsent — which is visible as
+      // email_sent_at = null and fixed with /resend, rather than silently
+      // losing the booking.
+      const req = await withTenant(pool, orgId, (c) => buildDispatchRequest(c, String(row['id'])));
+      if (req && (await mailer.send(dispatchRequestMessage(req)))) {
+        await withTenant(pool, orgId, async (c) => {
+          await c.query(`UPDATE dispatch_assignments SET email_sent_at = now() WHERE id = $1`, [row['id']]);
+        });
+        return { ...row, email_sent_at: new Date().toISOString() };
+      }
+      return row;
     }).catch((err: unknown) => {
       // One live run per deal (partial unique index). Without this it surfaced
       // as a 500 — the only create route in the repo that lacked the mapping.
@@ -417,6 +561,8 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool): void {
 const DISPATCH_COLUMNS = new Set([
   'status', 'dispatch_company', 'driver_name', 'driver_phone', 'driver_vehicle',
   'eta_departure', 'eta_arrival',
+  'driver_company_id', 'pickup_address', 'delivery_address',
+  'cash_to_collect_cents', 'special_instructions',
 ]);
 
 interface Resource { id: string; label: string }
@@ -564,6 +710,64 @@ async function retireFleetRow(
   if (gone.rows.length === 0) throw notFound();
 }
 
+const DRIVER_COMPANY_COLUMNS = new Set([
+  'name', 'email', 'phone', 'contact_name', 'service_area', 'rate_info', 'active',
+]);
+
+/**
+ * Gather what the driver company needs to be told. Returns null when the run
+ * has no company assigned — nothing to send, and not an error on the booking
+ * path (a store may dispatch its own staff).
+ */
+async function buildDispatchRequest(client: PoolClient, assignmentId: string) {
+  const r = await client.query<{
+    to: string; vehicle: string; delivery_date: Date | null;
+    pickup_address: string | null; delivery_address: string | null;
+    drivers: number; has_trade_in: boolean; cash: number;
+    plate: string | null; chaser: string | null;
+    instructions: string | null; store_name: string; wet_ink_ready: boolean | null;
+  }>(
+    `SELECT dc.email AS to,
+            coalesce(nullif(trim(concat_ws(' ', v.year, v.make, v.model)), ''), 'Véhicule / Vehicle') AS vehicle,
+            d.booked_delivery_at AS delivery_date,
+            a.pickup_address, a.delivery_address,
+            a.num_drivers_needed AS drivers, a.has_trade_in,
+            a.cash_to_collect_cents AS cash,
+            p.plate_number AS plate, ch.name AS chaser,
+            a.special_instructions AS instructions,
+            s.name AS store_name,
+            (SELECT (i.completed_at IS NOT NULL OR i.overridden_at IS NOT NULL)
+             FROM deal_checklist_items i
+             WHERE i.deal_id = a.deal_id AND i.code = 'wet_ink_file') AS wet_ink_ready
+     FROM dispatch_assignments a
+     JOIN driver_companies dc ON dc.id = a.driver_company_id AND dc.deleted_at IS NULL
+     JOIN deals d ON d.id = a.deal_id
+     JOIN stores s ON s.id = a.store_id
+     LEFT JOIN vehicles v ON v.id = d.vehicle_id
+     LEFT JOIN dealer_plates p ON p.id = a.dealer_plate_id
+     LEFT JOIN chaser_vehicles ch ON ch.id = a.chaser_vehicle_id
+     WHERE a.id = $1 AND a.deleted_at IS NULL`,
+    [assignmentId],
+  );
+  const row = r.rows[0];
+  if (!row) return null;
+  return {
+    to: row.to,
+    vehicle: row.vehicle,
+    deliveryDate: row.delivery_date ? new Date(row.delivery_date).toISOString().slice(0, 16).replace('T', ' ') : 'à confirmer',
+    pickupAddress: row.pickup_address,
+    deliveryAddress: row.delivery_address,
+    driversNeeded: row.drivers,
+    hasTradeIn: row.has_trade_in,
+    cashToCollectCents: row.cash,
+    wetInkReady: row.wet_ink_ready === true,
+    plateNumber: row.plate,
+    chaserName: row.chaser,
+    specialInstructions: row.instructions,
+    storeName: row.store_name,
+  };
+}
+
 async function requireLiveStore(client: PoolClient, storeId: string): Promise<void> {
   const r = await client.query(
     `SELECT 1 FROM stores WHERE id = $1 AND deleted_at IS NULL AND status <> 'closed'`,
@@ -628,7 +832,7 @@ async function rowOrg(
   userId: string,
   // A closed union, not a bare string: this is the one signature in the module
   // that would otherwise accept a variable table name without a type error.
-  table: 'deals' | 'dealer_plates' | 'chaser_vehicles' | 'dispatch_assignments',
+  table: 'deals' | 'dealer_plates' | 'chaser_vehicles' | 'dispatch_assignments' | 'driver_companies',
   id: string,
 ): Promise<string> {
   const orgs = await withUser(pool, userId, async (c) => {

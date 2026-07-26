@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CursorQuery, IsoDateTime, Uuid } from './common.js';
+import { CursorQuery, Email, IsoDateTime, NonNegativeCents, Uuid } from './common.js';
 
 /**
  * F-11 dispatch / transport (dispatch-transport.md). Sending drivers, a dealer
@@ -18,7 +18,56 @@ export const DispatchStatus = z.enum([
   'assigned', 'departed', 'arrived', 'completed', 'cancelled',
 ]);
 
+/**
+ * Kept only so existing rows parse. New work uses `driver_company_id` — a
+ * roster the store manages, not two names frozen into the schema (§9).
+ */
 export const DispatchCompany = z.enum(['supreme', 'denises_guys']);
+
+/** A delivery, a sourced-unit pickup, or a store-to-store transfer. */
+export const DispatchType = z.enum(['delivery', 'pickup', 'transfer']);
+
+export const DriverCompany = z.object({
+  id: Uuid,
+  organization_id: Uuid,
+  /** NULL means every store in the group may use them. */
+  store_id: Uuid.nullable(),
+  name: z.string(),
+  email: z.string(),
+  phone: z.string().nullable(),
+  contact_name: z.string().nullable(),
+  service_area: z.string().nullable(),
+  rate_info: z.string().nullable(),
+  active: z.boolean(),
+  created_at: IsoDateTime,
+  updated_at: IsoDateTime,
+});
+
+export const CreateDriverCompanyInput = z.strictObject({
+  organization_id: Uuid,
+  store_id: Uuid.optional(),
+  name: z.string().trim().min(1).max(120),
+  email: Email,
+  phone: z.string().trim().min(1).max(40).optional(),
+  contact_name: z.string().trim().min(1).max(120).optional(),
+  service_area: z.string().trim().min(1).max(200).optional(),
+  rate_info: z.string().trim().min(1).max(500).optional(),
+});
+
+export const UpdateDriverCompanyInput = z.strictObject({
+  name: z.string().trim().min(1).max(120).optional(),
+  email: Email.optional(),
+  phone: z.string().trim().min(1).max(40).nullable().optional(),
+  contact_name: z.string().trim().min(1).max(120).nullable().optional(),
+  service_area: z.string().trim().min(1).max(200).nullable().optional(),
+  rate_info: z.string().trim().min(1).max(500).nullable().optional(),
+  active: z.boolean().optional(),
+});
+
+export const DriverCompanyListQuery = CursorQuery.extend({
+  organization_id: Uuid.optional(),
+  store_id: Uuid.optional(),
+});
 
 export const ChaserVehicle = z.object({
   id: Uuid,
@@ -78,6 +127,14 @@ export const DispatchAssignment = z.object({
   has_trade_in: z.boolean(),
   num_drivers_needed: z.number().int(),
   dispatch_company: DispatchCompany.nullable(),
+  driver_company_id: Uuid.nullable(),
+  dispatch_type: DispatchType,
+  pickup_address: z.string().nullable(),
+  delivery_address: z.string().nullable(),
+  /** Integer cents (ADR-009) — money a driver physically carries. */
+  cash_to_collect_cents: z.number().int(),
+  special_instructions: z.string().nullable(),
+  email_sent_at: IsoDateTime.nullable(),
   status: DispatchStatus,
   /** A conflict flags for review — it never blocks the booking. */
   conflict_flag: z.boolean(),
@@ -106,6 +163,13 @@ export const CreateDispatchInput = z.strictObject({
    */
   booked_delivery_at: IsoDateTime.optional(),
   dispatch_company: DispatchCompany.optional(),
+  /** Who drives it. The request email goes to this company (§9). */
+  driver_company_id: Uuid.optional(),
+  dispatch_type: DispatchType.optional(),
+  pickup_address: z.string().trim().min(1).max(300).optional(),
+  delivery_address: z.string().trim().min(1).max(300).optional(),
+  cash_to_collect_cents: NonNegativeCents.optional(),
+  special_instructions: z.string().trim().min(1).max(1000).optional(),
 });
 
 /** Defaults-free (the F-05 lesson): a PATCH carries only what it changes. */
@@ -117,6 +181,11 @@ export const UpdateDispatchInput = z.strictObject({
   driver_vehicle: z.string().trim().min(1).max(120).nullable().optional(),
   eta_departure: IsoDateTime.nullable().optional(),
   eta_arrival: IsoDateTime.nullable().optional(),
+  driver_company_id: Uuid.nullable().optional(),
+  pickup_address: z.string().trim().min(1).max(300).nullable().optional(),
+  delivery_address: z.string().trim().min(1).max(300).nullable().optional(),
+  cash_to_collect_cents: NonNegativeCents.optional(),
+  special_instructions: z.string().trim().min(1).max(1000).nullable().optional(),
 });
 
 export const DispatchListQuery = CursorQuery.extend({
@@ -140,3 +209,4 @@ export const FleetListQuery = CursorQuery.extend({
 export type DispatchAssignmentT = z.infer<typeof DispatchAssignment>;
 export type ChaserVehicleT = z.infer<typeof ChaserVehicle>;
 export type DealerPlateT = z.infer<typeof DealerPlate>;
+export type DriverCompanyT = z.infer<typeof DriverCompany>;

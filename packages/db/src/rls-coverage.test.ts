@@ -57,6 +57,8 @@ const BEHAVIOURALLY_COVERED = new Set([
   // F-11: cross-tenant case in apps/api/src/f11-dispatch.test.ts
   // ("another organization sees none of this fleet").
   'chaser_vehicles', 'dealer_plates', 'dispatch_assignments',
+  // F-11b: same suite, 'another organization sees none of this fleet'.
+  'driver_companies',
 ]);
 
 interface PolicyRow {

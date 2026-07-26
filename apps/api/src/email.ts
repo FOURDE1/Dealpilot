@@ -134,3 +134,87 @@ export function invitationMessage(to: string, url: string): EmailMessage {
     ].join('\n'),
   };
 }
+
+/** Everything a driver needs before they get in the car (dispatch §9/§10). */
+export interface DispatchRequest {
+  to: string;
+  vehicle: string;
+  deliveryDate: string;
+  pickupAddress: string | null;
+  deliveryAddress: string | null;
+  driversNeeded: number;
+  hasTradeIn: boolean;
+  cashToCollectCents: number;
+  wetInkReady: boolean;
+  plateNumber: string | null;
+  chaserName: string | null;
+  specialInstructions: string | null;
+  storeName: string;
+}
+
+const money = (cents: number, locale: string) =>
+  new Intl.NumberFormat(locale, { style: 'currency', currency: 'CAD' }).format(cents / 100);
+
+/**
+ * The driver request. FR first (Bill 96) — the legacy template was hardcoded
+ * English and named one store, which ADR-018 calls a release blocker; the store
+ * name is passed in and both languages are always sent, because the driver
+ * companies a Quebec dealer group uses are not reliably bilingual in either
+ * direction.
+ *
+ * Note what is spelled out rather than assumed: WHY the second driver exists.
+ * A dispatcher reading "2 drivers" can forget; a driver reading "no trade-in to
+ * drive back, so a second driver follows and brings the first one home" cannot
+ * misread it.
+ */
+export function dispatchRequestMessage(r: DispatchRequest): EmailMessage {
+  const fr: string[] = [
+    'Bonjour,',
+    '',
+    `Demande de chauffeur — ${r.storeName}`,
+    '',
+    `Véhicule : ${r.vehicle}`,
+    `Date de livraison : ${r.deliveryDate}`,
+    r.pickupAddress ? `Adresse de départ : ${r.pickupAddress}` : "Adresse de départ : à confirmer",
+    r.deliveryAddress ? `Adresse de livraison : ${r.deliveryAddress}` : 'Adresse de livraison : à confirmer',
+    '',
+    `Chauffeurs requis : ${r.driversNeeded}`,
+    r.hasTradeIn
+      ? "  (échange à ramener — le chauffeur revient avec le véhicule d'échange)"
+      : "  (aucun échange — un deuxième chauffeur suit et ramène le premier)",
+    r.plateNumber ? `Plaque de commerçant : ${r.plateNumber}` : '',
+    r.chaserName ? `Véhicule suiveur : ${r.chaserName}` : '',
+    '',
+    r.cashToCollectCents > 0 ? `ARGENT À PERCEVOIR : ${money(r.cashToCollectCents, 'fr-CA')}` : 'Aucun montant à percevoir.',
+    r.wetInkReady ? 'Dossier signé : prêt.' : 'Dossier signé : PAS ENCORE PRÊT — à confirmer avant le départ.',
+    r.specialInstructions ? `\nInstructions particulières : ${r.specialInstructions}` : '',
+  ];
+
+  const en: string[] = [
+    'Hello,',
+    '',
+    `Driver request — ${r.storeName}`,
+    '',
+    `Vehicle: ${r.vehicle}`,
+    `Delivery date: ${r.deliveryDate}`,
+    r.pickupAddress ? `Pickup address: ${r.pickupAddress}` : 'Pickup address: to be confirmed',
+    r.deliveryAddress ? `Delivery address: ${r.deliveryAddress}` : 'Delivery address: to be confirmed',
+    '',
+    `Drivers needed: ${r.driversNeeded}`,
+    r.hasTradeIn
+      ? '  (trade-in to bring back — the driver returns in the trade)'
+      : '  (no trade-in — a second driver follows and brings the first one home)',
+    r.plateNumber ? `Dealer plate: ${r.plateNumber}` : '',
+    r.chaserName ? `Chaser vehicle: ${r.chaserName}` : '',
+    '',
+    r.cashToCollectCents > 0 ? `CASH TO COLLECT: ${money(r.cashToCollectCents, 'en-CA')}` : 'No cash to collect.',
+    r.wetInkReady ? 'Signed file: ready.' : 'Signed file: NOT READY YET — confirm before leaving.',
+    r.specialInstructions ? `\nSpecial instructions: ${r.specialInstructions}` : '',
+  ];
+
+  return {
+    to: r.to,
+    subject: `Demande de chauffeur / Driver request — ${r.vehicle} — ${r.deliveryDate}`,
+    text: [...fr.filter((l) => l !== ''), '', '— — —', '', ...en.filter((l) => l !== '')].join('\n'),
+  };
+}

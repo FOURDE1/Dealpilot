@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { createPool, ensureTestDatabase, reset, testAdminUrl, testAppUrl, type Pool } from '@dealpilot/db';
 import { DispatchAssignment } from '@dealpilot/schemas';
 import { buildApp } from './app.js';
+import type { EmailMessage } from './email.js';
 
 /**
  * F-11 dispatch. The rules are golden-tested in packages/core; this suite is
@@ -23,8 +24,10 @@ let cookie = '';
 let orgId = '';
 let storeId = '';
 let firstPlateId = '';
+let companyId = '';
+const sent: EmailMessage[] = [];
 
-async function makeDeal(opts: { tradeIn: boolean; bookedAt: string }) {
+async function makeDeal(opts: { tradeIn: boolean; bookedAt: string; wetInk?: boolean }) {
   const res = await app!.inject({
     method: 'POST', url: '/api/v1/deals', headers: { cookie },
     payload: {
@@ -36,6 +39,15 @@ async function makeDeal(opts: { tradeIn: boolean; bookedAt: string }) {
   });
   const id = (JSON.parse(res.body) as { id: string }).id;
   await admin.query(`UPDATE deals SET booked_delivery_at = $2 WHERE id = $1`, [id, opts.bookedAt]);
+  // Dispatch will not send a driver without the signed file (§9 gate, which
+  // reads F-08's checklist). These tests are about scheduling, so satisfy it
+  // here — the gate itself has its own test below.
+  if (opts.wetInk !== false) {
+    await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${id}/checklist/wet_ink_file`, headers: { cookie },
+      payload: { completed: true },
+    });
+  }
   return id;
 }
 
@@ -61,7 +73,10 @@ beforeAll(async () => {
     return;
   }
   await reset(admin, migrationsDir, ADMIN_URL);
-  ({ app } = await buildApp({ DATABASE_URL: APP_URL, NODE_ENV: 'test' }));
+  ({ app } = await buildApp(
+    { DATABASE_URL: APP_URL, NODE_ENV: 'test' },
+    { mailer: { async send(m) { sent.push(m); return true; } } },
+  ));
 
   const signUp = await app!.inject({
     method: 'POST', url: '/api/auth/sign-up/email',
@@ -91,6 +106,14 @@ beforeAll(async () => {
     method: 'POST', url: '/api/v1/chasers', headers: { cookie },
     payload: { organization_id: orgId, store_id: storeId, name: 'White Kia Soul' },
   });
+  const company = await app!.inject({
+    method: 'POST', url: '/api/v1/driver-companies', headers: { cookie },
+    payload: {
+      organization_id: orgId, store_id: storeId,
+      name: 'Transport Supreme', email: 'dispatch@supreme.test', contact_name: 'Luc',
+    },
+  });
+  companyId = (JSON.parse(company.body) as { id: string }).id;
 });
 
 afterAll(async () => {
@@ -213,6 +236,10 @@ describe('F-11 dispatch', () => {
     });
     const dealId = (JSON.parse(res.body) as { id: string }).id;
     await admin.query(`UPDATE deals SET booked_delivery_at = $2 WHERE id = $1`, [dealId, '2027-02-01T10:00:00Z']);
+    await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${dealId}/checklist/wet_ink_file`, headers: { cookie },
+      payload: { completed: true },
+    });
 
     const booked = await book(dealId);
     expect(booked.statusCode).toBe(201);
@@ -466,6 +493,132 @@ describe('F-11 dispatch', () => {
     expect(ids).toContain(a.dealer_plate_id);
   });
 
+
+  it('booking emails the driver company everything they need', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const dealId = await makeDeal({ tradeIn: false, bookedAt: '2029-03-01T09:00:00Z' });
+    const res = await app!.inject({
+      method: 'POST', url: '/api/v1/dispatch', headers: { cookie },
+      payload: {
+        deal_id: dealId,
+        driver_company_id: companyId,
+        pickup_address: '123 rue Principale, Mont-Laurier',
+        delivery_address: '456 avenue des Pins, Laval',
+        cash_to_collect_cents: 150_000,
+        special_instructions: 'Client works nights — call before 10h',
+      },
+    });
+    expect(res.statusCode).toBe(201);
+
+    const mail = sent[sent.length - 1]!;
+    expect(mail.to).toBe('dispatch@supreme.test');
+    // FR first (Bill 96), and both languages always — the driver companies a
+    // Quebec group uses are not reliably bilingual in either direction.
+    expect(mail.text.indexOf('Demande de chauffeur')).toBeLessThan(mail.text.indexOf('Driver request'));
+    expect(mail.text).toContain('123 rue Principale');
+    expect(mail.text).toContain('456 avenue des Pins');
+    // Money a driver physically carries, formatted for a human in both locales.
+    // Intl uses a narrow no-break space in fr-CA, so normalize before matching
+    // rather than pinning the test to one Unicode space.
+    const normalized = mail.text.replace(/[\s\u00a0\u202f]+/g, ' ');
+    expect(normalized).toContain('1 500,00 $');
+    expect(normalized).toContain('$1,500.00');
+    expect(mail.text).toContain('Client works nights');
+    // WHY a second driver exists, spelled out rather than left as a number.
+    expect(mail.text).toContain('un deuxième chauffeur suit');
+    expect(mail.text).toContain('a second driver follows');
+
+    expect(DispatchAssignment.parse(JSON.parse(res.body)).email_sent_at).not.toBeNull();
+  });
+
+  it('a trade-in email explains the driver comes back in the trade', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const dealId = await makeDeal({ tradeIn: true, bookedAt: '2029-04-01T09:00:00Z' });
+    await app!.inject({
+      method: 'POST', url: '/api/v1/dispatch', headers: { cookie },
+      payload: { deal_id: dealId, driver_company_id: companyId },
+    });
+    const mail = sent[sent.length - 1]!;
+    expect(mail.text).toContain("échange à ramener");
+    expect(mail.text).toContain('trade-in to bring back');
+  });
+
+  it('the signed file must be ready before a driver is sent (§9 gate)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const dealId = await makeDeal({ tradeIn: true, bookedAt: '2029-05-01T09:00:00Z', wetInk: false });
+    // F-08 gives every new deal its checklist, and wet_ink_file starts undone.
+    const res = await app!.inject({
+      method: 'POST', url: '/api/v1/dispatch', headers: { cookie },
+      payload: { deal_id: dealId, driver_company_id: companyId },
+    });
+    expect(res.statusCode).toBe(422);
+    expect(JSON.parse(res.body).error.code).toBe('wet_ink_not_ready');
+
+    // Ticking it on the checklist is what unblocks dispatch — one truth about
+    // the paperwork, not two.
+    await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${dealId}/checklist/wet_ink_file`, headers: { cookie },
+      payload: { completed: true },
+    });
+    const after = await app!.inject({
+      method: 'POST', url: '/api/v1/dispatch', headers: { cookie },
+      payload: { deal_id: dealId, driver_company_id: companyId },
+    });
+    expect(after.statusCode).toBe(201);
+  });
+
+  it('a run with no driver company books fine and sends nothing', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const before = sent.length;
+    const dealId = await makeDeal({ tradeIn: true, bookedAt: '2029-06-01T09:00:00Z' });
+    const res = await app!.inject({
+      method: 'POST', url: '/api/v1/dispatch', headers: { cookie }, payload: { deal_id: dealId },
+    });
+    // A store may drive its own deliveries; that is not an error.
+    expect(res.statusCode).toBe(201);
+    expect(DispatchAssignment.parse(JSON.parse(res.body)).email_sent_at).toBeNull();
+    expect(sent.length).toBe(before);
+  });
+
+  it('resend goes out again and refuses when there is nobody to email', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const withCompany = await app!.inject({
+      method: 'GET', url: `/api/v1/dispatch?organization_id=${orgId}&limit=100`, headers: { cookie },
+    });
+    const items = (JSON.parse(withCompany.body) as { items: { id: string; driver_company_id: string | null }[] }).items;
+    const withOne = items.find((i) => i.driver_company_id !== null)!;
+    const without = items.find((i) => i.driver_company_id === null)!;
+
+    const before = sent.length;
+    const again = await app!.inject({
+      method: 'POST', url: `/api/v1/dispatch/${withOne.id}/resend`, headers: { cookie },
+    });
+    expect(again.statusCode).toBe(200);
+    expect(sent.length).toBe(before + 1);
+
+    const nobody = await app!.inject({
+      method: 'POST', url: `/api/v1/dispatch/${without.id}/resend`, headers: { cookie },
+    });
+    expect(nobody.statusCode).toBe(422);
+    expect(JSON.parse(nobody.body).error.code).toBe('no_driver_company');
+  });
+
+  it('a group-wide driver company is offered to every store', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const groupWide = await app!.inject({
+      method: 'POST', url: '/api/v1/driver-companies', headers: { cookie },
+      payload: { organization_id: orgId, name: 'Denise Guys', email: 'ops@deniseguys.test' },
+    });
+    expect(groupWide.statusCode).toBe(201);
+    const list = await app!.inject({
+      method: 'GET', url: `/api/v1/driver-companies?organization_id=${orgId}&store_id=${storeId}`, headers: { cookie },
+    });
+    const names = (JSON.parse(list.body) as { items: { name: string }[] }).items.map((i) => i.name);
+    // NULL store means the whole group may use them (§9).
+    expect(names).toContain('Denise Guys');
+    expect(names).toContain('Transport Supreme');
+  });
+
   it('another organization sees none of this fleet', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const rival = await app!.inject({
@@ -484,5 +637,11 @@ describe('F-11 dispatch', () => {
       method: 'GET', url: `/api/v1/plates?organization_id=${orgId}`, headers: { cookie: rivalCookie },
     });
     expect(res.statusCode).toBe(404);
+
+    // Driver companies carry a partner's contact details — same rule.
+    const companies = await app!.inject({
+      method: 'GET', url: `/api/v1/driver-companies?organization_id=${orgId}`, headers: { cookie: rivalCookie },
+    });
+    expect(companies.statusCode).toBe(404);
   });
 });
