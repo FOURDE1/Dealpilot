@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Input, Label, Select, buttonVariants } from '@dealpilot/ui';
 import type { Locale } from '@dealpilot/i18n';
 import { ApiError, useOrganization, useStores, useUpdateOrganization } from './api.js';
+import { can, usePermissionsMine } from '../../shared/permissions.js';
 
 export function OrganizationDetailPage() {
   const { t } = useTranslation('orgs');
@@ -12,6 +13,9 @@ export function OrganizationDetailPage() {
   const org = useOrganization(orgId);
   const stores = useStores(orgId);
   const updateOrg = useUpdateOrganization(orgId);
+  const mine = usePermissionsMine(orgId);
+  // The branding editor is organization:update-gated — only offer it to holders.
+  const canBrand = can(mine.data, 'organization:update');
 
   const [name, setName] = useState('');
   const [locale, setLocale] = useState<Locale>('fr-CA');
@@ -58,9 +62,16 @@ export function OrganizationDetailPage() {
   return (
     <div className="space-y-6">
       <BackLink to={"/organizations"}>{t('back')}</BackLink>
-      <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-2xl font-semibold">{org.data.name}</h1>
-        <span className="font-mono text-sm text-muted-foreground">{org.data.slug}</span>
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="text-2xl font-semibold">{org.data.name}</h1>
+          <span className="font-mono text-sm text-muted-foreground">{org.data.slug}</span>
+        </div>
+        {canBrand ? (
+          <Link to={`/organizations/${orgId}/branding`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+            {t('brandingLink')}
+          </Link>
+        ) : null}
       </header>
 
       <form

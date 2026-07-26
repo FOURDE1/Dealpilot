@@ -24,6 +24,9 @@ const OrganizationDetailPage = lazy(() =>
 const StoreFormPage = lazy(() =>
   import('../features/organizations/store-form-page.js').then((m) => ({ default: m.StoreFormPage })),
 );
+const BrandingEditorPage = lazy(() =>
+  import('../features/branding/branding-editor-page.js').then((m) => ({ default: m.BrandingEditorPage })),
+);
 const LeadsPage = lazy(() =>
   import('../features/leads/leads-page.js').then((m) => ({ default: m.LeadsPage })),
 );
@@ -100,6 +103,7 @@ export const router = createBrowserRouter([
       { path: 'organizations/:orgId', element: lazyPage(<OrganizationDetailPage />) },
       { path: 'organizations/:orgId/stores/new', element: lazyPage(<StoreFormPage />) },
       { path: 'organizations/:orgId/stores/:storeId', element: lazyPage(<StoreFormPage />) },
+      { path: 'organizations/:orgId/branding', element: lazyPage(<BrandingEditorPage />) },
       { path: 'leads', element: lazyPage(<LeadsPage />) },
       { path: 'leads/new', element: lazyPage(<LeadNewPage />) },
       { path: 'leads/:leadId', element: lazyPage(<LeadDetailPage />) },

@@ -469,3 +469,25 @@ filing?), D-040 (close the old add-a-colleague API door?).
 | 15.3 | Set the e-sign platform (OneSpan or DocuSign), then clear it back to None | Both persist and prefill on reopen | ⬜ |
 | 15.4 | Set the "Conflict window" to 30 | Refused before you can save — it must be 1 to 24 hours | ⬜ |
 | 15.5 | Set it to 6, save; then book two deliveries ~5 hours apart | They flag as a conflict (within your 6-hour window) where 4 hours apart would not have | ⬜ |
+
+## ROUND 16 — Your own brand, the editor (F-14)
+
+> This is the screen the ROUND 14 branding round was waiting for. Open a store's
+> organization → "Branding" (top-right). You set your group's name, colours and
+> style, save a draft (nobody else sees it), then publish when you're ready.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 16.1 | Organization → "Branding": set the display name and a primary colour, Save draft | "Draft saved." Nothing on anyone else's screen changed | ⬜ |
+| 16.2 | Type a colour that isn't a hex or oklch (e.g. "blue") | The field is flagged and Save is blocked until you fix it | ⬜ |
+| 16.3 | Pick a deliberately pale colour (#FDE047), Save, then **Publish** | It publishes, and it tells you it darkened the text version to stay readable — with the before/after numbers (e.g. 1.3:1 → 4.5:1). Your colour is kept; only the text form of it is adjusted | ⬜ |
+| 16.4 | After publishing, look at the app (sidebar, any screen) | The group's **name** is now yours in place of "1Dealer"; the corners and focus outlines follow your brand. (Full brand button/link colours are the next piece — the name, radius and focus ring land now) | ⬜ |
+| 16.5 | Edit a colour again but do NOT publish | The live app keeps the published look — a draft never repaints the floor | ⬜ |
+| 16.6 | As a salesperson (not owner/GM), look for Branding | The "Branding" button is not offered to them, and going to the address directly gives a plain "you can't change this" — the editor is owner/GM only. (They still SEE your published brand everywhere in the app.) | ⬜ |
+
+**Honest scope note:** the editor and publishing are complete, and the name +
+radius + focus-ring repaint live today. The full brand *fill* colours on buttons
+and links need one more design-system change on our side (so a brand colour that
+is perfect on a button but unreadable as a link is handled correctly in both
+light and dark themes) — that is the next branding piece, deliberately held
+until it can be done without breaking readability.

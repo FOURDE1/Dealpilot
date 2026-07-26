@@ -54,6 +54,28 @@ the way D-034 froze a delivered checklist).
 
 <!-- Entries begin below. Do not delete this line. -->
 
+## 2026-07-26 [HUSSEIN] — F-14 theme editor (draft → publish, contrast auto-fixes, org:update-gated)
+
+A Branding editor at /organizations/:orgId/branding: display name, colours
+(hex/oklch, primary required + accent/status optional), font/radius/density/
+dark-mode; save a draft (PUT only-changed vs the open-time baseline), publish
+(POST) to go live; the server's contrast auto-fixes shown after publish (draft
+PUT returns []; adjustments are computed at publish). Reads the draft on GET
+(404 for a never-branded org → opens on platform defaults, first save creates it
+— CR-16 filed for a server default). e2e: draft→publish→rebrand with the fix
+row shown.
+Review (15 agents, 6 fixed): the big one — Publish acted on the SAVED draft and
+wiped unsaved edits (shipping stale branding live); now a `dirty` guard (reusing
+the save diff) blocks Publish with an explicit hint. Also: swatch '#'-prefix for
+bare hex, doubled parens on optional labels (used tCommon('optional')), the
+case-insensitive colour regex to match the server, and the owner read-only flash
+(fold mine.isPending into the gate).
+DESIGN CORRECTION the review forced: the draft GET is organization:update-gated,
+so a non-editor gets 403 — my disabled-inputs "read-only" view was unreachable.
+Redesigned: gate the org-detail Branding LINK on organization:update, and the
+editor shows a plain "not allowed" for non-holders (no draft fetch). e2e proves
+it via a self-deny override. 29/29 e2e green. ROUND 16 for the owner.
+
 ## 2026-07-26 [HUSSEIN] — F-14 injection increment 2: focus ring + the churn-bug fix
 
 CR-15 closed by Ahmad (palette now carries foregrounds.*_dark/_hover, a real
