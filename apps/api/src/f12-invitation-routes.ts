@@ -89,10 +89,14 @@ export function registerF12Routes(app: FastifyInstance, pool: Pool, mailer: Mail
 
     const url = acceptUrl(appUrl, token);
     const sent = await mailer.send(invitationMessage(String(invitation['email']), url));
-    // If the mail did not go out, the invitation is still valid — hand the link
-    // back so the owner can pass it on, rather than stranding a real person
-    // behind an outage. It is returned HERE and nowhere else, ever.
-    return reply.status(201).send(sent ? invitation : { ...invitation, accept_url: url });
+    // Hand the link back whenever the invitee will NOT receive one: the send
+    // failed, or the transport does not actually reach anybody (the dev log
+    // mailer writes to pino, which the person being invited cannot read).
+    // Without this the owner is told an email is on its way that never was —
+    // CR-05, and it would have failed his very first invitation test.
+    // Returned HERE and nowhere else, ever.
+    const reachesInvitee = sent && mailer.deliversToRecipient;
+    return reply.status(201).send(reachesInvitee ? invitation : { ...invitation, accept_url: url });
   });
 
   /**

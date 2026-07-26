@@ -142,7 +142,7 @@ describe('api skeleton', () => {
     // The log transport records the message instead of sending; capture it.
     const sent: { to: string; subject: string; text: string }[] = [];
     const probe = await buildApp({ DATABASE_URL: APP_URL, NODE_ENV: 'test' }, {
-      mailer: { async send(m) { sent.push(m); return true; } },
+      mailer: { deliversToRecipient: true, async send(m) { sent.push(m); return true; } },
     });
     const email = `verify-${Date.now().toString(36)}@dealpilot.test`;
     const res = await probe.app.inject({

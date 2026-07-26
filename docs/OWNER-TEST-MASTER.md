@@ -143,10 +143,16 @@ someone else it will not work for them — accepting requires signing in as the
 invited email address. That is deliberate: an invitation is a key to your
 business data.
 
-**If email doesn't arrive:** we're on Amazon SES and the domain may still be in
-sandbox, which only delivers to verified addresses. In that case the API hands
-the link back so you can pass it on manually, and 5.2 is the only step that
-fails — everything else still works. Tell us and we'll request production access.
+**On your local stack, no email is actually sent** — it goes to the server log.
+That is expected, and the app knows it: the invite form hands you the **link**
+directly instead of claiming an email went out. Copy it into another browser
+(or a private window) to play the part of the person being invited. Step 5.2
+only applies once we're sending real mail.
+
+**When we do go live on email:** we're on Amazon SES and the domain may still be
+in sandbox, which only delivers to verified addresses. Same behaviour — you get
+the link back — so nothing is ever stuck. Tell us and we'll request production
+access.
 
 ## ROUND 6 — Dispatch (F-11): getting the car to the customer
 

@@ -71,7 +71,7 @@ beforeAll(async () => {
   await reset(admin, migrationsDir, ADMIN_URL);
   ({ app } = await buildApp(
     { DATABASE_URL: APP_URL, NODE_ENV: 'test' },
-    { mailer: { async send(m) { sent.push(m); return true; } } },
+    { mailer: { deliversToRecipient: true, async send(m) { sent.push(m); return true; } } },
   ));
 
   ownerCookie = await signUp(`f12-owner-${run}@dealpilot.test`, 'Alice Owner');
@@ -259,6 +259,37 @@ describe('F-12 invitations', () => {
     expect((await app!.inject({
       method: 'POST', url: '/api/v1/invitations/preview', payload: { token },
     })).statusCode).toBe(404);
+  });
+
+  it('when the mailer cannot reach anyone, the link comes back instead (CR-05)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The dev log transport returns true from send() — it did write its line —
+    // but the person being invited cannot read pino. Telling the owner "email
+    // sent" would strand a real invitation, and it would have failed his very
+    // first test of this feature.
+    const { app: logApp } = await buildApp(
+      { DATABASE_URL: APP_URL, NODE_ENV: 'test' },
+      { mailer: { deliversToRecipient: false, async send() { return true; } } },
+    );
+    try {
+      const res = await logApp.inject({
+        method: 'POST', url: '/api/v1/invitations', headers: { cookie: ownerCookie },
+        payload: { organization_id: orgId, email: `logmode-${run}@dealpilot.test`, roles: ['salesperson'] },
+      });
+      expect(res.statusCode).toBe(201);
+      const body = JSON.parse(res.body) as { accept_url?: string };
+      expect(body.accept_url, 'the owner needs the link when nobody was emailed').toBeDefined();
+      expect(body.accept_url).toContain('/invitations/');
+
+      // And it is a REAL link, not a placeholder: it previews.
+      const token = /\/invitations\/([A-Za-z0-9_-]+)/.exec(body.accept_url!)![1]!;
+      const preview = await logApp.inject({
+        method: 'POST', url: '/api/v1/invitations/preview', payload: { token },
+      });
+      expect(preview.statusCode).toBe(200);
+    } finally {
+      await logApp.close();
+    }
   });
 
   it('another organization cannot see or revoke these invitations', async (ctx) => {
