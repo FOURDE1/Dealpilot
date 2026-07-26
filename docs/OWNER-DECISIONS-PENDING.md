@@ -199,6 +199,29 @@ before month-end and that is your call, not mine.
 
 ---
 
+## D-039 — Should a deal be blocked from filing until the signed pages are scanned in? (F-13c)
+
+**What now exists.** A document can carry its actual page — PDF or photo — and
+the system records the SHA-256 of those bytes. Every time the file is read back
+the hash is recomputed, so an altered page is refused rather than served. That
+is the difference between "someone ticked signed" and "the signed page is here
+and unchanged".
+
+Each deal now reports `wet_ink_verified`: true when every document needing a
+signature has a stored page on record.
+
+**What I did NOT do.** Nothing is blocked by it. I did not make scanning a
+condition of filing a deal, because that is a workflow change for every store —
+some scan at the desk as the customer signs, some batch it at month-end, and a
+gate turned on without warning would stop deliveries on day one.
+
+**What I need from you:** should a deal be blocked from `filed` until every
+signature page is scanned in? If yes, I would suggest turning it on per store,
+the way the checklist items work, so a store that batches its scanning can move
+to it rather than be stopped by it.
+
+---
+
 ## Already answered — no action needed
 
 - SES over Resend for email (D-029). Built.

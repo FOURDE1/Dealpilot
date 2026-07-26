@@ -21,6 +21,11 @@ export const DocumentStatus = z.enum([
 
 export const EsignPlatform = z.enum(['onespan', 'docusign']);
 
+export const BatchDocumentInput = z.strictObject({
+  document_ids: z.array(Uuid).min(1).max(50),
+  status: DocumentStatus,
+});
+
 export const DealDocument = z.object({
   id: Uuid,
   organization_id: Uuid,
@@ -45,6 +50,13 @@ export const DealDocument = z.object({
   signed_file_url: z.string().nullable(),
   notes: z.string().nullable(),
   sort_order: z.number().int(),
+  /** F-13c: the stored page. Present together or not at all (DB constraint). */
+  storage_key: z.string().nullable(),
+  content_sha256: z.string().nullable(),
+  content_type: z.string().nullable(),
+  size_bytes: z.number().int().nullable(),
+  uploaded_at: IsoDateTime.nullable(),
+  uploaded_by: Uuid.nullable(),
   created_at: IsoDateTime,
   updated_at: IsoDateTime,
 });
@@ -82,6 +94,12 @@ export const DealDocumentsResponse = z.object({
   wet_ink_prepared: z.boolean().nullable(),
   /** Everything signed and back — the after-delivery question. */
   wet_ink_complete: z.boolean().nullable(),
+  /**
+   * Every signature document has a STORED file whose hash is on record — the
+   * difference between an asserted signature and a checkable one (F-13c).
+   * null = this deal has no signature documents at all.
+   */
+  wet_ink_verified: z.boolean().nullable(),
 });
 
 export type DealDocumentT = z.infer<typeof DealDocument>;

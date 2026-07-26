@@ -2,11 +2,18 @@ import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { canAdvanceDocument, requiredDocuments, type DealShape } from '@dealpilot/core';
 import {
+  BatchDocumentInput,
   CreateFiProductInput,
   DocumentListQuery,
   UpdateDocumentInput,
   UpdateFiProductInput,
 } from '@dealpilot/schemas';
+import {
+  ALLOWED_CONTENT_TYPES,
+  documentKey,
+  sha256,
+  type StorageDriver,
+} from './storage.js';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
@@ -110,7 +117,198 @@ export async function generateDocuments(
   return added;
 }
 
-export function registerF13Routes(app: FastifyInstance, pool: Pool): void {
+export function registerF13Routes(app: FastifyInstance, pool: Pool, storage: StorageDriver): void {
+  /**
+   * F-13c: store the actual page, and record the hash of its bytes.
+   *
+   * Until this existed, `status = 'signed'` was a person asserting that a
+   * signature exists somewhere off-system. With the file and its SHA-256 on
+   * record, the claim becomes checkable — and the download below rechecks it.
+   */
+  app.post('/api/v1/documents/:id/file', async (request, reply) => {
+    const documentId = idParam(request);
+    const contentType = String(request.headers['content-type'] ?? '').split(';')[0]!.trim();
+    const extension = ALLOWED_CONTENT_TYPES[contentType];
+    if (!extension) {
+      throw new AppError(415, 'unsupported_media_type', 'A document must be a PDF, JPEG or PNG', [
+        { path: 'content-type', code: 'unsupported_media_type', message: contentType || '(none)' },
+      ]);
+    }
+    const body = request.body;
+    if (!Buffer.isBuffer(body) || body.byteLength === 0) {
+      throw new AppError(422, 'empty_file', 'The uploaded file is empty', [
+        { path: 'body', code: 'empty_file', message: 'no bytes' },
+      ]);
+    }
+
+    const user = sessionUser(request);
+    const orgId = await rowOrg(pool, user.id, documentId);
+    const updated = await withTenant(pool, orgId, async (c) => {
+      const before = await c.query<Record<string, unknown>>(
+        `SELECT * FROM deal_documents WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+        [documentId],
+      );
+      if (before.rows.length === 0) throw notFound();
+      const prior = before.rows[0]!;
+
+      // Graded the same way the lifecycle is: attaching the page that EVIDENCES
+      // a signature is the act a delivery rests on, so it needs the authority
+      // that recording the signature needed. Attaching a blank copy to print is
+      // ordinary preparation.
+      const isSignedCopy =
+        prior['requires_signature'] === true &&
+        (prior['status'] === 'signed' || prior['status'] === 'filed' || prior['status'] === 'e_signed');
+      await requirePermission(c, user.id, isSignedCopy ? 'document:sign' : 'document:prepare');
+
+      const hash = sha256(body);
+      const key = documentKey(orgId, String(prior['deal_id']), documentId, hash, extension);
+      // Written before the row is updated: a row pointing at a file that was
+      // never stored is worse than a stored file no row points at. The second
+      // is an orphan; the first is a document that claims to be verifiable and
+      // 500s when anyone checks.
+      const stored = await storage.put(key, body, contentType);
+
+      const r = await c.query<Record<string, unknown>>(
+        `UPDATE deal_documents
+         SET storage_key = $2, content_sha256 = $3, content_type = $4,
+             size_bytes = $5, uploaded_at = now(), uploaded_by = $6
+         WHERE id = $1
+         RETURNING *`,
+        [documentId, stored.key, stored.sha256, contentType, stored.bytes, user.id],
+      );
+      await recordEvent(c, {
+        organizationId: orgId,
+        storeId: String(prior['store_id']),
+        actorUserId: user.id,
+        entityType: 'deal_document',
+        entityId: documentId,
+        action: 'updated',
+        parentEntityType: 'deal',
+        parentEntityId: String(prior['deal_id']),
+        changes: {
+          document_type: prior['document_type'],
+          // The hash is the point of the record: it is what a later dispute is
+          // checked against, so it belongs in the trail, not only in the row.
+          content_sha256: { from: prior['content_sha256'] ?? null, to: stored.sha256 },
+          size_bytes: stored.bytes,
+        },
+      });
+      return r.rows[0]!;
+    });
+    return reply.code(201).send(updated);
+  });
+
+  /**
+   * The stored page back, with its hash rechecked on the way out.
+   *
+   * This recheck is the whole difference between a stored file and a verifiable
+   * one. If the bytes no longer hash to what was recorded when they were
+   * uploaded, the file is not the file anyone signed — and answering 200 with
+   * it would launder that into evidence.
+   */
+  app.get('/api/v1/documents/:id/file', async (request, reply) => {
+    const documentId = idParam(request);
+    const user = sessionUser(request);
+    const orgId = await rowOrg(pool, user.id, documentId);
+
+    const meta = await withTenant(pool, orgId, async (c) => {
+      await requireMember(c, user.id);
+      const r = await c.query<{ storage_key: string | null; content_sha256: string | null; content_type: string | null }>(
+        `SELECT storage_key, content_sha256, content_type FROM deal_documents
+         WHERE id = $1 AND deleted_at IS NULL`,
+        [documentId],
+      );
+      if (r.rows.length === 0) throw notFound();
+      return r.rows[0]!;
+    });
+    if (!meta.storage_key || !meta.content_sha256) throw notFound();
+
+    const body = await storage.get(meta.storage_key);
+    if (sha256(body) !== meta.content_sha256) {
+      throw new AppError(409, 'content_mismatch', 'The stored file does not match its recorded hash', [
+        { path: 'id', code: 'content_mismatch', message: documentId },
+      ]);
+    }
+    return reply.header('content-type', meta.content_type ?? 'application/octet-stream').send(body);
+  });
+
+  /**
+   * Mark several documents at once — the filing clerk prints a deal's file as a
+   * stack and files it as a stack, and making them click thirteen times is how
+   * a status field stops reflecting reality.
+   *
+   * One transaction: either every document moves or none does, so a half-marked
+   * file can never be what the dispatch gate reads.
+   */
+  app.post('/api/v1/deals/:id/documents/batch', async (request, reply) => {
+    const dealId = idParam(request);
+    const input = parseOrThrow(BatchDocumentInput, request.body);
+    const user = sessionUser(request);
+    const orgId = await dealOrg(pool, user.id, dealId);
+
+    const updated = await withTenant(pool, orgId, async (c) => {
+      const signing = input.status === 'signed' || input.status === 'filed' || input.status === 'e_signed';
+      await requirePermission(c, user.id, signing ? 'document:sign' : 'document:prepare');
+
+      const rows = await c.query<Record<string, unknown>>(
+        `SELECT * FROM deal_documents
+         WHERE deal_id = $1 AND id = ANY($2::uuid[]) AND deleted_at IS NULL
+         ORDER BY sort_order
+         FOR UPDATE`,
+        [dealId, input.document_ids],
+      );
+      // A silently-skipped id is a document the clerk believes they filed.
+      if (rows.rows.length !== input.document_ids.length) throw notFound();
+
+      const results: Record<string, unknown>[] = [];
+      for (const prior of rows.rows) {
+        const from = String(prior['status']);
+        if (from === input.status) {
+          results.push(prior);
+          continue;
+        }
+        if (!canAdvanceDocument(from, input.status, prior['requires_signature'] === true)) {
+          throw new AppError(
+            422, 'invalid_transition',
+            `${String(prior['document_name'])} cannot go from ${from} to ${input.status}`,
+            [{ path: 'document_ids', code: 'invalid_transition', message: `${from} → ${input.status}` }],
+          );
+        }
+        const stamps: string[] = [];
+        const params: unknown[] = [prior['id'], input.status];
+        if (input.status === 'printed') {
+          params.push(user.id);
+          stamps.push('printed_at = now()', `printed_by = $${params.length}`);
+        }
+        if (input.status === 'signed') stamps.push('signed_at_delivery = now()');
+        if (input.status === 'e_signed') stamps.push('esign_signed_at = now()');
+        if (input.status === 'filed') {
+          params.push(user.id);
+          stamps.push('filed_at = now()', `filed_by = $${params.length}`);
+        }
+        const r = await c.query<Record<string, unknown>>(
+          `UPDATE deal_documents SET status = $2${stamps.length ? ', ' + stamps.join(', ') : ''}
+           WHERE id = $1 RETURNING *`,
+          params,
+        );
+        await recordEvent(c, {
+          organizationId: orgId,
+          storeId: String(prior['store_id']),
+          actorUserId: user.id,
+          entityType: 'deal_document',
+          entityId: String(prior['id']),
+          action: 'stage_changed',
+          parentEntityType: 'deal',
+          parentEntityId: dealId,
+          changes: { document_type: prior['document_type'], status: { from, to: input.status } },
+        });
+        results.push(r.rows[0]!);
+      }
+      return results;
+    });
+    return reply.send({ items: updated });
+  });
+
   /**
    * The deal's file. Generated on first read if the deal has none — the same
    * shape as F-08's checklist, and for the same reason: a list that only exists
@@ -127,8 +325,9 @@ export function registerF13Routes(app: FastifyInstance, pool: Pool): void {
         `SELECT * FROM deal_documents WHERE deal_id = $1 AND deleted_at IS NULL ORDER BY sort_order`,
         [dealId],
       );
-      const state = await c.query<{ prepared: boolean | null; complete: boolean | null }>(
-        `SELECT wet_ink_prepared($1) AS prepared, wet_ink_complete($1) AS complete`,
+      const state = await c.query<{ prepared: boolean | null; complete: boolean | null; verified: boolean | null }>(
+        `SELECT wet_ink_prepared($1) AS prepared, wet_ink_complete($1) AS complete,
+                wet_ink_verified($1) AS verified`,
         [dealId],
       );
       return {
@@ -137,6 +336,10 @@ export function registerF13Routes(app: FastifyInstance, pool: Pool): void {
         // COMPLETE is the after-delivery question.
         wet_ink_prepared: state.rows[0]?.prepared ?? null,
         wet_ink_complete: state.rows[0]?.complete ?? null,
+        // VERIFIED is the F-13c question: not "someone said it is signed" but
+        // "the signed page is stored and still hashes to what was recorded".
+        // Nothing gates on it yet — see D-039.
+        wet_ink_verified: state.rows[0]?.verified ?? null,
       };
     });
     return reply.send(result);

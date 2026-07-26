@@ -11,6 +11,7 @@ import {
   Store,
   ActivityEvent,
   DealDocument,
+  BatchDocumentInput,
   DealFiProduct,
   CreateFiProductInput,
   UpdateFiProductInput,
@@ -416,6 +417,37 @@ export const apiV1 = c.router({
       path: '/api/v1/documents',
       query: DocumentListQuery,
       responses: { 200: paginated(DealDocument), ...errorResponses },
+    },
+    /**
+     * F-13c: attach the scanned page.
+     *
+     * The body is RAW BYTES with a real content-type header
+     * (application/pdf, image/jpeg, image/png) — ts-rest models only JSON and
+     * form bodies, so `z.any()` is as close as the contract gets and the route
+     * reads `request.body` as a Buffer. Declared here anyway so it exists in
+     * one place and the coverage guard sees it.
+     */
+    uploadFile: {
+      method: 'POST',
+      path: '/api/v1/documents/:id/file',
+      pathParams: z.object({ id: Uuid }),
+      body: z.any(),
+      responses: { 201: DealDocument, ...errorResponses },
+    },
+    /** The stored page back, with its hash rechecked on the way out. */
+    downloadFile: {
+      method: 'GET',
+      path: '/api/v1/documents/:id/file',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: z.any(), ...errorResponses },
+    },
+    /** Mark a stack of documents printed or filed in one transaction. */
+    batch: {
+      method: 'POST',
+      path: '/api/v1/deals/:id/documents/batch',
+      pathParams: z.object({ id: Uuid }),
+      body: BatchDocumentInput,
+      responses: { 200: z.object({ items: z.array(DealDocument) }), ...errorResponses },
     },
     /** Move a document along its lifecycle, or record its e-sign details. */
     update: {

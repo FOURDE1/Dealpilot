@@ -34,6 +34,16 @@ const EnvSchema = z.object({
    * sends, but blocking unverified sign-in is opt-in so the owner's local test
    * accounts (and SES sandbox limits) don't lock anyone out.
    */
+  // --- document storage (F-13c, ADR-013) -----------------------------------
+  /**
+   * 'local' writes under DOCUMENT_STORAGE_DIR — correct for dev and CI, and
+   * refused in production: Fargate tasks have their own ephemeral disks, so a
+   * file uploaded to one task is invisible to the next request and gone at the
+   * next deploy. Production storage is S3, which is provisioned at launch.
+   */
+  DOCUMENT_STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
+  DOCUMENT_STORAGE_DIR: z.string().default('.storage/documents'),
+
   REQUIRE_EMAIL_VERIFICATION: z
     .enum(['true', 'false'])
     .default('false')
@@ -69,6 +79,15 @@ export function loadEnv(overrides: Partial<Record<keyof Env, string>> = {}): Env
     }
     if (!env.BETTER_AUTH_URL.startsWith('https://')) {
       throw new Error('BETTER_AUTH_URL must be https:// in production');
+    }
+    // Local disk in production is silent data loss, not a degraded mode: the
+    // API runs on at least two Fargate tasks, so a signed contract uploaded to
+    // one is invisible to the next request and gone at the next deploy. The
+    // upload would answer 201 every time.
+    if (env.DOCUMENT_STORAGE_DRIVER === 'local') {
+      throw new Error(
+        'DOCUMENT_STORAGE_DRIVER=local cannot be used in production — signed documents would be written to one task\'s ephemeral disk. Set it to s3 once the bucket exists (F-13c).',
+      );
     }
   }
   return env;

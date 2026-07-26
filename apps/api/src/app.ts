@@ -16,6 +16,7 @@ import { registerF09Routes } from './f09-commissions-routes.js';
 import { registerA13Routes } from './a13-permission-routes.js';
 import { registerF11Routes } from './f11-dispatch-routes.js';
 import { registerF13Routes } from './f13-document-routes.js';
+import { ALLOWED_CONTENT_TYPES, createStorage, MAX_UPLOAD_BYTES, type StorageDriver } from './storage.js';
 import { registerF12Routes } from './f12-invitation-routes.js';
 import { registerF08Routes } from './f08-checklist-routes.js';
 
@@ -79,6 +80,8 @@ async function toWebRequest(request: FastifyRequest, baseUrl: string): Promise<R
 /** Test seam: swap the mailer without touching transport configuration. */
 export interface AppDeps {
   mailer?: Mailer;
+  /** Injectable so tests exercise uploads without touching the real disk. */
+  storage?: StorageDriver;
 }
 
 export async function buildApp(
@@ -114,6 +117,7 @@ export async function buildApp(
 
   // Mailer needs the app logger, so auth is built after Fastify (A-11).
   const mailer: Mailer = deps.mailer ?? createMailer(env, app.log);
+  const storage: StorageDriver = deps.storage ?? createStorage(env);
   const auth: Auth = createAuth(env, pool, mailer);
 
   await app.register(cors, {
@@ -141,6 +145,18 @@ export async function buildApp(
       done(err);
     }
   });
+
+  // F-13c: a scanned document arrives as its own bytes, not wrapped in JSON.
+  // Only the three types a dealership actually scans are parsed, and only up to
+  // MAX_UPLOAD_BYTES — an unbounded parser is a way to exhaust a task's memory
+  // with one request.
+  for (const contentType of Object.keys(ALLOWED_CONTENT_TYPES)) {
+    app.addContentTypeParser(
+      contentType,
+      { parseAs: 'buffer', bodyLimit: MAX_UPLOAD_BYTES },
+      (_req, body, done) => done(null, body),
+    );
+  }
 
   // --- canonical error envelope everywhere -------------------------------
   app.setErrorHandler((err: FastifyError, request, reply) => {
@@ -235,7 +251,7 @@ export async function buildApp(
   // already the one origin allowed to call us with credentials (H-03).
   registerA13Routes(app, pool);
   registerF11Routes(app, pool, mailer);
-  registerF13Routes(app, pool);
+  registerF13Routes(app, pool, storage);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);
 
