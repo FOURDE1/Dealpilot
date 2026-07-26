@@ -396,10 +396,9 @@ written out in `docs/OWNER-DECISIONS-PENDING.md`.
 > a slip from an earlier session. I have not renumbered them under you
 > mid-testing; go by the titles, not the numbers.
 
-**One honesty note from Hussein (the UI half):** when you add an F&I product,
-the deal's F&I total and the live figures on the *edit worksheet* update at
-once, and the pipeline card's monthly payment updates as soon as you **Save**
-the worksheet. If you add a product and navigate away without saving, the
-pipeline card keeps showing the pre-product payment until the next save — a
-server-side fix so it never lags at all is filed as CR-13. Commission math is
-unaffected either way.
+**One note from Hussein (the UI half):** adding an F&I product now updates the
+deal's payment and every derived figure immediately, everywhere — the pipeline
+card included, no re-save needed (an earlier same-day lag was filed as CR-13 and
+fixed before you read this). The F&I total boxes on the worksheet go grey once
+products exist because the itemised list owns them; type your F&I by hand only
+on deals with no product lines.

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import {
+  ActivityEvent,
   ChaserVehicle,
   CreateChaserInput,
   CreateDispatchInput,
@@ -108,6 +109,23 @@ export function useResendDispatchEmail() {
       return z.object({ sent: z.boolean() }).parse(res.body);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: dispatchKeys.all }),
+  });
+}
+
+/**
+ * F-11c: a run's status feed — booked, departed, arrived — read from the
+ * activity trail (the single truth), newest first. Keyed under ['activity'] so
+ * a status change invalidates it alongside everything else.
+ */
+export function useDispatchStatusUpdates(runId: string, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['activity', 'dispatch', runId] as const,
+    enabled: (opts?.enabled ?? true) && runId !== '',
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.dispatch.statusUpdates, { params: { id: runId }, signal });
+      if (res.status !== 200) fail(res.status, res.body);
+      return z.object({ items: z.array(ActivityEvent) }).parse(res.body).items;
+    },
   });
 }
 

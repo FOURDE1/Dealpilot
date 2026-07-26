@@ -465,10 +465,16 @@ export function DeskingPage() {
       if (reserveCents === null) return; // invalid reserve must never save as $0
       if (isEdit) {
         // Re-desking (CR-07): same fields minus identity — the server recomputes.
+        // F&I aggregates are the trigger's to maintain once products exist, and
+        // CR-13 makes the server REFUSE (422 fi_is_itemised) a PATCH that carries
+        // them — so drop them from the body when the deal is itemised.
+        const { fi_price_cents: _p, fi_cost_cents: _c, ...inputsNoFi } = inputs;
+        void _p;
+        void _c;
         await updateDeal.mutateAsync({
           id: dealId,
           body: {
-            ...inputs,
+            ...(hasFiProducts ? inputsNoFi : inputs),
             vehicle_id: vehicleId === '' ? null : vehicleId,
             salesperson_id: soldBy === '' ? null : soldBy,
             fi_reserve_cents: reserveCents,
