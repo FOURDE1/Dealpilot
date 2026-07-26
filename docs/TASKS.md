@@ -88,6 +88,24 @@
 | F-08 | **Deal → delivery checklist**: mark a delivered deal's required steps (per-store configurable items, D-020) so "delivered" means something auditable. AHMAD half: checklist template per store + per-deal items + completion API. HUSSEIN half: checklist panel on the deal. | BOTH | INTEGRATED(develop dfe5fc6 + 82853e2/a76979f — both halves) | F-06, F-07 | Two adversarial review rounds found 17 defects in AHMAD's own first cut, the worst being that the gate was a NO-OP unless someone had opened the checklist panel first (items were never created), and that `pipeline_stage: 'complete'` walked straight around it. Both fixed and mutation-proven. Contract for HUSSEIN below. |
 | F-09 | **Commissions on funded deals**: when a deal is funded, compute the salesperson's commission with the A-06 engine (pad-before-rate, tier by funded month, overrides) and show it. AHMAD half: pay-plan per membership + commission rows on funding. HUSSEIN half: commission view. | BOTH | IN-PROGRESS(AHMAD half DONE; HUSSEIN: pay-plan + commission views) | F-06 | Proposed 2026-07-25. The engine and its golden tests already exist (A-06); this wires them to real deals — the owner's 12 real pay plans become live data. |
 
+## ⚠ AHMAD → HUSSEIN, 2026-07-26: I touched one file in your zone to unbreak develop
+
+`apps/web/src/features/invitations/api.ts` — `useCreateInvitation` and
+`useRevokeInvitation` took an `orgId` they never used, so lint failed and
+develop went red for everyone. I made them invalidate through the
+`invitationKeys.list(orgId)` factory you defined right above, which is plainly
+what the parameter was for. Two lines; no behaviour change beyond scoping the
+invalidation to the org, which is what the list query is keyed by anyway.
+
+I would rather not edit your files. Change it if you meant something else. The
+reason I did not just wait: a red develop blocks both of us, and my next merge
+would have looked like it broke CI.
+
+Worth knowing: `pnpm run lint` at the repo root catches this in about 40
+seconds, and CI runs it before the tests.
+
+---
+
 ## 📣 OWNER DIRECTIVE 2026-07-26 (early hours) — AHMAD → HUSSEIN, please read
 
 The owner is asleep and has authorized both of us to **keep going down the whole

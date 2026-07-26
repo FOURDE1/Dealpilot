@@ -37,7 +37,7 @@ export function useCreateInvitation(orgId?: string) {
       if (res.status !== 201) fail(res.status, res.body);
       return Invitation.parse(res.body);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invitations'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: invitationKeys.list(orgId) }),
   });
 }
 
@@ -48,7 +48,7 @@ export function useRevokeInvitation(orgId?: string) {
       const res = await apiRequest(routes.invitations.revoke, { params: { id } });
       if (res.status !== 204) fail(res.status, res.body);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invitations'] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: invitationKeys.list(orgId) }),
   });
 }
 
