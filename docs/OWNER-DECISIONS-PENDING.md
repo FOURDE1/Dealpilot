@@ -6,9 +6,49 @@ moves to `docs/DECISIONS.md` and the code follows.
 
 ---
 
-## D-033 — Who may sign off the safety inspection? *(F-08, raised 2026-07-26)*
+## D-033 — ANSWERED 2026-07-26: full RBAC, not just the safety question
 
-**Currently implemented:** owner and GM only.
+**You said:** "for this and for any control on actions in the system there should
+be an RBAC controlling roles, and also for each role what it can do of actions,
+and things in the system fully and 100% secured, and perfect and optimized."
+
+**Understood, and agreed — but it is a real piece of work, so here is the honest
+shape of it rather than a promise.**
+
+**What exists today.** Every endpoint checks membership and, where it matters,
+role. That is real security — nothing is open — but the rules live in ~30
+separate route files as small role lists (`STORE_WRITE_ROLES`,
+`MEMBER_WRITE_ROLES`, `DISPATCH_ROLES`, `PAY_READ_ROLES`). Nobody can answer
+"what exactly can a BDC agent do?" without reading the code, and no screen can
+show you the answer.
+
+**What you are asking for (filed as A-13):**
+1. One permission catalogue — every action in the system named once
+   (`deal:create`, `deal:fund`, `commission:read_all`, `dispatch:book`, …).
+2. A role → permission matrix, in the database, editable, seeded with sensible
+   defaults for your ten roles.
+3. Every route asks the catalogue instead of carrying its own list.
+4. A screen where you see and change the matrix — and a per-user override for
+   the "Marc can also do X" cases every dealership has.
+5. A test that FAILS if any route checks a role without going through the
+   catalogue, so it cannot drift back.
+
+**My recommendation on sequencing.** Do this BEFORE the documents module, not
+after. Every feature we add now hardcodes more role lists, so the migration gets
+more expensive every day. It is roughly a day of backend plus a settings screen.
+
+**One caution, honestly.** "100% secured" is not a state a system reaches and
+holds — it is a practice. What I can commit to: deny-by-default everywhere, one
+place that defines who can do what, a test that stops drift, and the audit trail
+we now have so you can see who did what. That is a strong position. Anyone
+promising you finished perfection is selling something.
+
+---
+
+## D-033-original — Who may sign off the safety inspection?
+
+**Currently implemented:** owner and GM only. Rolls into A-13 above — it becomes
+one row in the matrix instead of a hardcoded list.
 
 **Why I chose that:** the safety inspection is the one checklist item nobody can
 waive, because it is a legal obligation. But if any member could simply *tick* it,
@@ -27,19 +67,19 @@ inspection? (Options: owner/gm only — as built; add `used_car_manager`; add
 
 ---
 
-## D-034 — Should a delivered deal's checklist ever be editable? *(F-08, raised 2026-07-26)*
+## D-034 — ANSWERED 2026-07-26: frozen, with a corrections path — BUILT
 
-**Currently implemented:** no. Once a deal reaches `delivered` or `complete`, its
-checklist is frozen (409). It is the record of why delivery was allowed.
+**You said:** keep it frozen, and if editing, mandatory reason and a history
+table.
 
-**The tradeoff:** if someone ticks an item by mistake and delivers, there is no way
-to correct the record. The alternative is to allow edits after delivery with a
-mandatory reason and a history table — more honest, but it is a new table and a
-new screen, so I did not build it speculatively.
+**Built exactly that.** A delivered deal's checklist refuses edits as before. Add
+a `correction_reason` and the edit goes through — owner/GM only — and the
+correction is written to the activity trail marked `corrected_after_delivery`,
+with your reason, forever. You did not need a new history table: F-10's activity
+trail already is one, append-only, and no part of the application can edit or
+delete a row in it.
 
-**What I need from you:** is "frozen after delivery" right for your stores, or do
-you want a correction path with an audit trail? If corrections happen in real life
-more than rarely, say so and I will build the history table.
+Test row 2.10 in the master doc is marked 🔁 so you can try it.
 
 ---
 

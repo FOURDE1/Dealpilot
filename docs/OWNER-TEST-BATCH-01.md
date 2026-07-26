@@ -12,7 +12,9 @@ all steps below give the English labels.
 2. You should see yourself listed as Owner, status Active.
 3. Under "Add a member": name "Marc Seller", email marc@groupehassan.test,
    keep "Salesperson" checked, click Add.
-   → Marc appears in the roster immediately, status Active.
+   → Marc appears in the roster as **Invited**, and an invitation goes to him.
+   (This CHANGED on 2026-07-26 — see D-035. Before, he showed as Active and
+   could never actually log in, which was the bug.)
 4. On Marc's row click "Edit roles", also check "BDC agent", Save.
    → his row now shows both roles.
 5. Try adding the same email again → a clear message says an account already
@@ -30,9 +32,14 @@ all steps below give the English labels.
 
 10. On Team, click "Remove" on Marc's row and confirm.
     → Marc disappears from the roster; you stay.
-11. Back on the Leads list, the lead that was Marc's now shows
-    "Former member" — it is NOT silently unassigned. Open it and reassign
-    to yourself; check "My leads" now shows it.
+11. Back on the Leads list, the lead that was Marc's is now **unassigned** and
+    back in the pool. **This doc used to say "Former member" and was out of
+    date** — a review on 2026-07-25 changed the behaviour deliberately: work
+    must not stay pointing at someone who can no longer open the app, or it
+    quietly stops being anybody's job. Who it belonged to and why it was
+    released is in the lead's History (F-10), so nothing is lost.
+    If you would rather see "Former member" on the row itself, say so — it is a
+    display choice, not a data one.
 
 ## Part D — Desking worksheet (F-05)
 
