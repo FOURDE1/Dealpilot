@@ -12,8 +12,7 @@ import { useLeadNames } from '../leads/api.js';
 import { leadDisplayName } from '../leads/labels.js';
 import { formatCents } from '../deals/money.js';
 import { useDispatchList, useDriverCompanies, useOrgFleet, useResendDispatchEmail, useUpdateDispatch } from './api.js';
-import { useMembers } from '../team/api.js';
-import { useSession } from '../../shared/auth/client.js';
+import { can, usePermissionsMine } from '../../shared/permissions.js';
 
 export const DISPATCH_STATUS_KEYS = {
   assigned: 'status_assigned',
@@ -31,8 +30,6 @@ const NEXT_STATUSES: Record<DispatchAssignmentT['status'], DispatchAssignmentT['
   completed: [],
   cancelled: [],
 };
-
-const DISPATCH_ROLES = new Set(['owner', 'gm', 'logistics']);
 
 export const DISPATCH_TYPE_KEYS = {
   delivery: 'type_delivery',
@@ -55,10 +52,10 @@ export function DispatchPage() {
   const deals = usePipelineDeals(scope, { enabled: !orgs.isPending });
   const leads = useLeadNames(scope, { enabled: !orgs.isPending });
   const orgFleet = useOrgFleet(scope, { enabled: !orgs.isPending });
-  const { data: session } = useSession();
-  const members = useMembers(orgId, { enabled: !orgs.isPending });
-  const me = members.data?.items.find((m) => m.user_id === session?.user.id);
-  const canDispatch = me?.roles.some((r) => DISPATCH_ROLES.has(r)) ?? false;
+  const mine = usePermissionsMine(scope, { enabled: !orgs.isPending });
+  const canDispatch = can(mine.data, 'dispatch:read');
+  const canUpdate = can(mine.data, 'dispatch:update');
+  const minePending = mine.isPending;
   const update = useUpdateDispatch();
   const resend = useResendDispatchEmail();
   const [error, setError] = useState<string | null>(null);
@@ -179,7 +176,7 @@ export function DispatchPage() {
             <Select
               id={`run-status-${row.original.id}`}
               value={row.original.status}
-              disabled={update.isPending || NEXT_STATUSES[row.original.status].length === 0}
+              disabled={update.isPending || !canUpdate || NEXT_STATUSES[row.original.status].length === 0}
               className="h-8 w-36"
               onChange={(e) => void move(row.original, e.target.value as DispatchAssignmentT['status'])}
             >
@@ -234,7 +231,7 @@ export function DispatchPage() {
           ),
       },
     ],
-    [t, i18n.language, dealCustomer, companyName, update.isPending, resend.isPending, orgFleet.data],
+    [t, i18n.language, dealCustomer, companyName, update.isPending, resend.isPending, orgFleet.data, canUpdate],
   );
 
   return (
@@ -281,7 +278,7 @@ export function DispatchPage() {
       {runs.data?.truncated ? (
         <p className="text-sm text-muted-foreground">{t('truncated')}</p>
       ) : null}
-      {!members.isPending && !canDispatch ? (
+      {!minePending && !canDispatch ? (
         <p role="alert" className="text-sm text-danger-text">
           {t('notAllowed')}
         </p>

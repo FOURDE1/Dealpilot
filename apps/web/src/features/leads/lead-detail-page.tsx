@@ -7,7 +7,7 @@ import { buttonVariants, Label, Select } from '@dealpilot/ui';
 import { LEAD_STATUSES, type LeadStatusT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
 import { useLead, useUpdateLead } from './api.js';
-import { useSession } from '../../shared/auth/client.js';
+import { can, usePermissionsMine } from '../../shared/permissions.js';
 import { activeMembers, useMembers } from '../team/api.js';
 import { useDealsForLead } from '../deals/api.js';
 import { ChecklistDialog } from '../checklists/checklist-dialog.js';
@@ -28,13 +28,10 @@ export function LeadDetailPage() {
   const lead = useLead(leadId);
   const updateLead = useUpdateLead(leadId);
   const deals = useDealsForLead(leadId, lead.data?.organization_id);
-  const { data: session } = useSession();
   usePageTitle(lead.data ? (leadDisplayName(lead.data) ?? lead.data.phone) : undefined);
   const members = useMembers(lead.data?.organization_id, { enabled: lead.isSuccess });
-  const canDispatch =
-    members.data?.items
-      .find((m) => m.user_id === session?.user.id)
-      ?.roles.some((r) => r === 'owner' || r === 'gm' || r === 'logistics') ?? false;
+  const mine = usePermissionsMine(undefined, { enabled: lead.isSuccess });
+  const canDispatch = can(mine.data, 'dispatch:book');
   const assignees = activeMembers(members.data?.items);
   const assignedTo = lead.data?.assigned_to ?? null;
   const assignedIsFormer =

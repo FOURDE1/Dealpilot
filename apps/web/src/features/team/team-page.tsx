@@ -18,7 +18,7 @@ import {
 import { ROLES, type MemberT, type RoleT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
 import { useOrganizations } from '../organizations/api.js';
-import { useSession } from '../../shared/auth/client.js';
+import { can, usePermissionsMine } from '../../shared/permissions.js';
 import { useMembers, useUpdateMember } from './api.js';
 import { PayPlanDialog } from '../commissions/pay-plan-dialog.js';
 import { useCreateInvitation, useInvitations, useRevokeInvitation } from '../invitations/api.js';
@@ -36,11 +36,6 @@ export const ROLE_KEYS = {
   admin_office: 'role_admin_office',
   bdc_agent: 'role_bdc_agent',
 } as const satisfies Record<RoleT, string>;
-
-/** Mirror of the API's MEMBER_WRITE_ROLES — the server still enforces. */
-const WRITE_ROLES = new Set<RoleT>(['owner', 'gm', 'admin_office']);
-/** Mirror of PAY_WRITE_ROLES — pay plans are owner/gm territory. */
-const PAY_ROLES = new Set<RoleT>(['owner', 'gm']);
 
 const STATUS_KEYS = {
   active: 'status_active',
@@ -90,7 +85,6 @@ export function TeamPage() {
   const { t } = useTranslation('team');
   usePageTitle(t('title'));
   const orgs = useOrganizations();
-  const { data: session } = useSession();
   const noOrg = orgs.isSuccess && orgs.data.items.length === 0;
   const multiOrg = (orgs.data?.items.length ?? 0) > 1;
   const [orgFilter, setOrgFilter] = useState('');
@@ -101,9 +95,11 @@ export function TeamPage() {
   const createInvitation = useCreateInvitation();
   const revokeInvitation = useRevokeInvitation();
   const [inviteLink, setInviteLink] = useState<string | null>(null);
-  const me = members.data?.items.find((m) => m.user_id === session?.user.id);
-  const canWrite = me?.roles.some((r) => WRITE_ROLES.has(r)) ?? false;
-  const canPay = me?.roles.some((r) => PAY_ROLES.has(r)) ?? false;
+  const mine = usePermissionsMine(multiOrg ? orgId : undefined, { enabled: !noOrg });
+  const canWrite = can(mine.data, 'member:invite');
+  const canEditRoles = can(mine.data, 'member:update_roles');
+  const canRevoke = can(mine.data, 'member:revoke');
+  const canPay = can(mine.data, 'pay_plan:write');
   const [showRemoved, setShowRemoved] = useState(false);
   const [removedError, setRemovedError] = useState<string | null>(null);
   const removed = useMembers(orgId, { enabled: !noOrg && showRemoved, status: 'revoked' });
@@ -203,8 +199,9 @@ export function TeamPage() {
         id: 'actions',
         header: () => <span className="sr-only">{t('actionsCol')}</span>,
         cell: ({ row }) =>
-          !canWrite || row.original.status === 'revoked' ? null : row.original.__invitationId ? (
+          row.original.status === 'revoked' ? null : row.original.__invitationId ? (
             <span className="flex justify-end gap-1">
+              {!canWrite ? null : (
               <Button
                 type="button"
                 variant="ghost"
@@ -215,9 +212,11 @@ export function TeamPage() {
               >
                 {t('revokeInvite')}
               </Button>
+              )}
             </span>
           ) : (
             <span className="flex justify-end gap-1">
+              {!canEditRoles ? null : (
               <Button
                 type="button"
                 variant="ghost"
@@ -231,6 +230,7 @@ export function TeamPage() {
               >
                 {t('editRoles')}
               </Button>
+              )}
               {canPay ? (
                 <Button
                   type="button"
@@ -242,6 +242,7 @@ export function TeamPage() {
                   {t('payPlan')}
                 </Button>
               ) : null}
+              {!canRevoke ? null : (
               <Button
                 type="button"
                 variant="ghost"
@@ -251,11 +252,12 @@ export function TeamPage() {
               >
                 {t('revoke')}
               </Button>
+              )}
             </span>
           ),
       },
     ],
-    [t, canWrite, canPay],
+    [t, canWrite, canEditRoles, canRevoke, canPay],
   );
 
   if (noOrg)
@@ -274,6 +276,11 @@ export function TeamPage() {
       <header>
         <h1 className="text-2xl font-semibold">{t('title')}</h1>
         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
+        <p className="mt-1 text-sm">
+          <Link to="/team/permissions" className="font-medium text-primary underline-offset-4 hover:underline">
+            {t('permissionsLink')}
+          </Link>
+        </p>
         {multiOrg ? (
           <div className="mt-3 max-w-xs space-y-1">
             <Label htmlFor="team-org-scope">{t('orgScope')}</Label>

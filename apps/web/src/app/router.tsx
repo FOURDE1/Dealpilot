@@ -54,6 +54,9 @@ const CommissionsPage = lazy(() =>
 const DispatchPage = lazy(() =>
   import('../features/dispatch/dispatch-page.js').then((m) => ({ default: m.DispatchPage })),
 );
+const PermissionsPage = lazy(() =>
+  import('../features/permissions/permissions-page.js').then((m) => ({ default: m.PermissionsPage })),
+);
 const InvitationAcceptPage = lazy(() =>
   import('../features/invitations/accept-page.js').then((m) => ({ default: m.InvitationAcceptPage })),
 );
@@ -103,6 +106,7 @@ export const router = createBrowserRouter([
       { path: 'leads/:leadId/desk', element: lazyPage(<DeskingPage />) },
       { path: 'leads/:leadId/desk/:dealId', element: lazyPage(<DeskingPage />) },
       { path: 'team', element: lazyPage(<TeamPage />) },
+      { path: 'team/permissions', element: lazyPage(<PermissionsPage />) },
       { path: 'pipeline', element: lazyPage(<PipelinePage />) },
       { path: 'inventory', element: lazyPage(<InventoryPage />) },
       { path: 'inventory/:vehicleId', element: lazyPage(<VehicleDetailPage />) },

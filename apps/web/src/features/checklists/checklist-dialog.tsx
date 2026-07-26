@@ -3,24 +3,23 @@ import { useTranslation } from 'react-i18next';
 import { Button, Dialog, DialogContent, DialogTitle, Input, Label } from '@dealpilot/ui';
 import type { DealChecklistItemT, DealT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
-import { useSession } from '../../shared/auth/client.js';
 import { useMembers } from '../team/api.js';
+import { can, usePermissionsMine } from '../../shared/permissions.js';
 import { useDealChecklist, useUpdateChecklistItem } from './api.js';
-
-/** Ticking or waiving the safety item is owner/gm territory (D-033 pending). */
-const SAFETY_ROLES = new Set(['owner', 'gm']);
 
 function ItemRow({
   item,
   dealFrozen,
-  canManage,
+  canWaive: canWaiveProp,
+  canSignSafety,
   memberName,
   onError,
   dealId,
 }: {
   item: DealChecklistItemT;
   dealFrozen: boolean;
-  canManage: boolean;
+  canWaive: boolean;
+  canSignSafety: boolean;
   memberName: (id: string | null) => string | null;
   onError: (msg: string | null) => void;
   dealId: string;
@@ -40,8 +39,8 @@ function ItemRow({
   const waived = item.overridden_at !== null;
   const done = item.completed_at !== null;
   const isSafety = item.code === 'safety';
-  const canTick = !dealFrozen && (!isSafety || canManage);
-  const canWaive = !dealFrozen && item.overridable && canManage && !done;
+  const canTick = !dealFrozen && (!isSafety || canSignSafety);
+  const mayWaive = !dealFrozen && item.overridable && canWaiveProp && !done;
 
   async function send(body: Parameters<typeof update.mutateAsync>[0]['body']): Promise<boolean> {
     onError(null);
@@ -95,12 +94,12 @@ function ItemRow({
               {t('waived')}
             </span>
           ) : null}
-          {canWaive && !waived ? (
+          {mayWaive && !waived ? (
             <Button type="button" variant="ghost" size="sm" onClick={() => setWaiving((w) => !w)}>
               {t('waive')}
             </Button>
           ) : null}
-          {waived && canManage && !dealFrozen ? (
+          {waived && canWaiveProp && !dealFrozen ? (
             // Two clicks on purpose: reinstating erases the recorded reason.
             <Button
               type="button"
@@ -197,15 +196,15 @@ export function ChecklistDialog({
   onClose: () => void;
 }) {
   const { t } = useTranslation('checklist');
-  const { data: session } = useSession();
   const checklist = useDealChecklist(deal?.id ?? '', { enabled: deal !== null });
   const members = useMembers(deal?.organization_id, { enabled: deal !== null });
   // Evidence must keep naming its author even after they leave the org.
   const removed = useMembers(deal?.organization_id, { enabled: deal !== null, status: 'revoked' });
   const [error, setError] = useState<string | null>(null);
 
-  const me = members.data?.items.find((m) => m.user_id === session?.user.id);
-  const canManage = me?.roles.some((r) => SAFETY_ROLES.has(r)) ?? false;
+  const mine = usePermissionsMine(undefined, { enabled: deal !== null });
+  const canWaive = can(mine.data, 'checklist:waive');
+  const canSignSafety = can(mine.data, 'checklist:sign_safety');
   const dealFrozen = deal?.delivered_at !== null && deal !== null;
   const memberName = (id: string | null) =>
     id === null
@@ -258,7 +257,8 @@ export function ChecklistDialog({
                   item={item}
                   dealId={deal?.id ?? ''}
                   dealFrozen={dealFrozen}
-                  canManage={canManage}
+                  canWaive={canWaive}
+                  canSignSafety={canSignSafety}
                   memberName={memberName}
                   onError={setError}
                 />
