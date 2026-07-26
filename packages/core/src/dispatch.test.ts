@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canTransition, driverRequirement, findConflict, releasesResources } from './dispatch.js';
+import { canTransition, DISPATCH_TRANSITIONS, driverRequirement, findConflict, releasesResources } from './dispatch.js';
 
 /**
  * F-11 dispatch rules. Golden cases from dispatch-transport.md §4 and §6 — the
@@ -68,7 +68,6 @@ describe('4-hour conflict detection (§6)', () => {
 
 describe('one lifecycle (ADR-009)', () => {
   it('moves forward through the real-world steps', () => {
-    expect(canTransition('pending', 'assigned')).toBe(true);
     expect(canTransition('assigned', 'departed')).toBe(true);
     expect(canTransition('departed', 'arrived')).toBe(true);
     expect(canTransition('arrived', 'completed')).toBe(true);
@@ -78,7 +77,14 @@ describe('one lifecycle (ADR-009)', () => {
     // "Arrived" without "departed" means the ETA the customer was given was
     // never true.
     expect(canTransition('assigned', 'arrived')).toBe(false);
-    expect(canTransition('pending', 'completed')).toBe(false);
+    expect(canTransition('assigned', 'completed')).toBe(false);
+  });
+
+  it('there is no unreachable status in the vocabulary', () => {
+    // 'pending' was declared and nothing could ever produce it: booking creates
+    // a run already assigned. A status the board can never show is noise.
+    expect(canTransition('pending', 'assigned')).toBe(false);
+    expect(Object.keys(DISPATCH_TRANSITIONS)).not.toContain('pending');
   });
 
   it('cannot go backwards, and an ended run stays ended', () => {
@@ -88,7 +94,7 @@ describe('one lifecycle (ADR-009)', () => {
   });
 
   it('can be cancelled from anywhere still in flight', () => {
-    for (const from of ['pending', 'assigned', 'departed', 'arrived']) {
+    for (const from of ['assigned', 'departed', 'arrived']) {
       expect(canTransition(from, 'cancelled'), `${from} → cancelled`).toBe(true);
     }
   });

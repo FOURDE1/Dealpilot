@@ -399,6 +399,73 @@ describe('F-11 dispatch', () => {
     await admin.query(`UPDATE dealer_plates SET deleted_at = NULL`);
   });
 
+
+  it('a flag clears when the run it collided with is cancelled', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Both plates busy that afternoon, so this one is flagged.
+    const aId = await makeDeal({ tradeIn: true, bookedAt: '2028-04-01T10:00:00Z' });
+    const bId = await makeDeal({ tradeIn: true, bookedAt: '2028-04-01T11:00:00Z' });
+    const cId = await makeDeal({ tradeIn: true, bookedAt: '2028-04-01T12:00:00Z' });
+    const a = DispatchAssignment.parse(JSON.parse((await book(aId)).body));
+    await book(bId);
+    const c = DispatchAssignment.parse(JSON.parse((await book(cId)).body));
+    expect(c.conflict_flag).toBe(true);
+
+    // Cancel the run it cites. The citation is now stale: left alone, the
+    // flagged run sits on the dispatcher's board forever pointing at a delivery
+    // that is not happening.
+    await app!.inject({
+      method: 'PATCH', url: `/api/v1/dispatch/${a.id}`, headers: { cookie }, payload: { status: 'cancelled' },
+    });
+
+    const after = await app!.inject({
+      method: 'GET', url: `/api/v1/dispatch?organization_id=${orgId}&conflicts_only=true`, headers: { cookie },
+    });
+    const stillFlagged = (JSON.parse(after.body) as { items: { id: string }[] }).items.map((i) => i.id);
+    expect(stillFlagged).not.toContain(c.id);
+  });
+
+  it('a plate a booked run needs cannot be retired', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const dealId = await makeDeal({ tradeIn: true, bookedAt: '2028-06-01T10:00:00Z' });
+    const a = DispatchAssignment.parse(JSON.parse((await book(dealId)).body));
+
+    const res = await app!.inject({
+      method: 'DELETE', url: `/api/v1/plates/${a.dealer_plate_id}`, headers: { cookie },
+    });
+    // Otherwise a dispatcher finds out on the morning of the delivery.
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).error.code).toBe('in_use');
+
+    // Free it properly: earlier tests in this file leave other live runs on the
+    // same plate, and each of them is a real reason to refuse.
+    const live = await app!.inject({
+      method: 'GET', url: `/api/v1/dispatch?organization_id=${orgId}&limit=100`, headers: { cookie },
+    });
+    const holders = (JSON.parse(live.body) as { items: { id: string; dealer_plate_id: string | null; status: string }[] })
+      .items.filter((i) => i.dealer_plate_id === a.dealer_plate_id && !['completed', 'cancelled'].includes(i.status));
+    for (const h of holders) {
+      await app!.inject({
+        method: 'PATCH', url: `/api/v1/dispatch/${h.id}`, headers: { cookie }, payload: { status: 'cancelled' },
+      });
+    }
+    const now = await app!.inject({
+      method: 'DELETE', url: `/api/v1/plates/${a.dealer_plate_id}`, headers: { cookie },
+    });
+    expect(now.statusCode).toBe(204);
+  });
+
+  it('a retired plate is never offered again', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const remaining = await app!.inject({
+      method: 'GET', url: `/api/v1/plates?organization_id=${orgId}`, headers: { cookie },
+    });
+    const ids = (JSON.parse(remaining.body) as { items: { id: string }[] }).items.map((i) => i.id);
+    const dealId = await makeDeal({ tradeIn: true, bookedAt: '2028-07-01T10:00:00Z' });
+    const a = DispatchAssignment.parse(JSON.parse((await book(dealId)).body));
+    expect(ids).toContain(a.dealer_plate_id);
+  });
+
   it('another organization sees none of this fleet', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const rival = await app!.inject({
