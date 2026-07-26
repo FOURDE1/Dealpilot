@@ -292,6 +292,53 @@ describe('F-12 invitations', () => {
     }
   });
 
+  it('someone who left and is invited back can accept again', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // REPORTED BY THE OWNER: invite → accept → remove → invite again → accept
+    // failed with "The operation failed". Revoking keeps the membership row (so
+    // the roster can show and reinstate them), and the second accept's plain
+    // INSERT hit the unique key. People leave a dealership and come back; this
+    // has to work.
+    const email = `rejoin-${run}@dealpilot.test`;
+    const first = await invite(email, ['salesperson']);
+    expect(first.statusCode).toBe(201);
+    const cookie1 = await signUp(email, 'Marc Rejoin');
+    const accept1 = await app!.inject({
+      method: 'POST', url: '/api/v1/invitations/accept', headers: { cookie: cookie1 },
+      payload: { token: tokenFromLastEmail() },
+    });
+    expect(accept1.statusCode).toBe(201);
+
+    const roster = await app!.inject({
+      method: 'GET', url: `/api/v1/members?organization_id=${orgId}`, headers: { cookie: ownerCookie },
+    });
+    const member = (JSON.parse(roster.body) as { items: { id: string; email: string }[] })
+      .items.find((m) => m.email === email)!;
+    const revoked = await app!.inject({
+      method: 'PATCH', url: `/api/v1/members/${member.id}`, headers: { cookie: ownerCookie },
+      payload: { status: 'revoked' },
+    });
+    expect(revoked.statusCode).toBe(200);
+
+    // Back again, and with a different role this time — the roles must come
+    // from the NEW invitation, because that is the decision just made.
+    const second = await invite(email, ['bdc_agent']);
+    expect(second.statusCode).toBe(201);
+    const accept2 = await app!.inject({
+      method: 'POST', url: '/api/v1/invitations/accept', headers: { cookie: cookie1 },
+      payload: { token: tokenFromLastEmail() },
+    });
+    expect(accept2.statusCode).toBe(201);
+
+    const after = await app!.inject({
+      method: 'GET', url: `/api/v1/members?organization_id=${orgId}`, headers: { cookie: ownerCookie },
+    });
+    const back = (JSON.parse(after.body) as { items: { email: string; status: string; roles: string[] }[] })
+      .items.find((m) => m.email === email)!;
+    expect(back.status).toBe('active');
+    expect(back.roles).toEqual(['bdc_agent']);
+  });
+
   it('another organization cannot see or revoke these invitations', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const rivalCookie = await signUp(`rival-${run}@dealpilot.test`, 'Rival Owner');

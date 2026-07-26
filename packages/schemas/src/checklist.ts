@@ -66,6 +66,14 @@ export const UpdateChecklistItemInput = z
     completed: z.boolean().optional(),
     overridden: z.boolean().optional(),
     override_reason: z.string().trim().min(3).max(300).optional(),
+    /**
+     * D-034: a delivered deal's checklist is the record of why delivery was
+     * allowed, so it is frozen — unless someone is deliberately CORRECTING it,
+     * which needs a reason and is kept in the activity trail forever. Mistakes
+     * happen on a delivery day; pretending they cannot is how a record starts
+     * being quietly wrong.
+     */
+    correction_reason: z.string().trim().min(3).max(300).optional(),
   })
   .refine((v) => v.overridden !== true || (v.override_reason?.length ?? 0) > 0, {
     message: 'A waiver must say why',

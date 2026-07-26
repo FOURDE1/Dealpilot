@@ -303,6 +303,45 @@ describe('F-08 delivery checklist', () => {
       });
       expect(untick.statusCode).toBe(409);
       expect(JSON.parse(untick.body).error.code).toBe('deal_delivered');
+
+      // D-034: but a deliberate CORRECTION is allowed, at the price of saying
+      // why — mistakes happen on a delivery day, and a record nobody can fix
+      // starts being quietly wrong.
+      const corrected = await app!.inject({
+        method: 'PATCH', url: `/api/v1/deals/${id}/checklist/insurance`, headers: { cookie: cookieOwner },
+        payload: { completed: false, correction_reason: 'Ticked the wrong line — insurance was never received' },
+      });
+      expect(corrected.statusCode).toBe(200);
+
+      // And the correction is in the trail, marked as after-the-fact.
+      const trail = await app!.inject({
+        method: 'GET', url: `/api/v1/activity?entity_id=${id}`, headers: { cookie: cookieOwner },
+      });
+      const items = (JSON.parse(trail.body) as { items: { reason: string | null; changes: Record<string, unknown> }[] }).items;
+      const fix = items.find((e) => e.reason?.startsWith('Ticked the wrong line'))!;
+      expect(fix, 'the correction must be recorded').toBeDefined();
+      expect(fix.changes['corrected_after_delivery']).toBe(true);
+    });
+
+    it('a salesperson cannot correct a delivered checklist', async (ctx) => {
+      if (!dbUp) return ctx.skip();
+      const id = await freshDeal();
+      const list = await app!.inject({ method: 'GET', url: `/api/v1/deals/${id}/checklist`, headers: { cookie: cookieOwner } });
+      for (const code of ChecklistResponse.parse(JSON.parse(list.body)).readiness.outstanding) {
+        await app!.inject({
+          method: 'PATCH', url: `/api/v1/deals/${id}/checklist/${code}`, headers: { cookie: cookieOwner },
+          payload: { completed: true },
+        });
+      }
+      await app!.inject({
+        method: 'PATCH', url: `/api/v1/deals/${id}`, headers: { cookie: cookieOwner },
+        payload: { pipeline_stage: 'delivered' },
+      });
+      const res = await app!.inject({
+        method: 'PATCH', url: `/api/v1/deals/${id}/checklist/insurance`, headers: { cookie: sellerCookie },
+        payload: { completed: false, correction_reason: 'I think this was wrong' },
+      });
+      expect(res.statusCode).toBe(403);
     });
 
     it('with only a WAIVABLE item left, the error is soft, not hard-blocked', async (ctx) => {

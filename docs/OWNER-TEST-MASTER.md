@@ -9,7 +9,12 @@ http://localhost:5173 — login `hassan-test@1dealer.ca` / `Test-Dealpilot-2026!
 If the login fails, run `bash apps/web/scripts/seed-owner.sh` with the stack up.
 
 **Status key:** ⬜ waiting for you · ✅ you passed it · ❌ you found a problem
-(tell us and we fix it before anything else).
+(tell us and we fix it before anything else) · 🔁 fixed since you tested — worth
+another look.
+
+**Rounds 1 and 2 are marked from your 2026-07-26 testing.** Three rows are 🔁
+rather than ✅ because we changed something after you looked. Round 3 was a
+placeholder and is gone — the real rounds are 4 onward.
 
 ---
 
@@ -33,15 +38,15 @@ should be true:
 
 | # | What to check | Expected | Status |
 |---|---|---|---|
-| 1.1 | Team screen lists you as Owner, Active | You are there | ⬜ |
-| 1.2 | Add a member, edit their roles | Appears immediately; roles update | ⬜ |
-| 1.3 | Add the same email twice | Clear message, no crash | ⬜ |
-| 1.4 | Assign a lead, filter "My leads" | Assignment sticks; filter is correct | ⬜ |
-| 1.5 | Remove a member | Their leads return to the pool, not to a ghost | ⬜ |
-| 1.6 | Desking worksheet, Quebec, the numbers in the doc | GST $1,375.00 · QST $2,743.13 · payment $640.09 · total gross $4,500.00 | ⬜ |
-| 1.7 | Switch province to Ontario | Two tax lines become one HST line | ⬜ |
-| 1.8 | Toggle FR ↔ EN | Amounts flip between "35 000,00 $" and "$35,000.00" | ⬜ |
-| 1.9 | Same worksheet on your phone | One column, no sideways scrolling | ⬜ |
+| 1.1 | Team screen lists you as Owner, Active | You are there | ✅ |
+| 1.2 | Add a member, edit their roles | Appears immediately; roles update | ✅ |
+| 1.3 | Add the same email twice | Clear message, no crash | 🔁 |
+| 1.4 | Assign a lead, filter "My leads" | Assignment sticks; filter is correct | ✅ |
+| 1.5 | Remove a member, then **invite them back** | Rejoining works now (it failed with "operation failed" — fixed 2026-07-26). Their leads go back to the pool; who had them is in the lead's History | 🔁 |
+| 1.6 | Desking worksheet, Quebec, the numbers in the doc | GST $1,375.00 · QST $2,743.13 · payment $640.09 · total gross $4,500.00 | ✅ |
+| 1.7 | Switch province to Ontario | Two tax lines become one HST line | ✅ |
+| 1.8 | Toggle FR ↔ EN | Amounts flip between "35 000,00 $" and "$35,000.00" | ✅ |
+| 1.9 | Same worksheet on your phone | One column, no sideways scrolling | ✅ |
 
 ## ROUND 2 — Pipeline, inventory, delivery checklist, commissions (BATCH-02)
 
@@ -51,19 +56,19 @@ numbers below are what the system actually produced, not what we hoped.
 
 | # | What to check | Expected | Status |
 |---|---|---|---|
-| 2.1 | Deals board has the 10 stages | New … Complete, plus Lost | ⬜ |
-| 2.2 | Move a deal New → Submitted | Sticks after refresh | ⬜ |
-| 2.3 | Funding badge is a separate track | A deal can be Signed while funding is still Submitted | ⬜ |
-| 2.4 | Add a vehicle | Total cost = acquisition + transport + recon | ⬜ |
-| 2.5 | Duplicate stock number, then duplicate VIN | Refused, and the message names *which* field | ⬜ |
-| 2.6 | **Try to deliver a deal with an unfinished checklist** | **Refused, and it lists what's outstanding** | ⬜ |
-| 2.7 | Waive a soft item with no reason | Refused — it insists on a reason | ⬜ |
-| 2.8 | **Try to waive the safety inspection, as Owner** | **Refused. Nobody can, including you** | ⬜ |
-| 2.9 | Complete everything, then deliver | Goes through, delivery date recorded | ⬜ |
-| 2.10 | Try to un-tick something after delivery | Refused — it's the record now | ⬜ |
-| 2.11 | Store settings: switch "Drivers booked" off | Allowed. Switching safety off is refused | ⬜ |
-| 2.12 | The deal from 2.6 still shows "Drivers booked" | Policy changes don't rewrite deals in flight | ⬜ |
-| 2.13 | Pay plan 25% + $1,500 pad, fund a deal | **Pad comes off BEFORE the rate** — $5,400 gross → $975, not $1,350 | ⬜ |
+| 2.1 | Deals board has the 10 stages | New … Complete, plus Lost | ✅ |
+| 2.2 | Move a deal New → Submitted | Sticks after refresh | ✅ |
+| 2.3 | Funding badge is a separate track | A deal can be Signed while funding is still Submitted | ✅ |
+| 2.4 | Add a vehicle | Total cost = acquisition + transport + recon | ✅ |
+| 2.5 | Duplicate stock number, then duplicate VIN | Refused, and the message names *which* field | ✅ |
+| 2.6 | **Try to deliver a deal with an unfinished checklist** | **Refused, and it lists what's outstanding** | ✅ |
+| 2.7 | Waive a soft item with no reason | Refused — it insists on a reason | ✅ |
+| 2.8 | **Try to waive the safety inspection, as Owner** | **Refused. Nobody can, including you** | ✅ |
+| 2.9 | Complete everything, then deliver | Goes through, delivery date recorded | ✅ |
+| 2.10 | Try to un-tick something after delivery | Refused — unless you give a reason, which is now allowed and recorded (D-034) | 🔁 |
+| 2.11 | Store settings: switch "Drivers booked" off | Allowed. Switching safety off is refused | ✅ |
+| 2.12 | The deal from 2.6 still shows "Drivers booked" | Policy changes don't rewrite deals in flight | ✅ |
+| 2.13 | Pay plan 25% + $1,500 pad, fund a deal **that makes money** | **Pad comes off BEFORE the rate** — $5,400 gross → $975. Your test deal sold at $26,900 against a $70,000 cost, so it lost $43,100 and correctly paid $0 — see the note below | 🔁 |
 | 2.14 | Fund the same deal again | Still ONE commission line. Cannot double-pay | ⬜ |
 
 **2.13 is the one to look at hardest.** It is the exact calculation the old
@@ -105,9 +110,17 @@ attach a login to it later. Say the word and we switch.
 
 ---
 
-## ROUND 3 — added as work lands
+## Why your commission showed $0.00
 
-Ahmad and Hussein append here. Empty sections mean the work is in flight.
+Your funded test deal had a **sale price of $26,900 and a vehicle cost of
+$70,000** — a $43,100 loss on paper. The engine floors the commissionable amount
+at zero, so it paid nothing, which is correct: you do not pay a percentage of a
+loss. The screen showing a bare "$0.00" without saying why is fair criticism and
+is filed as CR-10.
+
+To see 2.13 work properly, use a deal where the sale price is **above** the
+vehicle cost. And you could not fix that deal because the worksheet has no edit
+path at all — CR-07, the most important thing on Hussein's list.
 
 ## ROUND 4 — Activity history (F-10)
 

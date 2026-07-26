@@ -59,14 +59,27 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
       if (deal.rows.length === 0) throw notFound();
 
       // Once the car has been delivered, the checklist is the EVIDENCE that it
-      // was allowed to be, and nothing keeps history. This keys on delivered_at,
-      // NOT on the current stage: stage moves are unrestricted, so anyone could
-      // otherwise walk the deal back one stage, untick everything, and walk it
-      // forward again — stripping the proof while the gate stayed satisfied.
-      if (deal.rows[0]!.delivered_at !== null) {
+      // was allowed to be. This keys on delivered_at, NOT on the current stage:
+      // stage moves are unrestricted, so anyone could otherwise walk the deal
+      // back a stage, untick everything, and walk it forward again — stripping
+      // the proof while the gate stayed satisfied.
+      //
+      // D-034 (owner, 2026-07-26): a correction IS allowed, because mistakes
+      // happen on a delivery day and a record nobody can fix starts being
+      // quietly wrong. It costs a reason, it is manager-only, and it is in the
+      // activity trail forever.
+      const delivered = deal.rows[0]!.delivered_at !== null;
+      if (delivered && !input.correction_reason) {
         throw new AppError(409, 'deal_delivered', 'This deal is delivered — its checklist is now the record', [
-          { path: 'deal_id', code: 'deal_delivered', message: 'A delivered deal’s checklist cannot be changed' },
+          {
+            path: 'correction_reason',
+            code: 'correction_reason_required',
+            message: 'To correct it anyway, say why — the reason is kept with the deal',
+          },
         ]);
+      }
+      if (delivered && !isManager) {
+        throw new AppError(403, 'forbidden', 'Only an owner or GM can correct a delivered deal’s checklist');
       }
 
       await ensureDealItems(c, orgId, dealId);
@@ -147,15 +160,24 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
         await recordEvent(c, {
           ...evt,
           action: input.completed ? 'checklist_completed' : 'checklist_uncompleted',
-          changes: { deal_id: dealId, code, completed: { from: target.completed_at !== null, to: input.completed } },
+          changes: {
+            deal_id: dealId, code,
+            completed: { from: target.completed_at !== null, to: input.completed },
+            ...(delivered ? { corrected_after_delivery: true } : {}),
+          },
+          reason: input.correction_reason ?? null,
         });
       }
       if (overriddenChanges) {
         await recordEvent(c, {
           ...evt,
           action: input.overridden ? 'checklist_waived' : 'checklist_unwaived',
-          changes: { deal_id: dealId, code, waived: { from: target.overridden_at !== null, to: input.overridden } },
-          reason: input.overridden ? (input.override_reason ?? null) : null,
+          changes: {
+            deal_id: dealId, code,
+            waived: { from: target.overridden_at !== null, to: input.overridden },
+            ...(delivered ? { corrected_after_delivery: true } : {}),
+          },
+          reason: input.correction_reason ?? (input.overridden ? (input.override_reason ?? null) : null),
         });
       }
       return r.rows[0];
