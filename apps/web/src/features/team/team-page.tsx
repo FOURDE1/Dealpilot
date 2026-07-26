@@ -98,8 +98,8 @@ export function TeamPage() {
   const members = useMembers(orgId, { enabled: !noOrg });
   const updateMember = useUpdateMember(orgId);
   const invitations = useInvitations(multiOrg ? orgId : undefined, { enabled: !noOrg });
-  const createInvitation = useCreateInvitation(orgId);
-  const revokeInvitation = useRevokeInvitation(orgId);
+  const createInvitation = useCreateInvitation();
+  const revokeInvitation = useRevokeInvitation();
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const me = members.data?.items.find((m) => m.user_id === session?.user.id);
   const canWrite = me?.roles.some((r) => WRITE_ROLES.has(r)) ?? false;

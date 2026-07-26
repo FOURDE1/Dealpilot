@@ -44,12 +44,10 @@ export function useActivity(
     queryKey: [...activityKeys.entity(entityType, entityId), orgId ?? 'single-org'],
     enabled: (opts?.enabled ?? true) && entityId !== '',
     queryFn: async ({ signal }) => {
-      // CR-04: the server rolls up child events (checklist acts and future
-      // dispatch/documents) under entity_id — one exact query.
-      return fetchPages(
-        { entity_type: entityType, entity_id: entityId, organization_id: orgId },
-        signal,
-      );
+      // CR-04: the server rolls up child events (checklist acts, dispatch,
+      // documents) under entity_id — entity_type must stay OFF the wire or it
+      // would filter the children (their type differs) back out.
+      return fetchPages({ entity_id: entityId, organization_id: orgId }, signal);
     },
   });
 }

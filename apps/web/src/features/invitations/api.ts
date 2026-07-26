@@ -29,7 +29,7 @@ export function useInvitations(orgId?: string, opts?: { enabled?: boolean }) {
   });
 }
 
-export function useCreateInvitation(orgId?: string) {
+export function useCreateInvitation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (body: CreateInvitationInputT) => {
@@ -37,18 +37,18 @@ export function useCreateInvitation(orgId?: string) {
       if (res.status !== 201) fail(res.status, res.body);
       return Invitation.parse(res.body);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: invitationKeys.list(orgId) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invitations'] }),
   });
 }
 
-export function useRevokeInvitation(orgId?: string) {
+export function useRevokeInvitation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
       const res = await apiRequest(routes.invitations.revoke, { params: { id } });
       if (res.status !== 204) fail(res.status, res.body);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: invitationKeys.list(orgId) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['invitations'] }),
   });
 }
 

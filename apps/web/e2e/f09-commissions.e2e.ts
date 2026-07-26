@@ -26,11 +26,20 @@ test('full F-09 journey: pay plan → sold-by deal → funded → $1,375 line', 
   await page.getByLabel('Code').fill(`F09-${stamp % 10000}`);
   await page.getByRole('button', { name: 'Créer la succursale' }).click();
 
-  // A salesperson with a pay plan: 25% rate, $1,500 pad.
+  // A salesperson with a pay plan: 25% rate, $1,500 pad. Created via the
+  // direct roster API — the invite→accept journey is f04's subject, not ours.
+  const orgsResp = await page.request.get('/api/v1/organizations?limit=10');
+  const orgId = ((await orgsResp.json()) as { items: { id: string }[] }).items[0]!.id;
+  const addResp = await page.request.post('/api/v1/members', {
+    data: {
+      organization_id: orgId,
+      email: `vicky-${stamp}@1dealer.test`,
+      name: 'Vicky Vendeuse',
+      roles: ['salesperson'],
+    },
+  });
+  if (addResp.status() !== 201) throw new Error(`member add failed: ${addResp.status()}`);
   await page.getByRole('link', { name: 'Équipe' }).first().click();
-  await page.getByLabel('Nom', { exact: true }).fill('Vicky Vendeuse');
-  await page.getByLabel('Courriel').fill(`vicky-${stamp}@1dealer.test`);
-  await page.getByRole('button', { name: 'Ajouter', exact: true }).click();
   await expect(page.getByRole('cell', { name: 'Vicky Vendeuse', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Plan de rémunération — Vicky Vendeuse' }).click();
   await page.getByLabel('Taux de commission (%)').fill('25');
