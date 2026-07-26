@@ -27,8 +27,11 @@ export function usePublishedBranding(opts?: { enabled?: boolean }) {
     retry: false,
     queryFn: async ({ signal }) => {
       const res = await apiRequest(routes.branding.current, { signal });
-      // null body (published-none) AND 404 (caller has no org context) both mean
-      // "no brand" → fall back to the platform theme rather than throwing.
+      // The boot answer for an unbranded or org-less caller is 200 with a null
+      // body (Ahmad fixed the endpoint so "no org" is no longer a 404). The 404
+      // branch is now purely defensive — a cosmetic boot query must never break
+      // first paint, so any "no brand / can't tell" answer falls back to the
+      // platform theme rather than throwing.
       if (res.status === 404 || res.body === null) return null;
       if (res.status !== 200) fail(res.status, res.body);
       return PublishedBranding.parse(res.body);
