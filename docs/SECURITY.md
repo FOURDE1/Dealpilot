@@ -11,7 +11,7 @@ Two layers, both binding:
 1. **CLAUDE.md § Security** — the operating baseline for every change (deny-by-default
    authz, parameterized queries, secrets hygiene, fail closed, LLM output as untrusted
    input, `/security-audit` cadence).
-2. **The 04-security suite** in the plan — the deep, ReadyLoans-specific design:
+2. **The 04-security suite** in the plan — the deep, product-specific design:
    - [authentication-authorization.md](../../kia-tracker-specs/docs/new/04-security/authentication-authorization.md) — Better Auth sessions, MFA, 10-role matrix, memberships
    - [api-security.md](../../kia-tracker-specs/docs/new/04-security/api-security.md) — route auth coverage, rate limiting, webhook signatures, error hygiene
    - [data-protection.md](../../kia-tracker-specs/docs/new/04-security/data-protection.md) — encryption, RLS tenant isolation, retention, residency

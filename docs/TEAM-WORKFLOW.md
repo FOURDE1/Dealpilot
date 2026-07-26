@@ -79,13 +79,14 @@ The two agents must **never run in the same working directory**.
 - **AHMAD** works in `main-project` (this directory).
 - **HUSSEIN** works in a dedicated sibling clone: `main-project-hussein`.
 
-**Remote (owner decision 2026-07-24 — git-only, no GitHub yet):** `origin` is the
-local bare repository `../readyloans.git` (i.e. `Archive/readyloans.git`). All
-push/pull flows through it exactly as they would through GitHub. HUSSEIN creates
-his working copy with:
-`git clone "<path-to>/Archive/readyloans.git" main-project-hussein` (inside
-`Archive/`). When GitHub is adopted later, we add it as the new origin and push —
-nothing else changes.
+**Remote:** `origin` is **GitHub — `FOURDE1/Dealpilot`**, and CI runs there on
+every push to `develop`. HUSSEIN clones from GitHub:
+`git clone https://github.com/FOURDE1/Dealpilot.git main-project-hussein` (inside
+`Archive/`).
+
+The local bare repo `../readyloans.git` is still configured as a second remote
+named `backup` and is no longer the source of truth. This paragraph described it
+as `origin` long after that stopped being true — corrected in A-09.
 
 Coordination files (TASKS.md, SESSION_LOG.md) are read/written through git — pull
 before reading, push immediately after writing (§7). Until A-01 (git init + push)
@@ -103,8 +104,8 @@ and frontend.
 - AHMAD implements the contract on his own branch and merges to `develop`, then
   marks the CR row `DONE(date, merge-commit)`.
 - **Contract changes land on `develop` BEFORE dependent UI work starts.** HUSSEIN
-  codes strictly against the published types (`import` from `@readyloans/contracts`
-  / `@readyloans/schemas`) — never against hand-written duplicate types. Mock data
+  codes strictly against the published types (`import` from `@dealpilot/contracts`
+  / `@dealpilot/schemas`) — never against hand-written duplicate types. Mock data
   in the UI is fine, but it must be typed by the published contract.
 - If a published contract turns out wrong mid-UI-work: stop that task, file a CR,
   mark the task `BLOCKED(needs CR-nn from AHMAD)`, switch to other claimed work.

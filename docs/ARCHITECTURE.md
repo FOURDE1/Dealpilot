@@ -12,7 +12,7 @@
 
 ## System overview
 
-ReadyLoans is a multi-tenant, white-label dealership CRM/DMS with an AI
+Dealpilot is a multi-tenant, white-label dealership CRM/DMS with an AI
 lead-automation layer. A single React 19 SPA (runtime-themed per tenant, FR-first)
 talks to a Fastify v5 REST API (`/api/v1`, ts-rest + Zod contracts) backed by
 Amazon RDS for PostgreSQL 16 in `ca-central-1` — VPC-private, RDS Proxy pooling
