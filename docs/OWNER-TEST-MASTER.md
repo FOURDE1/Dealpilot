@@ -166,6 +166,8 @@ store actually runs.
 | 6.8 | Cancel a booked run | Same — a called-off run must not lock up a plate | ⬜ |
 | 6.9 | Try to mark a run "arrived" without "departed" | Refused. The ETA you gave the customer was never true | ⬜ |
 | 6.10 | Try to edit a completed run's driver | Refused — it is the record now | ⬜ |
+| 6.11 | Cancel the run that a flagged one clashed with | The flag clears by itself — no stale warnings on the board | ⬜ |
+| 6.12 | Try to remove a plate a booked run needs | Refused, with why. Cancel that run first, then it removes | ⬜ |
 
 **The judgement call to check (6.5):** a clash never blocks the booking. It gets
 flagged so a dispatcher can look at it, because you can fix a flagged run and
