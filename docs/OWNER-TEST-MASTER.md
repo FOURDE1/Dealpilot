@@ -266,3 +266,31 @@ API). Salespeople see the board link but get a plain "not allowed" message.
 | 10.1 | Open a deal → "Edit" → change the price → save | The worksheet opens on the deal's numbers; the payment recomputes — re-desking works | ⬜ |
 | 10.2 | Remove someone who had an account, re-invite them, open their link, try "create account" | It switches to sign-in by itself with a plain message; their password gets them in and re-joined | ⬜ |
 | 10.3 | Tick a checklist item | It now says who AND when, to the minute | ⬜ |
+
+## ROUND 10 — Permissions (A-13) — **your D-033 ask**
+
+Needs Hussein's settings screen before you can click it, but the rules are live
+now and you can feel them.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 10.1 | Settings → Permissions: read the matrix | Every action in the system, and exactly what each of the 10 roles can do. This is the question you could not get an answer to before | ⬜ |
+| 10.2 | Give "Salesperson" the right to add a vehicle, save | A salesperson can immediately stock a car — no deploy, no code change | ⬜ |
+| 10.3 | Take it away again | They are refused straight away | ⬜ |
+| 10.4 | Give ONE person an exception ("Marc can also do X") | Only Marc gains it. His colleagues do not | ⬜ |
+| 10.5 | DENY one person something their role allows | Only that person loses it — useful while somebody is under review | ⬜ |
+| 10.6 | Try to remove "change permissions" from Owner | Refused — otherwise nobody could ever undo it without a database console | ⬜ |
+| 10.7 | Ask a salesperson to open the permissions screen | They can READ the rules but not change them | ⬜ |
+| 10.8 | Check the History after any change | Every permission change is recorded with who made it | ⬜ |
+
+**What changed underneath, in plain terms:** the rules used to be written in
+about thirty different places in the code. They are now in one table you own,
+per dealership group. Building it found **eleven actions that had no rule at
+all** — "any member can desk a deal / create a lead / stock a car" was true and
+nobody had ever decided it. Those are now rows you can see and change.
+
+**On "100% secured":** that is a practice, not a finish line. What you have is
+deny-by-default everywhere, one readable place defining who can do what, a test
+that fails the build if a developer sneaks a rule back into the code, and an
+audit trail of every change. Anyone who tells you a system is finished-secure is
+selling something.
