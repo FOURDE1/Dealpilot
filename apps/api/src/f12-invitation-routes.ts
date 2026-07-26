@@ -5,8 +5,9 @@ import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db'
 import { CreateInvitationInput, InvitationListQuery } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
-import { assertGrantable, MEMBER_WRITE_ROLES } from './f04-members-routes.js';
+import { assertGrantable } from './f04-members-routes.js';
 import { recordEvent } from './activity.js';
+import { requirePermission } from './permissions.js';
 import type { Mailer } from './email.js';
 import { invitationMessage } from './email.js';
 
@@ -50,7 +51,8 @@ export function registerF12Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const token = newToken();
 
     const invitation = await withTenant(pool, input.organization_id, async (c) => {
-      const actorRoles = await requireMember(c, actor.id, MEMBER_WRITE_ROLES);
+      await requirePermission(c, actor.id, 'member:invite');
+      const actorRoles = await requireMember(c, actor.id);
       // The privilege ceiling from F-04: you cannot invite someone to a role you
       // do not hold yourself, or the invite becomes an escalation route around
       // the member-update rules.
@@ -179,7 +181,7 @@ export function registerF12Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     const orgId = await resolveOrg(pool, user.id, query.organization_id);
     const page = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, MEMBER_WRITE_ROLES);
+      await requirePermission(c, user.id, 'member:invite');
       return keysetPage(
         c,
         `SELECT * FROM invitations WHERE organization_id = $1 AND accepted_at IS NULL AND revoked_at IS NULL`,
@@ -195,7 +197,7 @@ export function registerF12Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     const orgId = await invitationOrg(pool, user.id, invitationId);
     await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, MEMBER_WRITE_ROLES);
+      await requirePermission(c, user.id, 'member:invite');
       const gone = await c.query(
         `UPDATE invitations SET revoked_at = now()
          WHERE id = $1 AND accepted_at IS NULL AND revoked_at IS NULL RETURNING id`,

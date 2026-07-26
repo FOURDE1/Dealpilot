@@ -2,14 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { CreateLeadInput, LeadListQuery, UpdateLeadInput } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
+import { requirePermission } from './permissions.js';
 import { diff, recordEvent } from './activity.js';
 import {
-  STORE_WRITE_ROLES,
   callerOrgIds,
   conflictFrom,
   idParam,
   keysetPage,
-  requireMember,
   sessionUser,
 } from './f01-routes.js';
 
@@ -76,7 +75,7 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     try {
       const lead = await withTenant(pool, input.organization_id, async (c) => {
-        await requireMember(c, user.id);
+        await requirePermission(c, user.id, 'lead:create');
         await requireLiveStore(c, input.store_id);
         const r = await c.query(
           `INSERT INTO leads (${LEAD_COLUMNS})
@@ -168,7 +167,9 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
     const orgId = await leadOrg(pool, user.id, leadId);
     try {
       const lead = await withTenant(pool, orgId, async (c) => {
-        await requireMember(c, user.id);
+        // Assigning is a different power from editing: a BDC agent routes
+        // leads all day but does not own the rest of the record.
+        await requirePermission(c, user.id, input.assigned_to === undefined ? 'lead:update' : 'lead:assign');
         if (input.store_id) await requireLiveStore(c, input.store_id);
         if (input.assigned_to) await requireAssignableMember(c, input.assigned_to);
         const beforeRow = await c.query<Record<string, unknown>>(
@@ -217,7 +218,7 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     const orgId = await leadOrg(pool, user.id, leadId);
     await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, STORE_WRITE_ROLES);
+      await requirePermission(c, user.id, 'lead:delete');
       const gone = await c.query(
         `UPDATE leads SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL RETURNING id`,
         [leadId],

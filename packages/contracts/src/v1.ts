@@ -10,6 +10,10 @@ import {
   Organization,
   Store,
   ActivityEvent,
+  Permission,
+  PermissionMatrix,
+  UpdateRolePermissionsInput,
+  UpdateUserPermissionInput,
   ActivityListQuery,
   ChaserVehicle,
   CreateChaserInput,
@@ -345,6 +349,39 @@ export const apiV1 = c.router({
       method: 'DELETE',
       path: '/api/v1/invitations/:id',
       pathParams: z.object({ id: Uuid }),
+      responses: { 204: z.void(), ...errorResponses },
+    },
+  }),
+  /**
+   * A-13 permissions (D-033): the matrix that answers "what can this role do?"
+   * — readable by any member, changeable only by someone who may change roles.
+   */
+  permissions: c.router({
+    matrix: {
+      method: 'GET',
+      path: '/api/v1/permissions',
+      query: z.object({ organization_id: Uuid.optional() }),
+      responses: { 200: PermissionMatrix, ...errorResponses },
+    },
+    /** What the SIGNED-IN person may do, so the UI can hide what would 403. */
+    mine: {
+      method: 'GET',
+      path: '/api/v1/permissions/mine',
+      query: z.object({ organization_id: Uuid.optional() }),
+      responses: { 200: z.object({ permissions: z.array(Permission) }), ...errorResponses },
+    },
+    /** Replace one role's set. The list is complete: absent means revoked. */
+    setRole: {
+      method: 'PUT',
+      path: '/api/v1/permissions/role',
+      body: UpdateRolePermissionsInput,
+      responses: { 200: PermissionMatrix, ...errorResponses },
+    },
+    /** One person's exception — grant OR deny. null clears it. */
+    setUser: {
+      method: 'PUT',
+      path: '/api/v1/permissions/user',
+      body: UpdateUserPermissionInput,
       responses: { 204: z.void(), ...errorResponses },
     },
   }),

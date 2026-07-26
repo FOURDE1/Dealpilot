@@ -10,10 +10,11 @@ import {
   type DeskingOutputsT,
 } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
-import { conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
+import { conflictFrom, idParam, keysetPage, sessionUser } from './f01-routes.js';
 import { writeCommissionsForFundedDeal } from './f09-commissions-routes.js';
 import { checklistReadiness, DELIVERY_STAGES, ensureDealItems } from './checklist.js';
 import { diff, recordEvent } from './activity.js';
+import { requirePermission } from './permissions.js';
 
 /**
  * F-05 desking (apiV1.deals) — the A-06 money engine behind the API.
@@ -163,7 +164,7 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
     const outputs = computeOutputs(input);
     try {
       const deal = await withTenant(pool, input.organization_id, async (c) => {
-        await requireMember(c, user.id);
+        await requirePermission(c, user.id, 'deal:create');
         await requireLiveStore(c, input.store_id);
         if (input.lead_id) await requireLeadInOrg(c, input.lead_id);
         if (input.vehicle_id) await requireVehicleInOrg(c, input.vehicle_id);
@@ -269,7 +270,12 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     const orgId = await dealOrg(pool, user.id, dealId);
     const deal = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id);
+      // Three different powers on one endpoint: moving the car, recording that
+      // the money arrived, and editing the numbers. A salesperson may do the
+      // first and third; only F&I records funding.
+      if (input.pipeline_stage) await requirePermission(c, user.id, 'deal:change_stage');
+      if (input.funding_status) await requirePermission(c, user.id, 'deal:change_funding');
+      await requirePermission(c, user.id, 'deal:update');
       if (input.lead_id) await requireLeadInOrg(c, input.lead_id);
       if (input.vehicle_id) await requireVehicleInOrg(c, input.vehicle_id);
 

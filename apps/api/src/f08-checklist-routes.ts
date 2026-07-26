@@ -3,8 +3,9 @@ import { withTenant, withUser, type Pool } from '@dealpilot/db';
 import { ChecklistCode, UpdateChecklistItemInput, UpdateChecklistTemplateInput } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { checklistReadiness, ensureDealItems, ensureTemplate, type ItemRow } from './checklist.js';
-import { idParam, requireMember, sessionUser, STORE_WRITE_ROLES } from './f01-routes.js';
+import { idParam, requireMember, sessionUser } from './f01-routes.js';
 import { recordEvent } from './activity.js';
+import { hasPermission, requirePermission } from './permissions.js';
 
 /**
  * F-08 delivery checklist (delivery.md §2) — the gate between Signed and
@@ -43,8 +44,12 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
     const orgId = await dealOrg(pool, user.id, dealId);
 
     const item = await withTenant(pool, orgId, async (c) => {
-      const roles = await requireMember(c, user.id);
-      const isManager = roles.some((r) => STORE_WRITE_ROLES.includes(r as (typeof STORE_WRITE_ROLES)[number]));
+      await requirePermission(c, user.id, 'checklist:complete');
+      // Waiving, signing the safety inspection and correcting a delivered deal
+      // are three different powers, not one "is a manager" flag.
+      const mayWaive = await hasPermission(c, user.id, 'checklist:waive');
+      const maySignSafety = await hasPermission(c, user.id, 'checklist:sign_safety');
+      const mayCorrect = await hasPermission(c, user.id, 'checklist:correct_delivered');
 
       // Lock the DEAL first, THEN touch its items — the same order F-05 takes,
       // so the two paths can never deadlock by grabbing the deal row and its
@@ -78,7 +83,7 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
           },
         ]);
       }
-      if (delivered && !isManager) {
+      if (delivered && !mayCorrect) {
         throw new AppError(403, 'forbidden', 'Only an owner or GM can correct a delivered deal’s checklist');
       }
 
@@ -104,7 +109,7 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
         // sworn statement that the inspection happened, so it carries the same
         // authority as waiving a soft item — otherwise "cannot be waived" would
         // just mean "type `completed` instead of `overridden`".
-        if (!target.overridable && !isManager) {
+        if (!target.overridable && !maySignSafety) {
           throw new AppError(403, 'forbidden', 'Only an owner or GM can sign off the safety inspection');
         }
         sets.push(`completed_at = ${input.completed ? 'now()' : 'NULL'}`);
@@ -115,8 +120,8 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
         // Deny by default, and BEFORE any business check: a caller who may not
         // waive learns nothing about which items are waivable. The role check
         // runs even for a no-op, so probing cannot map who may waive what.
-        if (!isManager) {
-          throw new AppError(403, 'forbidden', 'Only an owner or GM can waive a checklist item');
+        if (!mayWaive) {
+          throw new AppError(403, 'forbidden', 'Your role does not allow waiving a checklist item');
         }
         if (input.overridden && overriddenChanges) {
           // The safety inspection is a legal obligation — no role waives it.
@@ -207,7 +212,7 @@ export function registerF08Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     const orgId = await storeOrgFor(pool, user.id, storeId);
     const row = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, STORE_WRITE_ROLES);
+      await requirePermission(c, user.id, 'store:configure_checklist');
       await ensureTemplate(c, orgId, storeId);
       // Safety is required by law: a store cannot configure it away.
       if (code === 'safety' && (input.required === false || input.active === false)) {

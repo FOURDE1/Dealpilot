@@ -17,6 +17,7 @@ import {
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import { recordEvent } from './activity.js';
+import { requirePermission } from './permissions.js';
 import { dispatchRequestMessage, type Mailer } from './email.js';
 
 /**
@@ -35,7 +36,6 @@ import { dispatchRequestMessage, type Mailer } from './email.js';
  */
 
 /** Who may touch the fleet and the board. */
-const DISPATCH_ROLES = ['owner', 'gm', 'logistics'] as const;
 
 export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mailer): void {
   // ---- fleet: chasers -----------------------------------------------------
@@ -44,7 +44,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     try {
       const row = await withTenant(pool, input.organization_id, async (c) => {
-        await requireMember(c, user.id, DISPATCH_ROLES);
+        await requirePermission(c, user.id, 'fleet:manage');
         await requireLiveStore(c, input.store_id);
         const r = await c.query<Record<string, unknown>>(
           `INSERT INTO chaser_vehicles (organization_id, store_id, name) VALUES ($1,$2,$3) RETURNING *`,
@@ -83,7 +83,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     const orgId = await rowOrg(pool, user.id, 'chaser_vehicles', id);
     const row = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, DISPATCH_ROLES);
+      await requirePermission(c, user.id, 'fleet:manage');
       return updateRow(c, 'chaser_vehicles', id, input);
     });
     return reply.send(row);
@@ -95,7 +95,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     const orgId = await rowOrg(pool, user.id, 'chaser_vehicles', id);
     await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, DISPATCH_ROLES);
+      await requirePermission(c, user.id, 'fleet:manage');
       await retireFleetRow(c, 'chaser_vehicles', 'chaser_vehicle_id', id);
     });
     return reply.status(204).send();
@@ -107,7 +107,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     try {
       const row = await withTenant(pool, input.organization_id, async (c) => {
-        await requireMember(c, user.id, DISPATCH_ROLES);
+        await requirePermission(c, user.id, 'fleet:manage');
         await requireLiveStore(c, input.store_id);
         const r = await c.query<Record<string, unknown>>(
           `INSERT INTO dealer_plates (organization_id, store_id, plate_number) VALUES ($1,$2,$3) RETURNING *`,
@@ -146,7 +146,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     const orgId = await rowOrg(pool, user.id, 'dealer_plates', id);
     const row = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, DISPATCH_ROLES);
+      await requirePermission(c, user.id, 'fleet:manage');
       return updateRow(c, 'dealer_plates', id, input);
     });
     return reply.send(row);
@@ -158,7 +158,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     const orgId = await rowOrg(pool, user.id, 'dealer_plates', id);
     await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, DISPATCH_ROLES);
+      await requirePermission(c, user.id, 'fleet:manage');
       await retireFleetRow(c, 'dealer_plates', 'dealer_plate_id', id);
     });
     return reply.status(204).send();
@@ -175,7 +175,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     try {
       const row = await withTenant(pool, input.organization_id, async (c) => {
-        await requireMember(c, user.id, DISPATCH_ROLES);
+        await requirePermission(c, user.id, 'fleet:manage');
         if (input.store_id) await requireLiveStore(c, input.store_id);
         const r = await c.query<Record<string, unknown>>(
           `INSERT INTO driver_companies
@@ -200,7 +200,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     const orgId = await resolveOrg(pool, user.id, query.organization_id);
     const page = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, DISPATCH_ROLES);
+      await requirePermission(c, user.id, 'dispatch:read');
       const params: unknown[] = [orgId];
       let where = 'organization_id = $1 AND deleted_at IS NULL';
       if (query.store_id) {
@@ -219,7 +219,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     const orgId = await rowOrg(pool, user.id, 'driver_companies', id);
     const row = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, DISPATCH_ROLES);
+      await requirePermission(c, user.id, 'fleet:manage');
       const fields = Object.entries(input).filter(([k]) => DRIVER_COMPANY_COLUMNS.has(k));
       if (fields.length === 0) {
         const r = await c.query<Record<string, unknown>>(
@@ -245,7 +245,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const user = sessionUser(request);
     const orgId = await rowOrg(pool, user.id, 'dispatch_assignments', id);
     const req = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, DISPATCH_ROLES);
+      await requirePermission(c, user.id, 'dispatch:update');
       return buildDispatchRequest(c, id);
     });
     if (!req) {
@@ -273,7 +273,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const orgId = await rowOrg(pool, user.id, 'deals', input.deal_id);
 
     const assignment = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, DISPATCH_ROLES);
+      await requirePermission(c, user.id, 'dispatch:book');
 
       const deal = await c.query<{
         store_id: string; trade_allowance_cents: number; trade_acv_cents: number;
@@ -439,7 +439,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const page = await withTenant(pool, orgId, async (c) => {
       // The board carries driver names and phone numbers, so it is not a
       // general read: spec §11 scopes dispatch to logistics/gm/owner.
-      await requireMember(c, user.id, DISPATCH_ROLES);
+      await requirePermission(c, user.id, 'dispatch:read');
       const params: unknown[] = [orgId];
       let where = 'organization_id = $1 AND deleted_at IS NULL';
       for (const [col, val] of [['store_id', query.store_id], ['status', query.status]] as const) {
@@ -466,7 +466,7 @@ export function registerF11Routes(app: FastifyInstance, pool: Pool, mailer: Mail
     const orgId = await rowOrg(pool, user.id, 'dispatch_assignments', id);
 
     const updated = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, DISPATCH_ROLES);
+      await requirePermission(c, user.id, 'dispatch:update');
       const before = await c.query<Record<string, unknown>>(
         `SELECT * FROM dispatch_assignments WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
         [id],

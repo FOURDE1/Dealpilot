@@ -11,6 +11,7 @@ import {
 import { AppError, forbidden, notFound, parseOrThrow } from './errors.js';
 import { conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import { diff, recordEvent } from './activity.js';
+import { hasPermission, requirePermission } from './permissions.js';
 
 /**
  * F-09 pay plans + commissions (commissions-clawbacks.md §11).
@@ -30,8 +31,6 @@ import { diff, recordEvent } from './activity.js';
  * retried or double-clicked funding can never double-pay.
  */
 
-const PAY_WRITE_ROLES = ['owner', 'gm'] as const;
-const PAY_READ_ROLES = ['owner', 'gm', 'fi_manager'] as const;
 
 interface PayPlanRow {
   user_id: string;
@@ -166,7 +165,7 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     try {
       const plan = await withTenant(pool, input.organization_id, async (c) => {
-        await requireMember(c, user.id, PAY_WRITE_ROLES);
+        await requirePermission(c, user.id, 'pay_plan:write');
         await requireOrgMember(c, input.user_id, 'user_id');
         if (input.override_on_user_id) await requireOrgMember(c, input.override_on_user_id, 'override_on_user_id');
         // One plan per person per store: re-posting updates it, which is how a
@@ -224,8 +223,8 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     const orgId = await resolveOrg(pool, user.id, query.organization_id);
     const page = await withTenant(pool, orgId, async (c) => {
-      const roles = await requireMember(c, user.id);
-      const canSeeEveryone = roles.some((r) => PAY_READ_ROLES.includes(r as (typeof PAY_READ_ROLES)[number]));
+      await requireMember(c, user.id);
+      const canSeeEveryone = await hasPermission(c, user.id, 'commission:read_all');
       const params: unknown[] = [orgId];
       let where = 'organization_id = $1 AND active';
       // Pay is personal: without a manager role you see only your own plan.
@@ -245,7 +244,7 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     const orgId = await planOrg(pool, user.id, planId);
     const plan = await withTenant(pool, orgId, async (c) => {
-      await requireMember(c, user.id, PAY_WRITE_ROLES);
+      await requirePermission(c, user.id, 'pay_plan:write');
       const beforeRow = await c.query<Record<string, unknown>>(`SELECT * FROM pay_plans WHERE id = $1`, [planId]);
       if (beforeRow.rows.length === 0) throw notFound();
       const prior = beforeRow.rows[0]!;
@@ -287,8 +286,8 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     const orgId = await resolveOrg(pool, user.id, query.organization_id);
     const page = await withTenant(pool, orgId, async (c) => {
-      const roles = await requireMember(c, user.id);
-      const canSeePay = roles.some((r) => PAY_READ_ROLES.includes(r as (typeof PAY_READ_ROLES)[number]));
+      await requirePermission(c, user.id, 'activity:read');
+      const canSeePay = await hasPermission(c, user.id, 'pay_plan:read');
       const params: unknown[] = [orgId];
       let where = 'organization_id = $1';
       // Pay-plan history spells out commission rates from/to. The commissions
@@ -359,8 +358,8 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     const orgId = await resolveOrg(pool, user.id, query.organization_id);
     const page = await withTenant(pool, orgId, async (c) => {
-      const roles = await requireMember(c, user.id);
-      const canSeeEveryone = roles.some((r) => PAY_READ_ROLES.includes(r as (typeof PAY_READ_ROLES)[number]));
+      await requireMember(c, user.id);
+      const canSeeEveryone = await hasPermission(c, user.id, 'commission:read_all');
       const params: unknown[] = [orgId];
       let where = 'organization_id = $1';
       const target = canSeeEveryone ? query.user_id : user.id;

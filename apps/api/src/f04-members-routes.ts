@@ -4,6 +4,7 @@ import { withContext, withTenant, withUser, type Pool, type PoolClient } from '@
 import { AddMemberInput, MemberListQuery, UpdateMemberInput } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { recordEvent } from './activity.js';
+import { requirePermission } from './permissions.js';
 import { callerOrgIds, conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 
 /**
@@ -23,7 +24,6 @@ import { callerOrgIds, conflictFrom, idParam, keysetPage, requireMember, session
  * (members are created active); the A-11 mailer is ready for it.
  */
 
-export const MEMBER_WRITE_ROLES = ['owner', 'gm', 'admin_office'] as const;
 
 /** membership + user, the shape the API returns. */
 const MEMBER_COLUMNS = `
@@ -136,7 +136,8 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
     const newUserId = randomUUID();
     try {
       const member = await withTenant(pool, input.organization_id, async (c) => {
-        const actorRoles = await requireMember(c, actor.id, MEMBER_WRITE_ROLES);
+        await requirePermission(c, actor.id, 'member:invite');
+        const actorRoles = await requireMember(c, actor.id);
         assertGrantable(actorRoles, input.roles);
         if (input.store_id) await assertStoreInOrg(c, input.store_id);
         // HO-06: adding someone who is ALREADY in this org (typically a
@@ -220,7 +221,16 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
     const orgId = await membershipOrg(pool, actor.id, membershipId);
     try {
       const member = await withTenant(pool, orgId, async (c) => {
-        const actorRoles = await requireMember(c, actor.id, MEMBER_WRITE_ROLES);
+        if (input.status && input.status !== 'active') {
+          await requirePermission(c, actor.id, 'member:revoke');
+        }
+        if (input.roles || input.status === 'active') {
+          await requirePermission(c, actor.id, 'member:update_roles');
+        }
+        if (!input.status && !input.roles) {
+          await requirePermission(c, actor.id, 'member:update_roles');
+        }
+        const actorRoles = await requireMember(c, actor.id);
         if (input.roles) assertGrantable(actorRoles, input.roles);
         if (input.store_id) await assertStoreInOrg(c, input.store_id);
 
