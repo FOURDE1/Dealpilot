@@ -8,6 +8,7 @@ import { useCreateStore, useStore, useUpdateStore } from './api.js';
 import { formErrorMessage } from './form-error.js';
 import { IntakeSources } from './intake-sources.js';
 import { ChecklistTemplateSection } from '../checklists/template-section.js';
+import { FleetSection } from '../dispatch/fleet-section.js';
 
 const PROVINCES = ['AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT'] as const;
 type Province = (typeof PROVINCES)[number];
@@ -169,6 +170,7 @@ export function StoreFormPage() {
 
       {isEdit && storeId ? <IntakeSources key={storeId} orgId={orgId} storeId={storeId} /> : null}
       {isEdit && storeId ? <ChecklistTemplateSection key={`chk-${storeId}`} storeId={storeId} /> : null}
+      {isEdit && storeId ? <FleetSection key={`fleet-${storeId}`} orgId={orgId} storeId={storeId} /> : null}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { useDealsForLead } from '../deals/api.js';
 import { ChecklistDialog } from '../checklists/checklist-dialog.js';
 import { ActivityTimeline } from '../activity/activity-timeline.js';
 import { DealActivityDialog } from '../activity/activity-dialog.js';
+import { BookDispatchDialog } from '../dispatch/book-dialog.js';
 import { DEAL_TYPE_KEYS, FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from '../deals/labels.js';
 import { formatCents } from '../deals/money.js';
 import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
@@ -35,6 +36,7 @@ export function LeadDetailPage() {
   const [feedback, setFeedback] = useState<'saved' | 'error' | null>(null);
   const [checklistDeal, setChecklistDeal] = useState<DealT | null>(null);
   const [activityDeal, setActivityDeal] = useState<DealT | null>(null);
+  const [dispatchDeal, setDispatchDeal] = useState<DealT | null>(null);
 
   async function handleStatusChange(status: LeadStatusT) {
     setFeedback(null);
@@ -191,6 +193,16 @@ export function LeadDetailPage() {
                     <button
                       type="button"
                       className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11"
+                      aria-label={td('bookDispatchFor', {
+                        name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.deal_type === 'cash' ? d.amount_financed_cents : d.monthly_payment_cents, i18n.language)}`,
+                      })}
+                      onClick={() => setDispatchDeal(d)}
+                    >
+                      {td('bookDispatch')}
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11"
                       aria-label={ta('historyFor', {
                         name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.deal_type === 'cash' ? d.amount_financed_cents : d.monthly_payment_cents, i18n.language)}`,
                       })}
@@ -233,6 +245,11 @@ export function LeadDetailPage() {
         deal={activityDeal}
         dealLabel={activityDeal ? td(DEAL_TYPE_KEYS[activityDeal.deal_type]) : undefined}
         onClose={() => setActivityDeal(null)}
+      />
+      <BookDispatchDialog
+        deal={dispatchDeal}
+        dealLabel={dispatchDeal ? td(DEAL_TYPE_KEYS[dispatchDeal.deal_type]) : undefined}
+        onClose={() => setDispatchDeal(null)}
       />
     </div>
   );

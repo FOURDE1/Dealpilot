@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { to: '/pipeline', key: 'nav:pipeline', shortKey: 'nav:shortPipeline' },
   { to: '/inventory', key: 'nav:inventory', shortKey: 'nav:shortInventory' },
   { to: '/commissions', key: 'nav:commissions', shortKey: 'nav:shortCommissions', mobileHidden: true },
+  { to: '/dispatch', key: 'nav:dispatch', shortKey: 'nav:shortDispatch', mobileHidden: true },
   { to: '/team', key: 'nav:team', shortKey: 'nav:shortTeam' },
 ] as const;
 

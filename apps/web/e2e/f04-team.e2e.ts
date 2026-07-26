@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { expect, test } from '@playwright/test';
 
 /**
@@ -47,16 +46,12 @@ test('full team journey: invite → accept → assign → revoke → reinstate',
   await expect(page.getByText('Courriel invalide.')).toBeVisible();
   await page.getByLabel('Courriel').fill(`marc-${stamp}@1dealer.test`);
   await page.getByRole('button', { name: 'Inviter', exact: true }).click();
-  await expect(page.getByText(`Invitation envoyée à marc-${stamp}@1dealer.test`)).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'Invité', exact: true })).toBeVisible();
-  // Dev "sends" email to the API log (CR-05: surface the link in dev instead).
-  const apiLog = readFileSync(process.env['API_LOG'] ?? '/tmp/api.log', 'utf8');
-  const mailLine = apiLog
-    .split('\n')
-    .reverse()
-    .find((l) => l.includes(`marc-${stamp}@1dealer.test`) && l.includes('/invitations/'));
-  const token = /\/invitations\/([A-Za-z0-9_-]+)/.exec(mailLine ?? '')?.[1] ?? '';
+  // CR-05: the dev mailer is honest — the app hands the owner the link.
+  await expect(page.getByText('Le courriel n’est pas parti')).toBeVisible();
+  const acceptUrl = await page.getByLabel('Lien d’invitation').inputValue();
+  const token = acceptUrl.split('/').pop() ?? '';
   expect(token).not.toBe('');
+  await expect(page.getByRole('cell', { name: 'Invité', exact: true })).toBeVisible();
 
   // An invited person is not assignable yet.
   await page.getByRole('link', { name: 'Prospects' }).first().click();
