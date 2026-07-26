@@ -11,8 +11,8 @@ import { useAddChaser, useAddPlate, useDriverCompanies, useCreateDriverCompany, 
  */
 export function FleetSection({ orgId, storeId }: { orgId: string; storeId: string }) {
   const { t } = useTranslation('dispatch');
-  const fleet = useFleet(storeId);
-  const companies = useDriverCompanies(undefined, { enabled: true });
+  const fleet = useFleet(storeId, orgId);
+  const companies = useDriverCompanies(orgId, { enabled: true });
   const addChaser = useAddChaser(storeId);
   const addPlate = useAddPlate(storeId);
   const addCompany = useCreateDriverCompany();
@@ -52,6 +52,11 @@ export function FleetSection({ orgId, storeId }: { orgId: string; storeId: strin
       {error ? (
         <p role="alert" className="text-sm text-danger-text">
           {error}
+        </p>
+      ) : null}
+      {fleet.isError || companies.isError ? (
+        <p role="alert" className="text-sm text-danger-text">
+          {t('loadError')}
         </p>
       ) : null}
 

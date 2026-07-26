@@ -72,6 +72,13 @@ export function DashboardPage() {
         >
           {t('commissionsLink')}
         </Link>
+        {' · '}
+        <Link
+          to="/dispatch"
+          className="font-medium text-primary hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
+        >
+          {t('deliveriesLink')}
+        </Link>
       </p>
 
       <section className="space-y-3" aria-labelledby="dash-recent-title">

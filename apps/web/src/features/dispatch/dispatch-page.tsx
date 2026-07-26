@@ -4,14 +4,16 @@ import { useTranslation } from 'react-i18next';
 import { BackLink } from '../../shared/ui/back-link.js';
 import { usePageTitle } from '../../shared/use-page-title.js';
 import { Button, DataTable, Label, Select, type ColumnDef } from '@dealpilot/ui';
-import { DispatchStatus, type DispatchAssignmentT } from '@dealpilot/schemas';
+import type { DispatchAssignmentT } from '@dealpilot/schemas';
 import { ApiError } from '../../shared/api/client.js';
 import { useOrganizations } from '../organizations/api.js';
 import { usePipelineDeals } from '../deals/api.js';
 import { useLeadNames } from '../leads/api.js';
 import { leadDisplayName } from '../leads/labels.js';
 import { formatCents } from '../deals/money.js';
-import { useDispatchList, useDriverCompanies, useResendDispatchEmail, useUpdateDispatch } from './api.js';
+import { useDispatchList, useDriverCompanies, useOrgFleet, useResendDispatchEmail, useUpdateDispatch } from './api.js';
+import { useMembers } from '../team/api.js';
+import { useSession } from '../../shared/auth/client.js';
 
 export const DISPATCH_STATUS_KEYS = {
   assigned: 'status_assigned',
@@ -20,6 +22,17 @@ export const DISPATCH_STATUS_KEYS = {
   completed: 'status_completed',
   cancelled: 'status_cancelled',
 } as const satisfies Record<DispatchAssignmentT['status'], string>;
+
+/** Mirror of packages/core DISPATCH_TRANSITIONS — forward or cancelled, never a jump. */
+const NEXT_STATUSES: Record<DispatchAssignmentT['status'], DispatchAssignmentT['status'][]> = {
+  assigned: ['departed', 'cancelled'],
+  departed: ['arrived', 'cancelled'],
+  arrived: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
+};
+
+const DISPATCH_ROLES = new Set(['owner', 'gm', 'logistics']);
 
 export const DISPATCH_TYPE_KEYS = {
   delivery: 'type_delivery',
@@ -41,9 +54,15 @@ export function DispatchPage() {
   const companies = useDriverCompanies(scope, { enabled: !orgs.isPending });
   const deals = usePipelineDeals(scope, { enabled: !orgs.isPending });
   const leads = useLeadNames(scope, { enabled: !orgs.isPending });
+  const orgFleet = useOrgFleet(scope, { enabled: !orgs.isPending });
+  const { data: session } = useSession();
+  const members = useMembers(orgId, { enabled: !orgs.isPending });
+  const me = members.data?.items.find((m) => m.user_id === session?.user.id);
+  const canDispatch = me?.roles.some((r) => DISPATCH_ROLES.has(r)) ?? false;
   const update = useUpdateDispatch();
   const resend = useResendDispatchEmail();
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const dealCustomer = useMemo(() => {
     const names = new Map<string, string>();
@@ -62,19 +81,29 @@ export function DispatchPage() {
 
   async function move(run: DispatchAssignmentT, status: DispatchAssignmentT['status']) {
     setError(null);
+    setNotice(null);
     try {
       await update.mutateAsync({ id: run.id, body: { status } });
     } catch (err) {
-      setError(t('genericError'));
-      if (!(err instanceof ApiError)) throw err;
+      if (!(err instanceof ApiError)) {
+        setError(t('genericError'));
+        throw err;
+      }
+      setError(err.code === 'invalid_transition' ? t('invalidTransition') : t('genericError'));
     }
   }
+
+  const plateNumber = (id: string | null) =>
+    id === null ? '—' : (orgFleet.data?.plates.find((p) => p.id === id)?.plate_number ?? '—');
+  const chaserName = (id: string | null) =>
+    id === null ? '—' : (orgFleet.data?.chasers.find((c) => c.id === id)?.name ?? '—');
 
   const columns = useMemo<ColumnDef<DispatchAssignmentT, unknown>[]>(
     () => [
       {
         accessorKey: 'deal_id',
         header: t('customer'),
+        enableSorting: false,
         cell: ({ row }) => dealCustomer.get(row.original.deal_id) ?? row.original.deal_id.slice(0, 8),
       },
       {
@@ -85,10 +114,23 @@ export function DispatchPage() {
       {
         accessorKey: 'driver_company_id',
         header: t('driverCompany'),
+        enableSorting: false,
         cell: ({ row }) =>
           row.original.driver_company_id
             ? (companyName.get(row.original.driver_company_id) ?? '—')
             : '—',
+      },
+      {
+        accessorKey: 'dealer_plate_id',
+        header: t('plateCol'),
+        enableSorting: false,
+        cell: ({ row }) => <span className="font-mono text-[13px]">{plateNumber(row.original.dealer_plate_id)}</span>,
+      },
+      {
+        accessorKey: 'chaser_vehicle_id',
+        header: t('chaserCol'),
+        enableSorting: false,
+        cell: ({ row }) => chaserName(row.original.chaser_vehicle_id),
       },
       {
         accessorKey: 'cash_to_collect_cents',
@@ -105,13 +147,18 @@ export function DispatchPage() {
       {
         accessorKey: 'conflict_flag',
         header: t('conflictCol'),
+        enableSorting: false,
         cell: ({ row }) =>
           row.original.conflict_flag ? (
-            <span
-              className="rounded bg-warning-bg px-1.5 py-0.5 text-xs font-medium text-warning-text"
-              title={row.original.conflict_reason ?? undefined}
-            >
-              {t('conflict')}
+            <span className="block max-w-52">
+              <span className="rounded bg-warning-bg px-1.5 py-0.5 text-xs font-medium text-warning-text">
+                {t('conflict')}
+              </span>
+              {row.original.conflict_reason ? (
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  {row.original.conflict_reason}
+                </span>
+              ) : null}
             </span>
           ) : null,
       },
@@ -126,13 +173,13 @@ export function DispatchPage() {
             <Select
               id={`run-status-${row.original.id}`}
               value={row.original.status}
-              disabled={update.isPending}
+              disabled={update.isPending || NEXT_STATUSES[row.original.status].length === 0}
               className="h-8 w-36"
               onChange={(e) => void move(row.original, e.target.value as DispatchAssignmentT['status'])}
             >
-              {DispatchStatus.options.map((s) => (
-                <option key={s} value={s}>
-                  {t(DISPATCH_STATUS_KEYS[s])}
+              {[row.original.status, ...NEXT_STATUSES[row.original.status]].map((sOpt) => (
+                <option key={sOpt} value={sOpt}>
+                  {t(DISPATCH_STATUS_KEYS[sOpt])}
                 </option>
               ))}
             </Select>
@@ -142,29 +189,37 @@ export function DispatchPage() {
       {
         id: 'actions',
         header: () => <span className="sr-only">{t('actionsCol')}</span>,
-        cell: ({ row }) => (
-          <span className="flex justify-end gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={resend.isPending}
-              aria-label={t('resendFor', { name: dealCustomer.get(row.original.deal_id) ?? '' })}
-              onClick={() => {
-                setError(null);
-                resend.mutateAsync(row.original.id).catch((err: unknown) => {
-                  setError(t('genericError'));
-                  if (!(err instanceof ApiError)) throw err;
-                });
-              }}
-            >
-              {t('resend')}
-            </Button>
-          </span>
-        ),
+        cell: ({ row }) =>
+          row.original.status === 'completed' || row.original.status === 'cancelled' ? null : (
+            <span className="flex justify-end gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={resend.isPending}
+                aria-label={t('resendFor', { name: dealCustomer.get(row.original.deal_id) ?? '' })}
+                onClick={() => {
+                  setError(null);
+                  setNotice(null);
+                  resend
+                    .mutateAsync(row.original.id)
+                    .then(({ sent }) => {
+                      if (sent) setNotice(t('resendOk'));
+                      else setError(t('mailFailed'));
+                    })
+                    .catch((err: unknown) => {
+                      setError(t('genericError'));
+                      if (!(err instanceof ApiError)) throw err;
+                    });
+                }}
+              >
+                {t('resend')}
+              </Button>
+            </span>
+          ),
       },
     ],
-    [t, i18n.language, dealCustomer, companyName, update.isPending, resend.isPending],
+    [t, i18n.language, dealCustomer, companyName, update.isPending, resend.isPending, orgFleet.data],
   );
 
   return (
@@ -203,6 +258,19 @@ export function DispatchPage() {
           {error}
         </p>
       ) : null}
+      {notice ? (
+        <p role="status" className="text-sm text-success-text">
+          {notice}
+        </p>
+      ) : null}
+      {runs.data?.truncated ? (
+        <p className="text-sm text-muted-foreground">{t('truncated')}</p>
+      ) : null}
+      {!members.isPending && !canDispatch ? (
+        <p role="alert" className="text-sm text-danger-text">
+          {t('notAllowed')}
+        </p>
+      ) : (
       <DataTable
         columns={columns}
         data={runs.data?.items}
@@ -214,6 +282,7 @@ export function DispatchPage() {
           conflictsOnly ? t('emptyConflicts') : t('empty')
         }
       />
+      )}
       <p className="text-sm text-muted-foreground">
         {t('companiesHint')}{' '}
         <Link to="/organizations" className="text-primary underline-offset-4 hover:underline">

@@ -71,11 +71,15 @@ export function BookDispatchDialog({
       setError(
         err.status === 422 && err.code === 'wet_ink_not_ready'
           ? t('wetInkNotReady')
-          : err.status === 422 && err.code === 'no_schedule'
+          : err.status === 422 && err.fieldPath === 'booked_delivery_at'
             ? t('noSchedule')
-            : err.status === 409
-              ? t('alreadyBooked')
-              : t('genericError'),
+            : err.status === 409 && err.errorCode === 'no_plate_available'
+              ? t('noPlate')
+              : err.status === 409 && err.errorCode === 'no_chaser_available'
+                ? t('noChaser')
+                : err.status === 409
+                  ? t('alreadyBooked')
+                  : t('genericError'),
       );
     }
   }

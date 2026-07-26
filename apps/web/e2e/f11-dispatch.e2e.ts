@@ -82,10 +82,29 @@ test('full F-11 journey: fleet roster → book a run → board → status', asyn
   await expect(page.getByRole('cell', { name: 'Livia Cliente', exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Transport Supreme', exact: true })).toBeVisible();
   await expect(page.getByText(/1\s?500,00/)).toBeVisible();
+  // Resend actually reports the truth (dev mailer logs → sent=false is honest).
+  await page.getByRole('button', { name: /Renvoyer la demande/ }).click();
+  await expect(page.getByText(/Demande renvoyée|courriel n’est pas parti/)).toBeVisible();
+
+  // A second booking for the same deal is refused BY NAME.
+  await page.goto('/leads');
+  await page.getByRole('link', { name: 'Livia Cliente' }).click();
+  await page.getByRole('button', { name: /Réserver la livraison/ }).click();
+  const dupDialog = page.getByRole('dialog');
+  await dupDialog.getByRole('button', { name: 'Réserver', exact: true }).click();
+  await expect(dupDialog.getByText('Une course existe déjà pour cette transaction.')).toBeVisible();
+  await dupDialog.getByRole('button', { name: 'Annuler' }).click();
+
+  // The status track only offers legal moves, and ends stay ended.
+  await page.getByRole('link', { name: 'Livraisons' }).first().click();
   const statusSelect = page.getByLabel('Statut').first();
+  await expect(statusSelect.getByRole('option', { name: 'Complétée' })).toHaveCount(0);
   await statusSelect.selectOption({ label: 'Partie' });
   await expect(statusSelect).toHaveValue('departed');
   await statusSelect.selectOption({ label: 'Arrivée' });
   await expect(statusSelect).toHaveValue('arrived');
-  await expect(page.getByRole('button', { name: /Renvoyer la demande/ })).toBeVisible();
+  await statusSelect.selectOption({ label: 'Complétée' });
+  await expect(statusSelect).toHaveValue('completed');
+  await expect(statusSelect).toBeDisabled();
+  await expect(page.getByRole('button', { name: /Renvoyer la demande/ })).toHaveCount(0);
 });

@@ -37,16 +37,25 @@ export function useDispatchList(
     queryKey: dispatchKeys.list(orgId, opts?.conflictsOnly ?? false),
     enabled: opts?.enabled ?? true,
     queryFn: async ({ signal }) => {
-      const res = await apiRequest(routes.dispatch.list, {
-        query: {
-          organization_id: orgId,
-          limit: 100,
-          ...(opts?.conflictsOnly ? { conflicts_only: 'true' } : {}),
-        },
-        signal,
-      });
-      if (res.status !== 200) fail(res.status, res.body);
-      return PaginatedDispatch.parse(res.body);
+      const items = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < 3; page++) {
+        const res = await apiRequest(routes.dispatch.list, {
+          query: {
+            organization_id: orgId,
+            limit: 100,
+            cursor,
+            ...(opts?.conflictsOnly ? { conflicts_only: 'true' } : {}),
+          },
+          signal,
+        });
+        if (res.status !== 200) fail(res.status, res.body);
+        const parsed = PaginatedDispatch.parse(res.body);
+        items.push(...parsed.items);
+        if (!parsed.next_cursor) return { items, truncated: false };
+        cursor = parsed.next_cursor;
+      }
+      return { items, truncated: true };
     },
   });
 }
@@ -94,9 +103,31 @@ export function useResendDispatchEmail() {
     mutationFn: async (id: string) => {
       const res = await apiRequest(routes.dispatch.resend, { params: { id } });
       if (res.status !== 200) fail(res.status, res.body);
-      return DispatchAssignment.parse(res.body);
+      // The contract answers { sent } — sent:false means the mailer is down,
+      // which is a FAILURE to surface, not a quiet 200.
+      return z.object({ sent: z.boolean() }).parse(res.body);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: dispatchKeys.all }),
+  });
+}
+
+/** Org-wide fleet maps for the board's plate/chaser columns. */
+export function useOrgFleet(orgId?: string, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['fleet', 'org', orgId ?? 'single-org'],
+    enabled: opts?.enabled ?? true,
+    queryFn: async ({ signal }) => {
+      const [chasers, plates] = await Promise.all([
+        apiRequest(routes.chasers.list, { query: { organization_id: orgId, limit: 100 }, signal }),
+        apiRequest(routes.plates.list, { query: { organization_id: orgId, limit: 100 }, signal }),
+      ]);
+      if (chasers.status !== 200) fail(chasers.status, chasers.body);
+      if (plates.status !== 200) fail(plates.status, plates.body);
+      return {
+        chasers: PaginatedChasers.parse(chasers.body).items,
+        plates: PaginatedPlates.parse(plates.body).items,
+      };
+    },
   });
 }
 
@@ -139,15 +170,16 @@ export function useUpdateDriverCompany() {
   });
 }
 
-/** Store fleet: chasers + plates share one refresh scope. */
-export function useFleet(storeId: string) {
+/** Store fleet: chasers + plates share one refresh scope. orgId is required
+ * knowledge — the endpoints 400 for multi-org users without it. */
+export function useFleet(storeId: string, orgId?: string) {
   return useQuery({
-    queryKey: dispatchKeys.fleet(storeId),
+    queryKey: [...dispatchKeys.fleet(storeId), orgId ?? 'single-org'],
     enabled: storeId !== '',
     queryFn: async ({ signal }) => {
       const [chasers, plates] = await Promise.all([
-        apiRequest(routes.chasers.list, { query: { store_id: storeId, limit: 100 }, signal }),
-        apiRequest(routes.plates.list, { query: { store_id: storeId, limit: 100 }, signal }),
+        apiRequest(routes.chasers.list, { query: { store_id: storeId, organization_id: orgId, limit: 100 }, signal }),
+        apiRequest(routes.plates.list, { query: { store_id: storeId, organization_id: orgId, limit: 100 }, signal }),
       ]);
       if (chasers.status !== 200) fail(chasers.status, chasers.body);
       if (plates.status !== 200) fail(plates.status, plates.body);
