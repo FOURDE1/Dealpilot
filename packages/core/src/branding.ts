@@ -231,6 +231,59 @@ export function deriveDark(color: Oklch): Oklch {
   };
 }
 
+/**
+ * The same fill, visibly different under the cursor — and still legible.
+ *
+ * A hover state is a FILL paired with a label, not a text tone. Handing the app
+ * a text tone for `--primary-hover` makes hover identical to the base colour for
+ * any brand that was already readable on white, so the button gives no feedback
+ * at all (CR-15, Hussein).
+ *
+ * Direction is chosen for LEGIBILITY, not convention. The conventional nudge is
+ * tried first — darker for a light fill, lighter for a dark one — but a mid-tone
+ * fill sits in a dead zone where neither near-white nor near-black reaches
+ * 4.5:1, and nudging further into it produces a hover state with no readable
+ * label. #7C3AED lightened by the conventional step lands at 4.46:1, which the
+ * whole-palette invariant caught the first time it ran. So candidates are tried
+ * in order and the first one that both DIFFERS from the base and carries a
+ * readable label wins.
+ */
+export function hoverFill(fill: Oklch): Oklch {
+  const delta = 0.06;
+  const conventionalIsLighter = relativeLuminance(fill) < 0.18;
+  const steps = conventionalIsLighter
+    ? [delta, -delta, 2 * delta, -2 * delta]
+    : [-delta, delta, -2 * delta, 2 * delta];
+
+  const candidates = steps
+    .map((step) => ({ ...fill, l: clamp01(fill.l + step) }))
+    .filter((candidate) => candidate.l !== fill.l);
+
+  const legible = candidates.find(
+    (candidate) => contrastRatio(candidate, foregroundFor(candidate)) >= AA_TEXT,
+  );
+  if (legible) return legible;
+
+  // Nothing clears AA — a fill sitting deep in the dead zone. Take the most
+  // legible option rather than the prettiest, and never return the base.
+  return (
+    candidates.sort(
+      (a, b) => contrastRatio(b, foregroundFor(b)) - contrastRatio(a, foregroundFor(a)),
+    )[0] ?? { ...fill, l: clamp01(fill.l + delta) }
+  );
+}
+
+/**
+ * A focus ring that can be SEEN against the surface behind it (§12: ≥ 3:1).
+ *
+ * 3:1 rather than 4.5:1 because a ring is a UI component, not text — WCAG 2.2
+ * holds those to different floors, and demanding 4.5 here would push every
+ * ring toward black and lose the brand for no accessibility gain.
+ */
+export function ringFor(color: Oklch, surface: Oklch): Oklch {
+  return readableOn(color, surface, AA_UI);
+}
+
 export interface BrandingInput {
   primary: string;
   accent?: string | null;
@@ -256,10 +309,23 @@ export interface ValidatedBranding {
   readonly fills: Record<string, string>;
   /** Text variants, adjusted where the raw colour was unreadable. */
   readonly text: Record<string, string>;
-  /** The foreground each fill must use for a label on top of it. */
+  /**
+   * The foreground each fill must use for a label on top of it.
+   *
+   * Keyed per fill, including the DARK ones: `primary` is the label for
+   * `fills.primary`, `primary_dark` the label for `dark.primary`. They are
+   * usually different and sometimes opposite — the dark palette lightens a
+   * brand colour, so a medium-dark brand takes a white label in light mode and
+   * a near-black one in dark mode. Reusing the light value put a near-white
+   * label on a light fill at 2.5:1 (CR-15).
+   */
   readonly foregrounds: Record<string, string>;
   /** The §5 dark-mode palette. */
   readonly dark: Record<string, string>;
+  /** Hover fills, light and dark, each with its own foreground above. */
+  readonly hover: Record<string, string>;
+  /** Focus rings that meet 3:1 against the surface they sit on. */
+  readonly ring: Record<string, string>;
   /** Everything that was changed, for the publish confirmation. */
   readonly adjustments: readonly ContrastAdjustment[];
 }
@@ -281,6 +347,8 @@ export function validateBrandingContrast(input: BrandingInput): ValidatedBrandin
   const text: Record<string, string> = {};
   const foregrounds: Record<string, string> = {};
   const dark: Record<string, string> = {};
+  const hover: Record<string, string> = {};
+  const ring: Record<string, string> = {};
 
   const tokens: [string, string | null | undefined, number][] = [
     ['primary', input.primary, AA_TEXT],
@@ -298,9 +366,24 @@ export function validateBrandingContrast(input: BrandingInput): ValidatedBrandin
     const color = parseColor(raw);
     fills[token] = formatOklch(color);
 
-    const fg = foregroundFor(color);
-    foregrounds[token] = formatOklch(fg);
-    dark[token] = formatOklch(deriveDark(color));
+    // Every fill this palette exposes gets its own foreground, in the same
+    // pass that creates it — the two are one decision, and splitting them is
+    // how `dark.primary` ended up with no label of its own.
+    const darkFill = deriveDark(color);
+    const hoverLight = hoverFill(color);
+    const hoverDark = hoverFill(darkFill);
+
+    foregrounds[token] = formatOklch(foregroundFor(color));
+    foregrounds[`${token}_dark`] = formatOklch(foregroundFor(darkFill));
+    foregrounds[`${token}_hover`] = formatOklch(foregroundFor(hoverLight));
+    foregrounds[`${token}_hover_dark`] = formatOklch(foregroundFor(hoverDark));
+
+    dark[token] = formatOklch(darkFill);
+    hover[token] = formatOklch(hoverLight);
+    hover[`${token}_dark`] = formatOklch(hoverDark);
+
+    ring[token] = formatOklch(ringFor(color, SURFACE_LIGHT));
+    ring[`${token}_dark`] = formatOklch(ringFor(darkFill, SURFACE_DARK));
 
     // As text on the light page. The dark palette gets the same treatment
     // against the dark surface, because a colour readable on white is often
@@ -318,7 +401,7 @@ export function validateBrandingContrast(input: BrandingInput): ValidatedBrandin
       });
     }
 
-    const darkColor = parseColor(dark[token]!);
+    const darkColor = darkFill;
     const darkText = readableOn(darkColor, SURFACE_DARK, target);
     text[`${token}_dark`] = formatOklch(darkText);
     if (darkText.l !== darkColor.l) {
@@ -333,7 +416,7 @@ export function validateBrandingContrast(input: BrandingInput): ValidatedBrandin
     }
   }
 
-  return { fills, text, foregrounds, dark, adjustments };
+  return { fills, text, foregrounds, dark, hover, ring, adjustments };
 }
 
 function clamp01(v: number): number {

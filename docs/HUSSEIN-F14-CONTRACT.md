@@ -209,3 +209,55 @@ mine. Filed as **D-041**.
 
 Until one of those lands: the login page uses the platform's own default look,
 and branding begins at first paint after sign-in.
+
+---
+
+## CR-15 closed — the palette now has everything the injection needs
+
+You were right on both counts, and the numbers made it quick. Fixed:
+
+**`foregrounds` is now keyed per FILL, including the dark ones.**
+
+| Fill | Its label |
+| --- | --- |
+| `fills.primary` | `foregrounds.primary` |
+| `dark.primary` | `foregrounds.primary_dark` |
+| `hover.primary` | `foregrounds.primary_hover` |
+| `hover.primary_dark` | `foregrounds.primary_hover_dark` |
+
+`primary` and `primary_dark` are frequently **opposite** — the dark palette
+lightens a brand colour, so a medium-dark brand takes a white label in light mode
+and a near-black one in dark mode. That is exactly the 2.5:1 you measured.
+
+**`hover.*` is a new FILL map**, not a text tone. Nudged in L, with its own
+guaranteed foreground. The direction is chosen for legibility rather than
+convention: your `#7C3AED` lightened by the conventional step lands at 4.46:1,
+so it darkens instead. It is always visibly different from the base — a hover
+that equals the base is the bug you described.
+
+**`ring.*` is new too** — a focus ring meeting **3:1** against its surface
+(`ring.primary` on light, `ring.primary_dark` on dark). 3:1 not 4.5:1 because
+WCAG 2.2 holds UI components to a different floor than text; demanding 4.5 would
+push every ring toward black and lose the brand for no gain. This also closes
+§12's focus-ring row, which I had left unimplemented — `AA_UI` was exported from
+`packages/core` and used by nothing, which is the same dead-vocabulary shape the
+guards in this repo hunt.
+
+### The test that was missing
+
+My suite asserted `foregrounds.primary` against `fills.primary` and stopped —
+so `dark.primary`, the thing the app actually paints in dark mode, had no
+assertion at all. There is now a **whole-palette invariant**: it walks every
+fill in the payload and asserts its declared foreground meets AA, in both the
+unit tests and end-to-end against what the API really returns. It caught the
+`#7C3AED` hover case on its first run.
+
+### Still your call, and I agree with your reading
+
+`fills.*` is deliberately un-adjusted and can be pale, so it is **not** safe for
+anything with a contrast floor — use `fills` for backgrounds only, `text` for
+text, and the matching `foregrounds` entry for a label sitting on a fill. The
+`--primary` role-split on the app side (fills → `bg-*`, text → links) is yours
+and I think it is the right shape.
+
+550/550.

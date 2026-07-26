@@ -419,3 +419,43 @@ describe('a rooftop can carry its own sub-brand', () => {
     expect(res.statusCode).toBe(404);
   });
 });
+
+describe('the published palette is complete enough to inject (CR-15)', () => {
+  it('every fill it publishes carries a foreground that meets AA', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The end-to-end version of the core invariant: what actually comes OUT of
+    // the API, not what the function returns in isolation. A palette that is
+    // correct in packages/core and truncated on the way through the route would
+    // still leave Hussein unable to inject it.
+    await putBranding({ primary_color: '#7C3AED' });
+    await publish();
+    const live = (await current())!;
+
+    const pairs: [string, string, string][] = [];
+    for (const [token, fill] of Object.entries(live.palette['fills']!)) {
+      pairs.push([`fills.${token}`, fill, live.palette['foregrounds']![token]!]);
+    }
+    for (const [token, fill] of Object.entries(live.palette['dark']!)) {
+      pairs.push([`dark.${token}`, fill, live.palette['foregrounds']![`${token}_dark`]!]);
+    }
+    for (const [token, fill] of Object.entries(live.palette['hover']!)) {
+      const key = token.endsWith('_dark')
+        ? `${token.replace(/_dark$/, '')}_hover_dark`
+        : `${token}_hover`;
+      pairs.push([`hover.${token}`, fill, live.palette['foregrounds']![key]!]);
+    }
+
+    expect(pairs.length).toBeGreaterThan(3);
+    for (const [name, fill, fg] of pairs) {
+      expect(fg, `${name} was published with no foreground`).toBeDefined();
+      expect(contrastRatio(parseColor(fill), parseColor(fg)), name).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+  });
+
+  it('publishes a focus ring visible on each surface', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const live = (await current())!;
+    expect(live.palette['ring']!['primary']).toBeDefined();
+    expect(live.palette['ring']!['primary_dark']).toBeDefined();
+  });
+});

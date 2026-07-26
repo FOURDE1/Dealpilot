@@ -397,6 +397,8 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
           text: validated.text,
           foregrounds: validated.foregrounds,
           dark: validated.dark,
+          hover: validated.hover,
+          ring: validated.ring,
         },
       };
 

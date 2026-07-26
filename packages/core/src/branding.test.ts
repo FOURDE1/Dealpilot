@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AA_TEXT,
+  AA_UI,
   contrastRatio,
   deriveDark,
   foregroundFor,
@@ -241,5 +242,86 @@ describe('validating a whole brand', () => {
       expect(contrastRatio(parseColor(result.text['primary']!), SURFACE_LIGHT), awful)
         .toBeGreaterThanOrEqual(AA_TEXT);
     }
+  });
+});
+
+describe('every fill the palette exposes has a legible label (CR-15)', () => {
+  const SURFACES: Record<string, typeof SURFACE_LIGHT> = {
+    light: SURFACE_LIGHT,
+    dark: SURFACE_DARK,
+  };
+
+  /**
+   * The generic invariant, not a list of named tokens.
+   *
+   * My original suite asserted `foregrounds.primary` against `fills.primary`
+   * and stopped there — so `dark.primary`, which the app actually paints in
+   * dark mode, had no assertion at all and shipped with the LIGHT foreground on
+   * it. Hussein proved it numerically while wiring the injection: a near-white
+   * label on a lightened fill, around 2.5:1.
+   *
+   * Walking every fill in the payload means the next fill added is covered on
+   * the day it is added, rather than the day someone checks.
+   */
+  function everyFillWithItsForeground(brand: string) {
+    const p = validateBrandingContrast({ primary: brand });
+    const pairs: { name: string; fill: string; fg: string }[] = [];
+    for (const [token, fill] of Object.entries(p.fills)) {
+      pairs.push({ name: token, fill, fg: p.foregrounds[token]! });
+    }
+    for (const [token, fill] of Object.entries(p.dark)) {
+      pairs.push({ name: `dark.${token}`, fill, fg: p.foregrounds[`${token}_dark`]! });
+    }
+    for (const [token, fill] of Object.entries(p.hover)) {
+      const key = token.endsWith('_dark')
+        ? `${token.replace(/_dark$/, '')}_hover_dark`
+        : `${token}_hover`;
+      pairs.push({ name: `hover.${token}`, fill, fg: p.foregrounds[key]! });
+    }
+    return pairs;
+  }
+
+  // The three Hussein measured, plus the pale case that started all of this.
+  for (const brand of ['#7C3AED', '#2563EB', '#DC2626', '#fde047', '#1e3a8a', '#10b981']) {
+    it(`${brand}: every fill, light and dark, carries a readable label`, () => {
+      for (const { name, fill, fg } of everyFillWithItsForeground(brand)) {
+        expect(fg, `${brand} ${name} has no foreground at all`).toBeDefined();
+        expect(
+          contrastRatio(parseColor(fill), parseColor(fg)),
+          `${brand} ${name}: label on fill`,
+        ).toBeGreaterThanOrEqual(AA_TEXT);
+      }
+    });
+  }
+
+  it('a hover fill is visibly different from the fill it replaces', () => {
+    // Mapping a text tone onto --primary-hover made hover identical to the base
+    // for any brand already readable on white: a button with no feedback.
+    for (const brand of ['#7C3AED', '#2563EB', '#DC2626', '#000000', '#ffffff']) {
+      const p = validateBrandingContrast({ primary: brand });
+      expect(p.hover['primary'], brand).not.toBe(p.fills['primary']);
+      expect(p.hover['primary_dark'], `${brand} dark`).not.toBe(p.dark['primary']);
+    }
+  });
+
+  it('a focus ring can be seen against the surface behind it (3:1, not 4.5:1)', () => {
+    for (const brand of ['#7C3AED', '#fde047', '#1e3a8a']) {
+      const p = validateBrandingContrast({ primary: brand });
+      for (const [key, surface] of Object.entries(SURFACES)) {
+        const ring = p.ring[key === 'light' ? 'primary' : 'primary_dark']!;
+        expect(
+          contrastRatio(parseColor(ring), surface),
+          `${brand} ring on ${key}`,
+        ).toBeGreaterThanOrEqual(AA_UI);
+      }
+    }
+  });
+
+  it('the dark-mode label is often the OPPOSITE of the light-mode one', () => {
+    // The heart of CR-15: the dark palette LIGHTENS a brand colour, so a
+    // medium-dark brand takes a white label in light mode and a near-black one
+    // in dark mode. Reusing one for the other is not a small error.
+    const p = validateBrandingContrast({ primary: '#2563EB' });
+    expect(p.foregrounds['primary']).not.toBe(p.foregrounds['primary_dark']);
   });
 });
