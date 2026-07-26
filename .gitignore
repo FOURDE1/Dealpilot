@@ -25,3 +25,6 @@ Thumbs.db
 *.log
 .gstack/
 cdk.out/
+
+# TypeScript incremental build state
+*.tsbuildinfo
