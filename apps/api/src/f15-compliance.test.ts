@@ -412,3 +412,80 @@ describe('never call this person again', () => {
     expect(rows.rows[0]!.n).toBe('1');
   });
 });
+
+describe('D-042 #1 · a walk-in can actually be replied to', () => {
+  it('creating a walk-in lead records the basis in the same breath', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The point of the owner's answer: before this, every walk-in and phone
+    // lead was permanently unmessageable — the customer stands at the desk,
+    // gives you their number, and the system refuses to text them.
+    const lead = await app!.inject({
+      method: 'POST', url: '/api/v1/leads', headers: { cookie },
+      payload: {
+        organization_id: orgId, store_id: storeId,
+        phone: '+15145550166', source: 'walk_in', first_name: 'Walk In',
+      },
+    });
+    expect(lead.statusCode, lead.body).toBe(201);
+    const id = (JSON.parse(lead.body) as { id: string }).id;
+
+    const consent = await app!.inject({
+      method: 'GET', url: `/api/v1/leads/${id}/consent`, headers: { cookie },
+    });
+    const items = (JSON.parse(consent.body) as { items: { scope: string; consent_type: string; channel: string }[] }).items;
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((i) => i.scope === 'conversational')).toBe(true);
+    expect(items.every((i) => i.consent_type === 'implied_inquiry')).toBe(true);
+
+    // And the gate now says yes to a text about their enquiry.
+    const res = await app!.inject({
+      method: 'GET',
+      url: `/api/v1/leads/${id}/compliance?channel=sms&scope=conversational&originator=human`,
+      headers: { cookie },
+    });
+    expect(['allowed', 'deferred']).toContain((JSON.parse(res.body) as { status: string }).status);
+  });
+
+  it('a REFERRAL gets nothing — it is somebody else’s number', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const lead = await app!.inject({
+      method: 'POST', url: '/api/v1/leads', headers: { cookie },
+      payload: {
+        organization_id: orgId, store_id: storeId,
+        phone: '+15145550155', source: 'referral', first_name: 'Referred',
+      },
+    });
+    const id = (JSON.parse(lead.body) as { id: string }).id;
+    const consent = await app!.inject({
+      method: 'GET', url: `/api/v1/leads/${id}/consent`, headers: { cookie },
+    });
+    expect((JSON.parse(consent.body) as { items: unknown[] }).items).toEqual([]);
+
+    const res = await app!.inject({
+      method: 'GET',
+      url: `/api/v1/leads/${id}/compliance?channel=sms&scope=conversational&originator=human`,
+      headers: { cookie },
+    });
+    expect(JSON.parse(res.body)).toMatchObject({ status: 'blocked', reason: 'consent_absent' });
+  });
+
+  it('still refuses an automated CALL to that walk-in', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // An enquiry is not permission for a robot to phone them. That needs
+    // express consent, which nobody can imply.
+    const lead = await app!.inject({
+      method: 'POST', url: '/api/v1/leads', headers: { cookie },
+      payload: {
+        organization_id: orgId, store_id: storeId,
+        phone: '+15145550144', source: 'phone', first_name: 'Called Us',
+      },
+    });
+    const id = (JSON.parse(lead.body) as { id: string }).id;
+    const res = await app!.inject({
+      method: 'GET',
+      url: `/api/v1/leads/${id}/compliance?channel=voice&scope=ai_outbound_call&originator=ai`,
+      headers: { cookie },
+    });
+    expect(JSON.parse(res.body)).toMatchObject({ status: 'blocked' });
+  });
+});

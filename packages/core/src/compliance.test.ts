@@ -20,6 +20,7 @@ import {
   resolveRecipientTimezone,
 } from './compliance-quiet-hours.js';
 import { evaluateSend, type ComplianceFacts, type SendRequest } from './compliance-gate.js';
+import { inquiryConsentRows } from './compliance-inquiry.js';
 
 /**
  * The compliance engine's adversarial suite (compliance-and-quality.md §12).
@@ -489,5 +490,63 @@ describe('RT-16 · getting an automated call out without consent', () => {
     // Same inputs, assistant instead of a person → refused.
     expect(evaluateSend({ ...voiceReq, originator: 'ai', scope: 'conversational' }, humanFacts))
       .toMatchObject({ status: 'blocked', reason: 'adad_no_express_consent' });
+  });
+});
+
+describe('D-042 #1 · walking in IS the permission', () => {
+  const at = new Date('2026-03-01T15:00:00Z');
+
+  it('a walk-in who gives a number can be texted and called back about it', () => {
+    const rows = inquiryConsentRows({
+      source: 'walk_in', phoneE164: '+15145550100', email: null,
+      at, recordedByUserId: 'u1',
+    });
+    expect(rows.map((r) => r.channel).sort()).toEqual(['sms', 'voice']);
+    expect(rows.every((r) => r.consentType === 'implied_inquiry')).toBe(true);
+    // Six months, calendar-counted, exactly as an inquiry gets.
+    expect(rows[0]!.expiresAt!.toISOString().slice(0, 10)).toBe('2026-09-01');
+  });
+
+  it('is CONVERSATIONAL only — an enquiry is not a marketing list', () => {
+    // They asked about a car. They did not ask to be added to a promotions
+    // list, and the six-month reply window is not a licence to advertise.
+    const rows = inquiryConsentRows({
+      source: 'phone', phoneE164: '+15145550100', email: 'x@example.test',
+      at, recordedByUserId: 'u1',
+    });
+    expect(rows.every((r) => r.scope === 'conversational')).toBe(true);
+    expect(rows.some((r) => r.scope === 'marketing')).toBe(false);
+  });
+
+  it('gives NOTHING for a referral — that is somebody else’s number', () => {
+    // The boundary that matters: a third party handing over a number is not
+    // that person enquiring about anything, and treating it as consent is
+    // precisely the abuse the law exists to stop.
+    for (const source of ['referral', 'google', 'meta', 'oem', 'service', 'repeat']) {
+      expect(inquiryConsentRows({
+        source, phoneE164: '+15145550100', email: null, at, recordedByUserId: 'u1',
+      }), source).toEqual([]);
+    }
+  });
+
+  it('does not authorise an automated call, which needs express consent', () => {
+    const rows = inquiryConsentRows({
+      source: 'walk_in', phoneE164: '+15145550100', email: null, at, recordedByUserId: 'u1',
+    });
+    // A voice row exists, but it is implied and conversational — the ADAD rule
+    // wants express + ai_outbound_call, so the gate still refuses to dial.
+    expect(rows.some((r) => r.scope === 'ai_outbound_call')).toBe(false);
+    expect(rows.every((r) => r.consentType !== 'express')).toBe(true);
+  });
+
+  it('carries evidence saying exactly what happened, not something stronger', () => {
+    const rows = inquiryConsentRows({
+      source: 'walk_in', phoneE164: '+15145550100', email: null, at, recordedByUserId: 'u7',
+    });
+    expect(rows[0]!.evidence).toMatchObject({
+      basis: 'self_initiated_inquiry',
+      lead_source: 'walk_in',
+      recorded_by_user_id: 'u7',
+    });
   });
 });

@@ -4,6 +4,7 @@ import { CreateLeadInput, LeadListQuery, UpdateLeadInput } from '@dealpilot/sche
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requirePermission } from './permissions.js';
 import { diff, recordEvent } from './activity.js';
+import { inquiryConsentRows } from '@dealpilot/core';
 import {
   callerOrgIds,
   conflictFrom,
@@ -87,12 +88,65 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
             input.budget_cents ?? null, input.vehicle_interest ?? null,
           ],
         );
+        const leadId = String(r.rows[0]!['id']);
+
+        // D-042 #1 (owner, 2026-07-27): somebody who walks in or telephones and
+        // gives you their number has enquired, and CASL treats an enquiry as
+        // implied consent to reply about it for six months. Written in the SAME
+        // transaction as the lead, so a lead can never exist without the basis
+        // it was created with — and never the other way round either.
+        //
+        // Conversational only, and only for sources the customer initiated
+        // themselves. A referral is a third party handing over somebody else's
+        // number, which is not that person asking us anything.
+        const inquiry = inquiryConsentRows({
+          source: input.source,
+          phoneE164: input.phone,
+          email: input.email ?? null,
+          at: new Date(),
+          recordedByUserId: user.id,
+        });
+        if (inquiry.length > 0) {
+          const grant = await c.query<{ id: string }>(`SELECT gen_random_uuid() AS id`);
+          for (const row of inquiry) {
+            await c.query(
+              `INSERT INTO consent_ledger
+                 (organization_id, store_id, grant_id, lead_id, phone_e164, email,
+                  channel, scope, consent_type, source, evidence, granted_at, expires_at)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+              [
+                input.organization_id, input.store_id, grant.rows[0]!.id, leadId,
+                row.channel === 'email' ? null : input.phone,
+                row.channel === 'email' ? (input.email ?? null) : null,
+                row.channel, row.scope, row.consentType, row.source,
+                JSON.stringify(row.evidence), row.grantedAt, row.expiresAt,
+              ],
+            );
+          }
+          await recordEvent(c, {
+            organizationId: input.organization_id,
+            storeId: input.store_id,
+            actorUserId: user.id,
+            entityType: 'consent',
+            entityId: grant.rows[0]!.id,
+            action: 'created',
+            parentEntityType: 'lead',
+            parentEntityId: leadId,
+            changes: {
+              consent_type: 'implied_inquiry',
+              basis: 'self_initiated_inquiry',
+              lead_source: input.source,
+              expires_at: inquiry[0]!.expiresAt?.toISOString() ?? null,
+            },
+          });
+        }
+
         await recordEvent(c, {
           organizationId: input.organization_id,
           storeId: input.store_id,
           actorUserId: user.id,
           entityType: 'lead',
-          entityId: String(r.rows[0]!['id']),
+          entityId: leadId,
           action: 'created',
           changes: { source: input.source },
         });

@@ -288,7 +288,7 @@ your clients that anybody can probe.
 
 ---
 
-## D-042 — Eight gaps in the compliance rules that only you can close (F-15)
+## D-042 — Compliance gaps: #1 ANSWERED 2026-07-27, the rest still open (F-15)
 
 The compliance engine is built and every rule in it comes from the plan. While
 building it I found eight places where the plan does not actually settle a
@@ -299,10 +299,17 @@ customers are on the other end.
 
 In plain terms:
 
-1. **A lead who phones you or walks in.** The plan only describes capturing
-   consent from web forms. A walk-in has given you their number in person —
-   should that count as permission to text them? Right now it does not, so those
-   leads get no automated follow-up at all.
+1. ~~**A lead who phones you or walks in.**~~ **You said yes — built.** Somebody
+   who walks in or telephones and gives you their number has enquired, and that
+   is now recorded as permission to reply for six months, in the same instant
+   the lead is created.
+
+   Two limits I set, because they are the difference between a lawful reply and
+   a fine: it covers **conversation about their enquiry only** (they asked about
+   a car; they did not ask to join a promotions list), and a **referral gets
+   nothing** — that is a third party handing over somebody else's number, which
+   is not that person asking you anything. It also does not permit an automated
+   *call*; that still needs them to say yes explicitly.
 2. **Which messages count as marketing.** "Your car is ready" and "we have a sale
    this weekend" need different permissions. The plan defines this for drip
    campaigns only. Every other message type needs you to say which it is.
@@ -322,9 +329,11 @@ In plain terms:
 8. **Unsubscribing by email.** The stop-word machinery is all text-message based;
    email has no equivalent path yet.
 
-**My recommendation:** answer 1, 2 and 3 first — they are the ones that decide
-whether ordinary, lawful follow-up can happen at all. The rest matter before the
-first automated phone call, which is further out.
+**Where this stands now:** #1 is answered and built. **#2 and #3 are the ones
+that still decide whether ordinary follow-up works** — which messages count as
+marketing, and whether to send the "you're unsubscribed" confirmation the plan
+both requires and forbids. The rest matter before the first automated phone
+call, which is further out.
 
 I have written each one up in full technical detail in the session log; the above
 is the version that matters to you.
