@@ -12,6 +12,7 @@ const NAV_ITEMS = [
   { to: '/', key: 'nav:dashboard', shortKey: 'nav:shortDashboard', end: true },
   { to: '/organizations', key: 'nav:organizations', shortKey: 'nav:shortOrganizations' },
   { to: '/leads', key: 'nav:prospects', shortKey: 'nav:shortProspects' },
+  { to: '/conversations', key: 'nav:conversations', shortKey: 'nav:shortConversations' },
   { to: '/pipeline', key: 'nav:pipeline', shortKey: 'nav:shortPipeline' },
   { to: '/inventory', key: 'nav:inventory', shortKey: 'nav:shortInventory' },
   { to: '/commissions', key: 'nav:commissions', shortKey: 'nav:shortCommissions', mobileHidden: true },

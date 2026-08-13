@@ -21,12 +21,23 @@
  *    nothing to correct.
  */
 
-export type ViolationKind =
-  | 'currency'
-  | 'percentage'
-  | 'approval_promise'
-  | 'unknown_stock_number'
-  | 'delivery_promise';
+/**
+ * An array, not a bare union, so the vocabulary can be ENUMERATED.
+ *
+ * These names reach a person: the console prints one beside an agent's refused
+ * draft. A union type cannot be iterated, so nothing could check that every
+ * kind has a label in both locales — and an unlabelled one renders as
+ * `violation_delivery_promise` to a French user.
+ */
+export const VIOLATION_KINDS = [
+  'currency',
+  'percentage',
+  'approval_promise',
+  'unknown_stock_number',
+  'delivery_promise',
+] as const;
+
+export type ViolationKind = (typeof VIOLATION_KINDS)[number];
 
 export interface Violation {
   readonly kind: ViolationKind;

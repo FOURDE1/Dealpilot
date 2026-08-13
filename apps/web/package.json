@@ -12,6 +12,8 @@
     "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@dealpilot/ai": "workspace:*",
+    "@dealpilot/core": "workspace:*",
     "@playwright/test": "1.61.1",
     "@tailwindcss/vite": "4.3.3",
     "@types/react": "19.2.17",

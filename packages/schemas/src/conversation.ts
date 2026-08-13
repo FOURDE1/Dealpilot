@@ -133,3 +133,8 @@ export const SendResult = z.discriminatedUnion('kind', [
     })),
   }),
 ]);
+
+export type ConversationT = z.infer<typeof Conversation>;
+export type MessageT = z.infer<typeof Message>;
+export type ConversationAnalysisT = z.infer<typeof ConversationAnalysisRecord>;
+export type SendResultT = z.infer<typeof SendResult>;

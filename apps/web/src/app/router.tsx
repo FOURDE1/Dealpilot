@@ -60,6 +60,9 @@ const DispatchPage = lazy(() =>
 const PermissionsPage = lazy(() =>
   import('../features/permissions/permissions-page.js').then((m) => ({ default: m.PermissionsPage })),
 );
+const ConversationsPage = lazy(() =>
+  import('../features/conversations/conversations-page.js').then((m) => ({ default: m.ConversationsPage })),
+);
 const InvitationAcceptPage = lazy(() =>
   import('../features/invitations/accept-page.js').then((m) => ({ default: m.InvitationAcceptPage })),
 );
@@ -116,6 +119,7 @@ export const router = createBrowserRouter([
       { path: 'inventory/:vehicleId', element: lazyPage(<VehicleDetailPage />) },
       { path: 'commissions', element: lazyPage(<CommissionsPage />) },
       { path: 'dispatch', element: lazyPage(<DispatchPage />) },
+      { path: 'conversations', element: lazyPage(<ConversationsPage />) },
       // Placeholder module routes land with their feature slices.
       { path: '*', element: <Navigate to="/" replace /> },
     ],

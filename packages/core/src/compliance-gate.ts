@@ -75,17 +75,29 @@ export interface ComplianceFacts {
   readonly aiSendsSuspended: boolean;
 }
 
-export type BlockedReason =
-  | 'ai_suspended'
-  | 'suppressed'
-  | 'consent_absent'
-  | 'consent_expired'
-  | 'consent_revoked'
-  | 'internal_dnc'
-  | 'dncl_list_stale'
-  | 'dncl_listed'
-  | 'adad_no_express_consent'
-  | 'frequency_cap';
+/**
+ * An array, not a bare union, so the vocabulary can be ENUMERATED.
+ *
+ * Every one of these is shown to a person — the console prints the reason and
+ * the remedy when a send is refused. A union type cannot be iterated, so
+ * nothing could check that each reason has a label in both locales, and the
+ * agent would read `reason_dncl_list_stale` at the moment they most need a
+ * sentence they can act on.
+ */
+export const BLOCKED_REASONS = [
+  'ai_suspended',
+  'suppressed',
+  'consent_absent',
+  'consent_expired',
+  'consent_revoked',
+  'internal_dnc',
+  'dncl_list_stale',
+  'dncl_listed',
+  'adad_no_express_consent',
+  'frequency_cap',
+] as const;
+
+export type BlockedReason = (typeof BLOCKED_REASONS)[number];
 
 export interface DecisionContext {
   readonly tz: string;
