@@ -7,6 +7,7 @@ import { useOrganizations } from '../organizations/api.js';
 import { useLeads } from '../leads/api.js';
 import { LEAD_STATUS_KEYS, leadDisplayName } from '../leads/labels.js';
 import { computeLeadStats, recentLeads } from './stats.js';
+import { SpeedPanel } from './speed-panel.js';
 
 function StatTile({ label, value }: { label: string; value: number }) {
   return (
@@ -64,6 +65,8 @@ export function DashboardPage() {
           </div>
         )}
       </section>
+
+      <SpeedPanel orgId={scopeOrg?.id} enabled={!orgs.isPending} />
 
       <p className="text-sm">
         <Link
