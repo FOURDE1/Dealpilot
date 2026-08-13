@@ -24,6 +24,7 @@ export const GROUPS: { key: string; prefixes: string[] }[] = [
   { key: 'group_documents', prefixes: ['document:'] },
   { key: 'group_money', prefixes: ['pay_plan:', 'commission:'] },
   { key: 'group_dispatch', prefixes: ['dispatch:', 'fleet:'] },
+  { key: 'group_conversations', prefixes: ['conversation:'] },
   { key: 'group_settings', prefixes: ['organization:', 'store:', 'activity:'] },
 ];
 

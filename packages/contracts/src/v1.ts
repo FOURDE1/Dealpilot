@@ -38,6 +38,15 @@ import {
   UpdateUserPermissionInput,
   UserPermissionOverride,
   ActivityListQuery,
+  CloseConversationInput,
+  Conversation,
+  ConversationAnalysisRecord,
+  ConversationListQuery,
+  Message,
+  MessageListQuery,
+  SendAgentMessageInput,
+  SendResult,
+  TakeoverInput,
   ChaserVehicle,
   CreateChaserInput,
   CreateDispatchInput,
@@ -630,6 +639,75 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       query: ComplianceCheckQuery,
       responses: { 200: ComplianceCheck, ...errorResponses },
+    },
+  }),
+  /**
+   * F-21 the agent console (conversation-engine.md §9, api-design.md §6).
+   *
+   * Note what a client cannot say here: where to send. The destination lives on
+   * the conversation, so no request body carries a phone number — §4's "no tool
+   * sends free-form messages to arbitrary numbers" is a property of the API, not
+   * a rule the assistant is asked to follow.
+   */
+  conversations: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/conversations',
+      query: ConversationListQuery,
+      responses: {
+        200: z.object({ items: z.array(Conversation), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    get: {
+      method: 'GET',
+      path: '/api/v1/conversations/:id',
+      pathParams: z.object({ id: Uuid }),
+      responses: {
+        200: z.object({
+          conversation: Conversation,
+          /** What the assistant thought, newest first. Advisory, never authority. */
+          analysis: z.array(ConversationAnalysisRecord),
+        }),
+        ...errorResponses,
+      },
+    },
+    messages: {
+      method: 'GET',
+      path: '/api/v1/conversations/:id/messages',
+      pathParams: z.object({ id: Uuid }),
+      query: MessageListQuery,
+      responses: {
+        200: z.object({ items: z.array(Message), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    /**
+     * An agent replies. Runs the same compliance gate and the same outbound
+     * guard as the assistant does — a person typing it changes who is
+     * accountable, not whether the message is lawful.
+     */
+    reply: {
+      method: 'POST',
+      path: '/api/v1/conversations/:id/messages',
+      pathParams: z.object({ id: Uuid }),
+      body: SendAgentMessageInput,
+      responses: { 200: SendResult, ...errorResponses },
+    },
+    /** Take it from the assistant, or hand it to a colleague. */
+    takeover: {
+      method: 'POST',
+      path: '/api/v1/conversations/:id/takeover',
+      pathParams: z.object({ id: Uuid }),
+      body: TakeoverInput,
+      responses: { 200: Conversation, ...errorResponses },
+    },
+    close: {
+      method: 'POST',
+      path: '/api/v1/conversations/:id/close',
+      pathParams: z.object({ id: Uuid }),
+      body: CloseConversationInput,
+      responses: { 200: Conversation, ...errorResponses },
     },
   }),
   /** F-10 activity trail (ADR-009): one entity's history, or the org's recent. */

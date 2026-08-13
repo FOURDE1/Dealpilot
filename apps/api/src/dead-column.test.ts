@@ -79,8 +79,7 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // assistant's summary — is the agent console, and lands next. `evaluateSend`
   // already READS conversations.status to suspend the assistant, which is why
   // the table exists a slice before the screen that fills it in.
-  'conversations.language': 'set by the conversation router (agent console slice)',
-  'conversations.closed_at': 'written by the close route (agent console slice)',
+  'conversations.language': 'set by the conversation router (the model runtime slice)',
   // Arrives on the provider's delivery receipt; there is no provider yet.
   'messages.segments': 'written by the delivery-receipt webhook (Twilio slice)',
 };

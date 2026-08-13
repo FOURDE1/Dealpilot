@@ -811,6 +811,7 @@ export const enCA = {
     group_deals: 'Deals & delivery',
     group_money: 'Money',
     group_dispatch: 'Transport',
+    group_conversations: 'Conversations',
     group_settings: 'Organization & stores',
     overrideTitle: 'Exception for one person',
     overrideNote: 'Grant or take ONE capability from ONE person without changing their role. “Deny” wins over the role.',
@@ -868,6 +869,8 @@ export const enCA = {
     perm_dispatch_book: 'Book a run',
     perm_dispatch_update: 'Update a run',
     perm_fleet_manage: 'Manage logistics (companies, plates)',
+    perm_conversation_read: 'See conversations',
+    perm_conversation_reply: 'Reply, take over, close',
     perm_activity_read: 'See history',
   },
   intake: {

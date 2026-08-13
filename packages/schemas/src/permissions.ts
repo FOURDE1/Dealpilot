@@ -79,6 +79,19 @@ export const PERMISSIONS = [
   'dispatch:update',
   'fleet:manage',
 
+  // --- conversations ------------------------------------------------------
+  /** See the inbox and read a customer's thread. */
+  'conversation:read',
+  /**
+   * Reply, take a conversation over from the assistant, and close it.
+   *
+   * One authority rather than three: all three are the same act from the
+   * customer's side — somebody at the dealership has this conversation now —
+   * and splitting them would produce a role that can take a thread and then not
+   * answer it, which is worse than either.
+   */
+  'conversation:reply',
+
   // --- audit --------------------------------------------------------------
   'activity:read',
 ] as const;
@@ -107,6 +120,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
     'checklist:complete', 'checklist:waive',
     'document:prepare', 'document:sign',
     'dispatch:read', 'dispatch:book',
+    'conversation:read', 'conversation:reply',
     'activity:read',
   ],
 
@@ -127,6 +141,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
     'pay_plan:read', 'commission:read_all',
     // F&I prepares the wet-ink file and witnesses the signatures.
     'document:prepare', 'document:sign',
+    // Reads the thread before the customer sits down; the sales side answers it.
+    'conversation:read',
     'activity:read',
   ],
 
@@ -135,6 +151,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
     'lead:create', 'lead:update',
     'deal:create', 'deal:update', 'deal:change_stage',
     'checklist:complete',
+    'conversation:read', 'conversation:reply',
     'activity:read',
   ],
 
@@ -166,6 +183,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
   bdc_agent: [
     'member:read',
     'lead:create', 'lead:update', 'lead:assign',
+    // The whole role: answering people the assistant handed over.
+    'conversation:read', 'conversation:reply',
     'activity:read',
   ],
 };

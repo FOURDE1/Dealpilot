@@ -811,6 +811,7 @@ export const frCA = {
     group_deals: 'Transactions et livraison',
     group_money: 'Argent',
     group_dispatch: 'Transport',
+    group_conversations: 'Conversations',
     group_settings: 'Organisation et succursales',
     overrideTitle: 'Exception pour une personne',
     overrideNote: 'Accorder ou retirer UNE capacité à UNE personne, sans changer son rôle. « Retirer » l’emporte sur le rôle.',
@@ -868,6 +869,8 @@ export const frCA = {
     perm_dispatch_book: 'Réserver une course',
     perm_dispatch_update: 'Mettre à jour une course',
     perm_fleet_manage: 'Gérer la logistique (compagnies, plaques)',
+    perm_conversation_read: 'Voir les conversations',
+    perm_conversation_reply: 'Répondre, prendre en charge, fermer',
     perm_activity_read: 'Voir l’historique',
   },
   intake: {
