@@ -1941,3 +1941,62 @@ are planned, not real, until A-01 lands.
 ai), then correct PROJECT.md commands against reality. (2) Hussein — H-01: Stitch
 design round → owner selects the design direction (D-009). (3) Both: read the
 newest SESSION_LOG entry + PROJECT.md before starting.
+
+## 2026-08-14 — Phase 3d/3e: the conversation layer, end to end (F-19…F-26)
+
+**Done:** Eight slices, each merged to `develop` with CI verified green:
+F-19 send layer (d6502c7), F-20 handoff (d339034), F-21 console API (1f4ae0f),
+F-22 console UI (897281d), F-23 inbound router (797470f), F-24 speed-to-lead
+(e8a433c), F-25 speed dashboard (8d0c6ad), F-26 assistant prompt + tools
+(7c9531d). 825 tests, 65 files, 29/29 turbo tasks.
+
+The through-line: the compliance gate stopped being advisory. `sendMessage` is
+the only path a message can take to a customer, an outbound `messages` row
+must name the consent that authorised it (CHECK), and an agent typing in the
+console runs the same gate as the assistant.
+
+**In progress:** nothing half-done; every slice is committed and green.
+
+**Blocked / open questions — ALL need the owner:**
+1. **Model runtime** needs `@anthropic-ai/sdk`. The prompt, tools, and every
+   guard are built and tested without it; the SDK call is the thin part.
+2. **Realtime** (agent console live updates, ADR-004) needs `socket.io`,
+   `@socket.io/redis-adapter`, `ioredis`, and `socket.io-client` for tests.
+   Redis is already in compose on 6381.
+3. **D-043 (new, open):** `leads.budget_cents` — is it a MONTHLY payment budget
+   or a TOTAL price budget? conversation-engine.md §5 extracts
+   `monthly_budget_cents` with a `budget_type: monthly|total` discriminator, and
+   the existing column name says neither. Extraction write-back is not built
+   past this, deliberately: guessing would silently corrupt the field the
+   desking screen reads.
+
+**Decisions:** D-043 raised (above). No owner decisions were made unilaterally.
+
+**Gotchas learned:**
+- `send_decisions.timezone_source` permitted 'fallback' (emitted by nothing) and
+  refused 'area_code' (emitted by nearly everything). Every send from a Quebec
+  phone number would have died on INSERT. It survived because the endpoint that
+  COMPUTES the value never persisted one and the only test that wrote a row
+  hand-picked a legal literal. Fixed forward in 0032; a new vocabulary guard in
+  packages/db compares every Zod enum against the CHECK constraints.
+- The dead-column guard's exemption list had no expiry, so five entries went
+  stale in F-18 and two (`deals.fi_price_cents`, `fi_cost_cents`) were never
+  true — the deal-create route writes them via INPUT_COLUMNS. It now fails on
+  its own stale entries.
+- Guards read prose as code: the vocabulary guard's first finding was 'pending'
+  read out of a COMMENT inside an enum array. A manufactured finding costs more
+  than a missed one — it teaches the reader to skim.
+- Two of my own comments claimed load-bearing behaviour that mutation testing
+  disproved (handoff send ordering; the agent-assignability predicate, which RLS
+  actually enforces). Both corrected to say what is true.
+- `conversations` shipped with only the org-keyed RLS policy, so resolving which
+  org owns an id — which every detail route does under the CALLER's context —
+  returned nothing. The console 404'd on its own data and the cross-tenant test
+  passed because everything 404'd for everybody. 0034 adds the member-read
+  policy `leads` has had since 0004.
+- `now()` is the TRANSACTION's timestamp: rows written together are identical to
+  the microsecond and a uuid tiebreak is random. 0035 adds `seq`.
+
+**Next steps:** (1) owner answers the two dependency questions and D-043;
+(2) with the SDK: the conversation engine (§3 prompt is built, §5 extraction
+schema next); (3) with socket.io: tenant-room realtime per ADR-004.

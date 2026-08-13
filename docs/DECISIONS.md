@@ -545,3 +545,21 @@ deliberate schema-package change, not an ad-hoc edit.
 **Decision:** Adopt ADR-001…ADR-026 in `../../kia-tracker-specs/docs/new/00-overview/ARCHITECTURE-DECISIONS.md` (dated 2026-07-21, amended 2026-07-23) as this project's founding decision set — every spec and implementation conforms; deviations require a superseding entry.
 **Consequences:** Conflicts between older specs and the ADRs resolve to the ADRs; this log records only adoptions, amendments, and new decisions on top of them.
 **Decided by:** user
+
+## D-043: `leads.budget_cents` — monthly or total? (2026-08-14)
+
+**Status:** OPEN — needs the owner
+**Context:** conversation-engine.md §5 extracts `budget.monthly_budget_cents`
+alongside `budget_type: 'monthly' | 'total' | null`, and writes back to a lead
+column. The column that exists is `leads.budget_cents`, whose name commits to
+neither, and the desking screen reads it.
+**Options:** (a) `budget_cents` means TOTAL price budget; add
+`monthly_budget_cents` for the payment figure. (b) `budget_cents` means the
+MONTHLY payment; rename for clarity. (c) keep one column plus a `budget_type`
+discriminator, matching the extraction shape exactly.
+**Why it is not being guessed:** an extraction that writes a $450 monthly figure
+into a column the desking screen reads as a $45,000 total is wrong in a way that
+looks plausible on every screen it touches.
+**Consequences:** extraction write-back (§5) is unbuilt past the unambiguous
+fields until this is answered.
+**Decided by:** pending
