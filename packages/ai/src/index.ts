@@ -7,3 +7,6 @@
  */
 export * from './guards/outbound-guard.js';
 export * from './guards/spotlight.js';
+export * from './prompt/system-prompt.js';
+export * from './prompt/inventory-summary.js';
+export * from './tools/definitions.js';
