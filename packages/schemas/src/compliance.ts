@@ -145,6 +145,8 @@ export const CommsConfig = z.object({
   sms_quiet_end: z.string(),
   first_touch_quiet_exempt: z.boolean(),
   ai_daily_contact_cap: z.number().int(),
+  /** How many assistant messages before a person must take over (§9 trigger 5). */
+  bot_turn_cap: z.number().int(),
   created_at: IsoDateTime,
   updated_at: IsoDateTime,
 });
@@ -157,6 +159,7 @@ export const UpdateCommsConfigInput = z
     sms_quiet_end: TimeOfDay.optional(),
     first_touch_quiet_exempt: z.boolean().optional(),
     ai_daily_contact_cap: z.number().int().min(0).max(10).optional(),
+    bot_turn_cap: z.number().int().min(1).max(100).optional(),
   })
   .refine((v) => Object.values(v).some((x) => x !== undefined), {
     message: 'Nothing to change',

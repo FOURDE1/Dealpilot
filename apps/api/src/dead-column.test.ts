@@ -62,10 +62,11 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   'invitations.accepted_at': 'written by invitation_accept()',
   'invitations.accepted_user_id': 'written by invitation_accept()',
 
-  // AI lead scoring is not built. The column ships with the table rather than
-  // arriving in a migration later; named here so it is a known gap and not a
-  // forgotten one.
-  'leads.score': 'F-14 AI scoring not built yet',
+  // NOTE, not an entry: `leads.score` (AI lead scoring, still unbuilt) can no
+  // longer be checked here. F-20 added `conversation_analysis.score`, and this
+  // guard matches by column NAME, so the live column hides the dead one — the
+  // blind spot in the header, arriving in practice. An exemption would claim a
+  // check that is not happening, so there isn't one.
 
   // The compliance CHECK endpoint deliberately does not write a decision row:
   // asking whether a message COULD be sent is not sending one, and recording it
@@ -79,10 +80,7 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // already READS conversations.status to suspend the assistant, which is why
   // the table exists a slice before the screen that fills it in.
   'conversations.language': 'set by the conversation router (agent console slice)',
-  'conversations.assigned_agent_id': 'written by the handoff route (agent console slice)',
-  'conversations.handed_off_at': 'written by the handoff route (agent console slice)',
   'conversations.closed_at': 'written by the close route (agent console slice)',
-  'conversations.bot_summary': 'written at handoff by the assistant (agent console slice)',
   // Arrives on the provider's delivery receipt; there is no provider yet.
   'messages.segments': 'written by the delivery-receipt webhook (Twilio slice)',
 };

@@ -51,6 +51,15 @@ export const SourcePlatform = z.enum(['google', 'meta', 'organic', 'oem', 'other
 
 const nameField = z.string().trim().min(1).max(100);
 
+/**
+ * Whether this lead has something to trade in (conversation-engine.md §9).
+ *
+ * Three values, not a boolean: "no trade" and "nobody asked" are opposite facts
+ * about whether the lead is ready for a person, and the handoff trigger that
+ * reads this field would fire on every untouched lead if they were the same.
+ */
+export const TradeInStatus = z.enum(['none', 'has_trade', 'unknown']);
+
 export const Lead = z.object({
   id: Uuid,
   organization_id: Uuid,
@@ -70,6 +79,7 @@ export const Lead = z.object({
   score: z.number().int().min(0).max(100).nullable(),
   budget_cents: NonNegativeCents.nullable(),
   vehicle_interest: z.string().trim().min(1).max(200).nullable(),
+  trade_in_status: TradeInStatus,
   created_at: IsoDateTime,
   updated_at: IsoDateTime,
   deleted_at: IsoDateTime.nullable(),
@@ -93,6 +103,7 @@ export const CreateLeadInput = z.strictObject({
   preferred_language: Locale.default('fr-CA'),
   budget_cents: NonNegativeCents.optional(),
   vehicle_interest: z.string().trim().min(1).max(200).optional(),
+  trade_in_status: TradeInStatus.optional(),
 });
 
 export const UpdateLeadInput = z.strictObject({
@@ -108,6 +119,7 @@ export const UpdateLeadInput = z.strictObject({
   assigned_to: Uuid.nullable().optional(),
   budget_cents: NonNegativeCents.nullable().optional(),
   vehicle_interest: z.string().trim().min(1).max(200).nullable().optional(),
+  trade_in_status: TradeInStatus.optional(),
 });
 
 /** Org-scoped list with optional store/status filters (F-02); the

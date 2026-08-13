@@ -326,8 +326,10 @@ export function registerF15Routes(app: FastifyInstance, pool: Pool): void {
         ]);
       }
 
-      const cols = ['sms_quiet_start', 'sms_quiet_end', 'first_touch_quiet_exempt', 'ai_daily_contact_cap']
-        .filter((k) => k in input);
+      const cols = [
+        'sms_quiet_start', 'sms_quiet_end', 'first_touch_quiet_exempt',
+        'ai_daily_contact_cap', 'bot_turn_cap',
+      ].filter((k) => k in input);
       if (!current) {
         const insertCols = ['organization_id', ...cols];
         const r = await c.query<Record<string, unknown>>(

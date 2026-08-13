@@ -155,6 +155,9 @@ describe('what the API accepts, it stores', () => {
       first_name: 'Marie', last_name: 'Tremblay', email: `marie-${run}@example.test`,
       phone: '+15145550142', source: 'walk_in', source_platform: 'organic',
       preferred_language: 'fr-CA', budget_cents: 3_000_000, vehicle_interest: 'Kia Forte',
+      // Not the column default, so a create route that dropped it would show up
+      // as 'unknown' here rather than as a value that happens to match.
+      trade_in_status: 'has_trade',
     });
   });
 

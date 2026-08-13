@@ -82,6 +82,10 @@ const BEHAVIOURALLY_COVERED = new Set([
   // organisation out of these conversations") — the conversation AND its
   // messages, because a rival reading either one reads the customer.
   'conversations', 'messages',
+  // F-20: cross-tenant case in apps/api/src/f20-handoff.test.ts ("is invisible
+  // to another organisation") — it holds the assistant's read on a named
+  // customer, which is a rival's most useful page in the whole product.
+  'conversation_analysis',
 ]);
 
 interface PolicyRow {
