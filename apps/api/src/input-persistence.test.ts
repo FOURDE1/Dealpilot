@@ -154,7 +154,11 @@ describe('what the API accepts, it stores', () => {
       organization_id: orgId, store_id: storeId,
       first_name: 'Marie', last_name: 'Tremblay', email: `marie-${run}@example.test`,
       phone: '+15145550142', source: 'walk_in', source_platform: 'organic',
-      preferred_language: 'fr-CA', budget_cents: 3_000_000, vehicle_interest: 'Kia Forte',
+      preferred_language: 'fr-CA', vehicle_interest: 'Kia Forte',
+      // Deliberately different numbers: D-043 exists because a monthly figure
+      // and a total are both plausible amounts of money, so a route that
+      // crossed them would still look right with one shared value.
+      total_budget_cents: 3_000_000, monthly_budget_cents: 45_000,
       // Not the column default, so a create route that dropped it would show up
       // as 'unknown' here rather than as a value that happens to match.
       trade_in_status: 'has_trade',

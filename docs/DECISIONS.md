@@ -548,7 +548,7 @@ deliberate schema-package change, not an ad-hoc edit.
 
 ## D-043: `leads.budget_cents` — monthly or total? (2026-08-14)
 
-**Status:** OPEN — needs the owner
+**Status:** accepted — two explicitly named columns (owner: "the most recommended and the best")
 **Context:** conversation-engine.md §5 extracts `budget.monthly_budget_cents`
 alongside `budget_type: 'monthly' | 'total' | null`, and writes back to a lead
 column. The column that exists is `leads.budget_cents`, whose name commits to
@@ -560,6 +560,13 @@ discriminator, matching the extraction shape exactly.
 **Why it is not being guessed:** an extraction that writes a $450 monthly figure
 into a column the desking screen reads as a $45,000 total is wrong in a way that
 looks plausible on every screen it touches.
-**Consequences:** extraction write-back (§5) is unbuilt past the unambiguous
-fields until this is answered.
-**Decided by:** pending
+**Decision:** option (a), sharpened — `budget_cents` is RENAMED to
+`total_budget_cents`, and `monthly_budget_cents` is added beside it (0037). Two
+explicit names rather than one column plus a `budget_type` flag: a flag means
+every reader must remember to check it, and the failure mode of forgetting is
+silent, whereas `monthly_budget_cents` cannot be accidentally read as a total.
+**Consequences:** the rename is a breaking change to `CreateLeadInput` /
+`UpdateLeadInput` / the `Lead` read model. Safe today because nothing computes
+with the column — it is only stored and echoed — and that stops being true the
+moment desking reads it. Extraction write-back (§5) is now unblocked.
+**Decided by:** user (2026-08-14)

@@ -77,7 +77,10 @@ export const Lead = z.object({
   assigned_to: Uuid.nullable(),
   /** Rules-engine-owned, clamped 0–100 (leads.md §6). Never client-writable. */
   score: z.number().int().min(0).max(100).nullable(),
-  budget_cents: NonNegativeCents.nullable(),
+  /** What they will spend on the vehicle. Never a payment (D-043). */
+  total_budget_cents: NonNegativeCents.nullable(),
+  /** What they can pay per month. Never a price (D-043). */
+  monthly_budget_cents: NonNegativeCents.nullable(),
   vehicle_interest: z.string().trim().min(1).max(200).nullable(),
   trade_in_status: TradeInStatus,
   /** Speed to lead (leads.md §5) — stamped by the send path, never by a screen. */
@@ -107,7 +110,8 @@ export const CreateLeadInput = z.strictObject({
   source: LeadSource,
   source_platform: SourcePlatform.optional(),
   preferred_language: Locale.default('fr-CA'),
-  budget_cents: NonNegativeCents.optional(),
+  total_budget_cents: NonNegativeCents.optional(),
+  monthly_budget_cents: NonNegativeCents.optional(),
   vehicle_interest: z.string().trim().min(1).max(200).optional(),
   trade_in_status: TradeInStatus.optional(),
 });
@@ -123,7 +127,8 @@ export const UpdateLeadInput = z.strictObject({
   source_platform: SourcePlatform.nullable().optional(),
   preferred_language: Locale.optional(),
   assigned_to: Uuid.nullable().optional(),
-  budget_cents: NonNegativeCents.nullable().optional(),
+  total_budget_cents: NonNegativeCents.nullable().optional(),
+  monthly_budget_cents: NonNegativeCents.nullable().optional(),
   vehicle_interest: z.string().trim().min(1).max(200).nullable().optional(),
   trade_in_status: TradeInStatus.optional(),
 });

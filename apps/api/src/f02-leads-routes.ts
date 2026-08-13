@@ -68,7 +68,7 @@ async function leadOrg(pool: Pool, userId: string, leadId: string): Promise<stri
 }
 
 const LEAD_COLUMNS =
-  'organization_id, store_id, first_name, last_name, email, phone, source, source_platform, preferred_language, budget_cents, vehicle_interest, trade_in_status';
+  'organization_id, store_id, first_name, last_name, email, phone, source, source_platform, preferred_language, total_budget_cents, monthly_budget_cents, vehicle_interest, trade_in_status';
 
 export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
   app.post('/api/v1/leads', async (request, reply) => {
@@ -80,12 +80,13 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
         await requireLiveStore(c, input.store_id);
         const r = await c.query(
           `INSERT INTO leads (${LEAD_COLUMNS})
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
           [
             input.organization_id, input.store_id, input.first_name ?? null,
             input.last_name ?? null, input.email ?? null, input.phone,
             input.source, input.source_platform ?? null, input.preferred_language,
-            input.budget_cents ?? null, input.vehicle_interest ?? null,
+            input.total_budget_cents ?? null, input.monthly_budget_cents ?? null,
+            input.vehicle_interest ?? null,
             // 'unknown' is the truthful default: nobody has asked yet.
             input.trade_in_status ?? 'unknown',
           ],
@@ -263,7 +264,8 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
         // verb above.
         const changed = diff(prior, input as Record<string, unknown>, [
           'first_name', 'last_name', 'email', 'phone', 'status', 'source',
-          'source_platform', 'preferred_language', 'budget_cents', 'vehicle_interest',
+          'source_platform', 'preferred_language', 'total_budget_cents', 'monthly_budget_cents',
+          'vehicle_interest',
           'trade_in_status', 'store_id',
         ]);
         if (Object.keys(changed).length > 0) {
