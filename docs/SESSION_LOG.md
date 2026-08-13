@@ -1997,6 +1997,21 @@ console runs the same gate as the assistant.
 - `now()` is the TRANSACTION's timestamp: rows written together are identical to
   the microsecond and a uuid tiebreak is random. 0035 adds `seq`.
 
-**Next steps:** (1) owner answers the two dependency questions and D-043;
+**Update (later the same day):** owner approved both dependency sets and asked
+for "the most recommended" on D-043. Landed since: D-043 (bacfcbe, budget
+columns split), F-27 (11400ce, the turn loop behind a `ModelClient` interface
+with @anthropic-ai/sdk pinned to 0.116.0), and the test-timeout fix below.
+
+**The flake, diagnosed:** it was never a lock. Every database suite rebuilds the
+schema from zero in `beforeAll` — measured at 3.6–4.2 s against 37 migrations on
+an idle machine — against vitest's default 10 s hook ceiling. Under load a suite
+would occasionally cross it, pass alone, and pass on re-run. It appeared the day
+the migration count made the work slow enough to matter, and would have got
+worse silently. `hookTimeout` is now 60 s, which buys room without fixing the
+cost: ~25 suites × ~4 s is most of the 230 s run, and the real fix is ONE reset
+per run rather than per suite. That needs the suites audited for the isolation
+they currently get for free, so it is written down rather than rushed.
+
+**Next steps:** (1) F-28 realtime (socket.io approved, not yet installed);
 (2) with the SDK: the conversation engine (§3 prompt is built, §5 extraction
 schema next); (3) with socket.io: tenant-room realtime per ADR-004.

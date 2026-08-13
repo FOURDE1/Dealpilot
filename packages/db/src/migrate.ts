@@ -101,10 +101,37 @@ export async function reset(pool: pg.Pool, migrationsDir: string, databaseUrl: s
   }
   const client = await pool.connect();
   try {
+    // A suite that ended a moment ago may still have a backend draining, and
+    // DROP SCHEMA waits on its locks. Waiting forever turns a flake into a hung
+    // CI job; failing after ten seconds turns it into a report.
+    await client.query("SET lock_timeout = '10s'");
     await client.query('DROP SCHEMA public CASCADE');
     await client.query('CREATE SCHEMA public');
     await client.query('GRANT ALL ON SCHEMA public TO dealpilot');
     await client.query('GRANT USAGE ON SCHEMA public TO public');
+  } catch (cause) {
+    // One full-suite run failed here and passed alone and on re-run, which is
+    // the least useful bug report there is. Whoever sees it next gets the
+    // Postgres code AND who was holding the database, rather than a bare
+    // "beforeAll failed" and an afternoon of guessing.
+    const code = (cause as { code?: string }).code ?? 'unknown';
+    let holders = 'could not be read';
+    try {
+      const busy = await client.query<{ pid: number; state: string; query: string }>(
+        `SELECT pid, state, left(query, 120) AS query
+         FROM pg_stat_activity
+         WHERE datname = current_database() AND pid <> pg_backend_pid()`,
+      );
+      holders = busy.rows.length === 0
+        ? 'nobody else was connected'
+        : busy.rows.map((r) => `pid ${r.pid} [${r.state}] ${r.query}`).join(' | ');
+    } catch {
+      // The diagnostic must never replace the real error.
+    }
+    throw new Error(
+      `reset("${dbName}") could not rebuild the schema (pg code ${code}). Other connections: ${holders}`,
+      { cause },
+    );
   } finally {
     client.release();
   }
