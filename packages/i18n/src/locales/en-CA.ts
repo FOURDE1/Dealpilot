@@ -616,6 +616,7 @@ export const enCA = {
     violation_percentage: 'Rate',
     violation_approval_promise: 'Approval promise',
     violation_delivery_promise: 'Delivery promise',
+    violation_empty_reply: 'The assistant produced nothing',
     violation_unknown_stock_number: 'Unknown stock number',
   },
   dispatch: {

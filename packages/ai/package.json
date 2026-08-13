@@ -19,6 +19,7 @@
     "typescript": "catalog:"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.116.0",
     "zod": "catalog:"
   }
 }

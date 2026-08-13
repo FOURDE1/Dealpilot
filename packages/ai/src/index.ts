@@ -10,3 +10,5 @@ export * from './guards/spotlight.js';
 export * from './prompt/system-prompt.js';
 export * from './prompt/inventory-summary.js';
 export * from './tools/definitions.js';
+export * from './engine/turn.js';
+export * from './engine/anthropic.js';

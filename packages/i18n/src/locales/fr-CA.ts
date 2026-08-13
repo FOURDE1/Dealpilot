@@ -616,6 +616,7 @@ export const frCA = {
     violation_percentage: 'Taux',
     violation_approval_promise: 'Promesse d’approbation',
     violation_delivery_promise: 'Promesse de livraison',
+    violation_empty_reply: 'L’assistant n’a rien produit',
     violation_unknown_stock_number: 'Numéro de stock inconnu',
   },
   dispatch: {

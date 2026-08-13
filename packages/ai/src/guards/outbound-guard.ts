@@ -35,6 +35,13 @@ export const VIOLATION_KINDS = [
   'approval_promise',
   'unknown_stock_number',
   'delivery_promise',
+  /**
+   * Not something the guard detects in a draft — something the turn loop
+   * reports when there IS no draft. Listed here rather than borrowed from
+   * another kind because a reason recorded under the wrong name is a reason
+   * nobody can search for afterwards.
+   */
+  'empty_reply',
 ] as const;
 
 export type ViolationKind = (typeof VIOLATION_KINDS)[number];
