@@ -150,6 +150,9 @@ export async function handOff(c: PoolClient, req: HandoffRequest): Promise<Hando
       `UPDATE leads
        SET chatbot_handoff_at = COALESCE(chatbot_handoff_at, now()),
            assigned_to = COALESCE(assigned_to, $2),
+           -- Only when this handoff is what assigned them: an already-owned
+           -- lead keeps the clock its owner has been running against (§5.2).
+           assigned_at = CASE WHEN assigned_to IS NULL THEN now() ELSE assigned_at END,
            updated_at = now()
        WHERE organization_id = $3 AND id = $1`,
       [req.leadId, req.assignedAgentId, req.organizationId],

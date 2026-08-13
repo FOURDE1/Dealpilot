@@ -80,6 +80,12 @@ export const Lead = z.object({
   budget_cents: NonNegativeCents.nullable(),
   vehicle_interest: z.string().trim().min(1).max(200).nullable(),
   trade_in_status: TradeInStatus,
+  /** Speed to lead (leads.md §5) — stamped by the send path, never by a screen. */
+  first_contacted_at: IsoDateTime.nullable(),
+  last_contacted_at: IsoDateTime.nullable(),
+  response_time_seconds: z.number().int().min(0).nullable(),
+  contact_attempts: z.number().int().min(0),
+  assigned_at: IsoDateTime.nullable(),
   created_at: IsoDateTime,
   updated_at: IsoDateTime,
   deleted_at: IsoDateTime.nullable(),
@@ -135,3 +141,29 @@ export const LeadListQuery = CursorQuery.extend({
 export type LeadT = z.infer<typeof Lead>;
 export type CreateLeadInputT = z.infer<typeof CreateLeadInput>;
 export type UpdateLeadInputT = z.infer<typeof UpdateLeadInput>;
+
+/**
+ * The store's day, not a person's.
+ *
+ * No agent filter on purpose: a per-agent leaderboard is performance data about
+ * named people and needs an authority of its own to read.
+ */
+export const SpeedToLeadQuery = z.object({
+  organization_id: Uuid.optional(),
+  store_id: Uuid.optional(),
+  days: z.coerce.number().int().min(1).max(365).default(30),
+});
+
+export const SpeedToLeadSummary = z.object({
+  contacted: z.number().int(),
+  uncontacted: z.number().int(),
+  by_rating: z.object({
+    excellent: z.number().int(),
+    good: z.number().int(),
+    fair: z.number().int(),
+    slow: z.number().int(),
+  }),
+  median_seconds: z.number().int().nullable(),
+  ai_within_slo: z.number().int(),
+  ai_touches: z.number().int(),
+});

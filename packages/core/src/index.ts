@@ -19,3 +19,4 @@ export * from './compliance-inquiry.js';
 export * from './intake-connector.js';
 export * from './intake-adf.js';
 export * from './handoff.js';
+export * from './speed-to-lead.js';

@@ -237,9 +237,16 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
 
         const fields = Object.entries(input);
         if (fields.length === 0) return prior;
-        const sets = fields.map(([k], i) => `${k} = $${i + 2}`).join(', ');
+        const sets = fields.map(([k], i) => `${k} = $${i + 2}`);
+        // §5.2's ten-minute reassignment ladder counts from the moment somebody
+        // became responsible, not from when the lead arrived. Stamped here
+        // because this is where responsibility changes hands; cleared on
+        // unassignment, since a null owner has no clock.
+        if (input.assigned_to !== undefined && input.assigned_to !== prior['assigned_to']) {
+          sets.push(input.assigned_to === null ? 'assigned_at = NULL' : 'assigned_at = now()');
+        }
         const r = await c.query(
-          `UPDATE leads SET ${sets} WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
+          `UPDATE leads SET ${sets.join(', ')} WHERE id = $1 AND deleted_at IS NULL RETURNING *`,
           [leadId, ...fields.map(([, v]) => v)],
         );
         if (r.rows.length === 0) throw notFound();

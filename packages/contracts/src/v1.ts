@@ -45,6 +45,8 @@ import {
   Message,
   MessageListQuery,
   SendAgentMessageInput,
+  SpeedToLeadQuery,
+  SpeedToLeadSummary,
   SendResult,
   TakeoverInput,
   ChaserVehicle,
@@ -639,6 +641,15 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       query: ComplianceCheckQuery,
       responses: { 200: ComplianceCheck, ...errorResponses },
+    },
+  }),
+  /** F-24 speed to lead (leads.md §5, ADR-025): the number this is sold on. */
+  speedToLead: c.router({
+    summary: {
+      method: 'GET',
+      path: '/api/v1/leads/speed-to-lead',
+      query: SpeedToLeadQuery,
+      responses: { 200: SpeedToLeadSummary, ...errorResponses },
     },
   }),
   /**

@@ -62,6 +62,16 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   'invitations.accepted_at': 'written by invitation_accept()',
   'invitations.accepted_user_id': 'written by invitation_accept()',
 
+  // Stamped by the trigger `leads_stamp_contact` on messages, not by any
+  // route — on purpose, and it is the whole point of F-24. The legacy system
+  // made first contact a button somebody pressed after a phone call, which
+  // measured remembering rather than answering. A contact that happened and
+  // was not recorded must not be a thing that can happen.
+  'leads.first_contacted_at': 'stamped by trigger leads_stamp_contact',
+  'leads.last_contacted_at': 'stamped by trigger leads_stamp_contact',
+  'leads.response_time_seconds': 'stamped by trigger leads_stamp_contact',
+  'leads.contact_attempts': 'stamped by trigger leads_stamp_contact',
+
   // NOTE, not an entry: `leads.score` (AI lead scoring, still unbuilt) can no
   // longer be checked here. F-20 added `conversation_analysis.score`, and this
   // guard matches by column NAME, so the live column hides the dead one — the
