@@ -19,7 +19,8 @@
     "zod": "catalog:",
     "@aws-sdk/client-sesv2": "3.1092.0",
     "@dealpilot/core": "workspace:*",
-    "@dealpilot/contracts": "workspace:*"
+    "@dealpilot/contracts": "workspace:*",
+    "@dealpilot/ai": "workspace:*"
   },
   "devDependencies": {
     "typescript": "catalog:",

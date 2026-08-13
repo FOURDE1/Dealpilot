@@ -78,6 +78,10 @@ const BEHAVIOURALLY_COVERED = new Set([
   // compliance route refused to an outsider, plus a live probe as the
   // application role proving the tenant predicate is what hides the rows.
   'consent_ledger', 'suppression_list', 'internal_dnc', 'tenant_comms_config', 'send_decisions',
+  // F-19: cross-tenant case in apps/api/src/f19-send.test.ts ("keeps another
+  // organisation out of these conversations") — the conversation AND its
+  // messages, because a rival reading either one reads the customer.
+  'conversations', 'messages',
 ]);
 
 interface PolicyRow {

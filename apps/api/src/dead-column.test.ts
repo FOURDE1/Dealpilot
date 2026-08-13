@@ -55,12 +55,6 @@ const STRUCTURAL = new Set([
  * is exactly what the three bugs above would have claimed.
  */
 const DELIBERATELY_UNWRITTEN: Record<string, string> = {
-  // Written by the trigger deal_fi_products_sync, not by any route — on
-  // purpose: they are money desking reads, and a route that forgot to re-sum
-  // would pay someone the wrong commission (F-13b).
-  'deals.fi_price_cents': 'maintained by trigger deal_fi_products_sync',
-  'deals.fi_cost_cents': 'maintained by trigger deal_fi_products_sync',
-
   // Written by the invitation_accept() SQL function, not by a route: accepting
   // an invitation has to reactivate a membership and stamp acceptance in one
   // indivisible step, or a re-invited colleague ends up with two memberships
@@ -73,28 +67,24 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // forgotten one.
   'leads.score': 'F-14 AI scoring not built yet',
 
-  // F-15: written by the inbound-SMS STOP pipeline, which arrives with the
-  // conversation slice. The columns exist now because the gate READS the
-  // suppression row and the shape must be settled before anything writes it.
-  'suppression_list.matched_keyword': 'written by the inbound STOP handler (conversation slice)',
-  'suppression_list.source_message_ref': 'written by the inbound STOP handler (conversation slice)',
-  'suppression_list.cleared_at': 'written by the START re-opt-in handler (conversation slice)',
-  'suppression_list.cleared_reason': 'written by the START re-opt-in handler (conversation slice)',
-  'suppression_list.cleared_by_message_ref': 'written by the START re-opt-in handler (conversation slice)',
-
-  // Written by the SEND layer, one row per decision, when there is a send layer
-  // to write them. The compliance CHECK endpoint deliberately does not: asking
-  // whether a message could be sent is not sending one, and recording it as a
-  // decision would inflate the frequency cap with questions nobody acted on.
-  'send_decisions.message_class': 'written by the send layer (conversation slice)',
-  'send_decisions.originator': 'written by the send layer (conversation slice)',
-  'send_decisions.consent_ledger_id': 'written by the send layer (conversation slice)',
-  'send_decisions.timezone_source': 'written by the send layer (conversation slice)',
-  'send_decisions.recipient_local_at': 'written by the send layer (conversation slice)',
-  'send_decisions.window_applied': 'written by the send layer (conversation slice)',
-  'send_decisions.deferred_until': 'written by the send layer (conversation slice)',
-  'send_decisions.gate_version': 'written by the send layer (conversation slice)',
+  // The compliance CHECK endpoint deliberately does not write a decision row:
+  // asking whether a message COULD be sent is not sending one, and recording it
+  // would inflate the frequency cap with questions nobody acted on. The send
+  // layer (F-19) writes every other column on this table.
   'send_decisions.decided_at': 'defaulted by the database at insert',
+
+  // F-19 created the conversation, which is what the send layer needed. The
+  // handoff itself — a person taking a conversation, closing it, reading the
+  // assistant's summary — is the agent console, and lands next. `evaluateSend`
+  // already READS conversations.status to suspend the assistant, which is why
+  // the table exists a slice before the screen that fills it in.
+  'conversations.language': 'set by the conversation router (agent console slice)',
+  'conversations.assigned_agent_id': 'written by the handoff route (agent console slice)',
+  'conversations.handed_off_at': 'written by the handoff route (agent console slice)',
+  'conversations.closed_at': 'written by the close route (agent console slice)',
+  'conversations.bot_summary': 'written at handoff by the assistant (agent console slice)',
+  // Arrives on the provider's delivery receipt; there is no provider yet.
+  'messages.segments': 'written by the delivery-receipt webhook (Twilio slice)',
 };
 
 beforeAll(async () => {
@@ -190,5 +180,37 @@ it('every column the app is expected to write, it can write', async (ctx) => {
   expect(
     dead,
     `these columns exist in the database and NOTHING in the API can write them — either wire them up, or register them in DELIBERATELY_UNWRITTEN with the reason: ${dead.join(', ')}`,
+  ).toEqual([]);
+});
+
+/**
+ * The exemption list has to expire, or it becomes the bug it was built to find.
+ *
+ * Every entry above says "nothing writes this, ON PURPOSE". Most of them said
+ * "…yet — the slice that writes it is coming". When that slice lands, the entry
+ * stops describing reality and starts doing the opposite of its job: if the
+ * write path is later deleted or refactored away, the column goes dead again
+ * and the stale exemption suppresses the report. F-18 left five such entries
+ * behind and nothing noticed until F-19 went looking.
+ *
+ * Same coarse name matching as above, with the same blind spot — a hit here may
+ * be a live column or a same-named column on another table. Either way the
+ * entry no longer protects anything, so removing it is right in both cases.
+ */
+it('no exemption outlives the reason it was written for', async (ctx) => {
+  if (!dbUp) return ctx.skip();
+
+  const evidence = writeEvidence(
+    sourceIn(here),
+    sourceIn(join(here, '..', '..', '..', 'packages', 'schemas', 'src')),
+  );
+  const stale = Object.keys(DELIBERATELY_UNWRITTEN).filter((qualified) => {
+    const column = qualified.split('.')[1]!;
+    return new RegExp(`\\b${column}\\b`).test(evidence);
+  });
+
+  expect(
+    stale,
+    `these columns ARE written now, so their DELIBERATELY_UNWRITTEN entries are stale and are masking future regressions — delete them: ${stale.join(', ')}`,
   ).toEqual([]);
 });

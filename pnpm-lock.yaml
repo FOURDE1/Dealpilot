@@ -51,6 +51,9 @@ importers:
       '@aws-sdk/client-sesv2':
         specifier: 3.1092.0
         version: 3.1092.0
+      '@dealpilot/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@dealpilot/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

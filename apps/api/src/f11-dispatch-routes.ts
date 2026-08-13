@@ -764,7 +764,7 @@ async function pickResource(
              WHERE a.${idCol} = f.id
                AND a.deal_id <> $2
                AND a.deleted_at IS NULL
-               AND a.status IN ('pending','assigned','departed','arrived')
+               AND a.status IN ('assigned','departed','arrived')
                AND d.booked_delivery_at IS NOT NULL
                AND abs(extract(epoch FROM (d.booked_delivery_at - $3::timestamptz))) < $4 * 3600
              ORDER BY abs(extract(epoch FROM (d.booked_delivery_at - $3::timestamptz)))
@@ -800,7 +800,7 @@ async function clearStaleConflicts(client: PoolClient, orgId: string, storeId: s
      JOIN stores s ON s.id = a.store_id
      WHERE a.organization_id = $1 AND a.store_id = $2
        AND a.conflict_flag = true AND a.deleted_at IS NULL
-       AND a.status IN ('pending','assigned','departed','arrived')`,
+       AND a.status IN ('assigned','departed','arrived')`,
     [orgId, storeId],
   );
 
@@ -819,7 +819,7 @@ async function clearStaleConflicts(client: PoolClient, orgId: string, storeId: s
          WHERE a.${col} = $1
            AND a.deal_id <> $2
            AND a.deleted_at IS NULL
-           AND a.status IN ('pending','assigned','departed','arrived')
+           AND a.status IN ('assigned','departed','arrived')
            AND d.booked_delivery_at IS NOT NULL
            AND abs(extract(epoch FROM (d.booked_delivery_at - $3::timestamptz))) < $4 * 3600`,
         [resourceId, run.deal_id, run.booked_at, run.window_hours],
@@ -849,7 +849,7 @@ async function retireFleetRow(
   const held = await client.query(
     `SELECT 1 FROM dispatch_assignments
      WHERE ${assignmentCol} = $1 AND deleted_at IS NULL
-       AND status IN ('pending','assigned','departed','arrived')
+       AND status IN ('assigned','departed','arrived')
      LIMIT 1`,
     [id],
   );
