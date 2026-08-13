@@ -212,3 +212,101 @@ describe('F-03 public webhook', () => {
     expect(res.statusCode).toBe(401);
   });
 });
+
+describe('an intake lead arrives with the permission the form collected (ADR-005)', () => {
+  // A key of its own: an earlier test in this file revokes the shared one, and
+  // a suite whose later cases depend on the order of its earlier ones is a
+  // suite that fails for reasons nobody can read.
+  let ownToken = '';
+  let ownSecret = '';
+
+  async function post(body: string) {
+    const ts = Math.floor(Date.now() / 1000).toString();
+    return app!.inject({
+      method: 'POST',
+      url: `/in/v1/leads/${ownToken}`,
+      headers: {
+        'content-type': 'application/json',
+        'x-intake-timestamp': ts,
+        'x-intake-signature': sign(ts, body, ownSecret),
+      },
+      payload: body,
+    });
+  }
+
+  beforeAll(async () => {
+    if (!dbUp) return;
+    const res = await app!.inject({
+      method: 'POST', url: '/api/v1/intake-keys', headers: { cookie: cookieA },
+      payload: {
+        organization_id: orgId, store_id: storeId,
+        label: 'Consent connector test', default_source: 'website',
+        connector_key: 'website_form',
+      },
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    const created = JSON.parse(res.body) as { token: string; secret: string };
+    ownToken = created.token;
+    ownSecret = created.secret;
+  });
+
+  it('records the consent the customer ticked, with the wording as evidence', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Before the connector framework, every webhook lead landed with NO basis
+    // at all: the enquiry arrived, the lead appeared, and nothing could be sent
+    // to them. The form collected permission and the system threw it away.
+    const res = await post(JSON.stringify({
+      phone: '514 555 0177',
+      first_name: 'Consented',
+      email: 'consented@example.test',
+      vehicle_interest: 'Kia Forte',
+      consent: true,
+      consent_text: 'I agree to be contacted about this vehicle',
+    }));
+    expect(res.statusCode, res.body).toBe(202);
+    const leadId = (JSON.parse(res.body) as { lead_id: string }).lead_id;
+
+    const consent = await app!.inject({
+      method: 'GET', url: `/api/v1/leads/${leadId}/consent`, headers: { cookie: cookieA },
+    });
+    const items = (JSON.parse(consent.body) as {
+      items: { channel: string; scope: string; consent_type: string; evidence: Record<string, unknown> }[];
+    }).items;
+    expect(items.length, 'the form collected permission and it must be stored').toBeGreaterThan(0);
+    expect(items.every((i) => i.scope === 'conversational')).toBe(true);
+    // The wording IS the evidence — "they agreed" without "to what" is the
+    // question a regulator actually asks.
+    expect(String(items[0]!.evidence['form_wording'])).toContain('agree to be contacted');
+
+    // And the gate now permits a reply about their enquiry.
+    const gate = await app!.inject({
+      method: 'GET',
+      url: `/api/v1/leads/${leadId}/compliance?channel=sms&scope=conversational&originator=human`,
+      headers: { cookie: cookieA },
+    });
+    expect(['allowed', 'deferred']).toContain((JSON.parse(gate.body) as { status: string }).status);
+  });
+
+  it('records NOTHING when the box was left unticked, and the gate refuses', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The expensive direction. A form WITH a consent box that was not ticked
+    // granted nothing, and the system must be unable to pretend otherwise.
+    const res = await post(JSON.stringify({
+      phone: '514 555 0166', first_name: 'Unticked', consent: false,
+    }));
+    expect(res.statusCode).toBe(202);
+    const leadId = (JSON.parse(res.body) as { lead_id: string }).lead_id;
+
+    const consent = await app!.inject({
+      method: 'GET', url: `/api/v1/leads/${leadId}/consent`, headers: { cookie: cookieA },
+    });
+    expect((JSON.parse(consent.body) as { items: unknown[] }).items).toEqual([]);
+
+    const gate = await app!.inject({
+      method: 'GET',
+      url: `/api/v1/leads/${leadId}/compliance?channel=sms&scope=conversational&originator=human`,
+      headers: { cookie: cookieA },
+    });
+    expect(JSON.parse(gate.body)).toMatchObject({ status: 'blocked', reason: 'consent_absent' });
+  });
+});

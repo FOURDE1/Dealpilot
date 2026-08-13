@@ -20,6 +20,7 @@ export const IntakeKey = z.object({
   label,
   provider: IntakeProvider,
   default_source: LeadSource,
+  connector_key: z.string(),
   token: z.string(),
   active: z.boolean(),
   last_used_at: IsoDateTime.nullable(),
@@ -40,19 +41,45 @@ export const CreateIntakeKeyInput = z.strictObject({
   label,
   provider: IntakeProvider.default('generic_json'),
   default_source: LeadSource.default('website'),
+  /**
+   * Which connector definition reads this source's payloads (ADR-005).
+   *
+   * A key that could not name one would make the framework decorative: adding a
+   * lead source is supposed to be configuration, and configuration nobody can
+   * set is code with extra steps.
+   */
+  connector_key: z.enum(['website_form', 'meta_lead_ads']).default('website_form'),
 });
 
 /**
  * The generic_json inbound payload. `phone` is the one required contact field
  * (leads.md §1); source/store/org come from the resolved key, never the body.
  */
-export const IntakeLeadPayload = z.strictObject({
+/**
+ * A lead arriving from a provider.
+ *
+ * `consent` and `consent_text` are what the form actually collected. Without
+ * them a submitted lead has no basis to be contacted on, which is how every
+ * webhook lead in this system was unmessageable until the connector framework
+ * landed: the enquiry arrived, the lead appeared, and nothing could be sent.
+ *
+ * Loose rather than strict on the extras: providers add fields without warning,
+ * and rejecting a whole lead because a payload grew a field is worse than
+ * ignoring the field.
+ */
+export const IntakeLeadPayload = z.object({
   phone: PhoneE164,
   first_name: z.string().trim().min(1).max(100).optional(),
   last_name: z.string().trim().min(1).max(100).optional(),
   email: Email.optional(),
   vehicle_interest: z.string().trim().min(1).max(200).optional(),
   preferred_language: Locale.optional(),
+  /** Whether the customer ticked the form's consent box. */
+  consent: z.union([z.boolean(), z.string(), z.number()]).optional(),
+  /** The exact wording they were shown — this IS the evidence. */
+  consent_text: z.string().trim().min(1).max(2000).optional(),
+  /** Free text the customer typed. Untrusted: spotlight before any model. */
+  message: z.string().trim().max(4000).optional(),
 });
 
 export type IntakeKeyT = z.infer<typeof IntakeKey>;

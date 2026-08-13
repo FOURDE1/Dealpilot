@@ -1,10 +1,11 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { CreateIntakeKeyInput, IntakeLeadPayload, StoreListQuery, Uuid } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
+import { findConnector, normalizeLead } from '@dealpilot/core';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 
 /**
@@ -72,9 +73,13 @@ export function registerIntakeKeyRoutes(app: FastifyInstance, pool: Pool, apiBas
       await requirePermission(c, user.id, 'intake_key:manage');
       await requireLiveStore(c, input.store_id);
       const r = await c.query(
-        `INSERT INTO intake_keys (organization_id, store_id, label, provider, default_source, token, secret)
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-        [input.organization_id, input.store_id, input.label, input.provider, input.default_source, token, secret],
+        `INSERT INTO intake_keys (organization_id, store_id, label, provider, default_source,
+                                  connector_key, token, secret)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [
+          input.organization_id, input.store_id, input.label, input.provider,
+          input.default_source, input.connector_key, token, secret,
+        ],
       );
       // A webhook credential is a standing key to the front door. Minting one is
       // recorded; the secret itself never is.
@@ -117,7 +122,7 @@ export function registerIntakeKeyRoutes(app: FastifyInstance, pool: Pool, apiBas
         orgId = orgs[0]!;
       }
       // `secret` is never selected — it must not reach the client after creation.
-      const cols = 'id, organization_id, store_id, label, provider, default_source, token, active, last_used_at, created_at, updated_at, revoked_at';
+      const cols = 'id, organization_id, store_id, label, provider, default_source, connector_key, token, active, last_used_at, created_at, updated_at, revoked_at';
       let sql = `SELECT ${cols} FROM intake_keys WHERE organization_id = $1 AND revoked_at IS NULL`;
       const params: unknown[] = [orgId];
       if (query.store_id) {
@@ -177,6 +182,7 @@ async function keyOrg(pool: Pool, userId: string, keyId: string): Promise<string
 // -- public webhook (no session; HMAC) ----------------------------------------
 
 interface ResolvedKey {
+  connector_key: string;
   organization_id: string;
   store_id: string;
   default_source: string;
@@ -220,6 +226,9 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): vo
 
       // Verified. Validate the payload and place the lead synchronously.
       const payload = parseOrThrow(IntakeLeadPayload, request.body ?? {});
+      // Generated app-side so the lead and its consent share one grant without
+      // a second round trip inside the transaction.
+      const grantId = randomUUID();
       const leadId = await withTenant(pool, resolved.organization_id, async (c) => {
         const r = await c.query<{ id: string }>(
           `INSERT INTO leads (organization_id, store_id, phone, source, first_name, last_name, email,
@@ -243,6 +252,47 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): vo
           action: 'created',
           changes: { source: resolved.default_source, via: 'intake' },
         });
+        // ADR-005: what this form's consent box granted is a fact about THAT
+        // form, so it comes from the connector definition rather than from an
+        // assumption here. Written in the same transaction as the lead — an
+        // enquiry that arrives with permission and stores only half of it is a
+        // lead nobody may contact.
+        const connector = findConnector(resolved.connector_key) ?? findConnector('website_form');
+        if (connector) {
+          const normalized = normalizeLead(request.body ?? {}, connector, new Date());
+          for (const row of normalized.consent) {
+            await c.query(
+              `INSERT INTO consent_ledger
+                 (organization_id, store_id, grant_id, lead_id, phone_e164, email,
+                  channel, scope, consent_type, source, evidence, granted_at, expires_at)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+              [
+                resolved.organization_id, resolved.store_id, grantId, r.rows[0]!.id,
+                row.channel === 'email' ? null : payload.phone,
+                row.channel === 'email' ? (payload.email ?? null) : null,
+                row.channel, row.scope, row.consentType, row.source,
+                JSON.stringify(row.evidence), row.grantedAt, row.expiresAt,
+              ],
+            );
+          }
+          if (normalized.consent.length > 0) {
+            await recordEvent(c, {
+              organizationId: resolved.organization_id,
+              storeId: resolved.store_id,
+              actorUserId: null,
+              entityType: 'consent',
+              entityId: grantId,
+              action: 'created',
+              parentEntityType: 'lead',
+              parentEntityId: r.rows[0]!.id,
+              changes: {
+                connector: connector.key,
+                consent_type: normalized.consent[0]!.consentType,
+                channels: normalized.consent.map((x) => x.channel),
+              },
+            });
+          }
+        }
         await c.query(`UPDATE intake_keys SET last_used_at = now() WHERE token = $1`, [token]);
         return r.rows[0]!.id;
       });
