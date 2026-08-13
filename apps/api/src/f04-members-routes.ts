@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { withContext, withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { AddMemberInput, MemberListQuery, UpdateMemberInput } from '@dealpilot/schemas';
@@ -133,7 +132,6 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
   app.post('/api/v1/members', async (request, reply) => {
     const input = parseOrThrow(AddMemberInput, request.body);
     const actor = sessionUser(request);
-    const newUserId = randomUUID();
     try {
       const member = await withTenant(pool, input.organization_id, async (c) => {
         await requirePermission(c, actor.id, 'member:invite');
@@ -183,11 +181,52 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
           return { ...reinstated.rows[0], email: input.email, name: input.name, reinstated: true };
         }
 
-        // App-generated id: INSERT..RETURNING on users cannot pass the SELECT
-        // policy before the membership exists (proven in A-04/D-022).
+        // The membership MUST be keyed to the person's real sign-in identity.
+        //
+        // This route used to mint a fresh uuid for the domain user row. That id
+        // could never match the id Better Auth issues when the person actually
+        // signs in, so `app.user_id` never matched the membership and every
+        // user-scoped read returned nothing: they were `active` on the team and
+        // saw an empty app. Worse, it was a DEAD END — the repair path
+        // (invitation) refused them with 409 "already a member", because the
+        // broken membership counted as one. Proven end-to-end before this fix
+        // (CR-14). Nothing in the product could get them out.
+        const auth = await c.query<{ id: string }>(
+          `SELECT id FROM "user" WHERE lower(email) = lower($1) LIMIT 1`,
+          [input.email],
+        );
+        if (auth.rows.length === 0) {
+          // No account to link to. An invitation is the only path that can
+          // establish the link, because it runs at the moment they sign in
+          // (migration 0015, D-025). Refusing here is not a limitation — it is
+          // the difference between "not added yet" and "added and locked out".
+          throw new AppError(422, 'needs_invitation', 'That person does not have an account yet', [
+            {
+              path: 'email',
+              code: 'needs_invitation',
+              message:
+                'Invite them instead — a membership created before they sign in can never be linked to their account',
+            },
+          ]);
+        }
+        const linkedId = auth.rows[0]!.id;
+
+        // ON CONFLICT DO NOTHING, and both halves of that matter.
+        //
+        // They may already have a domain row from ANOTHER organisation, which
+        // this tenant's read policy hides — so "does it exist?" is a question
+        // this transaction cannot ask. Letting the insert fail and catching the
+        // duplicate does not work either: the failed statement aborts the
+        // Postgres transaction, and every command after it dies with 25P02
+        // whatever JavaScript does with the exception.
+        //
+        // DO NOTHING rather than DO UPDATE: the update form makes Postgres apply
+        // the UPDATE policy too, and `user_update` requires an active membership
+        // in this organisation — the very row created two statements below.
         await c.query(
-          `INSERT INTO users (id, email, name, status) VALUES ($1, $2, $3, 'active')`,
-          [newUserId, input.email, input.name],
+          `INSERT INTO users (id, email, name, status) VALUES ($1, $2, $3, 'active')
+           ON CONFLICT DO NOTHING`,
+          [linkedId, input.email, input.name],
         );
         // Separate statement, then compose: within ONE statement the new
         // membership is not yet visible to the users SELECT policy (it keys on
@@ -195,7 +234,7 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
         const r = await c.query<Record<string, unknown>>(
           `INSERT INTO memberships (user_id, organization_id, store_id, roles, status)
            VALUES ($1, $2, $3, $4, 'active') RETURNING *`,
-          [newUserId, input.organization_id, input.store_id ?? null, input.roles],
+          [linkedId, input.organization_id, input.store_id ?? null, input.roles],
         );
         await recordEvent(c, {
           organizationId: input.organization_id,
@@ -210,6 +249,14 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
       });
       return await reply.status(201).send(member);
     } catch (err) {
+      // 23503: the email belongs to a domain row with a different id — a legacy
+      // record from before memberships were keyed to sign-in identities. Naming
+      // it beats a 500 that looks like a server fault.
+      if ((err as { code?: string }).code === '23503') {
+        throw new AppError(409, 'unlinked_record', 'That email belongs to an older record that is not linked to an account', [
+          { path: 'email', code: 'unlinked_record', message: 'Invite them instead — accepting the invitation links the record to their account' },
+        ]);
+      }
       throw conflictFrom(err) ?? err;
     }
   });

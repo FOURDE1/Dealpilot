@@ -39,9 +39,48 @@ let ownerMembershipId = '';
 const MemberPage = paginated(Member);
 const LeadPage = paginated(Lead);
 
+/**
+ * Adding a colleague now requires that they HAVE an account (CR-14).
+ *
+ * A membership created before somebody can sign in could never be linked to
+ * their identity: they were `active` on the team and saw an empty app, with the
+ * repair path (an invitation) refused because the broken membership counted as
+ * "already a member". Signing up first is what actually happens in the product;
+ * the old fixture skipped that step and manufactured members nobody could log
+ * in as, which is why these tests passed while the flow was broken.
+ */
+async function addMember(cookie: string, payload: Record<string, unknown>) {
+  const email = payload['email'] as string | undefined;
+  if (email) {
+    await app!.inject({
+      method: 'POST', url: '/api/auth/sign-up/email',
+      payload: {
+        email,
+        password: 'correct-horse-battery-staple',
+        name: (payload['name'] as string | undefined) ?? 'Colleague',
+      },
+    });
+  }
+  return app!.inject({ method: 'POST', url: '/api/v1/members', headers: { cookie }, payload });
+}
+
+/**
+ * A session for this person, whether or not they already have an account.
+ *
+ * Adding a colleague now requires them to exist first (CR-14), so several
+ * fixtures sign up an email that `addMember` has already created. Signing in is
+ * what a real person would do at that point — asserting a fresh sign-up would
+ * be asserting that nobody ever comes back.
+ */
 async function signUp(u: { email: string; password: string; name: string }) {
-  const res = await app!.inject({ method: 'POST', url: '/api/auth/sign-up/email', payload: u });
-  expect(res.statusCode).toBe(200);
+  let res = await app!.inject({ method: 'POST', url: '/api/auth/sign-up/email', payload: u });
+  if (res.statusCode !== 200) {
+    res = await app!.inject({
+      method: 'POST', url: '/api/auth/sign-in/email',
+      payload: { email: u.email, password: u.password },
+    });
+  }
+  expect(res.statusCode, res.body).toBe(200);
   const sc = res.headers['set-cookie'];
   return (Array.isArray(sc) ? sc : [sc!]).map((c) => c!.split(';')[0]).join('; ');
 }
@@ -97,10 +136,7 @@ describe('F-04 team members', () => {
 
   it('the owner adds a colleague by email — user row created, membership active', async (ctx) => {
     if (!dbUp) return ctx.skip();
-    const res = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email: COLLEAGUE_EMAIL, name: 'Sam Sales', roles: ['salesperson'] },
-    });
+    const res = await addMember(cookieOwner, { organization_id: orgId, email: COLLEAGUE_EMAIL, name: 'Sam Sales', roles: ['salesperson'] });
     expect(res.statusCode).toBe(201);
     const member = Member.parse(JSON.parse(res.body));
     expect(member.email).toBe(COLLEAGUE_EMAIL);
@@ -119,17 +155,14 @@ describe('F-04 team members', () => {
     // REQUIREMENT CHANGED 2026-07-25 (owner hit the old behavior live): adding
     // an email that already belongs to this org must not dead-end on a 409 —
     // it applies the roles to the existing membership.
-    const res = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email: COLLEAGUE_EMAIL, name: 'Sam Again', roles: ['bdc_agent'] },
-    });
+    const res = await addMember(cookieOwner, { organization_id: orgId, email: COLLEAGUE_EMAIL, name: 'Sam Again', roles: ['bdc_agent'] });
     // SECURITY: rewriting an ACTIVE membership through the add form let an
     // admin type the sole owner's address and silently demote them.
     expect(res.statusCode).toBe(409);
     expect(JSON.parse(res.body).error.details?.[0]?.code).toBe('already_member');
   });
 
-  it('an email belonging to ANOTHER organization still 409s (documented limit)', async (ctx) => {
+  it('the same person can belong to two organisations (the old 409 was a side effect)', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const rivalOrg = await app!.inject({
       method: 'POST', url: '/api/v1/organizations', headers: { cookie: cookieOutsider },
@@ -137,28 +170,35 @@ describe('F-04 team members', () => {
     });
     const rivalOrgId = (JSON.parse(rivalOrg.body) as { id: string }).id;
     const sharedEmail = `f04-shared-${run}@dealpilot.test`;
-    const inRival = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOutsider },
-      payload: { organization_id: rivalOrgId, email: sharedEmail, name: 'Shared Person', roles: ['salesperson'] },
-    });
+    const inRival = await addMember(cookieOutsider, { organization_id: rivalOrgId, email: sharedEmail, name: 'Shared Person', roles: ['salesperson'] });
     expect(inRival.statusCode).toBe(201);
 
-    // Cross-org linking needs the invite-token flow, not an email probe.
-    const res = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email: sharedEmail, name: 'Shared Person', roles: ['salesperson'] },
-    });
-    expect(res.statusCode).toBe(409);
+    // One person, two dealership groups — which is now allowed, and used to be
+    // a 409 "documented limit".
+    //
+    // The limit was never a rule; it was a side effect of minting a fresh
+    // domain-user id per organisation, which collided on the platform-unique
+    // email. Keying the membership to the person's real sign-in identity
+    // (CR-14) removes the collision, so a consultant or a manager who works
+    // across two groups can simply be a member of both.
+    const res = await addMember(cookieOwner, { organization_id: orgId, email: sharedEmail, name: 'Shared Person', roles: ['salesperson'] });
+    expect(res.statusCode, res.body).toBe(201);
+
+    // And both memberships point at the SAME person, which is the whole point.
+    const both = await admin.query<{ n: string }>(
+      `SELECT count(DISTINCT m.user_id)::text AS n FROM memberships m
+       JOIN users u ON u.id = m.user_id
+       WHERE lower(u.email) = lower($1) AND m.status = 'active'`,
+      [sharedEmail],
+    );
+    expect(both.rows[0]!.n).toBe('1');
   });
 
   it('a non-member cannot see or add members (404, never leaks)', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const list = await app!.inject({ method: 'GET', url: `/api/v1/members?organization_id=${orgId}`, headers: { cookie: cookieOutsider } });
     expect(list.statusCode).toBe(404);
-    const add = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOutsider },
-      payload: { organization_id: orgId, email: `intruder-${run}@dealpilot.test`, name: 'Intruder', roles: ['owner'] },
-    });
+    const add = await addMember(cookieOutsider, { organization_id: orgId, email: `intruder-${run}@dealpilot.test`, name: 'Intruder', roles: ['owner'] });
     expect(add.statusCode).toBe(404);
   });
 
@@ -197,10 +237,7 @@ describe('F-04 review fixes', () => {
     if (!dbUp) return ctx.skip();
     // Add a gm, then have THEM try to mint an owner.
     const gmEmail = `f04-gm-${run}@dealpilot.test`;
-    const added = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email: gmEmail, name: 'Gina GM', roles: ['gm'] },
-    });
+    const added = await addMember(cookieOwner, { organization_id: orgId, email: gmEmail, name: 'Gina GM', roles: ['gm'] });
     expect(added.statusCode).toBe(201);
     gmMembershipId = Member.parse(JSON.parse(added.body)).id;
 
@@ -209,10 +246,7 @@ describe('F-04 review fixes', () => {
     await admin.query(`UPDATE memberships SET user_id = (SELECT id FROM "user" WHERE email = $1) WHERE id = $2`,
       [gmEmail, gmMembershipId]).catch(() => undefined);
 
-    const escalate = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email: `f04-mint-${run}@dealpilot.test`, name: 'Minted', roles: ['owner'] },
-    });
+    const escalate = await addMember(cookieOwner, { organization_id: orgId, email: `f04-mint-${run}@dealpilot.test`, name: 'Minted', roles: ['owner'] });
     // The OWNER may still grant owner.
     expect(escalate.statusCode).toBe(201);
 
@@ -227,10 +261,7 @@ describe('F-04 review fixes', () => {
   it('a revoked member can be reinstated (revoke is not a one-way door)', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const email = `f04-round-${run}@dealpilot.test`;
-    const added = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email, name: 'Rita Roundtrip', roles: ['salesperson'] },
-    });
+    const added = await addMember(cookieOwner, { organization_id: orgId, email, name: 'Rita Roundtrip', roles: ['salesperson'] });
     const id = Member.parse(JSON.parse(added.body)).id;
 
     const revoked = await app!.inject({
@@ -249,10 +280,7 @@ describe('F-04 review fixes', () => {
   it('a duplicate membership (same user+org+store) is a 409, never a 500', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const email = `f04-dup-${run}@dealpilot.test`;
-    const first = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email, name: 'Dup One', roles: ['salesperson'], store_id: storeId },
-    });
+    const first = await addMember(cookieOwner, { organization_id: orgId, email, name: 'Dup One', roles: ['salesperson'], store_id: storeId });
     expect(first.statusCode).toBe(201);
     const dupUserId = Member.parse(JSON.parse(first.body)).user_id;
     // Same user, same org, same store via a second membership row.
@@ -267,10 +295,7 @@ describe('F-04 review fixes', () => {
 describe('HO-09: reinstate cannot be used to escalate', () => {
   it('the add form cannot rewrite the sole owner (org keeps its owner)', async (ctx) => {
     if (!dbUp) return ctx.skip();
-    const attack = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email: OWNER.email, name: 'Owner Rewritten', roles: ['salesperson'] },
-    });
+    const attack = await addMember(cookieOwner, { organization_id: orgId, email: OWNER.email, name: 'Owner Rewritten', roles: ['salesperson'] });
     expect(attack.statusCode).toBe(409);
     const owners = await admin.query(
       `SELECT 1 FROM memberships WHERE organization_id = $1 AND status = 'active' AND 'owner' = ANY(roles)`,
@@ -283,10 +308,7 @@ describe('HO-09: reinstate cannot be used to escalate', () => {
     if (!dbUp) return ctx.skip();
     // Seed a second owner, revoke them, then try to revive as a mere gm.
     const email = `f04-ex-owner-${run}@dealpilot.test`;
-    const added = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email, name: 'Ex Owner', roles: ['owner'] },
-    });
+    const added = await addMember(cookieOwner, { organization_id: orgId, email, name: 'Ex Owner', roles: ['owner'] });
     const exOwnerId = Member.parse(JSON.parse(added.body)).id;
     await app!.inject({
       method: 'PATCH', url: `/api/v1/members/${exOwnerId}`, headers: { cookie: cookieOwner }, payload: { status: 'revoked' },
@@ -318,10 +340,7 @@ describe('revoking a member releases their leads', () => {
   it('their assigned leads return to the pool instead of pointing at a ghost', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const email = `f04-release-${run}@dealpilot.test`;
-    const added = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email, name: 'Leaving Person', roles: ['salesperson'] },
-    });
+    const added = await addMember(cookieOwner, { organization_id: orgId, email, name: 'Leaving Person', roles: ['salesperson'] });
     const member = Member.parse(JSON.parse(added.body));
 
     const lead = await app!.inject({
@@ -356,20 +375,14 @@ describe('HO-06: removing a colleague is never a one-way door', () => {
   it('re-adding a revoked colleague REINSTATES them instead of 409', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const email = `f04-marc-${run}@dealpilot.test`;
-    const added = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email, name: 'Marc Vendeur', roles: ['salesperson'] },
-    });
+    const added = await addMember(cookieOwner, { organization_id: orgId, email, name: 'Marc Vendeur', roles: ['salesperson'] });
     const id = Member.parse(JSON.parse(added.body)).id;
     await app!.inject({
       method: 'PATCH', url: `/api/v1/members/${id}`, headers: { cookie: cookieOwner }, payload: { status: 'revoked' },
     });
 
     // Exactly what the owner did: add the same email again.
-    const again = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email, name: 'Marc Vendeur', roles: ['bdc_agent'] },
-    });
+    const again = await addMember(cookieOwner, { organization_id: orgId, email, name: 'Marc Vendeur', roles: ['bdc_agent'] });
     expect(again.statusCode).toBe(201);
     const member = MemberAdded.parse(JSON.parse(again.body));
     expect(member.id).toBe(id);
@@ -382,10 +395,7 @@ describe('HO-06: removing a colleague is never a one-way door', () => {
   it('the roster can list revoked members so the UI can offer reinstate', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const email = `f04-gone-${run}@dealpilot.test`;
-    const added = await app!.inject({
-      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-      payload: { organization_id: orgId, email, name: 'Gone Person', roles: ['salesperson'] },
-    });
+    const added = await addMember(cookieOwner, { organization_id: orgId, email, name: 'Gone Person', roles: ['salesperson'] });
     const id = Member.parse(JSON.parse(added.body)).id;
     await app!.inject({
       method: 'PATCH', url: `/api/v1/members/${id}`, headers: { cookie: cookieOwner }, payload: { status: 'revoked' },

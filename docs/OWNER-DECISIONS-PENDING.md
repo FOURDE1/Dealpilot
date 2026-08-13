@@ -222,7 +222,7 @@ to it rather than be stopped by it.
 
 ---
 
-## D-040 — Close the old "add a colleague" door? (CR-14)
+## D-040 — ANSWERED BY EVIDENCE 2026-07-27: it was worse than described, and is fixed
 
 **What I found.** There are two ways to put someone on your team. The invitation
 flow — the one your screens use — works correctly: they get a link, they sign
@@ -236,14 +236,28 @@ team list showed them as active.
 **Your screens do not use it**, so you cannot hit this by clicking. It is a door
 in the API that nothing walks through.
 
-**What I need from you:** may I close it? Either it starts sending an invitation
-like everything else, or it is removed. I did not do it unasked because removing
-an endpoint is the kind of change that breaks something you have not shown me
-yet — but leaving a way to add a colleague who can never sign in is not
-something I want to leave standing either.
+**What I found when I went to close it.** It was not merely a door to a broken
+room — it was a room with no way out. Proven end to end:
 
-My recommendation: make it send an invitation. Same button, same result, one
-path.
+1. Add somebody by email → the system says "added", and marks them active.
+2. Invite that same person → **refused, "already a member"** — by the very
+   membership that broke them.
+3. They sign up → different identity → they see an empty application, forever.
+
+There was no sequence of actions in the product that could rescue that person.
+
+**Fixed, and nothing is waiting on you.** Adding a colleague now attaches to the
+account they already have, so they see the organisation the moment they sign in.
+If they have no account yet, it refuses and says to invite them — because "not
+added yet" is a far better state than "added and locked out". The invitation
+path no longer treats a broken membership as a colleague, so it can repair one.
+
+**A limitation lifted on the way past:** the same person can now belong to two
+dealership groups. That was previously refused; it turned out to be a side
+effect of the same bug, not a rule.
+
+**Your dev database has none of these**, which I checked before changing
+anything — your screens use invitations, so you never walked through that door.
 
 ---
 

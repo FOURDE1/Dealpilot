@@ -227,9 +227,14 @@ async function assertStoreInOrg(client: PoolClient, storeId: string): Promise<vo
 
 /** Inviting someone who is already on the team is a mistake, not a second seat. */
 async function assertNotAlreadyMember(client: PoolClient, email: string): Promise<void> {
+  // An active membership whose user row has no sign-in identity behind it is a
+  // STRANDED row, not a colleague — nobody can be logged in as them. Treating it
+  // as "already a member" is what turned CR-14 into a dead end: the one path
+  // that could repair the person was refused by the thing that broke them.
   const r = await client.query(
     `SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id
-     WHERE lower(u.email) = lower($1) AND m.status = 'active'`,
+     WHERE lower(u.email) = lower($1) AND m.status = 'active'
+       AND EXISTS (SELECT 1 FROM "user" a WHERE a.id = u.id::text)`,
     [email],
   );
   if (r.rows.length > 0) {

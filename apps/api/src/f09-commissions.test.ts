@@ -111,10 +111,18 @@ beforeAll(async () => {
     [sellerId, orgId],
   );
 
+  // The manager needs an account before they can be added (CR-14): a membership
+  // created for somebody who cannot sign in is one nobody can ever use.
+  const managerEmail = `f09-mgr-${run}@dealpilot.test`;
+  await app!.inject({
+    method: 'POST', url: '/api/auth/sign-up/email',
+    payload: { email: managerEmail, password: 'correct-horse-battery-staple', name: 'Mia Manager' },
+  });
   const manager = await app!.inject({
     method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
-    payload: { organization_id: orgId, email: `f09-mgr-${run}@dealpilot.test`, name: 'Mia Manager', roles: ['gm'] },
+    payload: { organization_id: orgId, email: managerEmail, name: 'Mia Manager', roles: ['gm'] },
   });
+  expect(manager.statusCode, manager.body).toBe(201);
   managerId = Member.parse(JSON.parse(manager.body)).user_id;
 });
 
