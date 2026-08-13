@@ -288,6 +288,49 @@ your clients that anybody can probe.
 
 ---
 
+## D-042 — Eight gaps in the compliance rules that only you can close (F-15)
+
+The compliance engine is built and every rule in it comes from the plan. While
+building it I found eight places where the plan does not actually settle a
+question that changes behaviour. **Nothing is blocked today** — I made every one
+of them FAIL CLOSED, meaning the system refuses to send rather than guess. But
+each refusal is a message that will not go out, so these want answers before real
+customers are on the other end.
+
+In plain terms:
+
+1. **A lead who phones you or walks in.** The plan only describes capturing
+   consent from web forms. A walk-in has given you their number in person —
+   should that count as permission to text them? Right now it does not, so those
+   leads get no automated follow-up at all.
+2. **Which messages count as marketing.** "Your car is ready" and "we have a sale
+   this weekend" need different permissions. The plan defines this for drip
+   campaigns only. Every other message type needs you to say which it is.
+3. **The "you're unsubscribed" confirmation.** The plan says never message someone
+   after they say stop, AND says to send them a confirmation that they have been
+   unsubscribed. Those contradict. I currently do not send it.
+4. **What a past customer's purchase permits.** A completed sale gives you
+   permission for two years — but the plan does not say whether that includes
+   phone calls or only texts and email.
+5. **What "START" turns back on.** If somebody opts out and later texts START,
+   are they back to everything, or only to conversation about their own deal?
+6. **Call consent: once, or standing?** If a customer agrees to an automated call
+   today, does that permission last, or is it for that one call?
+7. **What counts as a sales call.** Different rules apply to a sales call than to
+   "your car is ready for pickup". Nothing in the plan says how to tell them
+   apart automatically.
+8. **Unsubscribing by email.** The stop-word machinery is all text-message based;
+   email has no equivalent path yet.
+
+**My recommendation:** answer 1, 2 and 3 first — they are the ones that decide
+whether ordinary, lawful follow-up can happen at all. The rest matter before the
+first automated phone call, which is further out.
+
+I have written each one up in full technical detail in the session log; the above
+is the version that matters to you.
+
+---
+
 ## Already answered — no action needed
 
 - SES over Resend for email (D-029). Built.

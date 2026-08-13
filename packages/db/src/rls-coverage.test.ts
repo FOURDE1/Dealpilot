@@ -74,6 +74,10 @@ const BEHAVIOURALLY_COVERED = new Set([
   // GET, PUT and publish, because a leak on any one of them hands a rival
   // dealership's identity out.
   'tenant_branding',
+  // F-15: cross-tenant cases in apps/api/src/f15-compliance.test.ts — every
+  // compliance route refused to an outsider, plus a live probe as the
+  // application role proving the tenant predicate is what hides the rows.
+  'consent_ledger', 'suppression_list', 'internal_dnc', 'tenant_comms_config', 'send_decisions',
 ]);
 
 interface PolicyRow {

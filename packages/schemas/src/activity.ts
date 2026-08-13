@@ -9,7 +9,7 @@ import { CursorQuery, IsoDateTime, Uuid } from './common.js';
 export const ActivityEntityType = z.enum([
   'deal', 'lead', 'vehicle', 'membership', 'pay_plan', 'checklist_item',
   'checklist_template', 'intake_key', 'invitation', 'dispatch_assignment',
-  'deal_document', 'deal_fi_product', 'tenant_branding',
+  'deal_document', 'deal_fi_product', 'tenant_branding', 'consent', 'suppression', 'internal_dnc',
   'organization', 'store',
 ]);
 

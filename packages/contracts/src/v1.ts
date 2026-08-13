@@ -11,6 +11,17 @@ import {
   Store,
   ActivityEvent,
   DealDocument,
+  ComplianceCheck,
+  CommsConfig,
+  CreateInternalDncInput,
+  InternalDncRecord,
+  UpdateCommsConfigInput,
+  ComplianceCheckQuery,
+  ConsentRecord,
+  CreateSuppressionInput,
+  RecordConsentInput,
+  RevokeConsentInput,
+  SuppressionRecord,
   PublishedBranding,
   TenantBranding,
   UpdateBrandingInput,
@@ -559,6 +570,66 @@ export const apiV1 = c.router({
       query: z.object({ store_id: Uuid.optional() }),
       body: z.object({}).optional(),
       responses: { 200: TenantBranding, ...errorResponses },
+    },
+  }),
+  /**
+   * F-15 compliance (CASL / CRTC / Law 25). The consent ledger, the stop list,
+   * and the one question the send layer asks before every message.
+   */
+  compliance: c.router({
+    recordConsent: {
+      method: 'POST',
+      path: '/api/v1/consent',
+      body: RecordConsentInput,
+      responses: { 201: z.array(ConsentRecord), ...errorResponses },
+    },
+    forLead: {
+      method: 'GET',
+      path: '/api/v1/leads/:id/consent',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: z.object({ items: z.array(ConsentRecord) }), ...errorResponses },
+    },
+    revokeConsent: {
+      method: 'POST',
+      path: '/api/v1/consent/:id/revoke',
+      pathParams: z.object({ id: Uuid }),
+      body: RevokeConsentInput,
+      responses: { 200: ConsentRecord, ...errorResponses },
+    },
+    suppress: {
+      method: 'POST',
+      path: '/api/v1/suppressions',
+      body: CreateSuppressionInput,
+      responses: { 201: SuppressionRecord, ...errorResponses },
+    },
+    /** Never call this person again. There is no undo, by design (§4). */
+    internalDnc: {
+      method: 'POST',
+      path: '/api/v1/internal-dnc',
+      body: CreateInternalDncInput,
+      responses: { 201: InternalDncRecord, ...errorResponses },
+    },
+    commsConfig: {
+      method: 'GET',
+      path: '/api/v1/organizations/:id/comms-config',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: CommsConfig.nullable(), ...errorResponses },
+    },
+    /** Narrow the messaging window. The platform ceiling cannot be widened. */
+    updateCommsConfig: {
+      method: 'PUT',
+      path: '/api/v1/organizations/:id/comms-config',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateCommsConfigInput,
+      responses: { 200: CommsConfig, ...errorResponses },
+    },
+    /** May we contact this lead right now, and if not what would fix it. */
+    check: {
+      method: 'GET',
+      path: '/api/v1/leads/:id/compliance',
+      pathParams: z.object({ id: Uuid }),
+      query: ComplianceCheckQuery,
+      responses: { 200: ComplianceCheck, ...errorResponses },
     },
   }),
   /** F-10 activity trail (ADR-009): one entity's history, or the org's recent. */

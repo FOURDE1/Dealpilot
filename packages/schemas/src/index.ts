@@ -16,6 +16,7 @@ export * from './vehicle.js';
 export * from './commission.js';
 export * from './activity.js';
 export * from './branding.js';
+export * from './compliance.js';
 export * from './document.js';
 export * from './fi-product.js';
 export * from './permissions.js';

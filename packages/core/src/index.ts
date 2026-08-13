@@ -11,3 +11,7 @@ export * from './commission.js';
 export * from './dispatch.js';
 export * from './documents.js';
 export * from './branding.js';
+export * from './compliance-keywords.js';
+export * from './compliance-consent.js';
+export * from './compliance-quiet-hours.js';
+export * from './compliance-gate.js';

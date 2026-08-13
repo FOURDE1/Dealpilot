@@ -72,6 +72,29 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // arriving in a migration later; named here so it is a known gap and not a
   // forgotten one.
   'leads.score': 'F-14 AI scoring not built yet',
+
+  // F-15: written by the inbound-SMS STOP pipeline, which arrives with the
+  // conversation slice. The columns exist now because the gate READS the
+  // suppression row and the shape must be settled before anything writes it.
+  'suppression_list.matched_keyword': 'written by the inbound STOP handler (conversation slice)',
+  'suppression_list.source_message_ref': 'written by the inbound STOP handler (conversation slice)',
+  'suppression_list.cleared_at': 'written by the START re-opt-in handler (conversation slice)',
+  'suppression_list.cleared_reason': 'written by the START re-opt-in handler (conversation slice)',
+  'suppression_list.cleared_by_message_ref': 'written by the START re-opt-in handler (conversation slice)',
+
+  // Written by the SEND layer, one row per decision, when there is a send layer
+  // to write them. The compliance CHECK endpoint deliberately does not: asking
+  // whether a message could be sent is not sending one, and recording it as a
+  // decision would inflate the frequency cap with questions nobody acted on.
+  'send_decisions.message_class': 'written by the send layer (conversation slice)',
+  'send_decisions.originator': 'written by the send layer (conversation slice)',
+  'send_decisions.consent_ledger_id': 'written by the send layer (conversation slice)',
+  'send_decisions.timezone_source': 'written by the send layer (conversation slice)',
+  'send_decisions.recipient_local_at': 'written by the send layer (conversation slice)',
+  'send_decisions.window_applied': 'written by the send layer (conversation slice)',
+  'send_decisions.deferred_until': 'written by the send layer (conversation slice)',
+  'send_decisions.gate_version': 'written by the send layer (conversation slice)',
+  'send_decisions.decided_at': 'defaulted by the database at insert',
 };
 
 beforeAll(async () => {

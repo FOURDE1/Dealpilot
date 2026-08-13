@@ -17,6 +17,7 @@ import { registerA13Routes } from './a13-permission-routes.js';
 import { registerF11Routes } from './f11-dispatch-routes.js';
 import { registerF13Routes } from './f13-document-routes.js';
 import { registerF14Routes } from './f14-branding-routes.js';
+import { registerF15Routes } from './f15-compliance-routes.js';
 import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
 import { registerF12Routes } from './f12-invitation-routes.js';
 import { registerF08Routes } from './f08-checklist-routes.js';
@@ -254,6 +255,7 @@ export async function buildApp(
   registerF11Routes(app, pool, mailer);
   registerF13Routes(app, pool, storage);
   registerF14Routes(app, pool, storage);
+  registerF15Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);
 
