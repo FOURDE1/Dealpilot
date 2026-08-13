@@ -550,3 +550,27 @@ describe('D-042 #1 · walking in IS the permission', () => {
     });
   });
 });
+
+describe('RT-13b · "stop" is also an ordinary English verb', () => {
+  it('does not suppress a customer who wants to visit', () => {
+    // Found by the STOP-pipeline suite: "Can I stop by tomorrow to see it?" was
+    // being read as an opt-out. That loses a sale and nobody ever finds out —
+    // the message looks answered, the lead goes quiet, and the reason is
+    // invisible to everyone.
+    for (const body of [
+      'Can I stop by tomorrow to see it?',
+      'ok I will stop in around 4',
+      'Mind if I stop over on Saturday?',
+    ]) {
+      expect(matchOptOutKeyword(body), body).toBeNull();
+    }
+  });
+
+  it('still honours every real opt-out, including inside a sentence', () => {
+    // The exemption is deliberately tiny: §5's principle is "over-honor, never
+    // under-honor", so only the collocations that are unambiguous are excluded.
+    for (const body of ['STOP', 'stop.', 'actually STOP', 'please STOP messaging me', 'STOP!']) {
+      expect(matchOptOutKeyword(body), body).not.toBeNull();
+    }
+  });
+});

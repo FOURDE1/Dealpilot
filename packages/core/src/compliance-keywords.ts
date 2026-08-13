@@ -51,11 +51,30 @@ function tokens(body: string): string[] {
   return foldForKeywordMatch(body).split(/[^\p{L}\p{N}]+/u).filter((t) => t.length > 0);
 }
 
+/**
+ * Words that turn "stop" into an ordinary verb rather than a request.
+ *
+ * "Can I stop by tomorrow to see it?" is a customer trying to buy a car.
+ * Suppressing them loses the sale and nobody ever finds out — the message looks
+ * answered, the lead goes quiet, and the reason is invisible.
+ *
+ * This is deliberately TINY. §5's stated principle is "over-honor, never
+ * under-honor", so the list only covers collocations where the following word
+ * makes the reading unambiguous. "Stop" alone, "STOP." and "actually STOP" all
+ * still opt out.
+ */
+const VERB_FOLLOWERS = new Set(['BY', 'IN', 'OVER', 'AT', 'ROUND', 'AROUND']);
+
 /** Did this message ask us to stop? Returns the word that matched, for the file. */
 export function matchOptOutKeyword(body: string): KeywordMatch | null {
   const found = tokens(body);
-  for (const token of found) {
-    if ((OPT_OUT_EN as readonly string[]).includes(token)) return { keyword: token, language: 'en' };
+  for (let i = 0; i < found.length; i++) {
+    const token = found[i]!;
+    if ((OPT_OUT_EN as readonly string[]).includes(token)) {
+      // "stop by", "stop in" — a plan to visit, not a request to be left alone.
+      if (token === 'STOP' && VERB_FOLLOWERS.has(found[i + 1] ?? '')) continue;
+      return { keyword: token, language: 'en' };
+    }
     if ((OPT_OUT_FR as readonly string[]).includes(token)) return { keyword: token, language: 'fr' };
   }
   return null;
