@@ -11,6 +11,35 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-043 — `fast-xml-parser` pinned to 4.5.7, not the current 5.x (2026-07-27)
+
+**Decision:** add `fast-xml-parser@4.5.7` to `packages/core` for ADF lead
+parsing. Owner approved the dependency 2026-07-27.
+
+**Why the older major.** Version 5.10.1 is current, and it fans the package out
+into six dependencies — `@nodable/entities`, `is-unsafe`,
+`path-expression-matcher`, `xml-naming`, `fast-xml-builder`, `strnum` — all of
+them first published within the last two months. Every one is published by the
+same maintainer as the parser, so this is a refactor rather than a hijack, and
+that was checked rather than assumed.
+
+But six brand-new packages is six times the surface for a parser whose entire
+job is reading hostile input from outside. 4.5.7 is the long-stable line, is 42
+days old, and carries exactly one dependency (`strnum`, same author). The
+lockfile diff was read: both resolutions are integrity hashes from the default
+registry.
+
+**Revisit when** the 5.x sub-packages have a year of history, or when 4.x stops
+receiving security fixes — whichever comes first.
+
+**Parser hardening.** Entity processing is switched OFF. fast-xml-parser does
+not resolve external entities at all, so classic XXE file disclosure is not
+reachable, but entity EXPANSION is — the "billion laughs" shape — and ADF leads
+have no use for entities, so disabling it costs nothing and removes the class.
+A 256 KB ceiling is applied before parsing.
+
+---
+
 ## Format
 
 ```markdown

@@ -17,3 +17,4 @@ export * from './compliance-quiet-hours.js';
 export * from './compliance-gate.js';
 export * from './compliance-inquiry.js';
 export * from './intake-connector.js';
+export * from './intake-adf.js';

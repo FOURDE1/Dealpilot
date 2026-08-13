@@ -16,5 +16,19 @@ services:
       timeout: 3s
       retries: 10
 
+  # BullMQ backing store and the Socket.IO adapter (ADR-004/012). Local only —
+  # deployed environments use ElastiCache Valkey.
+  redis:
+    image: redis:7-alpine
+    container_name: dealpilot-redis
+    ports:
+      - "6381:6379"  # host 6381: 6379/6380 are taken by other local projects
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   dealpilot-pgdata:
