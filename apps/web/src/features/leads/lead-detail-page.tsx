@@ -12,6 +12,7 @@ import { activeMembers, useMembers } from '../team/api.js';
 import { useDealsForLead } from '../deals/api.js';
 import { ChecklistDialog } from '../checklists/checklist-dialog.js';
 import { ActivityTimeline } from '../activity/activity-timeline.js';
+import { ConsentPanel } from '../compliance/consent-panel.js';
 import { DealActivityDialog } from '../activity/activity-dialog.js';
 import { BookDispatchDialog } from '../dispatch/book-dialog.js';
 import { DocumentsDialog } from '../documents/documents-dialog.js';
@@ -251,6 +252,13 @@ export function LeadDetailPage() {
               ))}
             </ul>
           )}
+        </div>
+
+        {/* F-15: whether we may contact this person, and on what basis. Placed
+            above the history because it answers a question somebody is about to
+            act on, while the history answers one about the past. */}
+        <div className="sm:col-span-2">
+          <ConsentPanel lead={lead.data} />
         </div>
 
         <div className="space-y-2 rounded-lg border border-border bg-card p-4 sm:col-span-2">
