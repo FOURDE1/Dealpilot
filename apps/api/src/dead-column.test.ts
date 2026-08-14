@@ -29,13 +29,17 @@ import { createPool, ensureTestDatabase, reset, testAdminUrl, type Pool } from '
  * DELIBERATELY_UNWRITTEN with a reason, which is a fair price — a reason
  * written down is worth more than a column nobody has thought about.
  *
- * KNOWN BLIND SPOT: evidence is matched by column NAME, not table.column,
- * because a SQL fragment rarely carries its table. So a dead column is masked
- * by a live column of the same name on another table — `stores.esign_platform`
- * hid behind `deal_documents.esign_platform` on this guard's first run and had
- * to be found by reading the output rather than by the assertion. Qualifying it
- * properly needs a SQL parser; until then, treat a name shared across tables as
- * unchecked rather than checked.
+ * BLIND SPOT, now narrowed. This guard used to match by column NAME alone, so a
+ * dead column was vouched for by a live column of the same name on another
+ * table. That cost two real instances: `stores.esign_platform` hid behind
+ * `deal_documents.esign_platform`, and `leads.score` hid behind
+ * `conversation_analysis.score` for three weeks until an audit went looking.
+ *
+ * `INSERT INTO t (…)` and `UPDATE t SET …` both carry their table, so those are
+ * attributed properly now (`qualifiedWrites`). What remains unqualified is
+ * whitelist and input-schema evidence — a `*_COLUMNS` array or a `Create*Input`
+ * does not say which table it belongs to. A name shared across tables is still
+ * unchecked THERE, and only there.
  */
 
 const ADMIN_URL = testAdminUrl();
@@ -72,11 +76,17 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   'leads.response_time_seconds': 'stamped by trigger leads_stamp_contact',
   'leads.contact_attempts': 'stamped by trigger leads_stamp_contact',
 
-  // NOTE, not an entry: `leads.score` (AI lead scoring, still unbuilt) can no
-  // longer be checked here. F-20 added `conversation_analysis.score`, and this
-  // guard matches by column NAME, so the live column hides the dead one — the
-  // blind spot in the header, arriving in practice. An exemption would claim a
-  // check that is not happening, so there isn't one.
+  // AI lead scoring is not built. leads.md §6 makes it rules-engine-owned and
+  // never client-writable, so no route will ever write it — the scoring engine
+  // will, when it lands with the model runtime.
+  //
+  // This entry is worth more than the note that preceded it: until the guard
+  // learned to attribute writes to a table, `conversation_analysis.score`
+  // vouched for this column and no exemption was possible, because an exemption
+  // would have claimed a check that was not happening. It is a real check now,
+  // and the staleness test below will force this line out the day something
+  // writes it.
+  'leads.score': 'rules-engine-owned (leads.md §6); the scoring engine is unbuilt',
 
   // The compliance CHECK endpoint deliberately does not write a decision row:
   // asking whether a message COULD be sent is not sending one, and recording it
@@ -134,10 +144,45 @@ function sourceIn(dir: string): string {
  * because something can DISPLAY it is precisely how a column nothing writes
  * goes on looking alive.
  */
+/**
+ * Writes whose TABLE is knowable, as `table.column`.
+ *
+ * This is the fix for the blind spot in the header. `INSERT INTO x (...)` and
+ * `UPDATE x SET ...` both carry their table, so those columns can be attributed
+ * properly instead of being thrown into one bag of names where
+ * `conversation_analysis.score` vouches for `leads.score` and
+ * `deal_documents.esign_platform` vouches for `stores.esign_platform`.
+ *
+ * Both of those were real. The second was found by reading the output rather
+ * than by the assertion, and the first was invisible until an audit went
+ * looking — which is the whole failure mode of a guard that reports the wrong
+ * thing confidently.
+ */
+function qualifiedWrites(apiSrc: string): Set<string> {
+  const out = new Set<string>();
+  const add = (table: string, columns: string) => {
+    for (const c of columns.matchAll(/\b([a-z_][a-z0-9_]*)\b/g)) out.add(`${table}.${c[1]!}`);
+  };
+  // INSERT INTO t (a, b, c)
+  for (const m of apiSrc.matchAll(/INSERT\s+INTO\s+(\w+)\s*\(([^)]*)\)/gis)) add(m[1]!, m[2]!);
+  // UPDATE t SET a = …, b = …    (and the ON CONFLICT DO UPDATE SET of an insert)
+  for (const m of apiSrc.matchAll(
+    /(?:UPDATE|INSERT\s+INTO)\s+(\w+)[\s\S]{0,600}?\bSET\s+([\s\S]{0,400}?)(?:WHERE|RETURNING|`|;)/gis,
+  )) {
+    const table = m[1]!;
+    for (const pair of m[2]!.matchAll(/(\w+)\s*=/g)) add(table, pair[1]!);
+  }
+  return out;
+}
+
+/**
+ * Writes whose table is NOT knowable from the text: whitelists and input
+ * schemas, which the generic routes apply to whatever table they belong to.
+ * These keep the old name-only matching, and keep its blind spot with it —
+ * documented rather than pretended away.
+ */
 function writeEvidence(apiSrc: string, schemaSrc: string): string {
   const parts: string[] = [];
-  for (const m of apiSrc.matchAll(/INSERT\s+INTO\s+\w+\s*\(([^)]*)\)/gis)) parts.push(m[1]!);
-  for (const m of apiSrc.matchAll(/SET\s+([\s\S]{0,400}?)(?:WHERE|RETURNING|`)/gis)) parts.push(m[1]!);
   for (const m of apiSrc.matchAll(/_COLUMNS\s*=\s*(?:new Set\()?\[([\s\S]*?)\]/gis)) parts.push(m[1]!);
   for (const m of apiSrc.matchAll(/(?:sets|setEntries|stamps)\.push\(([\s\S]{0,200}?)\);/gis)) parts.push(m[1]!);
   for (const m of schemaSrc.matchAll(
@@ -169,8 +214,10 @@ it('every column the app is expected to write, it can write', async (ctx) => {
   );
   expect(cols.rows.length).toBeGreaterThan(50);
 
+  const apiSrc = sourceIn(here);
+  const written = qualifiedWrites(apiSrc);
   const evidence = writeEvidence(
-    sourceIn(here),
+    apiSrc,
     sourceIn(join(here, '..', '..', '..', 'packages', 'schemas', 'src')),
   );
   const dead: string[] = [];
@@ -178,6 +225,8 @@ it('every column the app is expected to write, it can write', async (ctx) => {
     const qualified = `${row.table_name}.${row.column_name}`;
     if (STRUCTURAL.has(row.column_name)) continue;
     if (qualified in DELIBERATELY_UNWRITTEN) continue;
+    // Attributed to THIS table by an INSERT or an UPDATE — the strong signal.
+    if (written.has(qualified)) continue;
     // A column with a DEFAULT has a value without anyone writing it; it is only
     // dead if it is also never set, which the same check covers.
     if (new RegExp(`\\b${row.column_name}\\b`).test(evidence)) continue;
