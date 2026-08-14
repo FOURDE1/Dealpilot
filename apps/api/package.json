@@ -20,6 +20,7 @@
     "@fastify/cors": "^11.0.0",
     "@socket.io/redis-adapter": "8.3.0",
     "better-auth": "^1.3.0",
+    "bullmq": "5.81.3",
     "fastify": "^5.0.0",
     "ioredis": "5.11.1",
     "socket.io": "4.8.3",
@@ -29,5 +30,31 @@
     "socket.io-client": "4.8.3",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./send": {
+      "types": "./dist/f19-send.d.ts",
+      "default": "./dist/f19-send.js"
+    },
+    "./deliver": {
+      "types": "./dist/f30-deliver.d.ts",
+      "default": "./dist/f30-deliver.js"
+    },
+    "./carrier": {
+      "types": "./dist/carrier.d.ts",
+      "default": "./dist/carrier.js"
+    },
+    "./env": {
+      "types": "./dist/env.d.ts",
+      "default": "./dist/env.js"
+    },
+    "./app": {
+      "types": "./dist/app.d.ts",
+      "default": "./dist/app.js"
+    }
   }
 }

@@ -17,5 +17,12 @@
   },
   "devDependencies": {
     "typescript": "catalog:"
+  },
+  "dependencies": {
+    "bullmq": "5.81.3",
+    "ioredis": "5.11.1",
+    "@dealpilot/api": "workspace:*",
+    "@dealpilot/contracts": "workspace:*",
+    "@dealpilot/db": "workspace:*"
   }
 }

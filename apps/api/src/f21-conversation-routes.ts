@@ -11,6 +11,7 @@ import type { Emitter } from '@dealpilot/contracts';
 import type { Carrier } from './carrier.js';
 import type { Env } from './env.js';
 import { deliverMessage } from './f30-deliver.js';
+import type { DeferredSendQueue } from './deferred-queue.js';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { callerOrgIds, idParam, keysetPage, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
@@ -70,6 +71,7 @@ export function registerF21Routes(
   emitter: Emitter,
   carrier: Carrier,
   env: Env,
+  deferred: DeferredSendQueue,
 ): void {
   app.get('/api/v1/conversations', async (request, reply) => {
     const query = parseOrThrow(ConversationListQuery, request.query);
@@ -217,13 +219,36 @@ export function registerF21Routes(
         return { kind: 'blocked' as const, reason: outcome.reason, remedy: outcome.remedy };
       }
       if (outcome.kind === 'deferred') {
-        return { kind: 'deferred' as const, reason: outcome.reason, run_at: outcome.runAt.toISOString() };
+        return {
+          kind: 'deferred' as const,
+          reason: outcome.reason,
+          run_at: outcome.runAt.toISOString(),
+          decision_id: outcome.decisionId,
+        };
       }
       return {
         kind: 'unsafe' as const,
         violations: outcome.violations.map((v) => ({ kind: v.kind, matched: v.matched, reason: v.reason })),
       };
     });
+
+    // A deferral is a promise to send later, and until F-32 nothing kept it:
+    // the decision row recorded `deferred_until` and no code ever read it.
+    // Enqueued after the commit, like every other side effect here.
+    if (result.kind === 'deferred') {
+      await deferred.enqueue(
+        {
+          organization_id: orgId,
+          conversation_id: id,
+          send_decision_id: result.decision_id,
+          body: input.body,
+          sender_type: 'agent',
+          message_class: 'inbound_reply',
+          attempt: 0,
+        },
+        new Date(result.run_at),
+      );
+    }
 
     // Committed. Only now is there anything true to announce — or to send.
     if (result.kind === 'sent') {

@@ -23,6 +23,7 @@ import { registerF21Routes } from './f21-conversation-routes.js';
 import { registerF24Routes } from './f24-speed-routes.js';
 import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
 import { createCarrier, type Carrier } from './carrier.js';
+import { createDeferredSendQueue, type DeferredSendQueue } from './deferred-queue.js';
 import { registerF30Routes } from './f30-carrier-routes.js';
 import { registerF12Routes } from './f12-invitation-routes.js';
 import { registerF08Routes } from './f08-checklist-routes.js';
@@ -102,6 +103,8 @@ export interface AppDeps {
   emitter?: Emitter;
   /** Injectable so tests exercise sending without a Twilio account. */
   carrier?: Carrier;
+  /** Injectable so tests assert what was queued without a Redis. */
+  deferredQueue?: DeferredSendQueue;
 }
 
 export async function buildApp(
@@ -299,13 +302,16 @@ export async function buildApp(
   registerF14Routes(app, pool, storage);
   registerF15Routes(app, pool);
   const carrier = deps.carrier ?? createCarrier(env, app.log);
-  registerF21Routes(app, pool, deps.emitter ?? NO_EMITTER, carrier, env);
+  const deferredQueue =
+    deps.deferredQueue ?? createDeferredSendQueue(env, (obj, msg) => app.log.warn(obj, msg));
+  registerF21Routes(app, pool, deps.emitter ?? NO_EMITTER, carrier, env, deferredQueue);
   registerF30Routes(app, pool, carrier, env);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);
 
   app.addHook('onClose', async () => {
+    await deferredQueue.close();
     await pool.end();
   });
 
