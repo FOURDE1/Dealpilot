@@ -97,6 +97,15 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // F-33 gave the assistant a way to BOOK an appointment. Managing one after
   // the fact — assigning who takes it, cancelling with a reason — is the
   // console's, and lands with the appointments screen.
+  // Postgres maintains it: GENERATED ALWAYS AS … STORED. Nothing can write it
+  // and an attempt would be an error, which is the point of generating it
+  // rather than keeping a trigger in step with the row.
+  'contacts.search_vector': 'generated column, maintained by Postgres',
+  // Set when a contact first does business here, which means the deal link —
+  // FR-CON-005's `deal_parties` and auto-link on deal creation. That slice
+  // also brings the merge (FR-CON-003), which keeps the OLDER date.
+  'contacts.customer_since': 'stamped by the deal link (FR-CON-005 slice)',
+
   'appointments.assigned_agent_id': 'written by the appointments screen (console slice)',
   'appointments.cancelled_at': 'written by the cancel route (console slice)',
   'appointments.cancelled_reason': 'written by the cancel route (console slice)',

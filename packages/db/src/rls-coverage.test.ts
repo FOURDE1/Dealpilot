@@ -90,6 +90,10 @@ const BEHAVIOURALLY_COVERED = new Set([
   // these appointments", and a write into another org refused) — an
   // appointment names a customer, a time, and a place they will be.
   'appointments',
+  // F-35: cross-tenant cases in apps/api/src/f35-contacts.test.ts ("sees none
+  // of these customers", and a 404 rather than a 403 on GET and PATCH) — a
+  // customer list is the single most valuable thing a rival could take.
+  'contacts',
 ]);
 
 interface PolicyRow {

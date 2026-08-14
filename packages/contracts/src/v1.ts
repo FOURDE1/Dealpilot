@@ -38,6 +38,11 @@ import {
   UpdateUserPermissionInput,
   UserPermissionOverride,
   ActivityListQuery,
+  Contact,
+  ContactListQuery,
+  CreateContactInput,
+  DuplicateMatch,
+  UpdateContactInput,
   CloseConversationInput,
   Conversation,
   ConversationAnalysisRecord,
@@ -650,6 +655,52 @@ export const apiV1 = c.router({
       path: '/api/v1/leads/speed-to-lead',
       query: SpeedToLeadQuery,
       responses: { 200: SpeedToLeadSummary, ...errorResponses },
+    },
+  }),
+  /**
+   * F-35 contacts — the customer master (FR-CON).
+   *
+   * No field here carries high-sensitivity PII. Date of birth, licence number,
+   * SIN, income and banking are required by FR-CON-007 to be KMS-encrypted
+   * (ADR-015) and no key is provisioned, so they are absent from the table AND
+   * from this contract — an API that accepted them would silently drop the most
+   * sensitive thing a customer hands over.
+   */
+  contacts: c.router({
+    create: {
+      method: 'POST',
+      path: '/api/v1/contacts',
+      body: CreateContactInput,
+      responses: {
+        201: z.object({
+          contact: Contact,
+          /** Reported, never enforced — see the schema for why. */
+          duplicates: z.array(DuplicateMatch),
+        }),
+        ...errorResponses,
+      },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/contacts',
+      query: ContactListQuery,
+      responses: {
+        200: z.object({ items: z.array(Contact), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    get: {
+      method: 'GET',
+      path: '/api/v1/contacts/:id',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: Contact, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/contacts/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateContactInput,
+      responses: { 200: Contact, ...errorResponses },
     },
   }),
   /**

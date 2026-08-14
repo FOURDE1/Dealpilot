@@ -24,3 +24,4 @@ export * from './dispatch.js';
 export * from './invitation.js';
 export * from './checklist.js';
 export * from './conversation.js';
+export * from './contact.js';
