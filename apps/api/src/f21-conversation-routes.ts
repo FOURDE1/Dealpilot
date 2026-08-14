@@ -8,6 +8,9 @@ import {
   TakeoverInput,
 } from '@dealpilot/schemas';
 import type { Emitter } from '@dealpilot/contracts';
+import type { Carrier } from './carrier.js';
+import type { Env } from './env.js';
+import { deliverMessage } from './f30-deliver.js';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { callerOrgIds, idParam, keysetPage, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
@@ -61,7 +64,13 @@ async function loadConversation(c: PoolClient, id: string): Promise<Record<strin
  * that a later statement could still roll back, and a browser cannot un-see a
  * conversation it was told about.
  */
-export function registerF21Routes(app: FastifyInstance, pool: Pool, emitter: Emitter): void {
+export function registerF21Routes(
+  app: FastifyInstance,
+  pool: Pool,
+  emitter: Emitter,
+  carrier: Carrier,
+  env: Env,
+): void {
   app.get('/api/v1/conversations', async (request, reply) => {
     const query = parseOrThrow(ConversationListQuery, request.query);
     const user = sessionUser(request);
@@ -216,9 +225,31 @@ export function registerF21Routes(app: FastifyInstance, pool: Pool, emitter: Emi
       };
     });
 
-    // Committed. Only now is there anything true to announce.
+    // Committed. Only now is there anything true to announce — or to send.
     if (result.kind === 'sent') {
       const m = result.message as Record<string, unknown>;
+
+      // The carrier call happens here, outside the transaction, for the reason
+      // in f30-deliver.ts: a message sent with no row is unrecoverable, a row
+      // with nothing sent is merely wrong and fixable.
+      const store = await withTenant(pool, orgId, async (c) => {
+        const r = await c.query<{ sms_number: string | null; phone_e164: string }>(
+          `SELECT s.sms_number, cv.phone_e164
+           FROM conversations cv JOIN stores s ON s.id = cv.store_id
+           WHERE cv.id = $1`,
+          [id],
+        );
+        return r.rows[0] ?? null;
+      });
+      if (store?.sms_number) {
+        await deliverMessage(pool, carrier, env, {
+          organizationId: orgId,
+          messageId: String(m['id']),
+          to: store.phone_e164,
+          from: store.sms_number,
+          body: String(m['body']),
+        });
+      }
       emitter.emit(
         { kind: 'conversation', organizationId: orgId, conversationId: id },
         {

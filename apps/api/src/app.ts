@@ -22,6 +22,8 @@ import { registerF15Routes } from './f15-compliance-routes.js';
 import { registerF21Routes } from './f21-conversation-routes.js';
 import { registerF24Routes } from './f24-speed-routes.js';
 import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
+import { createCarrier, type Carrier } from './carrier.js';
+import { registerF30Routes } from './f30-carrier-routes.js';
 import { registerF12Routes } from './f12-invitation-routes.js';
 import { registerF08Routes } from './f08-checklist-routes.js';
 
@@ -46,6 +48,11 @@ const PUBLIC_ROUTES: readonly string[] = [
   '/api/auth/*',
   // F-03 inbound intake webhook — authenticated by HMAC signature, not a session.
   '/in/v1/leads/:token',
+  // F-30: the carrier webhooks. Authenticated by the provider's HMAC signature
+  // over the URL and every parameter, not by a session — there is no user on
+  // the other end, only Twilio.
+  '/carrier/v1/sms/inbound',
+  '/carrier/v1/sms/status',
   // F-12: the invited person has no account yet, so the accept screen must be
   // able to say "Groupe Hassan invited you as a salesperson" before they sign
   // up. It is authenticated by the token itself and returns nothing beyond
@@ -93,6 +100,8 @@ export interface AppDeps {
    * depend on a message bus being up.
    */
   emitter?: Emitter;
+  /** Injectable so tests exercise sending without a Twilio account. */
+  carrier?: Carrier;
 }
 
 export async function buildApp(
@@ -156,6 +165,30 @@ export async function buildApp(
       done(err);
     }
   });
+
+  // F-30: carriers post form-encoded, and Fastify parses no such thing by
+  // default. `URLSearchParams` rather than a dependency, and repeated keys are
+  // kept as an array because the signature algorithm has a defined rule for
+  // them — collapsing them would compute a different MAC than the sender did.
+  app.addContentTypeParser(
+    'application/x-www-form-urlencoded',
+    { parseAs: 'string', bodyLimit: 64 * 1024 },
+    (_req, body, done) => {
+      try {
+        const params = new URLSearchParams(body as string);
+        const out: Record<string, string | string[]> = {};
+        for (const key of new Set(params.keys())) {
+          const all = params.getAll(key);
+          out[key] = all.length > 1 ? all : all[0]!;
+        }
+        done(null, out);
+      } catch {
+        const err = new Error('Invalid form body') as Error & { statusCode?: number };
+        err.statusCode = 400;
+        done(err);
+      }
+    },
+  );
 
   // F-13c: a scanned document arrives as its own bytes, not wrapped in JSON.
   // Only the three types a dealership actually scans are parsed, and only up to
@@ -265,7 +298,9 @@ export async function buildApp(
   registerF13Routes(app, pool, storage);
   registerF14Routes(app, pool, storage);
   registerF15Routes(app, pool);
-  registerF21Routes(app, pool, deps.emitter ?? NO_EMITTER);
+  const carrier = deps.carrier ?? createCarrier(env, app.log);
+  registerF21Routes(app, pool, deps.emitter ?? NO_EMITTER, carrier, env);
+  registerF30Routes(app, pool, carrier, env);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);

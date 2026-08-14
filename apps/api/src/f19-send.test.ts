@@ -342,7 +342,7 @@ describe('the database, independently of any sender', () => {
     const id = await withTenant(appPool, orgId, (c) =>
       recordInbound(c, {
         organizationId: orgId, conversationId: f.conversationId,
-        body: 'Est-ce que le Sorento est encore disponible?', providerRef: 'SM-in-1',
+        body: 'Est-ce que le Sorento est encore disponible?', providerRef: `SM-in-${crypto.randomUUID()}`,
       }),
     );
     const r = await admin.query<{ direction: string; sender_type: string }>(

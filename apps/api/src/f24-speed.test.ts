@@ -72,7 +72,7 @@ async function lead(agedSeconds = 0): Promise<{ phone: string; leadId: string; c
   const r = await withTenant(appPool, orgId, (c) =>
     routeInbound(c, {
       organizationId: orgId, storeId, phoneE164: phone,
-      body: 'Bonjour, je suis intéressée.', providerRef: 'SM-speed',
+      body: 'Bonjour, je suis intéressée.', providerRef: `SM-speed-${crypto.randomUUID()}`,
     }),
   );
   return { phone, leadId, conversationId: r.conversationId };
@@ -189,7 +189,7 @@ describe('the clock nobody has to remember to start', () => {
     const f = await lead(10);
     await withTenant(appPool, orgId, (c) =>
       routeInbound(c, {
-        organizationId: orgId, storeId, phoneE164: f.phone, body: 'STOP', providerRef: 'SM-x',
+        organizationId: orgId, storeId, phoneE164: f.phone, body: 'STOP', providerRef: `SM-x-${crypto.randomUUID()}`,
       }),
     );
     const out = await withTenant(appPool, orgId, (c) =>

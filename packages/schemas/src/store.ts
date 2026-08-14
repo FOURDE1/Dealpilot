@@ -33,6 +33,11 @@ export const Store = z.object({
   name: storeName,
   code: storeCode,
   phone: PhoneE164.nullable(),
+  /**
+   * The carrier number this store texts from (F-30). Distinct from `phone`,
+   * which is the number on the door.
+   */
+  sms_number: PhoneE164.nullable(),
   address_line1: z.string().trim().max(200).nullable(),
   city: z.string().trim().max(100).nullable(),
   province: ProvinceCA,
@@ -75,6 +80,11 @@ export const UpdateStoreInput = z.strictObject({
   name: storeName.optional(),
   code: storeCode.optional(),
   phone: PhoneE164.nullable().optional(),
+  /**
+   * The carrier number (F-30). Update-only, not create-only: a store is opened
+   * before a number is bought for it, and A2P registration takes weeks.
+   */
+  sms_number: PhoneE164.nullable().optional(),
   address_line1: z.string().trim().max(200).nullable().optional(),
   city: z.string().trim().max(100).nullable().optional(),
   province: ProvinceCA.optional(),

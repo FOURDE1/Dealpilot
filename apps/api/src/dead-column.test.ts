@@ -100,8 +100,6 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // already READS conversations.status to suspend the assistant, which is why
   // the table exists a slice before the screen that fills it in.
   'conversations.language': 'set by the conversation router (the model runtime slice)',
-  // Arrives on the provider's delivery receipt; there is no provider yet.
-  'messages.segments': 'written by the delivery-receipt webhook (Twilio slice)',
 };
 
 beforeAll(async () => {
@@ -256,11 +254,22 @@ it('every column the app is expected to write, it can write', async (ctx) => {
 it('no exemption outlives the reason it was written for', async (ctx) => {
   if (!dbUp) return ctx.skip();
 
+  const apiSrc = sourceIn(here);
+  // BOTH sources of evidence, and the first one matters most.
+  //
+  // This test read only `writeEvidence` until the guard was made table-aware,
+  // at which point SQL parsing moved into `qualifiedWrites` and this check
+  // silently stopped seeing INSERT and UPDATE entirely — an exemption for a
+  // column that later got a real SQL write would never have been reported
+  // stale again. The guard that catches dead columns had briefly lost its own
+  // guard, which is a neat illustration of why this test exists at all.
+  const written = qualifiedWrites(apiSrc);
   const evidence = writeEvidence(
-    sourceIn(here),
+    apiSrc,
     sourceIn(join(here, '..', '..', '..', 'packages', 'schemas', 'src')),
   );
   const stale = Object.keys(DELIBERATELY_UNWRITTEN).filter((qualified) => {
+    if (written.has(qualified)) return true;
     const column = qualified.split('.')[1]!;
     return new RegExp(`\\b${column}\\b`).test(evidence);
   });

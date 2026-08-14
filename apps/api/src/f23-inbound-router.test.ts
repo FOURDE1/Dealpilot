@@ -51,7 +51,13 @@ async function seedConsent(phone: string) {
   expect(res.statusCode, res.body).toBe(201);
 }
 
-function inbound(phone: string, body: string, providerRef = 'SM-r') {
+/**
+ * A carrier message id is globally unique in reality, and 0036 now enforces it
+ * per organisation — a retry of the SAME message must not become two rows. The
+ * default here is therefore unique per call: reusing one literal made every
+ * message in this suite look like a redelivery of the first.
+ */
+function inbound(phone: string, body: string, providerRef = `SM-r-${crypto.randomUUID()}`) {
   return { organizationId: orgId, storeId, phoneE164: phone, body, providerRef };
 }
 

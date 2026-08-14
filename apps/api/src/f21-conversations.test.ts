@@ -182,7 +182,7 @@ describe('the inbox', () => {
     await withTenant(appPool, orgId, (c) =>
       recordInbound(c, {
         organizationId: orgId, conversationId: f.conversationId,
-        body: 'Est-ce que le Sorento est encore disponible?', providerRef: 'SM-1',
+        body: 'Est-ce que le Sorento est encore disponible?', providerRef: `SM-${crypto.randomUUID()}`,
       }),
     );
     const sent = await app!.inject({

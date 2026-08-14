@@ -55,6 +55,26 @@ const EnvSchema = z.object({
    */
   REDIS_URL: z.string().optional(),
 
+  /**
+   * The SMS carrier (F-30, ADR-020).
+   *
+   * `log` writes a line and delivers nothing — correct for local development
+   * and CI, and refused in production by `createCarrier`, because an API that
+   * accepts customer conversations and silently delivers none of them is worse
+   * than one that will not start.
+   */
+  SMS_TRANSPORT: z.enum(['twilio', 'log']).default('log'),
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  /**
+   * The public origin the carrier posts webhooks to.
+   *
+   * Twilio signs the URL it called, so this must be the address as configured
+   * at the provider — not the Host header, which an attacker chooses. Same
+   * reasoning as BETTER_AUTH_URL (A-05.1).
+   */
+  PUBLIC_WEBHOOK_ORIGIN: z.string().optional(),
+
   REQUIRE_EMAIL_VERIFICATION: z
     .enum(['true', 'false'])
     .default('false')
