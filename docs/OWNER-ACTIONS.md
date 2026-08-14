@@ -93,11 +93,26 @@ own numbers only.
 
 ### 3. Anthropic API key ⏳ MINUTES
 
-Create a key at console.anthropic.com. It becomes `ANTHROPIC_API_KEY`.
+Create a key at console.anthropic.com. **The code is ready (F-31, `6099e2f`)** —
+two env vars and the assistant is on:
 
-**Unblocks:** the assistant actually thinking. The prompt, the seven tools, both
-safety guards and the turn loop are built and tested against a fake model; the
-key is the last piece.
+```
+AI_TRANSPORT=anthropic
+ANTHROPIC_API_KEY=sk-ant-…
+AI_MODEL=claude-sonnet-5      # optional; configuration, never a literal in code
+```
+
+**`AI_TRANSPORT=off` is the default, and it is a real product, not a broken
+one.** Inbound messages are still received, matched for STOP, routed, filed and
+handed to a person. Only the automated reply is missing — a shared inbox with a
+compliance engine in front of it. That is why an absent key does not stop the
+API from booting, unlike an absent carrier.
+
+**But `AI_TRANSPORT=anthropic` with no key refuses to start**, on purpose. An
+assistant switched on and unable to think would leave you believing your leads
+were being answered.
+
+**Unblocks:** the assistant actually thinking.
 
 ---
 
@@ -181,7 +196,10 @@ in this order:
    verification, outbound adapter, delivery receipts, segment counting. 40 new
    tests; the signature check is mutation-tested against a replayed signature
    with the body swapped to STOP. Waiting only on your Twilio account.
-2. **Model key path** — same shape for Anthropic.
+2. ~~**Model key path**~~ — **DONE (F-31, `6099e2f`).** It also uncovered a
+   real defect: the adapter was never sending the tool definitions to the
+   model, so all seven audited tools were unreachable. Fixed and
+   mutation-tested.
 3. **Queue layer** (BullMQ) — `apps/workers` is a stub today and everything
    designed async runs inside the HTTP request.
 4. **Appointments** — the assistant already offers a tool for it that points at
