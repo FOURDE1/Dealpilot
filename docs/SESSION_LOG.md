@@ -1,3 +1,40 @@
+## 2026-08-14 (later) — the e2e suite has never run in CI
+
+**Found while starting the e2e work, and it is worse than the gap it was
+filed as.** `.github/workflows/ci.yml` has ONE job, whose steps are install,
+db:reset, build+typecheck, lint, `pnpm test:ci` (vitest) and i18n parity.
+**Playwright is not in it.** Nineteen `.e2e.ts` specs exist and nothing has
+ever executed them automatically. The suite is dead vocabulary at the file
+level: written, and run by nobody.
+
+**First run of the whole suite: 18 failed, 9 passed.** One root cause behind
+most of it — **the owner's dev database was 16 migrations behind** (24 of 40
+applied). The API returned store rows with no `sms_number`, the web's `Store`
+schema requires it since F-30, the parse failed, and every page that lists a
+store went blank. Migrating dev forward (`db:migrate`, never `db:reset` — see
+the note about that) took it to **12 failed, 17 passed**, and incidentally
+proved the migration chain against a database with real history, which
+CLAUDE.md asks for and which no CI run can prove because CI builds from zero.
+
+**The remaining 12 are TEST rot, not product bugs.** Verified on F-02: the
+spec fails asserting the "Modifications enregistrées." toast, and the API log
+shows `PATCH /api/v1/leads/… 200`. The save worked. Do not read the red as a
+broken product.
+
+**Bug of mine, fixed:** two migrations shared prefix `20260727000036`
+(`carrier-edge` + `speed-to-lead`) and two shared `20260727000037`
+(`appointments` + `budget-columns`). Ordering still works — `migrate.ts:33`
+sorts full filenames — but the prefix stops being the ordering key, and the
+next person to rely on "0036 runs before 0037" is wrong with nothing failing.
+`migration-order.test.ts` grandfathers those two and forbids new ones; they
+cannot be renumbered because they are applied.
+
+**Next, in order:** repair the 12 specs (string/timing rot), then add a
+Playwright job to ci.yml. Wiring CI first would only add a red job; adding
+specs first would add more code nobody runs.
+
+**State:** develop at 8188167 + this, 968 tests / 81 files / 29 tasks green.
+
 ## 2026-08-14 — F-28 + F-29: realtime, on the one path RLS does not watch
 
 **Done (CI green: 8731f82, 3217542).**
