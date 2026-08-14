@@ -22,24 +22,40 @@
 
 ## Commands
 
-> All commands are **(planned — the monorepo scaffold is Phase 0 task A-01;
-> correct these the moment reality exists)**. Until then nothing here is runnable.
+> Verified working 2026-08-14. Correct this table the moment reality disagrees.
 
 | Task                   | Command |
 | ---------------------- | ------- |
-| Install deps           | `pnpm install` (planned) |
-| Run dev server / app   | `pnpm dev` (planned) |
-| Build                  | `pnpm build` (planned) |
-| Lint                   | `pnpm lint` (planned) |
-| Type-check             | `pnpm typecheck` (planned) |
-| Unit tests             | `pnpm test` (planned) |
-| Integration/e2e tests  | `pnpm test:e2e` (planned) |
-| Dependency vuln scan   | `pnpm audit` (planned) |
-| Format                 | `pnpm format` (planned) |
+| Install deps           | `pnpm install` |
+| Run dev servers        | `pnpm dev` (turbo; api on :3001, web on :5173) |
+| Build                  | `pnpm build` |
+| Lint                   | `pnpm lint` |
+| Type-check             | `pnpm typecheck` |
+| Tests                  | `pnpm test` — or `pnpm turbo run build typecheck lint test` for the full gate |
+| Tests, nothing skipped | `RLS_REQUIRED=1 pnpm test` (fails instead of skipping when Postgres or Redis is unreachable) |
+| Dependency vuln scan   | `pnpm audit` |
+| Format                 | `pnpm format` / `pnpm format:check` |
+
+**Local services.** `docker compose up -d` starts Postgres and Redis. Host ports
+default to 5434 and 6381 and are overridable — the owner runs other projects
+that have taken both ranges before:
+
+```
+DEALPILOT_DB_PORT=5436 docker compose up -d
+DB_ADMIN_URL=postgresql://dealpilot:dealpilot@localhost:5436/dealpilot pnpm test
+```
+
+`DB_ADMIN_URL`, `DATABASE_URL`, `RLS_REQUIRED`, `REDIS_URL` and `CI` are the only
+env vars Turborepo passes through (`turbo.json` `globalPassThroughEnv`); anything
+else is stripped before a task runs, which reads as a phantom failure.
+
+Integration suites target `dealpilot_test`, created on demand, so the dev
+database survives. Never point `db:reset` at `DATABASE_URL` — it resolves to the
+owner's dev database (it wiped the seeded account three times).
 
 ## Conventions
 
-- **Code style:** ESLint + Prettier (linter config is source of truth once scaffolded); no `console.*` (pino only); no `any` without a justifying comment.
+- **Code style:** ESLint + Prettier (the linter config is the source of truth); no `console.*` (pino only); no `any` without a justifying comment.
 - **Branch naming:** `main` protected (every prod change is a PR), `develop` is the integration branch; work branches are `ahmad/<slug>` and `hussein/<slug>` per the two-agent parallel build (D-012).
 - **Commit style:** Conventional Commits (`feat:`, `fix:`, `chore:`…).
 - **Test file location:** alongside source (`*.test.ts` next to the module); Playwright e2e suites live with the app they exercise.

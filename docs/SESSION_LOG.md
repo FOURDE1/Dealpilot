@@ -1,3 +1,61 @@
+## 2026-08-14 — F-28 + F-29: realtime, on the one path RLS does not watch
+
+**Done (CI green: 8731f82, 3217542).**
+
+- **F-28 realtime transport.** ADR-004 removes the database from the realtime
+  read path — "authorization is enforced at join/emit time by application
+  code". So `roomName()` in `packages/contracts/src/realtime.ts` is the only
+  function that can produce a `tenant:` string, it refuses non-uuid ids, and
+  `apps/api/src/realtime-vocabulary.test.ts` fails the build if a second
+  producer appears. The socket never names a room: it sends a structured
+  `SubscribeRequest` and the server builds the name after deciding.
+  `apps/api/src/realtime.ts` re-reads membership AND permission from the
+  database on every subscribe rather than pinning them at handshake as §13
+  describes — a socket lives for hours, long enough for somebody to be removed
+  from an organisation. Session re-verified on a timer and on every subscribe.
+- **The realtime bar equals the REST bar.** Conversations need
+  `conversation:read` because `GET /api/v1/conversations` does; leads/deals
+  rooms need membership and a real store, because their endpoints need exactly
+  that. A stream easier to open than its endpoint is a back door.
+- **F-29 the console subscribes.** `apps/web/src/shared/realtime.ts` +
+  `features/conversations/realtime-sync.ts`. An event invalidates a query key;
+  the existing fetch decides what renders. The handler lives behind a ref —
+  capturing it in the effect closure gives the "first event works, later ones
+  don't" bug.
+- **Mutation-tested, each caught by exactly one test:** membership check
+  removed, org-ownership lookup removed, permission check removed, handshake
+  accepting no session, Redis adapter not installed.
+
+**Fixed in passing (all pre-existing):**
+- `turbo.json` had no env passthrough, so `DB_ADMIN_URL` never reached the test
+  task — `turbo run test` failed where `pnpm test` passed.
+- CI had no Redis, so the cross-instance fan-out claim was untestable. `ci.yml`
+  now runs one on 6381 and `f28b-realtime-fanout.test.ts` proves task A's emit
+  reaches a socket held by task B.
+- `docker-compose.yml` host ports are now `${DEALPILOT_DB_PORT:-5434}` /
+  `${DEALPILOT_REDIS_PORT:-6381}`. Default unchanged.
+
+**Environment note for the next session.** 5434 was taken by the owner's
+`muni-2026-postgres-1` container, so `dealpilot-db` could not bind. Other
+projects' containers were NOT stopped. Local runs used:
+`DEALPILOT_DB_PORT=5436 docker compose up -d db` and
+`DB_ADMIN_URL=postgresql://dealpilot:dealpilot@localhost:5436/dealpilot`.
+Check `docker ps` before assuming 5434 is free.
+
+**`gh` is now authenticated** (account FOURDE1, scopes gist/read:org/repo/
+workflow). CI verdicts and failure logs are readable directly — earlier
+sessions could only see red, not why. Do not poll the API from multiple
+background tasks at 30–60s; that exhausts the unauthenticated 60/hr quota.
+
+**Guard lesson, second occurrence.** The vocabulary guard's first run reported
+the room builder itself, because its doc comment contains `io.to('some
+string')` — the same trap the enum guard hit reading `'pending'` out of a
+comment. Both strip comments before scanning now. A manufactured finding is
+worse than a missed one: it teaches the reader to skim the output.
+
+**State:** develop at 3217542, CI green, 861 tests / 70 files / 29 tasks.
+Next: F-30 eval harness for the AI layer (Phase 3e).
+
 ## 2026-07-26 — AHMAD: CR-12 + F-13b
 
 **CR-12 (Hussein's finding).** `sold_as_is` was accepted by the API and thrown
