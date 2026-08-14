@@ -1,6 +1,6 @@
 import { Queue } from 'bullmq';
 import {
-  QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND,
+  QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND, queueOpts,
   type AssistantTurnJobT, type DeferredSendJobT,
 } from '@dealpilot/contracts';
 import type { Env } from './env.js';
@@ -75,8 +75,8 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
     ...(url.password ? { password: url.password } : {}),
     maxRetriesPerRequest: null,
   };
-  const queue = new Queue<DeferredSendJobT>(QUEUE_DEFERRED_SEND, { connection });
-  const turns = new Queue<AssistantTurnJobT>(QUEUE_ASSISTANT_TURN, { connection });
+  const queue = new Queue<DeferredSendJobT>(QUEUE_DEFERRED_SEND, queueOpts(connection));
+  const turns = new Queue<AssistantTurnJobT>(QUEUE_ASSISTANT_TURN, queueOpts(connection));
 
   return {
     async enqueue(job, runAt) {

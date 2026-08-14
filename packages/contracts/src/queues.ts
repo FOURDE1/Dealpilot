@@ -20,8 +20,43 @@ import { z } from 'zod';
  * a scheduler here, not a second database.
  */
 
-export const QUEUE_DEFERRED_SEND = 'dealpilot:deferred-send';
-export const QUEUE_ASSISTANT_TURN = 'dealpilot:assistant-turn';
+/**
+ * The namespace, kept OUT of the queue names.
+ *
+ * These were `dealpilot:deferred-send` and `dealpilot:assistant-turn` until the
+ * first environment that actually had Redis tried to boot: BullMQ rejects a
+ * colon in a queue name, because a colon is its own Redis key separator, and
+ * the constructor throws. Both the API and the workers died on startup.
+ *
+ * It survived that long because `createDeferredSendQueue` returns a no-op when
+ * REDIS_URL is unset, and no local process sets it — so in eight commits of
+ * F-32 the Queue was never once constructed. Declared in three places,
+ * reachable from none.
+ *
+ * `prefix` is the supported way to namespace, and it produces the same Redis
+ * keys the colon was reaching for.
+ */
+export const QUEUE_PREFIX = 'dealpilot';
+
+export const QUEUE_DEFERRED_SEND = 'deferred-send';
+export const QUEUE_ASSISTANT_TURN = 'assistant-turn';
+
+/**
+ * Build the options every Queue and Worker must be constructed with.
+ *
+ * Exists so the prefix cannot be supplied on one side and forgotten on the
+ * other. That mistake is worse than the crash it replaced: the API would
+ * enqueue under `dealpilot:` while the worker blocked on `bull:`, both
+ * processes healthy, no error anywhere, and every deferred message waiting
+ * forever for a consumer that is listening somewhere else.
+ * `queue-naming.test.ts` fails the build if a call site skips this.
+ *
+ * Generic over the connection so this package keeps no bullmq dependency —
+ * contracts is what the two sides agree on, not where either of them runs.
+ */
+export function queueOpts<C>(connection: C): { connection: C; prefix: string } {
+  return { connection, prefix: QUEUE_PREFIX };
+}
 
 /**
  * A customer texted and the router said the assistant should answer.

@@ -1,7 +1,7 @@
 import { Queue, Worker, type ConnectionOptions } from 'bullmq';
 import { createPool } from '@dealpilot/db';
 import {
-  QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND,
+  QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND, queueOpts,
   type AssistantTurnJobT, type DeferredSendJobT,
 } from '@dealpilot/contracts';
 import { createCarrier } from '@dealpilot/api/carrier';
@@ -38,7 +38,7 @@ function connection(redisUrl: string): ConnectionOptions {
 }
 
 export function createDeferredSendQueue(redisUrl: string): Queue<DeferredSendJobT> {
-  return new Queue<DeferredSendJobT>(QUEUE_DEFERRED_SEND, { connection: connection(redisUrl) });
+  return new Queue<DeferredSendJobT>(QUEUE_DEFERRED_SEND, queueOpts(connection(redisUrl)));
 }
 
 export async function start(): Promise<{ close: () => Promise<void> }> {
@@ -72,7 +72,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
         },
         job.data,
       ),
-    { connection: connection(env.REDIS_URL), concurrency: 4 },
+    { ...queueOpts(connection(env.REDIS_URL)), concurrency: 4 },
   );
 
   // The assistant only consumes when it is switched on. A worker draining the
@@ -84,7 +84,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
         QUEUE_ASSISTANT_TURN,
         async (job) =>
           runAssistantTurn({ pool, model: assistant.client, carrier, env }, job.data),
-        { connection: connection(env.REDIS_URL), concurrency: 2 },
+        { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
       )
     : null;
 

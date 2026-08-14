@@ -570,3 +570,37 @@ silent, whereas `monthly_budget_cents` cannot be accidentally read as a total.
 with the column — it is only stored and echoed — and that stops being true the
 moment desking reads it. Extraction write-back (§5) is now unblocked.
 **Decided by:** user (2026-08-14)
+
+## D-044: BullMQ namespacing — prefix, not a colon in the queue name (2026-08-15)
+
+**Status:** accepted (implementation decision; no owner input needed)
+**Context:** `QUEUE_DEFERRED_SEND` and `QUEUE_ASSISTANT_TURN` shipped as
+`dealpilot:deferred-send` and `dealpilot:assistant-turn`. BullMQ 5 refuses a
+colon in a queue name — a colon is its own Redis key separator — and throws from
+the `QueueBase` constructor. The API and the workers therefore both crashed on
+startup in any environment with Redis, which is every deployed one.
+**Why it went eight commits unnoticed:** `createDeferredSendQueue` returns a
+no-op when `REDIS_URL` is unset, and no local process sets it. The `Queue` was
+never constructed, so the line never ran. 974 unit tests could not see it. The
+new CI e2e job, booting the API against Redis for the first time, is what found
+it — on its first run.
+**Options:** (a) drop the namespace entirely and accept BullMQ's default `bull:`
+keys. (b) keep the intent and move the namespace to BullMQ's `prefix` option.
+(c) namespace by Redis logical database instead.
+**Decision:** (b). `QUEUE_PREFIX = 'dealpilot'` passed as `prefix`, which
+produces exactly the Redis keys the colon was reaching for, by the supported
+route. Every `Queue` and `Worker` is constructed through a single `queueOpts()`
+helper exported from `@dealpilot/contracts`.
+**Why the helper rather than just passing `prefix` at each site:** the
+half-applied version is worse than the crash. If one side sets the prefix and
+the other does not, both processes are healthy and nothing throws — the API
+enqueues under `dealpilot:` while the worker blocks on `bull:`, and every
+deferred message waits forever for a consumer listening on different keys. A
+crash announces itself; that does not. `queue-naming.test.ts` fails the build if
+any call site skips the helper, and asks BullMQ itself whether a name is legal
+rather than re-implementing the rule.
+**Consequences:** no migration concern — there are no jobs in any Redis to
+strand, because the queue has never successfully been created. F-32's
+deferred-send path is now reachable for the first time and still unproven
+end-to-end; the first real exercise of it is owed a test.
+**Decided by:** Claude (implementation), 2026-08-15
