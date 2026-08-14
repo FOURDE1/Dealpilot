@@ -104,7 +104,7 @@ jobs:
         run: pnpm --filter @dealpilot/i18n --fail-if-no-match run check:parity
 
   e2e:
-    name: e2e (Playwright, real browser)
+    name: e2e (real browser, real worker process)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -169,6 +169,56 @@ jobs:
 
       - name: Build
         run: pnpm turbo run build
+
+      - name: Worker process starts and drains on SIGTERM
+        # The workers had no entrypoint at all: `start()` was exported and called
+        # by nothing — no bin, no script, no Dockerfile. That is precisely why
+        # the BullMQ queue-name bug lived eight commits; the process that would
+        # have hit it could not be launched. This step is the answer to "does
+        # anything ever run this", and it has to stay cheap enough to keep.
+        #
+        # SIGTERM is checked here rather than locally because Windows has no
+        # real POSIX signals, so the drain path cannot be exercised on the
+        # owner's machine at all.
+        env:
+          DATABASE_URL: postgresql://dealpilot_app:dealpilot_app_dev@localhost:5434/dealpilot
+          REDIS_URL: redis://localhost:6381
+          NODE_ENV: development
+        run: |
+          set -euo pipefail
+          node apps/workers/dist/main.js > /tmp/workers.log 2>&1 &
+          WORKERS_PID=$!
+
+          for _ in $(seq 1 30); do
+            grep -q '"msg":"workers up"' /tmp/workers.log && break
+            if ! kill -0 "$WORKERS_PID" 2>/dev/null; then
+              echo "::error::workers exited during boot"
+              cat /tmp/workers.log
+              exit 1
+            fi
+            sleep 1
+          done
+          grep -q '"msg":"workers up"' /tmp/workers.log || {
+            echo "::error::workers never reported ready within 30s"
+            cat /tmp/workers.log
+            exit 1
+          }
+
+          kill -TERM "$WORKERS_PID"
+          set +e
+          wait "$WORKERS_PID"
+          EXIT=$?
+          set -e
+          cat /tmp/workers.log
+
+          grep -q '"msg":"workers down"' /tmp/workers.log || {
+            echo "::error::SIGTERM did not drain cleanly — in-flight jobs would be killed mid-send"
+            exit 1
+          }
+          [ "$EXIT" -eq 0 ] || {
+            echo "::error::workers exited $EXIT after SIGTERM, expected 0"
+            exit 1
+          }
 
       - name: Start the API, then run the suite
         # One step on purpose. The API is a background process, and starting it
