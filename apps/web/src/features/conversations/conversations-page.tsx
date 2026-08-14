@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button, Input, Label, Select } from '@dealpilot/ui';
 import type { MessageT } from '@dealpilot/schemas';
 import { usePageTitle } from '../../shared/use-page-title.js';
 import { can, usePermissionsMine } from '../../shared/permissions.js';
 import { useOrganizations } from '../organizations/api.js';
+import { useRealtime } from '../../shared/realtime.js';
+import { keysToInvalidate } from './realtime-sync.js';
 import {
   useCloseConversation, useConversation, useConversations, useSendReply, useTakeover, useThread,
 } from './api.js';
@@ -84,6 +87,28 @@ export function ConversationsPage() {
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'end' });
   }, [thread.data?.items.length]);
+
+  /**
+   * Live updates for the conversation on screen.
+   *
+   * The event is a nudge, not the new state: it invalidates, and the existing
+   * fetch decides what is shown. So a customer's reply arriving while an agent
+   * reads renders through exactly the same code path as one that was there on
+   * page load, and there is no second version of "what this thread contains"
+   * to disagree with the first.
+   */
+  const qc = useQueryClient();
+  const orgForStream = conversation?.organization_id ?? null;
+  useRealtime(
+    selected && orgForStream
+      ? { kind: 'conversation', organization_id: orgForStream, conversation_id: selected }
+      : null,
+    (event) => {
+      for (const queryKey of keysToInvalidate(event)) {
+        void qc.invalidateQueries({ queryKey });
+      }
+    },
+  );
 
   const result = reply.data;
   const closed = conversation?.status === 'closed';

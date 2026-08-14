@@ -10,6 +10,10 @@ export default defineConfig({
     // CORS is involved; the API's WEB_ORIGIN default matches this origin.
     proxy: {
       '/api': 'http://localhost:3001',
+      // The realtime upgrade needs `ws: true` — without it Vite proxies the
+      // handshake and then drops the protocol switch, which looks exactly like
+      // a server that never sends events.
+      '/realtime': { target: 'http://localhost:3001', ws: true },
     },
   },
 });
