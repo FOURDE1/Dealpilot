@@ -28,6 +28,43 @@ to launch, and no engineering can shorten it.
 | Register the brand + campaign (A2P/10DLC) | The slow part. Needs business details, use-case description, sample messages |
 | Copy Account SID, Auth Token, and the number | These become env vars — send them to nobody, paste them into `.env` yourself |
 
+**The code is ready (F-30, `35044a6`). When your credentials arrive it is
+configuration, not a code change.** Four env vars:
+
+```
+SMS_TRANSPORT=twilio
+TWILIO_ACCOUNT_SID=AC…
+TWILIO_AUTH_TOKEN=…
+PUBLIC_WEBHOOK_ORIGIN=https://api.your-domain.ca
+```
+
+`PUBLIC_WEBHOOK_ORIGIN` must be the address exactly as Twilio will call it —
+the signature covers the URL, so a mismatch rejects every genuine webhook. It
+is read from configuration and never from the Host header, which an attacker
+chooses.
+
+**Two URLs to paste into the Twilio console** for your number:
+
+| Twilio field | URL |
+|---|---|
+| A MESSAGE COMES IN | `https://api.your-domain.ca/carrier/v1/sms/inbound` |
+| STATUS CALLBACK URL | `https://api.your-domain.ca/carrier/v1/sms/status` |
+
+**Then set the number on the store.** It lives on the store record, not in an
+env var, because each rooftop texts from its own number:
+
+```
+PATCH /api/v1/stores/{id}   { "sms_number": "+1514XXXXXXX" }
+```
+
+One number belongs to exactly one store platform-wide — the database enforces
+it, because two stores sharing a number makes an inbound message unroutable and
+the wrong guess delivers a customer's reply to a rival.
+
+**Until `sms_number` is set, that store sends nothing.** No error, no crash —
+the send path simply has no number to send from. That is deliberate: a store
+that has not been given a number is not yet ready to text customers.
+
 **Unblocks:** every real SMS. The whole conversation engine, the STOP pipeline,
 handoff notices, speed-to-lead — all built and tested, none of it can send or
 receive a single message until this exists.
@@ -140,9 +177,10 @@ Also open: D-036, D-037 (insurance F&I — you parked it), D-038, D-039, D-041.
 Everything on this list is *yours*. Everything else is mine, and I am building it
 in this order:
 
-1. **Carrier edge** — the Twilio webhook and outbound adapter, behind an
-   interface, with a fake carrier so it is fully tested with no account. When
-   your credentials arrive it is a config change, not a code project.
+1. ~~**Carrier edge**~~ — **DONE (F-30, `35044a6`).** Webhook, signature
+   verification, outbound adapter, delivery receipts, segment counting. 40 new
+   tests; the signature check is mutation-tested against a replayed signature
+   with the body swapped to STOP. Waiting only on your Twilio account.
 2. **Model key path** — same shape for Anthropic.
 3. **Queue layer** (BullMQ) — `apps/workers` is a stub today and everything
    designed async runs inside the HTTP request.
