@@ -9,7 +9,7 @@ import { expect, test } from '@playwright/test';
 const stamp = Date.now();
 const password = 'MotDePasse!2026-f09';
 
-test('full F-09 journey: pay plan → sold-by deal → funded → $1,375 line', async ({ page }) => {
+test('full F-09 journey: pay plan → sold-by deal → funded → $1,375 line', async ({ page, request }) => {
   await page.goto('/signup');
   await page.getByLabel('Nom complet').fill('Patron Payeur');
   await page.getByLabel('Courriel').fill(`f09-${stamp}@1dealer.test`);
@@ -26,19 +26,34 @@ test('full F-09 journey: pay plan → sold-by deal → funded → $1,375 line', 
   await page.getByLabel('Code').fill(`F09-${stamp % 10000}`);
   await page.getByRole('button', { name: 'Créer la succursale' }).click();
 
-  // A salesperson with a pay plan: 25% rate, $1,500 pad. Created via the
-  // direct roster API — the invite→accept journey is f04's subject, not ours.
+  // A salesperson with a pay plan: 25% rate, $1,500 pad. Added via the direct
+  // roster API — the invite→accept journey is f04's subject, not ours.
+  //
+  // She has to EXIST first. Since F-12, `POST /api/v1/members` answers 422
+  // `needs_invitation` for an email with no account: a membership is a link to
+  // a person, and the old behaviour conjured one from a string somebody typed.
+  // Signed up through the `request` fixture, which carries its own cookie jar —
+  // doing it through `page.request` would swap the browser's session for
+  // Vicky's and log the owner out mid-test.
+  const vickyEmail = `vicky-${stamp}@1dealer.test`;
+  const signUp = await request.post('/api/auth/sign-up/email', {
+    data: { email: vickyEmail, password, name: 'Vicky Vendeuse' },
+  });
+  if (signUp.status() >= 400) throw new Error(`vicky sign-up failed: ${signUp.status()}`);
+
   const orgsResp = await page.request.get('/api/v1/organizations?limit=10');
   const orgId = ((await orgsResp.json()) as { items: { id: string }[] }).items[0]!.id;
   const addResp = await page.request.post('/api/v1/members', {
     data: {
       organization_id: orgId,
-      email: `vicky-${stamp}@1dealer.test`,
+      email: vickyEmail,
       name: 'Vicky Vendeuse',
       roles: ['salesperson'],
     },
   });
-  if (addResp.status() !== 201) throw new Error(`member add failed: ${addResp.status()}`);
+  if (addResp.status() !== 201) {
+    throw new Error(`member add failed: ${addResp.status()} ${await addResp.text()}`);
+  }
   await page.getByRole('link', { name: 'Équipe' }).first().click();
   await expect(page.getByRole('cell', { name: 'Vicky Vendeuse', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Plan de rémunération — Vicky Vendeuse' }).click();

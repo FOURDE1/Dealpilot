@@ -26,6 +26,10 @@ test('full F-07 journey: stock a car → desk it → golden gross → sold', asy
   await page.getByLabel('Nom de la succursale').fill('Succursale F07');
   await page.getByLabel('Code').fill(`F07-${stamp % 10000}`);
   await page.getByRole('button', { name: 'Créer la succursale' }).click();
+  // Wait for the store to actually exist before navigating away. Without this
+  // the next click races the create — it passes on a fast machine and fails on
+  // a loaded one, which is the least useful kind of red.
+  await expect(page.getByRole('link', { name: 'Succursale F07' })).toBeVisible();
 
   // Stock the car: 25 000 + 650 + 2 000 = 27 650 total cost.
   await page.getByRole('link', { name: 'Inventaire' }).first().click();
