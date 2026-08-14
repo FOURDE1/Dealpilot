@@ -94,6 +94,13 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // layer (F-19) writes every other column on this table.
   'send_decisions.decided_at': 'defaulted by the database at insert',
 
+  // F-33 gave the assistant a way to BOOK an appointment. Managing one after
+  // the fact — assigning who takes it, cancelling with a reason — is the
+  // console's, and lands with the appointments screen.
+  'appointments.assigned_agent_id': 'written by the appointments screen (console slice)',
+  'appointments.cancelled_at': 'written by the cancel route (console slice)',
+  'appointments.cancelled_reason': 'written by the cancel route (console slice)',
+
   // F-19 created the conversation, which is what the send layer needed. The
   // handoff itself — a person taking a conversation, closing it, reading the
   // assistant's summary — is the agent console, and lands next. `evaluateSend`

@@ -86,6 +86,10 @@ const BEHAVIOURALLY_COVERED = new Set([
   // to another organisation") — it holds the assistant's read on a named
   // customer, which is a rival's most useful page in the whole product.
   'conversation_analysis',
+  // F-33: cross-tenant cases in apps/api/src/f33-tools.test.ts ("sees none of
+  // these appointments", and a write into another org refused) — an
+  // appointment names a customer, a time, and a place they will be.
+  'appointments',
 ]);
 
 interface PolicyRow {
