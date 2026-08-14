@@ -22,6 +22,8 @@ export interface AnthropicClientOptions {
   readonly maxTokens?: number;
   /** Every external call gets an explicit timeout. */
   readonly timeoutMs?: number;
+  /** Injectable so a test can assert what goes on the wire without a key. */
+  readonly fetch?: typeof globalThis.fetch;
 }
 
 export function createAnthropicClient(opts: AnthropicClientOptions): ModelClient {
@@ -29,6 +31,7 @@ export function createAnthropicClient(opts: AnthropicClientOptions): ModelClient
     apiKey: opts.apiKey,
     timeout: opts.timeoutMs ?? 30_000,
     maxRetries: 2,
+    ...(opts.fetch ? { fetch: opts.fetch } : {}),
   });
 
   return {
@@ -42,6 +45,19 @@ export function createAnthropicClient(opts: AnthropicClientOptions): ModelClient
           ...(block.cacheBreakpoint ? { cache_control: { type: 'ephemeral' as const } } : {}),
         })),
         messages: request.messages.map((m) => ({ role: m.role, content: m.content })),
+        // The tools, with their schemas. Omitting these was the defect: the
+        // turn loop parsed tool calls out of every reply and a real model had
+        // never been told a tool existed, so it never made one. Seven audited
+        // tools, unreachable, with tests passing over them.
+        ...(request.tools.length > 0
+          ? {
+              tools: request.tools.map((t) => ({
+                name: t.name,
+                description: t.description,
+                input_schema: t.inputSchema as Anthropic.Tool['input_schema'],
+              })),
+            }
+          : {}),
       });
 
       const text = response.content

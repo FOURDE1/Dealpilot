@@ -75,6 +75,24 @@ const EnvSchema = z.object({
    */
   PUBLIC_WEBHOOK_ORIGIN: z.string().optional(),
 
+  /**
+   * The assistant's model (ADR-022).
+   *
+   * `AI_TRANSPORT=off` is the default and means the assistant does not run at
+   * all — inbound messages are still received, routed, filed and handed to a
+   * person; only the automated reply is absent. That is a coherent product
+   * (a shared inbox with a compliance engine), which is why it is the default
+   * rather than a boot failure.
+   *
+   * The model id is configuration, never a literal at a call site: PROJECT.md
+   * says the layer is model-agnostic and the model is "selected per task by the
+   * eval/A-B harness".
+   */
+  AI_TRANSPORT: z.enum(['anthropic', 'off']).default('off'),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().default('claude-sonnet-5'),
+  AI_MAX_TOKENS: z.coerce.number().int().min(64).max(8192).default(1024),
+
   REQUIRE_EMAIL_VERIFICATION: z
     .enum(['true', 'false'])
     .default('false')

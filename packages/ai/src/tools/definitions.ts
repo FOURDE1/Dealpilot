@@ -171,6 +171,31 @@ export const TOOLS: readonly ToolDefinition[] = [
 ];
 
 /**
+ * The tools as the MODEL is told about them (ADR-022).
+ *
+ * `ToolDefinition.input` is a Zod schema, which is the right thing for
+ * validating what comes back and the wrong thing to put on the wire. An API
+ * needs JSON Schema, and without `inputSchema` a provider either rejects the
+ * tool or — worse — accepts a tool the model can never call correctly.
+ *
+ * Derived from TOOLS rather than written beside it, so a tool cannot be added
+ * to the catalogue and forgotten here. The guard in tools.test.ts asserts the
+ * two stay the same length and the same names.
+ */
+export interface ModelToolSpec {
+  readonly name: ToolName;
+  readonly description: string;
+  /** JSON Schema draft 2020-12, as every current provider expects. */
+  readonly inputSchema: Record<string, unknown>;
+}
+
+export const MODEL_TOOL_SPECS: readonly ModelToolSpec[] = TOOLS.map((t) => ({
+  name: t.name,
+  description: t.description,
+  inputSchema: z.toJSONSchema(t.input) as Record<string, unknown>,
+}));
+
+/**
  * Field names no tool input may ever contain.
  *
  * Enforced by a test over every schema rather than by review, because the way

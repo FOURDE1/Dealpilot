@@ -1,7 +1,7 @@
 import { fallbackMessage, outboundGuard, type Violation } from '../guards/outbound-guard.js';
 import { spotlight } from '../guards/spotlight.js';
 import { buildSystemPrompt, type LiveContext, type TenantPromptConfig } from '../prompt/system-prompt.js';
-import { TOOLS, type ToolName } from '../tools/definitions.js';
+import { MODEL_TOOL_SPECS, TOOLS, type ModelToolSpec, type ToolName } from '../tools/definitions.js';
 
 /**
  * One turn of the assistant (conversation-engine.md §2, §10, §11).
@@ -44,7 +44,14 @@ export interface ModelReply {
 export interface ModelRequest {
   readonly system: readonly { readonly text: string; readonly cacheBreakpoint: boolean }[];
   readonly messages: readonly ModelMessage[];
-  readonly tools: readonly { readonly name: string; readonly description: string }[];
+  /**
+   * The tools, WITH their input schemas. Carrying only name and description
+   * made every tool unreachable through a real client: the model was never
+   * told what arguments a call takes, so it never made one — and the fake
+   * client in the tests could return a tool call whenever a test wanted, which
+   * is precisely how that stayed invisible.
+   */
+  readonly tools: readonly ModelToolSpec[];
 }
 
 export interface ModelClient {
@@ -117,7 +124,7 @@ export async function runTurn(
 
   const toolsUsed: ToolName[] = [];
   const budget = input.maxToolCalls ?? MAX_TOOL_CALLS;
-  let reply = await client.complete({ system, messages, tools: TOOLS });
+  let reply = await client.complete({ system, messages, tools: MODEL_TOOL_SPECS });
 
   // Tool loop. Bounded, because a model that keeps asking for inventory is a
   // model spending the tenant's money in a circle.
@@ -137,7 +144,7 @@ export async function runTurn(
       messages.push({ role: 'user', content: JSON.stringify(result) });
       if (toolsUsed.length >= budget) break;
     }
-    reply = await client.complete({ system, messages, tools: TOOLS });
+    reply = await client.complete({ system, messages, tools: MODEL_TOOL_SPECS });
   }
 
   const ctx = { allowedStockNumbers: input.allowedStockNumbers, isServerTemplate: false };
