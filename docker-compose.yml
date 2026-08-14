@@ -7,7 +7,11 @@ services:
       POSTGRES_PASSWORD: dealpilot
       POSTGRES_DB: dealpilot
     ports:
-      - "5434:5432"  # host 5434: 5432/5433 are occupied by other local projects
+      # Host port is overridable because it has now collided twice: 5432/5433
+      # were taken when this was written, and 5434 was taken by another local
+      # project on 2026-08-14. Default unchanged — set DEALPILOT_DB_PORT only
+      # when the default is busy, and point tests at it with DB_ADMIN_URL.
+      - "${DEALPILOT_DB_PORT:-5434}:5432"
     volumes:
       - dealpilot-pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +26,7 @@ services:
     image: redis:7-alpine
     container_name: dealpilot-redis
     ports:
-      - "6381:6379"  # host 6381: 6379/6380 are taken by other local projects
+      - "${DEALPILOT_REDIS_PORT:-6381}:6379"  # 6379/6380 are taken by other local projects
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]

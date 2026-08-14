@@ -11,18 +11,22 @@
     "dev": "pnpm build && node dist/index.js"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "3.1092.0",
+    "@dealpilot/ai": "workspace:*",
+    "@dealpilot/contracts": "workspace:*",
+    "@dealpilot/core": "workspace:*",
     "@dealpilot/db": "workspace:*",
     "@dealpilot/schemas": "workspace:*",
     "@fastify/cors": "^11.0.0",
+    "@socket.io/redis-adapter": "8.3.0",
     "better-auth": "^1.3.0",
     "fastify": "^5.0.0",
-    "zod": "catalog:",
-    "@aws-sdk/client-sesv2": "3.1092.0",
-    "@dealpilot/core": "workspace:*",
-    "@dealpilot/contracts": "workspace:*",
-    "@dealpilot/ai": "workspace:*"
+    "ioredis": "5.11.1",
+    "socket.io": "4.8.3",
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "socket.io-client": "4.8.3",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyError, type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import { createPool } from '@dealpilot/db';
+import { NO_EMITTER, type Emitter } from '@dealpilot/contracts';
 import { createAuth, type Auth } from './auth.js';
 import { loadEnv, type Env } from './env.js';
 import { AppError, envelope } from './errors.js';
@@ -86,6 +87,12 @@ export interface AppDeps {
   mailer?: Mailer;
   /** Injectable so tests exercise uploads without touching the real disk. */
   storage?: StorageDriver;
+  /**
+   * Where realtime events go. Absent by default and silent when absent: the
+   * API is a working API with no websocket attached, and a write must never
+   * depend on a message bus being up.
+   */
+  emitter?: Emitter;
 }
 
 export async function buildApp(
@@ -258,7 +265,7 @@ export async function buildApp(
   registerF13Routes(app, pool, storage);
   registerF14Routes(app, pool, storage);
   registerF15Routes(app, pool);
-  registerF21Routes(app, pool);
+  registerF21Routes(app, pool, deps.emitter ?? NO_EMITTER);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);

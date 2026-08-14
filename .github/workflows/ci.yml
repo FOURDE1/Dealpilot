@@ -43,6 +43,21 @@ jobs:
           --health-timeout 3s
           --health-retries 10
 
+      # The Socket.IO adapter (ADR-004/012). Present so the cross-instance
+      # fan-out test actually runs: production has two API tasks behind the
+      # ALB, so a message emitted by task A must reach a browser connected to
+      # task B, and that claim is worth nothing untested. Port 6381 matches
+      # docker-compose — one URL everywhere.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6381:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

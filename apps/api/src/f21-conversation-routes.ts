@@ -7,6 +7,7 @@ import {
   SendAgentMessageInput,
   TakeoverInput,
 } from '@dealpilot/schemas';
+import type { Emitter } from '@dealpilot/contracts';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { callerOrgIds, idParam, keysetPage, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
@@ -54,7 +55,13 @@ async function loadConversation(c: PoolClient, id: string): Promise<Record<strin
   return r.rows[0]!;
 }
 
-export function registerF21Routes(app: FastifyInstance, pool: Pool): void {
+/**
+ * Every emit in this file happens AFTER `withTenant` returns — that is, after
+ * the transaction has committed. Emitting inside it would broadcast a message
+ * that a later statement could still roll back, and a browser cannot un-see a
+ * conversation it was told about.
+ */
+export function registerF21Routes(app: FastifyInstance, pool: Pool, emitter: Emitter): void {
   app.get('/api/v1/conversations', async (request, reply) => {
     const query = parseOrThrow(ConversationListQuery, request.query);
     const user = sessionUser(request);
@@ -208,6 +215,24 @@ export function registerF21Routes(app: FastifyInstance, pool: Pool): void {
         violations: outcome.violations.map((v) => ({ kind: v.kind, matched: v.matched, reason: v.reason })),
       };
     });
+
+    // Committed. Only now is there anything true to announce.
+    if (result.kind === 'sent') {
+      const m = result.message as Record<string, unknown>;
+      emitter.emit(
+        { kind: 'conversation', organizationId: orgId, conversationId: id },
+        {
+          type: 'message.created',
+          organization_id: orgId,
+          conversation_id: id,
+          message_id: String(m['id']),
+          direction: 'outbound',
+          sender_type: 'agent',
+          body: String(m['body']),
+          created_at: new Date(String(m['created_at'])).toISOString(),
+        },
+      );
+    }
     return reply.send(result);
   });
 
@@ -258,6 +283,16 @@ export function registerF21Routes(app: FastifyInstance, pool: Pool): void {
       });
       return r.rows[0]!;
     });
+    emitter.emit(
+      { kind: 'conversation', organizationId: orgId, conversationId: id },
+      {
+        type: 'conversation.changed',
+        organization_id: orgId,
+        conversation_id: id,
+        status: 'agent_active',
+        assigned_agent_id: (row['assigned_agent_id'] as string | null) ?? null,
+      },
+    );
     return reply.send(row);
   });
 
@@ -299,6 +334,16 @@ export function registerF21Routes(app: FastifyInstance, pool: Pool): void {
       });
       return r.rows[0]!;
     });
+    emitter.emit(
+      { kind: 'conversation', organizationId: orgId, conversationId: id },
+      {
+        type: 'conversation.changed',
+        organization_id: orgId,
+        conversation_id: id,
+        status: 'closed',
+        assigned_agent_id: (row['assigned_agent_id'] as string | null) ?? null,
+      },
+    );
     return reply.send(row);
   });
 }

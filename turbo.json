@@ -1,5 +1,12 @@
 {
   "$schema": "https://turborepo.com/schema.json",
+  "globalPassThroughEnv": [
+    "DB_ADMIN_URL",
+    "DATABASE_URL",
+    "RLS_REQUIRED",
+    "REDIS_URL",
+    "CI"
+  ],
   "tasks": {
     "build": {
       "dependsOn": [

@@ -44,6 +44,17 @@ const EnvSchema = z.object({
   DOCUMENT_STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   DOCUMENT_STORAGE_DIR: z.string().default('.storage/documents'),
 
+  /**
+   * Valkey/Redis, for the Socket.IO adapter (ADR-004).
+   *
+   * Optional, and optional is the point: one API task fans out perfectly well
+   * in-process, and an API that refuses to boot without a message bus is an API
+   * that stops taking orders when the message bus is down. Production sets it —
+   * with two or more tasks behind the ALB, a message sent by task A must reach a
+   * browser connected to task B.
+   */
+  REDIS_URL: z.string().optional(),
+
   REQUIRE_EMAIL_VERIFICATION: z
     .enum(['true', 'false'])
     .default('false')
