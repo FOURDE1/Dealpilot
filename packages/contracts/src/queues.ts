@@ -21,6 +21,29 @@ import { z } from 'zod';
  */
 
 export const QUEUE_DEFERRED_SEND = 'dealpilot:deferred-send';
+export const QUEUE_ASSISTANT_TURN = 'dealpilot:assistant-turn';
+
+/**
+ * A customer texted and the router said the assistant should answer.
+ *
+ * On the queue rather than inline in the webhook, for a reason with a number
+ * attached: NFR-PERF puts intake ACK at p99 < 1s, and a model call with a tool
+ * loop is seconds. A webhook that waited would have the carrier time out and
+ * retry, which — before the idempotency index — would have produced a second
+ * copy of the customer's message and a second reply.
+ *
+ * Carries the message ID, not the text. The worker re-reads the thread under a
+ * tenant context, so what the model sees is what the database holds rather than
+ * what a queue payload claimed it held.
+ */
+export const AssistantTurnJob = z.object({
+  organization_id: z.uuid(),
+  conversation_id: z.uuid(),
+  /** The inbound message that triggered this turn. */
+  message_id: z.uuid(),
+  attempt: z.number().int().min(0).max(3).default(0),
+});
+export type AssistantTurnJobT = z.infer<typeof AssistantTurnJob>;
 
 /**
  * A message the compliance gate deferred (usually quiet hours).

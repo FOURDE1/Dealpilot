@@ -55,6 +55,14 @@
     "./app": {
       "types": "./dist/app.d.ts",
       "default": "./dist/app.js"
+    },
+    "./tools": {
+      "types": "./dist/f33-tool-runner.d.ts",
+      "default": "./dist/f33-tool-runner.js"
+    },
+    "./assistant": {
+      "types": "./dist/assistant.d.ts",
+      "default": "./dist/assistant.js"
     }
   }
 }

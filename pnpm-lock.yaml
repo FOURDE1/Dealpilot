@@ -194,6 +194,9 @@ importers:
 
   apps/workers:
     dependencies:
+      '@dealpilot/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@dealpilot/api':
         specifier: workspace:*
         version: link:../api

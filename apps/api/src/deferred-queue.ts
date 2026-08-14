@@ -1,5 +1,8 @@
 import { Queue } from 'bullmq';
-import { QUEUE_DEFERRED_SEND, type DeferredSendJobT } from '@dealpilot/contracts';
+import {
+  QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND,
+  type AssistantTurnJobT, type DeferredSendJobT,
+} from '@dealpilot/contracts';
 import type { Env } from './env.js';
 
 /**
@@ -18,6 +21,14 @@ import type { Env } from './env.js';
 export interface DeferredSendQueue {
   /** Schedule a re-gated send. `runAt` is the gate's, not ours to adjust. */
   enqueue(job: DeferredSendJobT, runAt: Date): Promise<void>;
+  /**
+   * Ask the assistant to answer, now-ish.
+   *
+   * Queued rather than run inline because NFR-PERF puts the intake ACK at
+   * p99 < 1s and a model call with a tool loop is seconds. A webhook that
+   * waited would have the carrier time out and retry.
+   */
+  enqueueAssistantTurn(job: AssistantTurnJobT): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -44,6 +55,12 @@ export function noDeferredSendQueue(
         'a message was deferred and there is no queue to wake it — it will not be sent (set REDIS_URL)',
       );
     },
+    async enqueueAssistantTurn(job) {
+      warn(
+        { conversation_id: job.conversation_id },
+        'a customer message needs an answer and there is no queue to run the assistant — nobody will reply (set REDIS_URL)',
+      );
+    },
     async close() {},
   };
 }
@@ -52,14 +69,14 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
   if (!env.REDIS_URL) return noDeferredSendQueue(warn);
 
   const url = new URL(env.REDIS_URL);
-  const queue = new Queue<DeferredSendJobT>(QUEUE_DEFERRED_SEND, {
-    connection: {
-      host: url.hostname,
-      port: Number(url.port || 6379),
-      ...(url.password ? { password: url.password } : {}),
-      maxRetriesPerRequest: null,
-    },
-  });
+  const connection = {
+    host: url.hostname,
+    port: Number(url.port || 6379),
+    ...(url.password ? { password: url.password } : {}),
+    maxRetriesPerRequest: null,
+  };
+  const queue = new Queue<DeferredSendJobT>(QUEUE_DEFERRED_SEND, { connection });
+  const turns = new Queue<AssistantTurnJobT>(QUEUE_ASSISTANT_TURN, { connection });
 
   return {
     async enqueue(job, runAt) {
@@ -71,6 +88,20 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
         removeOnFail: 5000,
       });
     },
-    close: () => queue.close(),
+    async enqueueAssistantTurn(job) {
+      await turns.add(QUEUE_ASSISTANT_TURN, job, {
+        removeOnComplete: 1000,
+        removeOnFail: 5000,
+        // A model call can fail transiently. Three attempts with backoff, then
+        // it stops — a customer answered on the fourth retry twenty minutes
+        // later is worse than one answered by a person.
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+      });
+    },
+    close: async () => {
+      await queue.close();
+      await turns.close();
+    },
   };
 }

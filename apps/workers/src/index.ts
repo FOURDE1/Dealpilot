@@ -1,12 +1,19 @@
 import { Queue, Worker, type ConnectionOptions } from 'bullmq';
 import { createPool } from '@dealpilot/db';
-import { QUEUE_DEFERRED_SEND, type DeferredSendJobT } from '@dealpilot/contracts';
+import {
+  QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND,
+  type AssistantTurnJobT, type DeferredSendJobT,
+} from '@dealpilot/contracts';
 import { createCarrier } from '@dealpilot/api/carrier';
+import { createAssistant } from '@dealpilot/api/assistant';
 import { loadEnv } from '@dealpilot/api/env';
 import { runDeferredSend } from './deferred-send.js';
+import { runAssistantTurn } from './assistant-turn.js';
 
 export { runDeferredSend } from './deferred-send.js';
 export type { DeferredSendDeps, DeferredSendResult } from './deferred-send.js';
+export { runAssistantTurn } from './assistant-turn.js';
+export type { AssistantTurnDeps, AssistantTurnResult } from './assistant-turn.js';
 
 /**
  * @dealpilot/workers — the job runner (ADR-012).
@@ -68,9 +75,23 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
     { connection: connection(env.REDIS_URL), concurrency: 4 },
   );
 
+  // The assistant only consumes when it is switched on. A worker draining the
+  // queue with no model would mark every customer's message handled and answer
+  // none of them, which is worse than the jobs piling up visibly.
+  const assistant = createAssistant(env);
+  const turnWorker = assistant.enabled
+    ? new Worker<AssistantTurnJobT>(
+        QUEUE_ASSISTANT_TURN,
+        async (job) =>
+          runAssistantTurn({ pool, model: assistant.client, carrier, env }, job.data),
+        { connection: connection(env.REDIS_URL), concurrency: 2 },
+      )
+    : null;
+
   return {
     close: async () => {
       await worker.close();
+      await turnWorker?.close();
       await queue.close();
       await pool.end();
     },

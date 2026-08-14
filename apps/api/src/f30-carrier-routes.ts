@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { withTenant, type Pool } from '@dealpilot/db';
 import { routeInbound } from './f23-inbound-router.js';
 import type { Carrier } from './carrier.js';
+import type { DeferredSendQueue } from './deferred-queue.js';
 import type { Env } from './env.js';
 
 /**
@@ -61,6 +62,7 @@ export function registerF30Routes(
   pool: Pool,
   carrier: Carrier,
   env: Env,
+  queue: DeferredSendQueue,
 ): void {
   /**
    * An inbound SMS.
@@ -108,7 +110,7 @@ export function registerF30Routes(
       return reply.status(403).send(envelopePublic('forbidden', 'Invalid signature'));
     }
 
-    await withTenant(pool, resolved.organization_id, async (c) => {
+    const answer = await withTenant(pool, resolved.organization_id, async (c) => {
       // Idempotency inside the transaction, so two concurrent retries cannot
       // both pass the check. The unique index on
       // (organization_id, provider_ref) from 0036 is the real guarantee; this
@@ -117,7 +119,7 @@ export function registerF30Routes(
         `SELECT 1 FROM messages WHERE organization_id = $1 AND provider_ref = $2`,
         [resolved.organization_id, messageSid],
       );
-      if (seen.rows.length > 0) return;
+      if (seen.rows.length > 0) return null;
 
       // ONE call. `routeInbound` is the spine (F-23): it matches keywords
       // first per §5, finds or creates the conversation, records the message —
@@ -125,14 +127,31 @@ export function registerF30Routes(
       // evidence it was withdrawn — and decides who handles it. Doing any of
       // that again here would be a second path through the same rules, and the
       // second one is always the one that drifts.
-      await routeInbound(c, {
+      const route = await routeInbound(c, {
         organizationId: resolved.organization_id,
         storeId: resolved.store_id,
         phoneE164: from,
         body: text,
         providerRef: messageSid,
       });
+      // The router decides WHO answers. `to_assistant` is the only branch that
+      // wants a model — a handed-off thread goes to a person, a suppressed
+      // number is filed and not answered, and an opt-out has already been
+      // applied above.
+      return route.kind === 'to_assistant'
+        ? { conversationId: route.conversationId, messageId: route.messageId }
+        : null;
     });
+
+    // Queued after the commit, so the assistant reads a thread that exists.
+    if (answer) {
+      await queue.enqueueAssistantTurn({
+        organization_id: resolved.organization_id,
+        conversation_id: answer.conversationId,
+        message_id: answer.messageId,
+        attempt: 0,
+      });
+    }
 
     // 204, and only after everything above committed. §5's "synchronously in
     // one transaction before the 200" is the requirement; answering earlier
