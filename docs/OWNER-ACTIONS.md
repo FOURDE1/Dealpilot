@@ -116,6 +116,53 @@ were being answered.
 
 ---
 
+### 4. Let the unattended loop run without stopping ⏳ 30 SECONDS
+
+You asked me to grant myself the Bash permissions so the build continues while
+you are away. **I cannot, and the refusal is the tool working correctly** — an
+agent that can widen its own permissions has none. It has to be you.
+
+Two things interrupt an unattended run, and neither is the allow list — you
+already allow `Bash(*)` globally in `~/.claude/settings.json`:
+
+1. `main-project/.claude/settings.json` has an `ask` list containing
+   `Bash(git push *)` and `Bash(rm *)`. `ask` beats `allow`, so every push stops.
+2. The session runs in **auto** permission mode, where a classifier judges each
+   action individually.
+
+**Quickest:** press `shift+tab` until the mode line reads `acceptEdits`.
+
+**Durable:** delete the `git push` and `rm` lines from the `ask` list above
+(keep `npm publish` — nothing in this build needs it), and put this in
+`Archive/.claude/settings.local.json`:
+
+```json
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(pnpm *)", "Bash(npx *)", "Bash(node *)", "Bash(git *)", "Bash(gh *)",
+      "Bash(docker *)", "Bash(psql *)", "Bash(python *)", "Bash(curl *)",
+      "Bash(ls *)", "Bash(cat *)", "Bash(grep *)", "Bash(rg *)", "Bash(find *)",
+      "Bash(mkdir *)", "Bash(cp *)", "Bash(mv *)", "Bash(sed *)", "Bash(jq *)",
+      "Bash(netstat *)", "Bash(taskkill *)", "Bash(cd *)", "Bash(sleep *)"
+    ],
+    "deny": ["Bash(*db:reset*)"]
+  }
+}
+```
+
+Two deliberate choices, since you are authorizing this without reading every
+line. I did **not** suggest `bypassPermissions`: it would also switch off the
+deny rules in your global settings that stop `rm -rf`, `git push --force`, and
+`git reset --hard`. And I added `Bash(*db:reset*)` to deny — that is the command
+that has wiped your seeded dev account four times, and it is the one thing I
+least want reachable with nobody watching.
+
+**Unblocks:** me finishing a phase without stopping mid-way for a prompt.
+
+---
+
 ## When you are ready to spend on infrastructure
 
 You told me not to create paid AWS resources, so none exist. Everything below is

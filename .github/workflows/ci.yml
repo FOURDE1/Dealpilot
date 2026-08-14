@@ -102,3 +102,131 @@ jobs:
 
       - name: i18n key parity (fr-CA reference — HO-03)
         run: pnpm --filter @dealpilot/i18n --fail-if-no-match run check:parity
+
+  e2e:
+    name: e2e (Playwright, real browser)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DO_NOT_TRACK: '1'
+    # A separate job from `checks`, deliberately. These 29 specs drive a real
+    # Chrome against a real API and a real database, so they fail for a
+    # different class of reason than a unit test does — and mixing the two
+    # verdicts into one job makes "CI is red" stop meaning anything specific.
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: dealpilot
+          POSTGRES_PASSWORD: dealpilot
+          POSTGRES_DB: dealpilot
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U dealpilot -d dealpilot"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6381:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm (version from package.json packageManager)
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9 (peeled commit)
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install (frozen lockfile; lifecycle scripts blocked by pnpm default)
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Google Chrome
+        # playwright.config.ts pins `channel: 'chrome'` so the owner's machine
+        # uses the Chrome already installed there instead of downloading a
+        # second browser. CI has no Chrome until we ask for one.
+        run: pnpm --filter @dealpilot/web exec playwright install --with-deps chrome
+
+      - name: Database from migration zero
+        env:
+          DB_RESET_CONFIRM: dealpilot
+        run: pnpm --filter @dealpilot/db --fail-if-no-match run db:reset
+
+      - name: Build
+        run: pnpm turbo run build
+
+      - name: Start the API, then run the suite
+        # One step on purpose. The API is a background process, and starting it
+        # in an earlier step means trusting that it outlives that step's shell —
+        # true today, invisible when it stops being true. Here its death is
+        # caught by the `kill -0` check with its log attached, instead of
+        # surfacing as 29 specs that cannot reach the server.
+        env:
+          DATABASE_URL: postgresql://dealpilot_app:dealpilot_app_dev@localhost:5434/dealpilot
+          DB_ADMIN_URL: postgresql://dealpilot:dealpilot@localhost:5434/dealpilot
+          REDIS_URL: redis://localhost:6381
+          BETTER_AUTH_URL: http://localhost:3001
+          # Matches what the suite is proven green against locally. Deviating
+          # here would test a configuration nobody has ever run.
+          NODE_ENV: development
+          PORT: '3001'
+        run: |
+          set -euo pipefail
+          # Ephemeral, single-run, single-container. Generated rather than
+          # written down so no string in this repo ever looks like a secret.
+          export BETTER_AUTH_SECRET="$(openssl rand -hex 32)"
+
+          pnpm --filter @dealpilot/api run dev > /tmp/api.log 2>&1 &
+          API_PID=$!
+
+          for _ in $(seq 1 90); do
+            if curl -fsS http://localhost:3001/api/v1/health > /dev/null 2>&1; then
+              echo "API healthy"
+              break
+            fi
+            if ! kill -0 "$API_PID" 2>/dev/null; then
+              echo "::error::API exited before becoming healthy"
+              cat /tmp/api.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          curl -fsS http://localhost:3001/api/v1/health > /dev/null || {
+            echo "::error::API never became healthy within 90s"
+            cat /tmp/api.log
+            exit 1
+          }
+
+          # Playwright's webServer block starts Vite, which proxies /api here.
+          pnpm --filter @dealpilot/web run test:e2e
+
+      - name: API log (on failure)
+        if: failure()
+        run: cat /tmp/api.log || true
+
+      - name: Playwright report (on failure)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 7
+          if-no-files-found: ignore

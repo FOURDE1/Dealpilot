@@ -21,6 +21,9 @@ export default defineConfig({
     command: 'pnpm dev',
     url: 'http://localhost:5173',
     reuseExistingServer: true,
-    timeout: 30_000,
+    // A ceiling, not a delay: locally Vite is up in about a second. On a cold CI
+    // runner the first start also pre-bundles the dependency graph, and 30s was
+    // close enough to that to turn a slow boot into a red build.
+    timeout: 120_000,
   },
 });

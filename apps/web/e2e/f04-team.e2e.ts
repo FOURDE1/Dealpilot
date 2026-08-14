@@ -28,6 +28,11 @@ test('full team journey: invite → accept → assign → revoke → reinstate',
   await page.getByLabel('Nom de la succursale').fill('Succursale F04');
   await page.getByLabel('Code').fill(`F04-${stamp % 10000}`);
   await page.getByRole('button', { name: 'Créer la succursale' }).click();
+  // Same race F-07 hit: `/leads/new` builds its branch list from a request that
+  // can be in flight while the store is still being written. Prove the store
+  // exists before navigating, or the selectOption below picks from an empty list
+  // on a loaded machine and passes on an idle one.
+  await expect(page.getByRole('link', { name: 'Succursale F04' })).toBeVisible();
 
   await page.goto('/leads/new');
   await page.getByLabel('Succursale').selectOption({ label: 'Succursale F04' });
@@ -121,6 +126,14 @@ test('full team journey: invite → accept → assign → revoke → reinstate',
   await page.getByLabel("Nom de l'organisation").fill(`Groupe F04B ${stamp}`);
   await page.getByLabel('Identifiant (slug)').fill(`groupe-f04b-${stamp}`);
   await page.getByRole('button', { name: "Créer l'organisation" }).click();
+  // Wait for the create to land before leaving. "Équipe" is a sidebar link
+  // present on every page, so Playwright has nothing to auto-wait on and clicks
+  // it instantly — unlike "Nouvelle succursale" above, which only exists on the
+  // org page and therefore waits by accident. Leaving early loses two ways: the
+  // scope selector needs a SECOND org to render at all, and the mutation's
+  // `navigate(..., { replace: true })` fires afterwards and drags the browser
+  // back off /team.
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]{36}$/);
   await page.getByRole('link', { name: 'Équipe' }).first().click();
   const orgScope = page.getByLabel('Organisation', { exact: true });
   await orgScope.selectOption({ label: `Groupe F04B ${stamp}` });

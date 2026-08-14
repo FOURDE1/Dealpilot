@@ -12,6 +12,12 @@ test('skip link, per-route titles, theme toggle, no reflow overflow', async ({ p
   await page.getByRole('button', { name: 'Créer le compte' }).click();
   await expect(page).toHaveURL('/');
 
+  // The URL changes the moment the router commits, which is BEFORE the shell
+  // has rendered. Tabbing into a half-built page moves focus to whatever
+  // happens to exist, so wait for the skip link itself to be there — the very
+  // thing the next line asserts is focused.
+  await expect(page.getByRole('link', { name: 'Aller au contenu' })).toBeAttached();
+
   // Skip link is the first Tab stop and moves focus into main.
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'Aller au contenu' })).toBeFocused();
@@ -39,10 +45,15 @@ test('skip link, per-route titles, theme toggle, no reflow overflow', async ({ p
 
 test('no horizontal page scroll at 360px on team and leads', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
-  await page.goto('/login');
-  await page.getByLabel('Courriel').fill(`a11y-${stamp}@1dealer.test`);
+  // Signs up its own account rather than logging into the one above. Sharing it
+  // made this test fail whenever the FIRST test failed, for reasons that had
+  // nothing to do with reflow — two reds for one bug, and the second one
+  // pointed at the wrong file.
+  await page.goto('/signup');
+  await page.getByLabel('Nom complet').fill('Patronne Mobile');
+  await page.getByLabel('Courriel').fill(`a11y-mobile-${stamp}@1dealer.test`);
   await page.getByLabel('Mot de passe').fill(password);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await page.getByRole('button', { name: 'Créer le compte' }).click();
   await expect(page).toHaveURL('/');
   for (const path of ['/leads', '/team', '/organizations', '/inventory']) {
     await page.goto(path);
