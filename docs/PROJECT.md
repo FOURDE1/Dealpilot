@@ -49,6 +49,23 @@ DB_ADMIN_URL=postgresql://dealpilot:dealpilot@localhost:5436/dealpilot pnpm test
 env vars Turborepo passes through (`turbo.json` `globalPassThroughEnv`); anything
 else is stripped before a task runs, which reads as a phantom failure.
 
+**The e2e SPA port is the same story, and it bites harder.** 5173 is Vite's
+default, so it is also every other Vite project's default on this desktop.
+Playwright's `reuseExistingServer` cannot tell our dev server from somebody
+else's and will silently adopt a foreign app — every spec then dies at
+`page.goto` with an HTTP error that names no cause. Override it, and override
+the API's CORS origin to match, or every request is rejected and a signup simply
+never leaves `/signup`:
+
+```
+DEALPILOT_WEB_PORT=5175 pnpm --filter @dealpilot/web test:e2e
+WEB_ORIGIN=http://localhost:5175   # on the API process, or CORS blocks everything
+```
+
+The e2e suite runs against the DEV database and never resets it, so rows
+accumulate across runs and the journeys get slower over time. If the 90s
+per-test ceiling starts being hit, check that before raising it.
+
 Integration suites target `dealpilot_test`, created on demand, so the dev
 database survives. Never point `db:reset` at `DATABASE_URL` — it resolves to the
 owner's dev database (it wiped the seeded account three times).

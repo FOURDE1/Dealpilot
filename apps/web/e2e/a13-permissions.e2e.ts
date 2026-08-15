@@ -66,6 +66,7 @@ test('full A-13 journey: matrix → guard → grant to role → deny to person',
   await expect(page.getByText('Le courriel n’est pas parti')).toBeVisible();
   const token = (await page.getByLabel('Lien d’invitation').inputValue()).split('/').pop() ?? '';
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await expect(page).toHaveURL(/\/login/);
   await page.goto(`/invitations/${token}`);
   await page.getByLabel('Nom complet').fill('Marc Acces');
   await page.getByLabel('Mot de passe').fill('MotDePasse!2026-marc13');
@@ -83,7 +84,10 @@ test('full A-13 journey: matrix → guard → grant to role → deny to person',
 
   // Owner denies Marc alone; the role keeps the right, Marc loses it.
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
-  await page.goto('/login');
+  // handleSignOut awaits signOut(), clears the query cache and THEN navigates
+  // here itself. Racing it with our own goto let the app's navigate land
+  // mid-fill and remount the form underneath the test.
+  await expect(page).toHaveURL(/\/login/);
   await page.getByLabel('Courriel').fill(`a13-${stamp}@1dealer.test`);
   await page.getByLabel('Mot de passe').fill(password);
   await page.getByRole('button', { name: 'Se connecter' }).click();
@@ -97,7 +101,10 @@ test('full A-13 journey: matrix → guard → grant to role → deny to person',
   await expect(page.getByText('Exception appliquée.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
-  await page.goto('/login');
+  // handleSignOut awaits signOut(), clears the query cache and THEN navigates
+  // here itself. Racing it with our own goto let the app's navigate land
+  // mid-fill and remount the form underneath the test.
+  await expect(page).toHaveURL(/\/login/);
   await page.getByLabel('Courriel').fill(`marc-a13-${stamp}@1dealer.test`);
   await page.getByLabel('Mot de passe').fill('MotDePasse!2026-marc13');
   await page.getByRole('button', { name: 'Se connecter' }).click();
@@ -109,7 +116,10 @@ test('full A-13 journey: matrix → guard → grant to role → deny to person',
 
   // The exception is VISIBLE in force, and clearing it restores the role's right.
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
-  await page.goto('/login');
+  // handleSignOut awaits signOut(), clears the query cache and THEN navigates
+  // here itself. Racing it with our own goto let the app's navigate land
+  // mid-fill and remount the form underneath the test.
+  await expect(page).toHaveURL(/\/login/);
   await page.getByLabel('Courriel').fill(`a13-${stamp}@1dealer.test`);
   await page.getByLabel('Mot de passe').fill(password);
   await page.getByRole('button', { name: 'Se connecter' }).click();
@@ -120,7 +130,10 @@ test('full A-13 journey: matrix → guard → grant to role → deny to person',
   await page.getByRole('button', { name: 'Effacer l’exception — Marc Acces' }).click();
   await expect(page.getByText('Exception effacée', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
-  await page.goto('/login');
+  // handleSignOut awaits signOut(), clears the query cache and THEN navigates
+  // here itself. Racing it with our own goto let the app's navigate land
+  // mid-fill and remount the form underneath the test.
+  await expect(page).toHaveURL(/\/login/);
   await page.getByLabel('Courriel').fill(`marc-a13-${stamp}@1dealer.test`);
   await page.getByLabel('Mot de passe').fill('MotDePasse!2026-marc13');
   await page.getByRole('button', { name: 'Se connecter' }).click();

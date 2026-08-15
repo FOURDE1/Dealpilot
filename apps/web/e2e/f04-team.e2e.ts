@@ -65,6 +65,7 @@ test('full team journey: invite → accept → assign → revoke → reinstate',
 
   // Marc accepts: prefilled locked email, new account, straight into the app.
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await expect(page).toHaveURL(/\/login/);
   await page.goto(`/invitations/${token}`);
   await expect(page.getByText(new RegExp(`Groupe F04 ${stamp}`))).toBeVisible();
   await expect(page.getByText(/Vendeur/).first()).toBeVisible();
@@ -76,7 +77,10 @@ test('full team journey: invite → accept → assign → revoke → reinstate',
 
   // Back as the owner: Marc is Active; assign him the lead.
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
-  await page.goto('/login');
+  // handleSignOut awaits signOut(), clears the query cache and THEN navigates
+  // here itself. Racing it with our own goto let the app's navigate land
+  // mid-fill and remount the form underneath the test.
+  await expect(page).toHaveURL(/\/login/);
   await page.getByLabel('Courriel').fill(`f04-${stamp}@1dealer.test`);
   await page.getByLabel('Mot de passe').fill(password);
   await page.getByRole('button', { name: 'Se connecter' }).click();
@@ -154,6 +158,7 @@ test('full team journey: invite → accept → assign → revoke → reinstate',
   const rejoinUrl = await page.getByLabel('Lien d’invitation').inputValue();
   const rejoinToken = rejoinUrl.split('/').pop() ?? '';
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
+  await expect(page).toHaveURL(/\/login/);
   await page.goto(`/invitations/${rejoinToken}`);
   await page.getByLabel('Nom complet').fill('Marc Vendeur');
   await page.getByLabel('Mot de passe').fill('MotDePasse!2026-marc');

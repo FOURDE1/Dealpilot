@@ -128,6 +128,13 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   // read off the deal row (monthly_payment_cents — a stored engine output).
   const paymentWith1k = await readMonthly(page);
   await page.getByRole('link', { name: /Modifier la transaction/ }).click();
+  // The armed button below is labelled from `existing.data.fi_price_cents`, so
+  // it reads the wrong amount — and never matches — until the deal query lands.
+  // Save is disabled while `isEdit && !prefilled`, which makes "Save is enabled"
+  // the form's own statement that it has finished loading the deal. Asserting
+  // that beats asserting a field value: it is the component's contract rather
+  // than a guess about which field hydrates first.
+  await expect(page.getByRole('button', { name: 'Enregistrer les modifications' })).toBeEnabled();
 
   // The FIRST product replaces the typed aggregate — one armed click, then it
   // goes through; the aggregate fields fold into a read-only maintained sum.
@@ -172,8 +179,16 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   // removed) is a bigger amount financed than the $1,000 aggregate, so the
   // STORED payment on the deal row must have risen — the save recomputed the
   // engine outputs, they did not drift behind the trigger's new sum.
-  const paymentWith3k = await readMonthly(page);
-  expect(paymentWith3k).toBeGreaterThan(paymentWith1k);
+  // Polled, not read once. `toHaveURL` above resolves the moment the router
+  // commits, which is before the lead page has refetched the recomputed deal —
+  // so a single read gets the PREVIOUS payment and compares it to itself. That
+  // passed on an idle laptop and failed in CI, where the refetch is slower than
+  // the assertion.
+  await expect
+    .poll(() => readMonthly(page), {
+      message: 'the stored monthly payment never rose after saving $3,000 of itemised F&I — either the save did not recompute the engine outputs (CR-13), or the page is still showing the pre-save quote',
+    })
+    .toBeGreaterThan(paymentWith1k);
 
   // The file followed the products: an agreement per product, named after it,
   // and the removed product's agreement is gone with it.
@@ -266,6 +281,11 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   await docs4.getByRole('button', { name: 'Fermer' }).click();
 
   await page.goto('/team/permissions');
+  // The exceptions list arrives after the page does, so the clear button does
+  // not exist yet — and its absence looks identical to "there is no exception",
+  // which is why this failed as a 90s wait rather than anything informative.
+  // a13-permissions already waits on this heading for the same screen.
+  await expect(page.getByText('Exceptions en vigueur')).toBeVisible();
   await page.getByRole('button', { name: 'Effacer l’exception — Patron Papier' }).click();
   await expect(page.getByText('Exception effacée', { exact: false })).toBeVisible();
   await page.goto('/leads');
@@ -275,10 +295,16 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   await docs5.getByRole('button', { name: 'Signé à la livraison — Contrat de vente' }).click();
   await expect(docs5.getByText(/Signé à la livraison : /)).toBeVisible();
   await docs5.getByRole('button', { name: 'Fermer' }).click();
+  // Wait for it to actually leave. This is the one place in this journey where
+  // a dialog opens immediately after another closes, so `getByRole('dialog')`
+  // below can still resolve to THIS one on its way out — and then reports the
+  // checkbox as "not found", which reads like the checklist is broken.
+  await expect(docs5).toBeHidden();
 
   // With the file prepared, the wet-ink tick goes through…
   await page.getByRole('button', { name: /Liste de livraison/ }).click();
   const checklist2 = page.getByRole('dialog');
+  await expect(checklist2.getByLabel('Dossier signé (original)')).toBeVisible();
   await checklist2.getByLabel('Dossier signé (original)').click();
   await expect(checklist2.getByLabel('Dossier signé (original)')).toBeChecked();
   await checklist2.getByRole('button', { name: 'Fermer' }).click();

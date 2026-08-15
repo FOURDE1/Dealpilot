@@ -44,7 +44,14 @@ test('full F-02 journey: lead create → list → status change', async ({ page 
   await expect(page.getByRole('heading', { name: 'Marie Tremblay' })).toBeVisible();
   await expect(page.getByLabel('Changer le statut')).toHaveValue('new');
   await page.getByLabel('Changer le statut').selectOption('contacted');
-  await expect(page.getByText('Modifications enregistrées.')).toBeVisible();
+  // This message is not transient — `feedback` stays 'saved' until the next
+  // action, and nothing clears it on a timer. So a miss means the PATCH had not
+  // come back yet, never that the confirmation flashed past. (The config's
+  // 15s expect timeout is what buys the round trip enough room.)
+  await expect(
+    page.getByText('Modifications enregistrées.'),
+    'the status change never confirmed — if an error is showing beside the selector, the PATCH failed rather than lagged',
+  ).toBeVisible();
 
   // List shows the lead with the new status.
   await page.getByRole('link', { name: 'Retour aux prospects' }).click();
