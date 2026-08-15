@@ -63,6 +63,10 @@
     "./assistant": {
       "types": "./dist/assistant.d.ts",
       "default": "./dist/assistant.js"
+    },
+    "./deferred-queue": {
+      "types": "./dist/deferred-queue.d.ts",
+      "default": "./dist/deferred-queue.js"
     }
   }
 }
