@@ -62,6 +62,11 @@ const BEHAVIOURALLY_COVERED = new Set([
   // A-13: cross-tenant case in apps/api/src/a13-rbac.test.ts
   // ("another organization cannot read or change this matrix").
   'role_permissions', 'user_permissions',
+  // F-36: cross-tenant case in apps/api/src/f36-deal-parties.test.ts
+  // ("another dealership can neither read nor add a party on our deal") —
+  // driven through the APP role under the rival's tenant context, because the
+  // admin pool owns the tables and would pass whatever the policies said.
+  'deal_parties',
   // F-13: cross-tenant case in apps/api/src/f13-documents.test.ts
   // ("another organization sees none of these documents").
   'deal_documents',

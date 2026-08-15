@@ -604,3 +604,56 @@ strand, because the queue has never successfully been created. F-32's
 deferred-send path is now reachable for the first time and still unproven
 end-to-end; the first real exercise of it is owed a test.
 **Decided by:** Claude (implementation), 2026-08-15
+
+## D-045: a contact merge does not move the audit trail (2026-08-15)
+
+**Status:** accepted (implementation decision; deviates from FR-CON-003's wording)
+**Context:** FR-CON-003 specifies that merging two customer records "moves
+deals/leads/activity" to the survivor. Deals and leads move. Activity does not,
+and cannot: `dealpilot_app` holds INSERT and SELECT on `activity_events` and no
+UPDATE grant, so `UPDATE activity_events SET entity_id = ...` fails outright.
+**Why the grant is right and the requirement bends:** merge is a permission
+several roles hold. If it could re-point `entity_id`, anybody able to merge
+customers could silently re-attribute past events to a different person — which
+is the exact capability an audit trail exists to deny. A log that the
+application can rewrite is not a log.
+**Options:** (a) grant UPDATE on activity_events so the merge can re-point rows.
+(b) leave the history attached to the record it happened to, and record where
+that record went. (c) copy the events onto the survivor, leaving both.
+**Decision:** (b). Migration 0042 adds `contacts.merged_into_contact_id`, set in
+the same statement that soft-deletes the loser — a CHECK refuses a forwarding
+address on a live record, so the two facts cannot be written apart. The
+survivor's timeline reads its own events plus those of anything merged into it.
+Rejected (a) because it trades an audit guarantee for a convenience, and (c)
+because duplicated events double-count in any timeline that later follows the
+pointer as well.
+**Consequences:** identical on screen, opposite guarantee underneath — nothing
+is ever rewritten. The merge response reports `activity` as a COUNT of events
+that became reachable, not a number of rows changed; the field name is honest
+about this only in the schema comment, which is worth revisiting if the number
+ever appears in the UI. FR-CON-003's wording should be read as "the survivor can
+see the history", not "the rows move".
+**Decided by:** Claude (implementation), 2026-08-15
+
+## D-046: `GET/PATCH /contacts/:id` were dead from F-35 to F-36 (2026-08-15)
+
+**Status:** fixed in migration 0041 — recorded because the failure mode will recur
+**Context:** both routes resolve the contact's organisation under `withUser`,
+which sets `app.user_id` and deliberately not `app.org_id` (the point is to
+discover the org before trusting a caller-supplied one). `contacts_isolation`
+keys on `app.org_id`, so under withUser its USING clause evaluated
+`organization_id = NULL` — never true. No contact was visible to anybody, the
+lookup threw not-found, and both routes returned 404 to every caller including
+the record's owner, for every contact, always. `leads` and `deals` each carry a
+second SELECT policy for exactly this traversal; `contacts` was created without
+one.
+**Why nothing caught it:** the only F-35 cases touching those routes assert that
+a RIVAL receives 404. They passed for the wrong reason — the rival got 404
+because nobody can read a contact by id, which is what the owner got too.
+**The generalisable rule:** a test that asserts something is FORBIDDEN cannot
+distinguish "correctly denied" from "broken for everyone". Every negative
+authorization case needs the positive case beside it, in the same suite, or it
+is measuring nothing. This is the same shape as the rival-list assertion that
+was changed from `toHaveLength(0)` to absence-of-a-known-row earlier in the
+build.
+**Decided by:** Claude (implementation), 2026-08-15

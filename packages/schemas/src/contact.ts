@@ -118,3 +118,34 @@ export const DuplicateMatch = z.object({
 
 export type ContactT = z.infer<typeof Contact>;
 export type DuplicateMatchT = z.infer<typeof DuplicateMatch>;
+
+/**
+ * Folding a duplicate into the record that survives (FR-CON-003).
+ *
+ * Two ids and nothing else. There is deliberately no "which fields to keep"
+ * option: a field-by-field merge screen is where somebody picks the wrong
+ * email under time pressure, and the loser is soft-deleted rather than removed
+ * precisely so that a mistake stays inspectable. The keeper is the record that
+ * continues; the merged record's history moves to it.
+ */
+export const MergeContactsInput = z.object({
+  keep_id: Uuid,
+  merge_id: Uuid,
+}).strict();
+
+/** What the merge actually moved — reported so the caller can show it. */
+export const MergeContactsResult = z.object({
+  keep_id: Uuid,
+  merged_id: Uuid,
+  moved: z.object({
+    deals: z.number().int().min(0),
+    parties: z.number().int().min(0),
+    leads: z.number().int().min(0),
+    activity: z.number().int().min(0),
+  }),
+  /** The OLDER of the two, because that is when the relationship began. */
+  customer_since: z.string().nullable(),
+});
+
+export type MergeContactsInputT = z.infer<typeof MergeContactsInput>;
+export type MergeContactsResultT = z.infer<typeof MergeContactsResult>;

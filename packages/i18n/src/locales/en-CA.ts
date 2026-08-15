@@ -538,6 +538,7 @@ export const enCA = {
     action_roles_changed: 'Roles changed',
     action_revoked: 'Access revoked',
     action_reinstated: 'Access reinstated',
+    action_merged: 'Records merged',
   },
   invitations: {
     title: 'Invitation',

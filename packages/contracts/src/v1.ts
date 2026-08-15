@@ -42,6 +42,8 @@ import {
   ContactListQuery,
   CreateContactInput,
   DuplicateMatch,
+  MergeContactsInput,
+  MergeContactsResult,
   UpdateContactInput,
   CloseConversationInput,
   Conversation,
@@ -701,6 +703,20 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: UpdateContactInput,
       responses: { 200: Contact, ...errorResponses },
+    },
+    /**
+     * Fold a duplicate into the record that survives (FR-CON-003).
+     *
+     * A POST on a static path rather than a PATCH on `/:id`, because this is not
+     * an edit to one record: two of them go in, one comes out, and the other
+     * stops existing. The response reports what moved so the caller can say so
+     * rather than claiming a merge happened and hoping.
+     */
+    merge: {
+      method: 'POST',
+      path: '/api/v1/contacts/merge',
+      body: MergeContactsInput,
+      responses: { 200: MergeContactsResult, ...errorResponses },
     },
   }),
   /**

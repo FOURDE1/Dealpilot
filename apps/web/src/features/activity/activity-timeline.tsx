@@ -23,6 +23,7 @@ const ACTION_KEYS = {
   roles_changed: 'action_roles_changed',
   revoked: 'action_revoked',
   reinstated: 'action_reinstated',
+  merged: 'action_merged',
 } as const satisfies Record<ActivityActionT, string>;
 
 /** Dealer-facing names for the most common wire fields; raw name otherwise. */

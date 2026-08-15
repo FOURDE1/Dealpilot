@@ -14,6 +14,7 @@ import { checklistReadiness, DELIVERY_STAGES, ensureDealItems } from './checklis
 import { diff, recordEvent } from './activity.js';
 import { generateDocuments } from './f13-document-routes.js';
 import { computeOutputs, INPUT_COLUMNS, OUTPUT_COLUMNS } from './deal-outputs.js';
+import { linkPrimaryBuyer } from './f36-deal-parties.js';
 
 /** From Signed onward a deal has committed paperwork (documents.md §3). */
 const SIGNED_ONWARD = new Set<string>([
@@ -129,6 +130,21 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
            VALUES (${cols.map((_, i) => `$${i + 1}`).join(', ')}) RETURNING *`,
           values,
         );
+        // F-36 / FR-CON-005: the deal gets a person. In the SAME transaction,
+        // because a deal that exists with no buyer is a contract with nobody on
+        // it, and a customer record created for a deal that then failed to
+        // insert is a stranger in the customer master.
+        const buyerId = await linkPrimaryBuyer(c, {
+          organizationId: input.organization_id,
+          storeId: input.store_id,
+          dealId: String(r.rows[0]!['id']),
+          leadId: input.lead_id ?? null,
+          contactId: input.contact_id ?? null,
+        });
+        // The trigger wrote deals.contact_id after the INSERT ... RETURNING
+        // above had already produced its row, so the in-memory copy is stale.
+        if (buyerId) r.rows[0]!['contact_id'] = buyerId;
+
         // F-08: take the checklist snapshot NOW, in the same transaction that
         // creates the deal. This is the moment store policy applies to it; a
         // template edited next week must not change what this deal owes.

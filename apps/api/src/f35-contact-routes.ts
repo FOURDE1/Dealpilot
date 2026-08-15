@@ -1,6 +1,9 @@
 import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
-import { ContactListQuery, CreateContactInput, UpdateContactInput } from '@dealpilot/schemas';
+import {
+  ContactListQuery, CreateContactInput, MergeContactsInput, UpdateContactInput,
+} from '@dealpilot/schemas';
+import { mergeContacts } from './f36-deal-parties.js';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { callerOrgIds, idParam, keysetPage, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
@@ -157,6 +160,53 @@ export function registerF35Routes(app: FastifyInstance, pool: Pool): void {
       return keysetPage(c, sql, params, query);
     });
     return reply.send(page);
+  });
+
+  /**
+   * Fold a duplicate into the survivor (FR-CON-003).
+   *
+   * Registered before `/:id` reads for clarity only — Fastify matches the
+   * static segment first regardless.
+   *
+   * `lead:delete` rather than `lead:update`, because this is not an edit. One
+   * of these two customer records stops existing, its deals move, and there is
+   * no unmerge. The permission should be the one an owner grants deliberately.
+   */
+  app.post('/api/v1/contacts/merge', async (request, reply) => {
+    const input = parseOrThrow(MergeContactsInput, request.body);
+    const user = sessionUser(request);
+    // Both must be reachable by this caller BEFORE anything moves; deriving the
+    // org from the keeper alone would let a caller name somebody else's record
+    // as the loser and have its deals walk into their tenant.
+    const keepOrg = await contactOrg(pool, user.id, input.keep_id);
+    const mergeOrg = await contactOrg(pool, user.id, input.merge_id);
+    if (keepOrg !== mergeOrg) {
+      throw new AppError(
+        422, 'cross_org_merge',
+        'Those customers belong to different organisations.',
+        [{ path: 'merge_id', code: 'cross_org_merge', message: 'Customers can only be merged within one organisation' }],
+      );
+    }
+
+    const result = await withTenant(pool, keepOrg, async (c) => {
+      await requirePermission(c, user.id, 'lead:delete');
+      const merged = await mergeContacts(c, {
+        organizationId: keepOrg,
+        keepId: input.keep_id,
+        mergeId: input.merge_id,
+      });
+      await recordEvent(c, {
+        organizationId: keepOrg,
+        storeId: null,
+        actorUserId: user.id,
+        entityType: 'contact',
+        entityId: input.keep_id,
+        action: 'merged',
+        changes: { merged_id: { to: input.merge_id }, moved: { to: merged.moved } },
+      });
+      return merged;
+    });
+    return reply.send(result);
   });
 
   app.get('/api/v1/contacts/:id', async (request, reply) => {

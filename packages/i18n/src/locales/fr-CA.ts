@@ -538,6 +538,7 @@ export const frCA = {
     action_roles_changed: 'Rôles modifiés',
     action_revoked: 'Accès retiré',
     action_reinstated: 'Accès rétabli',
+    action_merged: 'Fiches fusionnées',
   },
   invitations: {
     title: 'Invitation',

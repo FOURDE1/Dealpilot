@@ -34,6 +34,7 @@ let storeId = '';
 let userId = '';
 let leadId = '';
 let vehicleId = '';
+let contactId = '';
 
 /** Fields whose stored form legitimately differs from what was sent. */
 const NOT_ECHOED: Record<string, readonly string[]> = {
@@ -88,6 +89,14 @@ beforeAll(async () => {
     },
   });
   vehicleId = (JSON.parse(vehicle.body) as { id: string }).id;
+  const contact = await app!.inject({
+    method: 'POST', url: '/api/v1/contacts', headers: { cookie },
+    payload: {
+      organization_id: orgId, store_id: storeId,
+      first_name: 'Persisted', last_name: 'Buyer', phone: '+15145550102',
+    },
+  });
+  contactId = (JSON.parse(contact.body) as { contact: { id: string } }).contact.id;
 });
 
 afterAll(async () => {
@@ -145,6 +154,9 @@ describe('what the API accepts, it stores', () => {
       term_months: 48, residual_percent: 55, tax_exempt: false,
       fi_reserve_cents: 50_000, sold_as_is: true,
       lead_id: leadId, vehicle_id: vehicleId, salesperson_id: userId,
+      // F-36: an explicit buyer. The deal echoes it because deals.contact_id is
+      // trigger-maintained from the deal_parties row this creates.
+      contact_id: contactId,
     });
   });
 

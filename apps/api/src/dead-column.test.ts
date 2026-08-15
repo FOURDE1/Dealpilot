@@ -101,10 +101,9 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // and an attempt would be an error, which is the point of generating it
   // rather than keeping a trigger in step with the row.
   'contacts.search_vector': 'generated column, maintained by Postgres',
-  // Set when a contact first does business here, which means the deal link —
-  // FR-CON-005's `deal_parties` and auto-link on deal creation. That slice
-  // also brings the merge (FR-CON-003), which keeps the OLDER date.
-  'contacts.customer_since': 'stamped by the deal link (FR-CON-005 slice)',
+  // `contacts.customer_since` lived here until F-36. Its exemption said the
+  // deal link would write it, the deal link now does (linkPrimaryBuyer), and
+  // this guard is what noticed the promise had been kept.
 
   'appointments.assigned_agent_id': 'written by the appointments screen (console slice)',
   'appointments.cancelled_at': 'written by the cancel route (console slice)',

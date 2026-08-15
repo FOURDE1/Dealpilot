@@ -20,6 +20,8 @@ export const ActivityAction = z.enum([
   'assigned', 'unassigned',
   'checklist_completed', 'checklist_uncompleted', 'checklist_waived', 'checklist_unwaived',
   'roles_changed', 'revoked', 'reinstated',
+  /** Two customer records folded into one (FR-CON-003). */
+  'merged',
 ]);
 
 export const ActivityEvent = z.object({

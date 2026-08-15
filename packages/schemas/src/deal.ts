@@ -66,6 +66,14 @@ export const Deal = DeskingInputs.extend({
   lead_id: Uuid.nullable(),
   vehicle_id: Uuid.nullable(),
   salesperson_id: Uuid.nullable(),
+  /**
+   * The primary buyer (FR-CON-005), denormalised from `deal_parties` so a deal
+   * list can render a customer name without a join. Nullable: a cash walk-in
+   * with no enquiry behind it has nothing to match on, and inventing a blank
+   * customer to fill the column would put a record representing nobody into the
+   * customer master.
+   */
+  contact_id: Uuid.nullable(),
   fi_reserve_cents: NonNegativeCents,
   /** Adds the as-is waiver to the document file (documents.md §3). */
   sold_as_is: z.boolean(),
@@ -92,6 +100,14 @@ export const CreateDealInput = DeskingInputs.extend({
   vehicle_id: Uuid.optional(),
   /** Who sold it (F-09) — drives the commission when the deal funds. */
   salesperson_id: Uuid.optional(),
+  /**
+   * The buyer (FR-CON-005). Optional because the usual path infers them from
+   * the lead's phone number; supply it explicitly for a walk-in cash deal with
+   * no enquiry behind it, or to attach a deal to a customer the salesperson has
+   * already found. When both are present this wins — an explicit choice beats a
+   * phone match.
+   */
+  contact_id: Uuid.optional(),
   /** F&I reserve counts toward commissionable gross (commissions §11). */
   fi_reserve_cents: NonNegativeCents.optional(),
   /** Adds the as-is waiver to the document file (documents.md §3). */
