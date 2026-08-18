@@ -92,6 +92,16 @@ export function LeadDetailPage() {
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="text-2xl font-semibold">{leadDisplayName(lead.data) ?? t('noName')}</h1>
         <span className="font-mono text-sm text-muted-foreground">{lead.data.phone}</span>
+        {lead.data.contact_id ? (
+          // The enquiry knows its person (F-36): one click from the lead to the
+          // customer's full record — their deals, their history, their consent.
+          <Link
+            to={`/contacts/${lead.data.contact_id}`}
+            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            {t('customerFile')}
+          </Link>
+        ) : null}
       </header>
 
       <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">

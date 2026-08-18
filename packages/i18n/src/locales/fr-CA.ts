@@ -217,6 +217,7 @@ export const frCA = {
     assignTitle: 'Assigner',
     changeStatus: 'Changer le statut',
     noName: '(sans nom)',
+    customerFile: 'Fiche client',
     status_new: 'Nouveau',
     status_chatbot_engaged: 'Robot conversationnel',
     status_assigned: 'Assigné',

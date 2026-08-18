@@ -65,6 +65,13 @@ export const Lead = z.object({
   organization_id: Uuid,
   store_id: Uuid,
   status: LeadStatus,
+  /**
+   * The person behind the enquiry (F-36, 0040). Set when a deal links a buyer;
+   * null for leads that never became deals. Was on the wire from day one
+   * (SELECT *) but absent from this schema — which meant no typed client could
+   * see it: dead vocabulary at the contract layer.
+   */
+  contact_id: Uuid.nullable(),
   first_name: nameField.nullable(),
   last_name: nameField.nullable(),
   email: Email.nullable(),

@@ -217,6 +217,7 @@ export const enCA = {
     assignTitle: 'Assign',
     changeStatus: 'Change status',
     noName: '(no name)',
+    customerFile: 'Customer file',
     status_new: 'New',
     status_chatbot_engaged: 'Chatbot engaged',
     status_assigned: 'Assigned',
