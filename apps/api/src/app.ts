@@ -21,6 +21,7 @@ import { registerF14Routes } from './f14-branding-routes.js';
 import { registerF15Routes } from './f15-compliance-routes.js';
 import { registerF21Routes } from './f21-conversation-routes.js';
 import { registerF35Routes } from './f35-contact-routes.js';
+import { registerF38Routes } from './f38-appointment-routes.js';
 import { registerF24Routes } from './f24-speed-routes.js';
 import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
 import { createCarrier, type Carrier } from './carrier.js';
@@ -308,6 +309,7 @@ export async function buildApp(
   registerF21Routes(app, pool, deps.emitter ?? NO_EMITTER, carrier, env, deferredQueue);
   registerF30Routes(app, pool, carrier, env, deferredQueue);
   registerF35Routes(app, pool);
+  registerF38Routes(app, pool);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);

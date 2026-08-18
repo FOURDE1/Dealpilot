@@ -25,3 +25,4 @@ export * from './invitation.js';
 export * from './checklist.js';
 export * from './conversation.js';
 export * from './contact.js';
+export * from './appointment.js';

@@ -44,6 +44,11 @@ import {
   DuplicateMatch,
   MergeContactsInput,
   MergeContactsResult,
+  Appointment,
+  AppointmentListQuery,
+  CancelAppointmentInput,
+  CreateAppointmentInput,
+  UpdateAppointmentInput,
   UpdateContactInput,
   CloseConversationInput,
   Conversation,
@@ -668,6 +673,45 @@ export const apiV1 = c.router({
    * from this contract — an API that accepted them would silently drop the most
    * sensitive thing a customer hands over.
    */
+  /**
+   * F-38 appointments — the console's side of what the assistant books.
+   *
+   * The list is bounded (200 + a truncated flag), not cursor-paginated: the
+   * upcoming window is the bound, and a board's whole point is being seen at
+   * once. Cancelling is its own endpoint so the reason the 0037 CHECK demands
+   * cannot be skipped by routing around it.
+   */
+  appointments: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/appointments',
+      query: AppointmentListQuery,
+      responses: {
+        200: z.object({ items: z.array(Appointment), truncated: z.boolean() }),
+        ...errorResponses,
+      },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/appointments',
+      body: CreateAppointmentInput,
+      responses: { 201: Appointment, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/appointments/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateAppointmentInput,
+      responses: { 200: Appointment, ...errorResponses },
+    },
+    cancel: {
+      method: 'POST',
+      path: '/api/v1/appointments/:id/cancel',
+      pathParams: z.object({ id: Uuid }),
+      body: CancelAppointmentInput,
+      responses: { 200: Appointment, ...errorResponses },
+    },
+  }),
   contacts: c.router({
     create: {
       method: 'POST',

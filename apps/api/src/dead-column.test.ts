@@ -105,9 +105,9 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // deal link would write it, the deal link now does (linkPrimaryBuyer), and
   // this guard is what noticed the promise had been kept.
 
-  'appointments.assigned_agent_id': 'written by the appointments screen (console slice)',
-  'appointments.cancelled_at': 'written by the cancel route (console slice)',
-  'appointments.cancelled_reason': 'written by the cancel route (console slice)',
+  // The three appointment columns lived here until F-38: the console slice
+  // their notes promised now exists (assign PATCH + cancel route), and this
+  // guard is what noticed the promises had been kept — same as customer_since.
 
   // F-19 created the conversation, which is what the send layer needed. The
   // handoff itself — a person taking a conversation, closing it, reading the
