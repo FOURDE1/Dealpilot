@@ -1,3 +1,51 @@
+## 2026-08-15 — F-36/F-37: the customer master is real, and the pipeline is green
+
+**The whole pipeline is green in CI for the first time** — `61082cd` passed
+both jobs, including the new e2e job driving real Chrome against a real API,
+worker boot/drain proof included. Getting there separated four failure classes
+that had been read as one: real races (fixed with waits on the right signal —
+the component's own contract, like "Save enabled = form hydrated"), assertion
+impatience (5s default vs real HTTP round trips → global 15s), worker
+over-subscription (8 workers on one single-process API → 4 locally; the tell is
+a DIFFERENT victim each run), and environment (port 5173 belongs to whichever
+Vite project got there first → `DEALPILOT_WEB_PORT` + `--strictPort` +
+IPv4 bind, and WEB_ORIGIN must move with it or CORS silently kills signup).
+
+**F-36 (`19753b0`): a deal finally has a person.** `deal_parties` authoritative
+(buyer/cosigner), `deals.contact_id` a trigger-maintained copy no caller can
+write; phone-only matching (narrow on purpose — one record for two people is a
+privacy incident with no unmerge); merge keeps the older `customer_since`,
+soft-deletes the loser, and does NOT rewrite the audit trail — the app role has
+no UPDATE on activity_events, which is correct, so lineage
+(`merged_into_contact_id`, 0042) records where the history lives (D-045).
+Uncovered: `GET/PATCH /contacts/:id` had 404'd for EVERYONE since F-35 (0041
+adds the missing member-read policy; D-046 records why the tests were green
+anyway — the only cases asserted a rival's 404, which cannot distinguish
+"denied" from "broken for everybody").
+
+**F-37 (`cf12cdd`): the customer master's screens.** List + weighted search +
+quick-create with duplicate REPORTING (never refusal); three-column detail
+(FR-CON-006) with the shared activity timeline and an associated-deals column
+that counts cosigned deals (contact_id filter through deal_parties; 0043 added
+the member-read policy BEFORE shipping — the D-046 class caught by reading the
+decision log); merge dialog with a fixed survivor direction. Its journey found
+two real pre-existing UI bugs on first runs: every DataTable keyed rows by
+array index (TanStack's default row.id — a reorder mid-click lands the click on
+a different record; fixed with getRowId), and inventory's Add button clickable
+before the stores query resolved (422 "fix invalid fields" with nothing wrong;
+now disabled until a store resolves).
+
+**Also this session:** BullMQ queue names carried a colon → API and workers
+crashed on boot wherever Redis existed (D-044; prefix + queueOpts + guard,
+mutation-tested); the workers app had NO entrypoint at all (main.ts + SIGTERM
+drain, proven in the CI log); first-ever API→Redis→worker round trip test.
+
+**State:** develop `cf12cdd`, local gate 999 tests/85 files, e2e 30/30 twice.
+CI verdict on `cf12cdd` pending at save time — check before building on it.
+**Owner:** OWNER-ACTIONS §4 (Bash permissions — the only unattended blocker),
+Twilio A2P (weeks of lead time), Anthropic key. Docker Desktop does not
+auto-start after a reboot; `docker compose up -d` brings the stack back.
+
 ## 2026-08-14 (later) — the e2e suite has never run in CI
 
 **Found while starting the e2e work, and it is worse than the gap it was
