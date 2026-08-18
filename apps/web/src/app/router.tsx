@@ -36,6 +36,12 @@ const LeadNewPage = lazy(() =>
 const LeadDetailPage = lazy(() =>
   import('../features/leads/lead-detail-page.js').then((m) => ({ default: m.LeadDetailPage })),
 );
+const ContactsPage = lazy(() =>
+  import('../features/contacts/contacts-page.js').then((m) => ({ default: m.ContactsPage })),
+);
+const ContactDetailPage = lazy(() =>
+  import('../features/contacts/contact-detail-page.js').then((m) => ({ default: m.ContactDetailPage })),
+);
 const TeamPage = lazy(() =>
   import('../features/team/team-page.js').then((m) => ({ default: m.TeamPage })),
 );
@@ -107,6 +113,8 @@ export const router = createBrowserRouter([
       { path: 'organizations/:orgId/stores/new', element: lazyPage(<StoreFormPage />) },
       { path: 'organizations/:orgId/stores/:storeId', element: lazyPage(<StoreFormPage />) },
       { path: 'organizations/:orgId/branding', element: lazyPage(<BrandingEditorPage />) },
+      { path: 'contacts', element: lazyPage(<ContactsPage />) },
+      { path: 'contacts/:contactId', element: lazyPage(<ContactDetailPage />) },
       { path: 'leads', element: lazyPage(<LeadsPage />) },
       { path: 'leads/new', element: lazyPage(<LeadNewPage />) },
       { path: 'leads/:leadId', element: lazyPage(<LeadDetailPage />) },

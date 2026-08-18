@@ -154,6 +154,13 @@ export const DealListQuery = CursorQuery.extend({
   organization_id: Uuid.optional(),
   store_id: Uuid.optional(),
   lead_id: Uuid.optional(),
+  /**
+   * Every deal this customer is a party to (FR-CON-006's associated-deals
+   * column). Matched through `deal_parties`, not `deals.contact_id`, so a deal
+   * they cosigned counts as theirs — the denormalised column only knows the
+   * primary buyer.
+   */
+  contact_id: Uuid.optional(),
   /** Kanban column, or the funding lane — the two tracks filter separately. */
   pipeline_stage: PipelineStage.optional(),
   funding_status: FundingStatus.optional(),

@@ -217,6 +217,42 @@ describe('a deal gets a person', () => {
   });
 });
 
+describe('the deals a customer is a party to (FR-CON-006)', () => {
+  it('lists their deals, cosigned ones included, and nobody else’s', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const bought = await makeDeal({ lead_id: await makeLead(nextPhone(), 'Fatima', 'Khalil') });
+    const buyerId = (JSON.parse(bought.body) as { contact_id: string }).contact_id;
+
+    // A second deal where Fatima only cosigns.
+    const other = await makeDeal({ lead_id: await makeLead(nextPhone(), 'Autre', 'Acheteur') });
+    const otherDealId = (JSON.parse(other.body) as { id: string }).id;
+    await admin.query(
+      `INSERT INTO deal_parties (organization_id, deal_id, contact_id, role)
+       VALUES ($1, $2, $3, 'cosigner')`,
+      [orgId, otherDealId, buyerId],
+    );
+    // And one she has nothing to do with.
+    const unrelated = await makeDeal({ lead_id: await makeLead(nextPhone(), 'Sans', 'Rapport') });
+
+    // Through the ROUTE — withUser + the 0043 member_read policy. Before that
+    // policy, this returned zero rows for everybody (D-046 class): the filter's
+    // EXISTS subquery ran under a GUC the policy did not key on.
+    const res = await app!.inject({
+      method: 'GET',
+      url: `/api/v1/deals?organization_id=${orgId}&contact_id=${buyerId}`,
+      headers: { cookie },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const ids = (JSON.parse(res.body) as { items: { id: string }[] }).items.map((d) => d.id);
+
+    expect(ids).toContain((JSON.parse(bought.body) as { id: string }).id);
+    // The cosigned deal is hers too — that is why the filter reads deal_parties
+    // and not the buyer-only denormalised column.
+    expect(ids).toContain(otherDealId);
+    expect(ids).not.toContain((JSON.parse(unrelated.body) as { id: string }).id);
+  });
+});
+
 describe('deal_parties is tenant-isolated', () => {
   it('another dealership can neither read nor add a party on our deal', async (ctx) => {
     if (!dbUp) return ctx.skip();

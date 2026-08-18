@@ -45,6 +45,20 @@ export function DataTable<T>({
     columns,
     state: { sorting },
     onSortingChange: setSorting,
+    /**
+     * Row identity from the ROW, not its position. TanStack's default row.id is
+     * the array index, so `key={row.id}` below was an index key wearing an id's
+     * clothes: on a refetch that reorders (every list here sorts newest-first),
+     * React reused each <tr> for a DIFFERENT record and swapped its contents in
+     * place. A click resolved on one customer landed on whoever now occupied
+     * that node — found by the F-37 merge journey clicking Chantal and opening
+     * Réjean. Every entity in this app has a uuid `id`; the index fallback
+     * keeps ad-hoc rows (previews, computed lines) working.
+     */
+    getRowId: (row, index) => {
+      const id = (row as { id?: unknown }).id;
+      return typeof id === 'string' ? id : String(index);
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });

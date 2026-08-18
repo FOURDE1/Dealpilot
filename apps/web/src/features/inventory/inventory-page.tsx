@@ -328,7 +328,18 @@ export function InventoryPage() {
         ) : null}
         <Button
           type="submit"
-          disabled={createVehicle.isPending || draft.stock_number.trim() === '' || draft.make.trim() === '' || draft.model.trim() === ''}
+          disabled={
+            createVehicle.isPending ||
+            draft.stock_number.trim() === '' ||
+            draft.make.trim() === '' ||
+            draft.model.trim() === '' ||
+            // No store resolved yet — either the stores query is still in
+            // flight or the org has no stores. Submitting would fail with
+            // "fix the invalid fields" when nothing the user typed is wrong;
+            // a button that cannot succeed must not be clickable. Found by
+            // f07 clicking faster than the stores request on a busy machine.
+            (draft.store_id === '' && stores.data?.items[0]?.id === undefined)
+          }
         >
           {createVehicle.isPending ? t('adding') : t('add')}
         </Button>

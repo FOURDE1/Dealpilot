@@ -117,6 +117,8 @@ export const DuplicateMatch = z.object({
 });
 
 export type ContactT = z.infer<typeof Contact>;
+export type CreateContactInputT = z.infer<typeof CreateContactInput>;
+export type UpdateContactInputT = z.infer<typeof UpdateContactInput>;
 export type DuplicateMatchT = z.infer<typeof DuplicateMatch>;
 
 /**

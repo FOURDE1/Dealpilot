@@ -219,6 +219,13 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
           sql += ` AND ${key} = $${params.length}`;
         }
       }
+      if (query.contact_id) {
+        // Through deal_parties, not deals.contact_id: a cosigned deal is this
+        // customer's deal too, and the denormalised column only knows the buyer.
+        params.push(query.contact_id);
+        sql += ` AND EXISTS (SELECT 1 FROM deal_parties p
+                  WHERE p.deal_id = deals.id AND p.contact_id = $${params.length})`;
+      }
       return keysetPage<Record<string, unknown> & { id: string }>(c, sql, params, query);
     });
     return reply.send({ ...page, items: page.items.map(withDerived) });
