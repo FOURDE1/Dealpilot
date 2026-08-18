@@ -5,6 +5,7 @@ import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requirePermission } from './permissions.js';
 import { diff, recordEvent } from './activity.js';
 import { inquiryConsentRows } from '@dealpilot/core';
+import { scoreOnCreate } from './f39-scoring-routes.js';
 import {
   callerOrgIds,
   conflictFrom,
@@ -151,9 +152,12 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
           entityType: 'lead',
           entityId: leadId,
           action: 'created',
-          changes: { source: input.source },
+          changes: { score: (await scoreOnCreate(c, input.organization_id, leadId)).score, source: input.source },
         });
-        return r.rows[0];
+        // Re-read: scoreOnCreate synced leads.score after the INSERT's
+        // RETURNING row was captured, so that copy is stale by one column.
+        const fresh = await c.query(`SELECT * FROM leads WHERE id = $1`, [leadId]);
+        return fresh.rows[0];
       });
       return await reply.status(201).send(lead);
     } catch (err) {

@@ -106,7 +106,10 @@ describe('F-02 leads', () => {
     expect(lead.status).toBe('new');
     expect(lead.phone).toBe('+15145550134');
     expect(lead.preferred_language).toBe('fr-CA');
-    expect(lead.score).toBeNull();
+    // Born SCORED, not null (F-39, §6.2: "lead create, all paths"). This org
+    // has no scoring rules, so the engine's honest answer is 0 — a number that
+    // says "evaluated, nothing matched", where null said "nobody ever looked".
+    expect(lead.score).toBe(0);
     leadId = lead.id;
   });
 

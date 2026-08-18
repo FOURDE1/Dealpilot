@@ -86,7 +86,11 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // would have claimed a check that was not happening. It is a real check now,
   // and the staleness test below will force this line out the day something
   // writes it.
-  'leads.score': 'rules-engine-owned (leads.md §6); the scoring engine is unbuilt',
+  //
+  // `leads.score` lived here from the day the guard existed — the oldest
+  // exemption in the file. F-39 built the engine its note promised
+  // (recalculateLeadScore syncs the column), and the staleness test forced
+  // this line out exactly as designed. Third time the mechanism has worked.
 
   // The compliance CHECK endpoint deliberately does not write a decision row:
   // asking whether a message COULD be sent is not sending one, and recording it

@@ -49,6 +49,11 @@ import {
   CancelAppointmentInput,
   CreateAppointmentInput,
   UpdateAppointmentInput,
+  CreateScoringRuleInput,
+  LeadScoreResult,
+  LeadScoringRule,
+  ScoringRuleListQuery,
+  UpdateScoringRuleInput,
   UpdateContactInput,
   CloseConversationInput,
   Conversation,
@@ -673,6 +678,49 @@ export const apiV1 = c.router({
    * from this contract — an API that accepted them would silently drop the most
    * sensitive thing a customer hands over.
    */
+  /**
+   * F-39 lead scoring (leads.md §6). Rule CRUD is an owner/GM power
+   * (organization:update — FR-AUTH-004's "manage automation rules");
+   * recalculation is lead work. DELETE is hard: a rule is config, not a
+   * record; the soft option is PATCH { is_active: false }.
+   */
+  scoringRules: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/scoring-rules',
+      query: ScoringRuleListQuery,
+      responses: {
+        200: z.object({ items: z.array(LeadScoringRule), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/scoring-rules',
+      body: CreateScoringRuleInput,
+      responses: { 201: LeadScoringRule, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/scoring-rules/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateScoringRuleInput,
+      responses: { 200: LeadScoringRule, ...errorResponses },
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/v1/scoring-rules/:id',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 204: c.noBody(), ...errorResponses },
+    },
+    scoreLead: {
+      method: 'POST',
+      path: '/api/v1/leads/:id/score',
+      pathParams: z.object({ id: Uuid }),
+      body: c.noBody(),
+      responses: { 200: LeadScoreResult, ...errorResponses },
+    },
+  }),
   /**
    * F-38 appointments — the console's side of what the assistant books.
    *

@@ -67,6 +67,10 @@ const BEHAVIOURALLY_COVERED = new Set([
   // driven through the APP role under the rival's tenant context, because the
   // admin pool owns the tables and would pass whatever the policies said.
   'deal_parties',
+  // F-39: cross-tenant cases in apps/api/src/f39-scoring.test.ts ("another
+  // dealership cannot read, edit, delete or even find our rules" / "cannot
+  // reach our lead scores through the recalc endpoint").
+  'lead_scoring_rules', 'lead_scores',
   // F-13: cross-tenant case in apps/api/src/f13-documents.test.ts
   // ("another organization sees none of these documents").
   'deal_documents',

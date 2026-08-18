@@ -6,6 +6,7 @@ import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
 import { findConnector, normalizeLead } from '@dealpilot/core';
+import { scoreOnCreate } from './f39-scoring-routes.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 
 /**
@@ -252,6 +253,11 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): vo
           action: 'created',
           changes: { source: resolved.default_source, via: 'intake' },
         });
+        // F-39: scored at birth, all create paths (§6.2) — the assistant reads
+        // the band before any human does, so a webhook lead must not wait for
+        // somebody to press a button. In-process pure math; the ACK budget is
+        // untouched.
+        await scoreOnCreate(c, resolved.organization_id, r.rows[0]!.id);
         // ADR-005: what this form's consent box granted is a fact about THAT
         // form, so it comes from the connector definition rather than from an
         // assumption here. Written in the same transaction as the lead — an
