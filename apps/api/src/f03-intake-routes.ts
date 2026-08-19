@@ -258,7 +258,7 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): vo
         // the band before any human does, so a webhook lead must not wait for
         // somebody to press a button. In-process pure math; the ACK budget is
         // untouched.
-        await scoreOnCreate(c, resolved.organization_id, r.rows[0]!.id);
+        await scoreOnCreate(c, resolved.organization_id, r.rows[0]!.id, (o, m) => request.log.warn(o, m));
         // F-40: routed at birth (§7.2). Actor NULL — a webhook assigned this,
         // not a person, and the history row names the rule that decided.
         await autoAssignLead(c, resolved.organization_id, r.rows[0]!.id, null);

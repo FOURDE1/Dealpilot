@@ -213,6 +213,22 @@ export async function buildApp(
   app.setErrorHandler((err: FastifyError, request, reply) => {
     const requestId = String(request.id);
     if (err instanceof AppError) {
+      // CLAUDE.md baseline: auth failures, authz denials and validation
+      // failures get logged — without them, an attacker sweeping ids across
+      // tenants (→404) or probing for privilege (→403) is invisible, because
+      // recordEvent only fires on SUCCESS. Found by the 2026-08-19 audit.
+      // Structured, no PII: the actor id, route and code — never the body.
+      if (err.statusCode === 401 || err.statusCode === 403) {
+        request.log.warn(
+          { code: err.apiCode, method: request.method, url: request.url, userId: request.session?.user.id ?? null },
+          'denied',
+        );
+      } else if (err.statusCode === 404 || err.statusCode === 422) {
+        request.log.info(
+          { code: err.apiCode, method: request.method, url: request.url, userId: request.session?.user.id ?? null },
+          'refused',
+        );
+      }
       return reply
         .status(err.statusCode)
         .send(envelope(err.apiCode, err.message, requestId, err.details));

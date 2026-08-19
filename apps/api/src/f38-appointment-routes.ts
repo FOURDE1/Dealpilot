@@ -182,10 +182,18 @@ export function registerF38Routes(app: FastifyInstance, pool: Pool): void {
         }
       }
 
+      // Belt-and-braces at the SINK (2026-08-19 audit): the keys are already
+      // bounded because the input passed a strictObject parse, but that
+      // invariant lives in a schema file far from this SQL. If the schema ever
+      // grows .passthrough(), this local list — not luck — is what keeps
+      // attacker keys out of identifier position. A mismatch is code drift,
+      // so it throws loudly instead of skipping silently.
+      const PATCHABLE = new Set(['assigned_agent_id', 'status', 'notes']);
       const sets: string[] = [];
       const params: unknown[] = [id];
       for (const [key, value] of Object.entries(input)) {
         if (value === undefined) continue;
+        if (!PATCHABLE.has(key)) throw new Error(`unpatchable column reached the SQL sink: ${key}`);
         params.push(value);
         sets.push(`${key} = $${params.length}`);
       }

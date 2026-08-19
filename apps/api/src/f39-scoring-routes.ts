@@ -97,11 +97,26 @@ export async function scoreOnCreate(
   c: PoolClient,
   organizationId: string,
   leadId: string,
+  warn: (obj: Record<string, unknown>, msg: string) => void = () => {},
 ): Promise<{ score: number }> {
+  // SAVEPOINT, because the catch below is worthless without it: a Postgres
+  // error mid-recalculate poisons the caller's open transaction (25P02), and
+  // every later statement — including the fallback writes — would ALSO throw,
+  // failing lead creation in exactly the scenario the fallback exists to
+  // survive. Found by the 2026-08-19 security audit, not by a test.
+  await c.query('SAVEPOINT score_on_create');
   try {
     const r = await recalculateLeadScore(c, organizationId, leadId);
+    await c.query('RELEASE SAVEPOINT score_on_create');
     return { score: r?.score ?? 0 };
-  } catch {
+  } catch (err) {
+    await c.query('ROLLBACK TO SAVEPOINT score_on_create');
+    // The degradation is spec'd (§6.2 fallback 10); the silence was not.
+    // A dealership whose every new lead reads 10 deserves a log line saying why.
+    warn(
+      { err: err instanceof Error ? err.message : String(err), leadId, organizationId },
+      'scoring failed at lead create — writing the fallback score',
+    );
     await c.query(
       `INSERT INTO lead_scores (lead_id, organization_id, score, breakdown)
        VALUES ($1, $2, 10, '[]')
@@ -196,10 +211,17 @@ export function registerF39Routes(app: FastifyInstance, pool: Pool): void {
     const orgId = await ruleOrg(pool, user.id, id);
     const rule = await withTenant(pool, orgId, async (c) => {
       await requirePermission(c, user.id, 'organization:update');
+      // Belt-and-braces at the SINK (2026-08-19 audit): keys are already
+      // bounded by the strictObject parse, but that invariant lives in a
+      // schema file far from this SQL. If the schema ever grows
+      // .passthrough(), this local list keeps attacker keys out of identifier
+      // position. A mismatch is code drift, so it throws loudly.
+      const PATCHABLE = new Set(['name', 'value', 'score', 'priority', 'is_active']);
       const sets: string[] = [];
       const params: unknown[] = [id];
       for (const [key, value] of Object.entries(input)) {
         if (value === undefined) continue;
+        if (!PATCHABLE.has(key)) throw new Error(`unpatchable column reached the SQL sink: ${key}`);
         params.push(value);
         sets.push(`${key} = $${params.length}`);
       }

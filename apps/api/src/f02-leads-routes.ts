@@ -153,7 +153,7 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
           entityType: 'lead',
           entityId: leadId,
           action: 'created',
-          changes: { score: (await scoreOnCreate(c, input.organization_id, leadId)).score, source: input.source },
+          changes: { score: (await scoreOnCreate(c, input.organization_id, leadId, (o, m) => request.log.warn(o, m))).score, source: input.source },
         });
         // F-40: routed at birth too (§7.2). Every refusal is a value — with no
         // rules configured this is a no-op and the lead stays unassigned,

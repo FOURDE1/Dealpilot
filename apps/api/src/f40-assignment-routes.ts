@@ -206,10 +206,17 @@ export function registerF40Routes(app: FastifyInstance, pool: Pool): void {
     const orgId = await ruleOrg(pool, user.id, id);
     const rule = await withTenant(pool, orgId, async (c) => {
       await requirePermission(c, user.id, 'organization:update');
+      // Belt-and-braces at the SINK (2026-08-19 audit): keys are already
+      // bounded by the strictObject parse, but that invariant lives in a
+      // schema file far from this SQL. If the schema ever grows
+      // .passthrough(), this local list keeps attacker keys out of identifier
+      // position. A mismatch is code drift, so it throws loudly.
+      const PATCHABLE = new Set(['name', 'strategy', 'is_active', 'priority', 'sources', 'included_users', 'excluded_users', 'source_mappings', 'max_leads_per_user']);
       const sets: string[] = [];
       const params: unknown[] = [id];
       for (const [key, value] of Object.entries(input)) {
         if (value === undefined) continue;
+        if (!PATCHABLE.has(key)) throw new Error(`unpatchable column reached the SQL sink: ${key}`);
         params.push(key === 'source_mappings' ? JSON.stringify(value) : value);
         sets.push(`${key} = $${params.length}`);
       }

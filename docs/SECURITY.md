@@ -87,12 +87,37 @@ Per-topic implementation reference: OWASP Cheat Sheet Series
 
 <!-- Entries begin below. -->
 
+### 2026-08-19 — F-38/F-39/F-40 surface (appointments, scoring, assignment)
+
+**Scope:** the three route files, both core engines, migrations 0044–0046, the
+three new web screens, plus their trust boundaries (permissions.ts, f01
+helpers, db wrappers, the app.ts error handler). Two independent passes — the
+author's and the security-auditor subagent's — reconciled; the subagent also
+listed eleven attempted-and-refuted attacks (cross-tenant IDOR via body ids,
+SET-key injection, jsonb/array injection, tenant-create bypass, privilege
+escalation to automation config, XSS in all three screens, double-cancel,
+cursor manipulation, score/priority abuse, wrong-org writes, list DoS).
+
+| Sev | Finding | Location | Status |
+| --- | ------- | -------- | ------ |
+| MED | `scoreOnCreate` fallback is illusory: a PG error poisons the shared txn (25P02), so the catch's own fallback writes ALSO throw and lead creation fails — the exact scenario the fallback targets. Also wrote no log. | f39-scoring-routes.ts | **fixed same day** (savepoint + warn log) |
+| MED | Authz denials, cross-tenant 404 probes and validation failures return to the client with no server-side log; recordEvent fires only on success. CLAUDE.md baseline requires logging them. | app.ts error handler | **fixed same day** (structured warn on 401/403, info on 422) |
+| LOW (latent) | Dynamic `SET ${key}` in the three PATCH routes is safe only because the Zod schemas are strictObject — the invariant lives three packages from the sink; one `.passthrough()` refactor away from identifier injection. | f38/f39/f40 PATCH | **fixed same day** (local column allowlist at each sink) |
+| LOW | `active_count` correlated subquery on the intake ACK path has no supporting index (no index on leads.assigned_to); O(members × leads) on a p99<1s budget. | f40 autoAssignLead | **fixed same day** (0047 partial index) |
+| LOW | F-40 rule writes accept member uuids (`included/excluded/source_mappings`) without membership validation — runtime-inert (engine intersects with the real roster) but a rule can silently reference nobody. | f40 create/update | open (hygiene; validate on write when the mappings editor lands) |
+| LOW | Appointment status transitions unconstrained: completed/no_show can be flipped back to booked (intra-tenant, lead:update-gated). | f38 PATCH | open (state machine with the workflow slice) |
+| INFO | Automation config (rules incl. exclusion lists, capacities) and the appointment board are readable by every active member — member_read by design; writes stay owner/GM. Role-scoped READ is inexpressible in the current permission catalogue. | 0044–0046 policies | accepted (below) |
+
+**Clean:** secrets sweep on all new files; `.env*`/`!.env.example` gitignore;
+parameterized values throughout; React escaping holds on all three screens.
+
 ## Accepted risks
 
 > Risks reviewed and consciously accepted by the user, with rationale and revisit date.
 
 | Date | Risk | Rationale | Revisit |
 | ---- | ---- | --------- | ------- |
+| 2026-08-19 | Any active member can READ automation config (scoring/assignment rules, exclusion lists, caps) and the whole appointment board | Matches the codebase's member_read convention; writes stay owner/GM (organization:update). The permission catalogue has no per-feature read grants, so role-scoped reads are currently inexpressible. | When the permission catalogue next grows (FR-AUTH-005 row-level visibility work) |
 | 2026-07-23 | Formal legal review (Law 25 / PIPEDA / CASL / Bill 96 counsel sign-off) deferred | Owner decision — prioritize the build; compliance engine is designed in from day one per the ADRs | **Mandatory before public AI launch** — the AI outbound engine does not go live without it |
 
 ---
