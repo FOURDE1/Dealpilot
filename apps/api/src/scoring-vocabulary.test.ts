@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { ASSIGNMENT_STRATEGIES, SCORING_FIELDS, SCORING_OPERATORS, ASSIGNMENT_METHODS, CASCADE_STRATEGY, CASCADE_REFUSALS } from '@dealpilot/core';
-import { AssignmentStrategy, ScoringRuleField, ScoringRuleOperator, AssignmentMethod, CascadeRefusal } from '@dealpilot/schemas';
+import { ASSIGNMENT_STRATEGIES, SCORING_FIELDS, SCORING_OPERATORS, ASSIGNMENT_METHODS, CASCADE_STRATEGY, CASCADE_REFUSALS, DISTRIBUTION_PLATFORMS } from '@dealpilot/core';
+import { AssignmentStrategy, ScoringRuleField, ScoringRuleOperator, AssignmentMethod, CascadeRefusal, DistributionPlatform } from '@dealpilot/schemas';
 
 /**
  * The scoring vocabulary lives in THREE places on purpose — the engine
@@ -54,6 +54,18 @@ describe('one vocabulary, three declarations', () => {
     const lists49 = listsIn(m49);
     expect(lists49.length).toBe(1);
     expect(lists49[0]).toEqual([...ASSIGNMENT_STRATEGIES, CASCADE_STRATEGY].sort());
+  });
+
+  it('distribution platforms agree across core, schemas and the 0050 CHECK (F-45)', () => {
+    expect([...DistributionPlatform.options].sort()).toEqual([...DISTRIBUTION_PLATFORMS].sort());
+    const m50 = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'packages', 'db', 'migrations', '20260819000050_lead-distribution.sql'),
+      'utf8',
+    );
+    const m = /CHECK \(platform IN \(([^)]+)\)/.exec(m50);
+    const list = [...(m?.[1] ?? '').matchAll(/'([^']+)'/g)].map((x) => x[1]!).sort();
+    expect(list.length).toBe(2); // vacuous-parse guard
+    expect(list).toEqual([...DISTRIBUTION_PLATFORMS].sort());
   });
 
   it('cascade refusals agree between core and schemas (F-42)', () => {

@@ -362,7 +362,8 @@ export function DeskingPage() {
   const lead = useLead(leadId);
   const vehicles = useVehicles(lead.data?.organization_id, {
     enabled: lead.isSuccess,
-    storeId: lead.data?.store_id,
+    // F-45: a queued lead has no store yet — show the org-wide list.
+    storeId: lead.data?.store_id ?? undefined,
     dealStatus: 'available',
   });
   const [vehicleId, setVehicleId] = useState('');
@@ -460,6 +461,13 @@ export function DeskingPage() {
   async function handleSave() {
     if (!inputs || !lead.data) return;
     setSaveError(null);
+    // F-45: a deal needs a store; a central-queue lead has none until the
+    // tally (or a person) deals it. Refuse with directions, not a 500.
+    const routedStore = lead.data?.store_id ?? null;
+    if (!isEdit && routedStore === null) {
+      setSaveError(t('leadUnrouted'));
+      return;
+    }
     try {
       const reserveCents = fiReserve.trim() === '' ? 0 : parseMoneyToCents(fiReserve);
       if (reserveCents === null) return; // invalid reserve must never save as $0
@@ -485,7 +493,7 @@ export function DeskingPage() {
         await createDeal.mutateAsync({
           ...inputs,
           organization_id: lead.data.organization_id,
-          store_id: lead.data.store_id,
+          store_id: routedStore!,
           lead_id: lead.data.id,
           ...(vehicleId === '' ? {} : { vehicle_id: vehicleId }),
           ...(soldBy === '' ? {} : { salesperson_id: soldBy }),

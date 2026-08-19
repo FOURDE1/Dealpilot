@@ -29,3 +29,4 @@ export * from './appointment.js';
 export * from './scoring.js';
 export * from './assignment.js';
 export * from './schedule.js';
+export * from './distribution.js';

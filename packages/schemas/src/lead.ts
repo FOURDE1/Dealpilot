@@ -63,7 +63,8 @@ export const TradeInStatus = z.enum(['none', 'has_trade', 'unknown']);
 export const Lead = z.object({
   id: Uuid,
   organization_id: Uuid,
-  store_id: Uuid,
+  /** NULL = the central queue (F-45): arrived on an org-level key, not yet dealt. */
+  store_id: Uuid.nullable(),
   status: LeadStatus,
   /**
    * The person behind the enquiry (F-36, 0040). Set when a deal links a buyer;

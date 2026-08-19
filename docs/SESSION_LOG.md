@@ -1,3 +1,18 @@
+## 2026-08-20 — F-45: the weighted queue deals at arrival
+
+FR-LEAD-007 shipped: 0050 (lead_distribution_config ledger; leads.store_id
+and intake_keys.store_id nullable — org-level keys ARE the central queue's
+front door; intake_resolve learns LEFT JOIN), running-tally engine in core
+(10 golden cases — including proof that the spec's worked example contradicts
+its own rule at the 7/5 step; the rule wins and converges on exactly 60/40,
+D-049 #2), distribution routes (read/config/history + deviation,
+organization:update both ways — money surface), and the intake webhook deals
+store-less ad-platform leads in the same transaction that creates them
+(FOR UPDATE serializes the tally). source_platform finally has a writer.
+Suite 6/6 (ten arrivals dealt exactly 6/4); policy-level RLS case; platform
+vocabulary lockstep. Deferred: FR-LEAD-008 dashboard UI (API ready);
+queued leads cannot open conversations yet (D-049 #5).
+
 ## 2026-08-19 (later still) — F-44: production rate limiting
 
 Token buckets per the baseline (D-048): Redis+Lua when configured — one

@@ -435,6 +435,7 @@ export const enCA = {
     role_bdc_agent: 'BDC agent',
   },
   deals: {
+    leadUnrouted: 'This lead is still in the central queue — route it to a store before creating a deal.',
     title: 'Desking worksheet',
     subtitle: 'Figures recalculate automatically as you type.',
     backToLead: 'Back to lead',

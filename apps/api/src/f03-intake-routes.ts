@@ -5,12 +5,13 @@ import { CreateIntakeKeyInput, Email, IntakeLeadPayload, StoreListQuery, Uuid } 
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
-import { AdfParseError, findConnector, normalizeLead, normalizePhone, parseAdf, type AdfLead } from '@dealpilot/core';
+import { AdfParseError, distributionPlatformOf, findConnector, normalizeLead, normalizePhone, parseAdf, type AdfLead } from '@dealpilot/core';
 import { scoreOnCreate } from './f39-scoring-routes.js';
 import { autoAssignLead } from './f40-assignment-routes.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import type { ReassignQueue } from './reassign-queue.js';
 import type { RateLimiter } from './rate-limit.js';
+import { distributeLead } from './f45-distribution-routes.js';
 
 /**
  * F-03 lead intake (leads.md §10). Two surfaces:
@@ -63,7 +64,7 @@ export function registerIntakeKeyRoutes(app: FastifyInstance, pool: Pool, apiBas
     const secret = newSecret();
     const key = await withTenant(pool, input.organization_id, async (c) => {
       await requirePermission(c, user.id, 'intake_key:manage');
-      await requireLiveStore(c, input.store_id);
+      if (input.store_id !== null) await requireLiveStore(c, input.store_id);
       const r = await c.query(
         `INSERT INTO intake_keys (organization_id, store_id, label, provider, default_source,
                                   connector_key, token, secret)
@@ -259,17 +260,27 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, rea
       // Generated app-side so the lead and its consent share one grant without
       // a second round trip inside the transaction.
       const grantId = randomUUID();
+      // F-45: which ad split this lead belongs to, from its SOURCE — written
+      // on every lead so the dashboard and the tally read the same fact.
+      const platform = distributionPlatformOf(resolved.default_source);
       const leadId = await withTenant(pool, resolved.organization_id, async (c) => {
         const r = await c.query<{ id: string }>(
-          `INSERT INTO leads (organization_id, store_id, phone, source, first_name, last_name, email,
-                              preferred_language, vehicle_interest)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+          `INSERT INTO leads (organization_id, store_id, phone, source, source_platform,
+                              first_name, last_name, email, preferred_language, vehicle_interest)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
           [
             resolved.organization_id, resolved.store_id, payload.phone, resolved.default_source,
-            payload.first_name ?? null, payload.last_name ?? null, payload.email ?? null,
+            platform, payload.first_name ?? null, payload.last_name ?? null, payload.email ?? null,
             payload.preferred_language ?? 'fr-CA', payload.vehicle_interest ?? null,
           ],
         );
+        // A store-less lead (org-level key) is dealt by the running tally
+        // BEFORE scoring and assignment, in the same transaction — the spec's
+        // central queue empties at arrival when the month has a config. A
+        // refusal is a value: the lead stays queued, visible, ownable.
+        if (resolved.store_id === null && platform !== null) {
+          await distributeLead(c, resolved.organization_id, r.rows[0]!.id, platform);
+        }
         // actor_user_id NULL: a provider's webhook did this, not a person. This
         // is the call site the nullable column exists for — pretending a job was
         // someone would be worse than admitting nobody was there.

@@ -54,6 +54,9 @@ const BEHAVIOURALLY_COVERED = new Set([
   // F-12: cross-tenant case in apps/api/src/f12-invitations.test.ts
   // ("another organization cannot see or revoke these invitations").
   'invitations',
+  // F-45: POLICY-level case in packages/db/src/rls.test.ts
+  // ("lead_distribution_config: tenant 2 sees nothing of tenant 1").
+  'lead_distribution_config',
   // F-42: POLICY-level case in packages/db/src/rls.test.ts ("staff_schedules:
   // tenant 2 sees nothing of tenant 1") — the route-level 404 in
   // f42-cascade.test.ts alone would not catch a dropped policy (2026-08-19

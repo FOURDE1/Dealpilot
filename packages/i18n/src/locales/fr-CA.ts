@@ -435,6 +435,7 @@ export const frCA = {
     role_bdc_agent: 'Agent BDC',
   },
   deals: {
+    leadUnrouted: 'Ce prospect est encore dans la file centrale — attribuez-lui une succursale avant de créer une transaction.',
     title: 'Feuille de calcul',
     subtitle: 'Les montants se recalculent automatiquement.',
     backToLead: 'Retour au prospect',

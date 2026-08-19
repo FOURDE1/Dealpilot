@@ -16,7 +16,7 @@ const label = z.string().trim().min(1).max(100);
 export const IntakeKey = z.object({
   id: Uuid,
   organization_id: Uuid,
-  store_id: Uuid,
+  store_id: Uuid.nullable(),
   label,
   provider: IntakeProvider,
   default_source: LeadSource,
@@ -37,7 +37,8 @@ export const IntakeKeyCreated = IntakeKey.extend({
 
 export const CreateIntakeKeyInput = z.strictObject({
   organization_id: Uuid,
-  store_id: Uuid,
+  /** NULL = an ORG-LEVEL key — the dealer group's ad-platform front door (F-45). */
+  store_id: Uuid.nullable().default(null),
   label,
   provider: IntakeProvider.default('generic_json'),
   default_source: LeadSource.default('website'),

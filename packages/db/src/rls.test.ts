@@ -145,6 +145,32 @@ describe('row-level security', () => {
     ).rejects.toThrow();
   });
 
+  it('lead_distribution_config: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await withTenant(app, org1, async (c) => {
+      const store = await c.query<{ id: string }>(`SELECT id FROM stores LIMIT 1`);
+      await c.query(
+        `INSERT INTO lead_distribution_config (organization_id, store_id, platform, month, contribution_amount_cents)
+         VALUES ($1, $2, 'google', date_trunc('month', now())::date, 100000)`,
+        [org1, store.rows[0]!.id],
+      );
+    });
+    const theirs = await withTenant(app, org2, async (c) =>
+      (await c.query(`SELECT * FROM lead_distribution_config`)).rows,
+    );
+    expect(theirs).toHaveLength(0);
+    await expect(
+      withTenant(app, org2, async (c) => {
+        const store = await withTenantStore(c);
+        await c.query(
+          `INSERT INTO lead_distribution_config (organization_id, store_id, platform, month, contribution_amount_cents)
+           VALUES ($1, $2, 'meta', date_trunc('month', now())::date, 1)`,
+          [org1, store],
+        );
+      }),
+    ).rejects.toThrow();
+  });
+
   it('reset refuses non-local database hosts', async () => {
     await expect(
       reset(admin, migrationsDir, 'postgresql://u:p@prod-rds.ca-central-1.example.com:5432/x'),

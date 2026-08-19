@@ -134,6 +134,9 @@ import {
   UpdateStaffScheduleInput,
   CascadeAssignResult,
   ScheduleTodayItem,
+  DistributionQuery,
+  DistributionRow,
+  PutDistributionConfigInput,
 } from '@dealpilot/schemas';
 const c = initContract();
 
@@ -777,6 +780,30 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: c.noBody(),
       responses: { 200: CascadeAssignResult, ...errorResponses },
+    },
+  }),
+  /**
+   * F-45 weighted store distribution (FR-LEAD-007, D-049). Owner/GM surface:
+   * ad spend per store is money data — organization:update both directions.
+   */
+  distribution: c.router({
+    read: {
+      method: 'GET',
+      path: '/api/v1/distribution',
+      query: DistributionQuery,
+      responses: { 200: z.object({ items: z.array(DistributionRow.extend({ deviation: z.string() })) }), ...errorResponses },
+    },
+    putConfig: {
+      method: 'PUT',
+      path: '/api/v1/distribution/config',
+      body: PutDistributionConfigInput,
+      responses: { 200: z.object({ items: z.array(DistributionRow) }), ...errorResponses },
+    },
+    history: {
+      method: 'GET',
+      path: '/api/v1/distribution/history',
+      query: DistributionQuery.omit({ month: true }),
+      responses: { 200: z.object({ items: z.array(DistributionRow.extend({ deviation: z.string() })) }), ...errorResponses },
     },
   }),
   /**

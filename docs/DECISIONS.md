@@ -11,6 +11,36 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-049 — F-45 distribution: the queue empties at arrival, and the rule beats the example (2026-08-19)
+
+**Context:** FR-LEAD-007's central queue + weighted store distribution
+(leads.md §3).
+
+1. **Org-level intake keys ARE the central queue's front door**:
+   intake_keys.store_id and leads.store_id both went nullable (0050). A lead
+   arriving on an org-level key is dealt by the running tally IN THE SAME
+   TRANSACTION that created it (FOR UPDATE on the month's rows serializes
+   concurrent webhooks); a refusal (no config / no spend / non-ad source) is
+   a value and the lead stays queued — store-less, visible, ownable.
+2. **The spec's worked example contradicts its own rule** at the 7/5 step
+   (store A at 58.3% is still 1.7pp BELOW its 60% target; the example hands
+   the lead to B with '≈ target'). The RULE — furthest below target — is
+   normative; the golden suite proves it converges on exactly 60/40 over 100
+   leads, which is the example's actual point. Ties: larger target, then
+   store_id.
+3. **The dashboard is a MONEY surface**: organization:update both directions
+   (the spec says Owner-only; GM holds organization:update too — accepted,
+   a GM who can edit the org can see its ad split). No member_read policy on
+   the table, deliberately.
+4. **source_platform is now written at intake** (google_ads→google,
+   meta_lead_form→meta, else NULL) — the bridge lives in core beside the
+   engine.
+5. **Known edge, accepted:** a still-queued lead (store NULL) cannot open a
+   conversation yet (conversations.store_id stays NOT NULL) — the
+   conversation engine is owner-gated anyway; FR-CONV revisits when it lands.
+6. **FR-LEAD-008's dashboard UI** is the next web slice; the API
+   (read/config/history + deviation) ships now.
+
 ## D-048 — F-44 rate limiting: token buckets that fail OPEN (2026-08-19)
 
 **Decision:** one shared token-bucket limiter (Redis + Lua when REDIS_URL is
