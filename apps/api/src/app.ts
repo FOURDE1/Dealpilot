@@ -178,6 +178,18 @@ export async function buildApp(
     }
   });
 
+  // FR-LEAD-004: ADF providers post XML. The body stays a STRING — only the
+  // intake route understands ADF, and it parses defensively in @dealpilot/core
+  // (entity expansion off, 256KB cap). Every other route hands a string body
+  // to its Zod schema and gets the ordinary validation_failed.
+  for (const type of ['application/xml', 'text/xml'] as const) {
+    app.addContentTypeParser(type, { parseAs: 'string', bodyLimit: 256 * 1024 }, (_req, body, done) => {
+      const req = _req as FastifyRequest & { rawBody?: string };
+      req.rawBody = body as string;
+      done(null, body);
+    });
+  }
+
   // F-30: carriers post form-encoded, and Fastify parses no such thing by
   // default. `URLSearchParams` rather than a dependency, and repeated keys are
   // kept as an array because the signature algorithm has a defined rule for

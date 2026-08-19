@@ -48,7 +48,7 @@ export const CreateIntakeKeyInput = z.strictObject({
    * lead source is supposed to be configuration, and configuration nobody can
    * set is code with extra steps.
    */
-  connector_key: z.enum(['website_form', 'meta_lead_ads']).default('website_form'),
+  connector_key: z.enum(['website_form', 'meta_lead_ads', 'adf_xml']).default('website_form'),
 });
 
 /**

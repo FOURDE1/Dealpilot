@@ -1,5 +1,6 @@
 import type { Channel, ConsentType, NewConsentRow, Scope } from './compliance-consent.js';
 import { consentExpiryFor } from './compliance-consent.js';
+import { ADF_CONNECTOR } from './intake-adf.js';
 
 /**
  * The intake connector framework (ADR-005, amended 2026-07-23).
@@ -265,6 +266,9 @@ function buildConsent(
  * console can write them, a row somebody adds without an engineer.
  */
 export const BUILT_IN_CONNECTORS: readonly ConnectorDefinition[] = [
+  // FR-LEAD-004: defined in intake-adf.ts beside its parser. The import is
+  // runtime-acyclic — intake-adf takes only a TYPE from this module.
+  ADF_CONNECTOR,
   {
     key: 'website_form',
     label: 'Dealership website form',

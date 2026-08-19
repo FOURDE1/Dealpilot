@@ -222,6 +222,18 @@ is entirely text-message based, and email has no equivalent path yet.
 
 Also open: D-036, D-037 (insurance F&I — you parked it), D-038, D-039, D-041.
 
+**New (2026-08-19): email-only ADF leads.** AutoTrader/Kijiji ADF intake is live,
+but a lead whose document carries no usable phone number is refused (the core
+schema is SMS-first: every lead has a phone). Some real enquiries arrive
+email-only. Options: (a) keep refusing — the provider dashboard shows the
+rejects; (b) relax the schema so phone-less leads land and are email-worked.
+(b) is a database change with wide blast radius, so it waits for your call.
+
+**New (2026-08-19): a QR-code library for /security.** MFA enrolment currently
+shows the secret for manual entry (works everywhere); a QR code is the smoother
+path. Candidate: `qrcode` npm — needs your dependency approval + the 48h
+release cooldown check before I add it.
+
 ---
 
 ## Before the first tenant who is not you

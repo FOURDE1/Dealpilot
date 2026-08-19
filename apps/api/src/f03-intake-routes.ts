@@ -1,11 +1,11 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
-import { CreateIntakeKeyInput, IntakeLeadPayload, StoreListQuery, Uuid } from '@dealpilot/schemas';
+import { CreateIntakeKeyInput, Email, IntakeLeadPayload, StoreListQuery, Uuid } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
-import { findConnector, normalizeLead } from '@dealpilot/core';
+import { AdfParseError, findConnector, normalizeLead, normalizePhone, parseAdf, type AdfLead } from '@dealpilot/core';
 import { scoreOnCreate } from './f39-scoring-routes.js';
 import { autoAssignLead } from './f40-assignment-routes.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
@@ -191,6 +191,28 @@ interface ResolvedKey {
   secret: string;
 }
 
+/**
+ * An ADF document, flattened by @dealpilot/core, shaped for IntakeLeadPayload.
+ *
+ * Salvage over refusal for every field EXCEPT phone: a malformed email or an
+ * over-long vehicle string should cost that field, not the lead. The phone is
+ * different — leads.phone is NOT NULL by core schema (SMS-first product), so a
+ * document with no usable NANP number fails IntakeLeadPayload downstream and
+ * the provider sees which field, and why, in the 422. Whether email-only ADF
+ * leads should be accepted at all is an owner decision (OWNER-ACTIONS).
+ */
+function adfToCandidate(adf: AdfLead): Record<string, unknown> {
+  const email = adf.email && Email.safeParse(adf.email).success ? adf.email : undefined;
+  return {
+    phone: normalizePhone(adf.phone) ?? undefined,
+    first_name: adf.first_name?.slice(0, 100) || undefined,
+    last_name: adf.last_name?.slice(0, 100) || undefined,
+    email,
+    vehicle_interest: adf.vehicle_interest?.slice(0, 200) || undefined,
+    message: adf.comments?.slice(0, 4000) || undefined,
+  };
+}
+
 export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): void {
   app.route({
     method: 'POST',
@@ -227,7 +249,22 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): vo
       }
 
       // Verified. Validate the payload and place the lead synchronously.
-      const payload = parseOrThrow(IntakeLeadPayload, request.body ?? {});
+      // FR-LEAD-004: ADF/XML arrives as a string body; flatten it in core
+      // (defensive parser: entities off, 256KB cap) before the same schema
+      // every JSON lead passes. One validation gate, two wire formats.
+      const isXml = String(request.headers['content-type'] ?? '').includes('xml');
+      let adfFlat: AdfLead | null = null;
+      if (isXml) {
+        try {
+          adfFlat = parseAdf(raw);
+        } catch (e) {
+          if (e instanceof AdfParseError) {
+            return reply.status(422).send(envelopePublic('validation_failed', 'Not a parseable ADF document'));
+          }
+          throw e;
+        }
+      }
+      const payload = parseOrThrow(IntakeLeadPayload, adfFlat ? adfToCandidate(adfFlat) : (request.body ?? {}));
       // Generated app-side so the lead and its consent share one grant without
       // a second round trip inside the transaction.
       const grantId = randomUUID();
@@ -269,7 +306,7 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): vo
         // lead nobody may contact.
         const connector = findConnector(resolved.connector_key) ?? findConnector('website_form');
         if (connector) {
-          const normalized = normalizeLead(request.body ?? {}, connector, new Date());
+          const normalized = normalizeLead(adfFlat ?? request.body ?? {}, connector, new Date());
           for (const row of normalized.consent) {
             await c.query(
               `INSERT INTO consent_ledger
