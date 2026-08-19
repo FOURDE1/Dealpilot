@@ -60,3 +60,31 @@ people only.
 
 *Prepared 2026-08-19. The software side is complete for both — these are
 configuration values, not development work.*
+
+---
+
+## C. Later — not urgent, but yours to own (10–30 minutes each)
+
+None of these block the current build. They become needed at launch, and each
+account should be created under YOUR company so you own it from day one.
+
+1. **A domain name** for the product (e.g. app.yourcompany.ca) — needed for
+   the public website address, email sending, and SSL. Any registrar works.
+2. **Stripe** (stripe.com) — how dealerships will pay you. Create the
+   account and complete business verification; we wire it in later.
+3. **Monitoring accounts** (free tiers): Sentry (error alerts), PostHog EU
+   (product analytics), Better Stack (logs). Ten minutes each; hand me an
+   invite to each workspace.
+4. **AWS budget go-ahead** — the account exists already; hosting costs stay
+   near zero until launch. When we schedule the launch, the production
+   envelope is roughly $750–1,100/month and I will ask you before anything
+   starts billing.
+
+## The one-line summary
+
+| What | Urgency | Time | Blocks |
+| ---- | ------- | ---- | ------ |
+| Twilio + A2P registration | **START TODAY** | weeks of carrier review | all texting |
+| Anthropic API key | this week | 10 minutes | the AI assistant |
+| Domain, Stripe, monitoring | before launch | ~1 hour total | launch polish |
+| AWS budget go-ahead | at launch scheduling | a yes | deployment |
