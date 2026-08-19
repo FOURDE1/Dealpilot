@@ -11,6 +11,31 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-052 — FR-TEN-006 cost masking: absent, never null (2026-08-20)
+
+**Decision:** cross-store cost masking (inventory.md §9) is app-level column
+masking at the API serializer per ADR-007 — the masked fields
+(acquisition/transport/recon/list_price/total) are DELETED from the payload,
+never nulled: a payload must not whisper that a number exists. The view is
+computed per request from the caller's memberships IN THAT ORG (explicitly
+org-filtered — the GET-by-id path runs under user context, and a GM hat in
+org A must not unmask org B): owner → everywhere; gm/used-car/wholesale
+manager → their membership store's units (an org-wide membership of those
+roles = every store is their remit); everyone else → never. The response
+schema makes the cost fields optional, and every web consumer treats absence
+as "—" or no-prefill — never a fake zero. list_price is masked per the
+spec's own table ("internal"); the deal's numbers are typed at desking.
+
+**Amended same day by the A-13 drift guard:** the first draft hardcoded the
+role list, and the guard refused it — correctly. WHO sees costs is now the
+permission `vehicle:read_costs` (0052 seeds owner/gm/used-car/wholesale for
+existing orgs; new orgs seed from the catalogue), editable per organization
+like every other authority; WHERE stays the membership that carries it. The
+view opens its OWN dual context (org+user), because the vehicle list runs
+under user context where the matrix's org-scoped RLS is invisible — the
+persona test caught every GM masked before the fix. The guard also learned
+that a JOIN against the matrix is enforcement's second shape.
+
 ## D-051 — F-48 reactivation: a reply wakes the dead, with a fresh ladder (2026-08-20)
 
 **Context:** FR-LEAD-012 / leads.md:459 — "any client reply at any point

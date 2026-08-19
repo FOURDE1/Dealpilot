@@ -569,11 +569,15 @@ export function DeskingPage() {
                     setPrefilledPrice(null);
                     return;
                   }
+                  // FR-TEN-006: a masked viewer gets no prefill — the fields
+                  // stay theirs to type, never a fake zero.
                   const newPrice =
-                    car.list_price_cents === null ? null : (car.list_price_cents / 100).toFixed(2);
+                    car.list_price_cents === null || car.list_price_cents === undefined
+                      ? null
+                      : (car.list_price_cents / 100).toFixed(2);
                   setDraft((d) => ({
                     ...d,
-                    vehicle_cost: (car.total_cost_cents / 100).toFixed(2),
+                    vehicle_cost: car.total_cost_cents === undefined ? d.vehicle_cost : (car.total_cost_cents / 100).toFixed(2),
                     sale_price: priceWasAuto ? (newPrice ?? '') : d.sale_price,
                   }));
                   setPrefilledPrice(priceWasAuto ? newPrice : prefilledPrice);

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
+import { withContext, withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { CreateVehicleInput, UpdateVehicleInput, VehicleListQuery } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requirePermission } from './permissions.js';
@@ -73,6 +73,71 @@ async function vehicleOrg(pool: Pool, userId: string, vehicleId: string): Promis
   });
 }
 
+/**
+ * FR-TEN-006 (inventory.md §9): any store may SELL any unit in the group,
+ * but what it COST belongs to the store that paid it — and to the owner.
+ * App-level column masking per ADR-007, decided per REQUEST from the
+ * caller's memberships:
+ *
+ *   owner                                → cost everywhere
+ *   gm / used-car / wholesale manager    → cost for THEIR store's vehicles
+ *     (an org-wide membership of those roles = every store is their remit)
+ *   everyone else (salesperson, bdc, …)  → never
+ *
+ * Masked fields are ABSENT, never null — a payload must not whisper that a
+ * number exists (the spec's "never expose masked fields in list payloads").
+ */
+const COST_FIELDS = [
+  'acquisition_cost_cents', 'transport_cost_cents', 'recon_cost_cents',
+  'list_price_cents', 'total_cost_cents',
+] as const;
+
+type CostView = { kind: 'all' } | { kind: 'stores'; stores: Set<string> } | { kind: 'none' };
+
+async function costViewOf(pool: Pool, userId: string, organizationId: string): Promise<CostView> {
+  // WHO comes from the MATRIX (vehicle:read_costs — the A-13 drift guard
+  // refused a hardcoded role list, correctly); WHERE comes from the
+  // membership that carries it. Its OWN dual context, because the callers
+  // vary: role_permissions' isolation policy needs the org GUC, and the
+  // vehicle list runs under user context alone — a first draft computed the
+  // view there and the matrix was simply invisible (every GM masked).
+  // Org-filtered EXPLICITLY besides: a hat in org A must not unmask org B.
+  return withContext(pool, { orgId: organizationId, userId }, async (c) => {
+  const r = await c.query<{ store_id: string | null; is_owner: boolean; granted: boolean }>(
+    `SELECT m.store_id,
+            'owner' = ANY(m.roles) AS is_owner,
+            EXISTS (
+              SELECT 1 FROM role_permissions rp
+              WHERE rp.organization_id = m.organization_id
+                AND rp.role = ANY(m.roles)
+                AND rp.permission = 'vehicle:read_costs' AND rp.allowed
+            ) AS granted
+     FROM memberships m
+     WHERE m.user_id = $1 AND m.organization_id = $2 AND m.status = 'active'`,
+    [userId, organizationId],
+  );
+  const stores = new Set<string>();
+  for (const m of r.rows) {
+    if (m.is_owner) return { kind: 'all' } as CostView;
+    if (m.granted) {
+      if (m.store_id === null) return { kind: 'all' } as CostView;
+      stores.add(m.store_id);
+    }
+  }
+  return stores.size > 0 ? { kind: 'stores', stores } : ({ kind: 'none' } as CostView);
+  });
+}
+
+function maskCosts(row: Record<string, unknown>, view: CostView): Record<string, unknown> {
+  const allowed =
+    view.kind === 'all' ||
+    (view.kind === 'stores' && view.stores.has(String(row['store_id'])));
+  if (allowed) return row;
+  const out = { ...row };
+  for (const f of COST_FIELDS) delete out[f];
+  return out;
+}
+
 export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
   app.post('/api/v1/vehicles', async (request, reply) => {
     const input = parseOrThrow(CreateVehicleInput, request.body);
@@ -103,7 +168,8 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
         });
         return r.rows[0]!;
       });
-      return await reply.status(201).send(withTotalCost(vehicle));
+      const view = await costViewOf(pool, user.id, input.organization_id);
+      return await reply.status(201).send(maskCosts(withTotalCost(vehicle), view));
     } catch (err) {
       throw conflictFrom(err) ?? err;
     }
@@ -122,7 +188,8 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
       if (r.rows.length === 0) throw notFound();
       return r.rows[0]!;
     });
-    return reply.send(withTotalCost(vehicle));
+    const view = await costViewOf(pool, user.id, String(vehicle['organization_id']));
+    return reply.send(maskCosts(withTotalCost(vehicle), view));
   });
 
   app.get('/api/v1/vehicles', async (request, reply) => {
@@ -144,7 +211,7 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
            JOIN organizations o ON o.id = m.organization_id AND o.deleted_at IS NULL
            WHERE m.status = 'active'`,
         );
-        if (r.rows.length === 0) return { items: [], next_cursor: null };
+        if (r.rows.length === 0) return { page: { items: [] as (Record<string, unknown> & { id: string })[], next_cursor: null }, orgId: null as string | null };
         if (r.rows.length > 1) {
           throw new AppError(400, 'organization_required', 'Pass organization_id — you belong to several organizations');
         }
@@ -162,9 +229,10 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
           sql += ` AND ${key} = $${params.length}`;
         }
       }
-      return keysetPage<Record<string, unknown> & { id: string }>(c, sql, params, query);
+      return { page: await keysetPage<Record<string, unknown> & { id: string }>(c, sql, params, query), orgId };
     });
-    return reply.send({ ...page, items: page.items.map(withTotalCost) });
+    const view = page.orgId === null ? ({ kind: 'none' } as CostView) : await costViewOf(pool, user.id, page.orgId);
+    return reply.send({ ...page.page, items: page.page.items.map((row) => maskCosts(withTotalCost(row), view)) });
   });
 
   app.patch('/api/v1/vehicles/:id', async (request, reply) => {
@@ -204,7 +272,8 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
         }
         return r.rows[0]!;
       });
-      return await reply.send(withTotalCost(vehicle));
+      const view = await costViewOf(pool, user.id, orgId);
+      return await reply.send(maskCosts(withTotalCost(vehicle), view));
     } catch (err) {
       throw conflictFrom(err) ?? err;
     }

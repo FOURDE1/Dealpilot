@@ -4,6 +4,15 @@
 > secrets, working exploits against this project, or unpatched vulnerability details
 > beyond what's needed to track the fix.
 
+## 2026-08-20 — FR-TEN-006 cost masking shipped
+
+Cross-store cost visibility is now enforced server-side (D-052): masked cost
+fields are ABSENT from vehicle payloads (list, read, create, patch) for
+callers outside the owning store; view computed per request from org-scoped
+memberships (the user-context read path is explicitly org-filtered so a role
+in one org cannot unmask another). Persona-tested: salesperson (never),
+second-store GM (own store only, both list and single-read), owner (all).
+
 ## 2026-08-19 — F-44 production rate limiting shipped
 
 Token buckets (Redis+Lua shared across instances; memory fallback; FAIL-OPEN

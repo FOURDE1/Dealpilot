@@ -83,7 +83,12 @@ describe('permission drift', () => {
     const used = new Set<string>();
     for (const { text } of await routeSources()) {
       for (const line of text.split(String.fromCharCode(10))) {
-        if (!/(?:requirePermission|hasPermission)\(/.test(line)) continue;
+        // Enforcement wears two shapes: the gate functions, and a JOIN
+        // against the matrix itself (rp.permission = '…' — FR-TEN-006's
+        // store-scoped cost view was real enforcement this detector missed).
+        const gate = /(?:requirePermission|hasPermission)\(/.test(line);
+        const matrixJoin = /rp\.permission = '/.test(line);
+        if (!gate && !matrixJoin) continue;
         for (const m of line.matchAll(/'([a-z_]+:[a-z_]+)'/g)) used.add(m[1]!);
       }
     }

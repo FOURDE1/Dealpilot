@@ -48,15 +48,19 @@ export const Vehicle = z.object({
   acquisition_type: AcquisitionType,
   /** Date only (YYYY-MM-DD) — the day the car was bought, not a timestamp. */
   acquisition_date: z.iso.date(),
-  acquisition_cost_cents: NonNegativeCents,
-  transport_cost_cents: NonNegativeCents,
-  recon_cost_cents: NonNegativeCents,
-  list_price_cents: NonNegativeCents.nullable(),
+  /**
+   * FR-TEN-006: the cost build-up is ABSENT (not null) when masked — outside
+   * your store, what a unit cost is not your number to see.
+   */
+  acquisition_cost_cents: NonNegativeCents.optional(),
+  transport_cost_cents: NonNegativeCents.optional(),
+  recon_cost_cents: NonNegativeCents.optional(),
+  list_price_cents: NonNegativeCents.nullable().optional(),
   location_status: LocationStatus,
   deal_status: VehicleDealStatus,
   location_details: shortText(200).nullable(),
   /** Derived: what the car actually cost to put on the lot (server-computed). */
-  total_cost_cents: z.number().int(),
+  total_cost_cents: z.number().int().optional(),
   created_at: IsoDateTime,
   updated_at: IsoDateTime,
   deleted_at: IsoDateTime.nullable(),

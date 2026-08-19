@@ -131,14 +131,20 @@ export function InventoryPage() {
         accessorKey: 'list_price_cents',
         header: t('listPrice'),
         cell: ({ row }) =>
-          row.original.list_price_cents === null ? '—' : (
+          row.original.list_price_cents === null || row.original.list_price_cents === undefined ? '—' : (
             <span className="font-mono tabular-nums">{formatCents(row.original.list_price_cents, i18n.language)}</span>
           ),
       },
       {
         accessorKey: 'total_cost_cents',
         header: t('totalCost'),
-        cell: ({ row }) => <span className="font-mono tabular-nums">{formatCents(row.original.total_cost_cents, i18n.language)}</span>,
+        // FR-TEN-006: masked = absent — show a dash, never a fake zero.
+        cell: ({ row }) =>
+          row.original.total_cost_cents === undefined ? (
+            <span className="text-muted-foreground">—</span>
+          ) : (
+            <span className="font-mono tabular-nums">{formatCents(row.original.total_cost_cents, i18n.language)}</span>
+          ),
       },
       {
         accessorKey: 'location_status',

@@ -42,6 +42,10 @@ export const PERMISSIONS = [
   'vehicle:create',
   'vehicle:update',
   'vehicle:delete',
+  /** See the cost build-up (FR-TEN-006). Store-scoped by the MEMBERSHIP that
+      carries it: an org-wide grant sees every store, a store membership only
+      its own. Money data — that scoping lives in the vehicle serializer. */
+  'vehicle:read_costs',
 
   // --- deals & desking ----------------------------------------------------
   'deal:create',
@@ -130,7 +134,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
 
   used_car_manager: [
     'member:read',
-    'vehicle:create', 'vehicle:update', 'vehicle:delete',
+    'vehicle:create', 'vehicle:update', 'vehicle:delete', 'vehicle:read_costs',
     'deal:update',
     'checklist:complete',
     'dispatch:read',
@@ -160,6 +164,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
   ],
 
   wholesale_manager: [
+    'vehicle:read_costs',
     'member:read',
     'vehicle:create', 'vehicle:update', 'vehicle:delete',
     'activity:read',

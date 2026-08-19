@@ -55,8 +55,10 @@ export function VehicleDetailPage() {
 
   const v: VehicleT = vehicle.data;
   const locale = i18n.language;
-  const recon = reconDraft ?? (v.recon_cost_cents / 100).toFixed(2);
-  const list = listDraft ?? (v.list_price_cents === null ? '' : (v.list_price_cents / 100).toFixed(2));
+  // FR-TEN-006: masked viewers have no cost numbers to edit — the drafts (and
+  // the whole cost section below) simply do not exist for them.
+  const recon = reconDraft ?? (v.recon_cost_cents === undefined ? '' : (v.recon_cost_cents / 100).toFixed(2));
+  const list = listDraft ?? (v.list_price_cents === null || v.list_price_cents === undefined ? '' : (v.list_price_cents / 100).toFixed(2));
   const reconInvalid = recon.trim() !== '' && parseMoneyToCents(recon) === null;
   const listInvalid = list.trim() !== '' && parseMoneyToCents(list) === null;
 
@@ -79,28 +81,32 @@ export function VehicleDetailPage() {
             <dt className="text-muted-foreground">{t('acquisitionType')}</dt>
             <dd>{t(ACQUISITION_KEYS[v.acquisition_type])}</dd>
           </div>
+          {/* FR-TEN-006: outside your store the cost build-up is not
+              your number to see — the section is absent, not zeroed. */}
+          {v.total_cost_cents === undefined ? null : (<>
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">{t('acquisitionCost')}</dt>
-            <dd className="font-mono tabular-nums">{formatCents(v.acquisition_cost_cents, locale)}</dd>
+            <dd className="font-mono tabular-nums">{v.acquisition_cost_cents === undefined ? '—' : formatCents(v.acquisition_cost_cents, locale)}</dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">{t('transportCost')}</dt>
-            <dd className="font-mono tabular-nums">{formatCents(v.transport_cost_cents, locale)}</dd>
+            <dd className="font-mono tabular-nums">{v.transport_cost_cents === undefined ? '—' : formatCents(v.transport_cost_cents, locale)}</dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">{t('reconCost')}</dt>
-            <dd className="font-mono tabular-nums">{formatCents(v.recon_cost_cents, locale)}</dd>
+            <dd className="font-mono tabular-nums">{v.recon_cost_cents === undefined ? '—' : formatCents(v.recon_cost_cents, locale)}</dd>
           </div>
           <div className="flex justify-between gap-4 border-t border-border pt-2 font-semibold">
             <dt>{t('totalCost')}</dt>
-            <dd className="font-mono tabular-nums">{formatCents(v.total_cost_cents, locale)}</dd>
+            <dd className="font-mono tabular-nums">{v.total_cost_cents === undefined ? '—' : formatCents(v.total_cost_cents, locale)}</dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">{t('listPrice')}</dt>
             <dd className="font-mono tabular-nums">
-              {v.list_price_cents === null ? '—' : formatCents(v.list_price_cents, locale)}
+              {v.list_price_cents === null || v.list_price_cents === undefined ? '—' : formatCents(v.list_price_cents, locale)}
             </dd>
           </div>
+          </>)}
         </dl>
 
         <div className="space-y-3 rounded-lg border border-border bg-card p-4">

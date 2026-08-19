@@ -228,3 +228,83 @@ describe('F-07 vehicle on a deal', () => {
     expect(JSON.parse(del.body).error.details?.[0]?.code).toBe('vehicle_committed');
   });
 });
+
+
+describe('FR-TEN-006 — the cost build-up belongs to the store that paid it', () => {
+  const persona = async (email: string, roles: string[], memberStore: string | null) => {
+    const su = await app!.inject({
+      method: 'POST', url: '/api/auth/sign-up/email',
+      payload: { email, password: 'correct-horse-battery-staple', name: 'Perso Na' },
+    });
+    const sc = su.headers['set-cookie'];
+    const cookie = (Array.isArray(sc) ? sc : [sc!]).map((c) => String(c).split(';')[0]).join('; ');
+    const added = await app!.inject({
+      method: 'POST', url: '/api/v1/members', headers: { cookie: cookieOwner },
+      payload: {
+        organization_id: orgId, email, name: 'Perso Na', roles,
+        ...(memberStore === null ? {} : { store_id: memberStore }),
+      },
+    });
+    expect(added.statusCode, added.body).toBe(201);
+    return cookie;
+  };
+
+  const listCosts = async (cookie: string) => {
+    const res = await app!.inject({
+      method: 'GET', url: `/api/v1/vehicles?organization_id=${orgId}`, headers: { cookie },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    return (JSON.parse(res.body) as { items: Array<Record<string, unknown>> }).items;
+  };
+
+  it('a salesperson sees the CAR everywhere and the COST nowhere — absent, not zero', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const cookie = await persona(`f07-sales-${run}@dealpilot.test`, ['salesperson'], null);
+    const items = await listCosts(cookie);
+    expect(items.length).toBeGreaterThan(0);
+    for (const v of items) {
+      expect(v['make']).toBeDefined(); // the unit itself is visible
+      expect('acquisition_cost_cents' in v).toBe(false);
+      expect('total_cost_cents' in v).toBe(false);
+      expect('list_price_cents' in v).toBe(false);
+    }
+  });
+
+  it("a SECOND store's GM sees cost only on their own store's units", async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const storeB = await app!.inject({
+      method: 'POST', url: '/api/v1/stores', headers: { cookie: cookieOwner },
+      payload: { organization_id: orgId, name: 'F07 Deux', code: `F07B-${run.slice(-4)}`, province: 'QC' },
+    });
+    const storeBId = (JSON.parse(storeB.body) as { id: string }).id;
+    const carB = await app!.inject({
+      method: 'POST', url: '/api/v1/vehicles', headers: { cookie: cookieOwner },
+      payload: {
+        ...CAR, vin: `2HGBH41JXMN10${String(9100 + (Date.now() % 100))}`, stock_number: `STK-B-${run.slice(-5)}`,
+        organization_id: orgId, store_id: storeBId, acquisition_cost_cents: 777700,
+      },
+    });
+    expect(carB.statusCode, carB.body).toBe(201);
+
+    const cookie = await persona(`f07-gmb-${run}@dealpilot.test`, ['gm'], storeBId);
+    const items = await listCosts(cookie);
+    const theirs = items.find((v) => v['store_id'] === storeBId)!;
+    const foreign = items.find((v) => v['store_id'] === storeId)!;
+    expect(theirs['acquisition_cost_cents']).toBe(777700);
+    expect(theirs['total_cost_cents']).toBeDefined();
+    expect('acquisition_cost_cents' in foreign).toBe(false);
+    expect('total_cost_cents' in foreign).toBe(false);
+
+    // The single-vehicle read masks by the SAME rule.
+    const one = await app!.inject({
+      method: 'GET', url: `/api/v1/vehicles/${String(foreign['id'])}`, headers: { cookie },
+    });
+    expect('total_cost_cents' in (JSON.parse(one.body) as Record<string, unknown>)).toBe(false);
+  });
+
+  it('the owner sees every number in every store', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const items = await listCosts(cookieOwner);
+    for (const v of items) expect(v['total_cost_cents']).toBeDefined();
+  });
+});

@@ -1,3 +1,14 @@
+## 2026-08-20 (cont.) — FR-TEN-006: the cost build-up stays home
+
+App-level column masking at the vehicle serializer (D-052): outside the
+owning store, acquisition/transport/recon/list-price/total are ABSENT from
+the payload — deleted, never nulled. View per request, org-filtered
+explicitly (the GET-by-id runs under user context; a GM hat in org A must
+not unmask org B). Owner everywhere; gm/UCM/wholesale their store (org-wide
+membership = all); salespeople never. Vehicle schema fields went optional;
+inventory list, detail (whole cost section gated), and desking prefill all
+treat absence as absence. Persona matrix 3 cases in f07 (12/12).
+
 ## 2026-08-20 (cont.) — FR-LEAD-016: the freshness clock
 
 Lead-age colors on the list: fresh (<5 min — the AI should be engaging),

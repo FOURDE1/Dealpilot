@@ -1221,6 +1221,7 @@ export const frCA = {
     perm_vehicle_create: 'Ajouter un véhicule',
     perm_vehicle_update: 'Modifier un véhicule',
     perm_vehicle_delete: 'Supprimer un véhicule',
+    perm_vehicle_read_costs: 'Voir les coûts des véhicules',
     perm_deal_create: 'Créer une transaction',
     perm_deal_update: 'Modifier une transaction',
     perm_deal_change_stage: 'Changer l’étape d’une transaction',

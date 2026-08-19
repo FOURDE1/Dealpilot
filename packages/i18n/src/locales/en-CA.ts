@@ -1221,6 +1221,7 @@ export const enCA = {
     perm_vehicle_create: 'Add a vehicle',
     perm_vehicle_update: 'Edit a vehicle',
     perm_vehicle_delete: 'Delete a vehicle',
+    perm_vehicle_read_costs: 'See vehicle costs',
     perm_deal_create: 'Create a deal',
     perm_deal_update: 'Edit a deal',
     perm_deal_change_stage: 'Change a deal’s stage',
