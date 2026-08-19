@@ -59,6 +59,10 @@ const STRUCTURAL = new Set([
  * is exactly what the three bugs above would have claimed.
  */
 const DELIBERATELY_UNWRITTEN: Record<string, string> = {
+  // F-47: '{in_app}' by default; the email/SMS channel writers arrive with
+  // their credentials (D-050) and retire this line.
+  'notifications.channels_sent': 'default in_app until the email/SMS channels ship (D-050)',
+
   // Written by the FR-LEAD-010 worker (apps/workers/src/lead-reassign.ts),
   // which lives outside this guard's scan (api + schemas sources only).
   'leads.previous_agents': 'written by apps/workers lead-reassign (outside this scan)',

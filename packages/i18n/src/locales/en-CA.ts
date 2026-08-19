@@ -113,6 +113,15 @@ export const enCA = {
     cancelConfirm: 'Cancel the appointment',
     genericError: 'That didn’t work. Try again.',
   },
+  notif: {
+    bell: 'Notifications',
+    bellUnread: 'Notifications — {count} unread',
+    markAll: 'Mark all read',
+    empty: 'No notifications.',
+    notif_lead_assigned: 'Lead {lead} was assigned to you.',
+    notif_lead_taken_back: 'A lead was taken back — no contact within {minutes} minutes.',
+    notif_lead_escalated: 'Lead escalated to you ({reason}).',
+  },
   distribution: {
     title: 'Lead distribution',
     subtitle: 'Each store receives its share of ad leads, in proportion to what it pays in.',

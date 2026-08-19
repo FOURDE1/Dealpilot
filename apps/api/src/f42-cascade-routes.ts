@@ -12,6 +12,8 @@ import { recordEvent } from './activity.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import type { ReassignQueue } from './reassign-queue.js';
 import type { PresenceStore } from './presence.js';
+import { notify } from './notifications.js';
+import { NO_EMITTER, type Emitter } from '@dealpilot/contracts';
 
 /**
  * F-42 — the §7.3 assignment cascade and the staff-schedule grid it reads
@@ -66,8 +68,12 @@ export async function cascadeAssignLead(
     source: string;
     previous_agents: unknown;
     assignment_attempts: number;
+    first_name: string | null;
+    last_name: string | null;
+    phone: string;
   }>(
-    `SELECT preferred_language, assigned_to, source, previous_agents, assignment_attempts
+    `SELECT preferred_language, assigned_to, source, previous_agents, assignment_attempts,
+            first_name, last_name, phone
      FROM leads WHERE id = $1 AND deleted_at IS NULL`,
     [leadId],
   );
@@ -184,6 +190,24 @@ export async function cascadeAssignLead(
       ...(decision.outcome === 'escalated' ? { escalation_reason: decision.reason } : {}),
     },
   });
+  // F-47: ring the new holder's bell — M9 for a routine assignment, HIGH for
+  // an escalation (the manager needs to know WHY it landed on them). Never
+  // self-notify: a person who assigned themself already knows.
+  if (decision.user_id !== actorUserId) {
+    const leadLabel = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || lead.phone;
+    await notify(c, {
+      organizationId,
+      userId: decision.user_id,
+      urgency: decision.outcome === 'escalated' ? 'high' : 'medium',
+      titleKey: decision.outcome === 'escalated' ? 'notif_lead_escalated' : 'notif_lead_assigned',
+      params: decision.outcome === 'escalated'
+        ? { lead: leadLabel, reason: decision.reason }
+        : { lead: leadLabel },
+      link: `/leads/${leadId}`,
+      entityType: 'lead',
+      entityId: leadId,
+    });
+  }
   return { ...decision, attempt: lead.assignment_attempts };
 }
 
@@ -248,6 +272,16 @@ export async function assignLeadToManager(
     action: 'assigned',
     changes: { assigned_to: { from: null, to: target }, assignment_method: 'escalation', via: 'cascade', escalation_reason: reason },
   });
+  await notify(c, {
+    organizationId,
+    userId: target,
+    urgency: 'high',
+    titleKey: 'notif_lead_escalated',
+    params: { lead: src.rows[0]?.source ?? 'lead', reason },
+    link: `/leads/${leadId}`,
+    entityType: 'lead',
+    entityId: leadId,
+  });
   return target;
 }
 
@@ -297,7 +331,7 @@ function trimTimes<T extends Record<string, unknown>>(row: T): T {
   };
 }
 
-export function registerF42Routes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue, presence: PresenceStore): void {
+export function registerF42Routes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue, presence: PresenceStore, emitter: Emitter = NO_EMITTER): void {
   app.post('/api/v1/staff-schedules', async (request, reply) => {
     const input = parseOrThrow(CreateStaffScheduleInput, request.body);
     const user = sessionUser(request);
@@ -469,6 +503,11 @@ export function registerF42Routes(app: FastifyInstance, pool: Pool, reassign: Re
         assigned_to: result.user_id,
         attempt: result.attempt ?? 0,
       });
+      // Post-commit refresh hint; the recipient's bell refetches on sight.
+      emitter.emit(
+        { kind: 'notifications', organizationId: orgId, userId: result.user_id },
+        { type: 'notification.created', organization_id: orgId, user_id: result.user_id },
+      );
     }
     return reply.send(result);
   });

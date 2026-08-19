@@ -41,6 +41,10 @@ const USER_KEYED_POLICIES: Record<string, string> = {
     'Load-bearing: resolveOrg/callerOrgIds read the caller’s own memberships under withUser (no org GUC yet) to discover which organizations they belong to — the bootstrap that everything else scopes from. Every dual-context query over memberships carries an explicit m.organization_id predicate.',
   'users.user_self_read':
     'A caller must be able to read their own identity row before any org is resolved.',
+  'notifications.notifications_self_read':
+    'INTENDED cross-org: a notification is addressed to a PERSON, and a person working at two dealer groups has one bell — every row they can see is already theirs by user_id. The list route (F-47) runs under withUser and never takes an org parameter at all.',
+  'notifications.notifications_self_update':
+    'Read-marking is the same addressed act: only the recipient can mark, and only their own rows are visible to mark (D-050 #3).',
 };
 
 /** Tables whose isolation is proven behaviourally in rls.test.ts or a route suite. */
@@ -54,6 +58,9 @@ const BEHAVIOURALLY_COVERED = new Set([
   // F-12: cross-tenant case in apps/api/src/f12-invitations.test.ts
   // ("another organization cannot see or revoke these invitations").
   'invitations',
+  // F-47: POLICY-level case in packages/db/src/rls.test.ts ("notifications:
+  // addressed to a person").
+  'notifications',
   // F-45: POLICY-level case in packages/db/src/rls.test.ts
   // ("lead_distribution_config: tenant 2 sees nothing of tenant 1").
   'lead_distribution_config',

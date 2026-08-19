@@ -113,6 +113,15 @@ export const frCA = {
     cancelConfirm: 'Annuler le rendez-vous',
     genericError: 'L’opération a échoué. Réessayez.',
   },
+  notif: {
+    bell: 'Notifications',
+    bellUnread: 'Notifications — {count} non lues',
+    markAll: 'Tout marquer lu',
+    empty: 'Aucune notification.',
+    notif_lead_assigned: 'Le prospect {lead} vous a été assigné.',
+    notif_lead_taken_back: 'Un prospect vous a été retiré — sans contact en {minutes} minutes.',
+    notif_lead_escalated: 'Prospect escaladé vers vous ({reason}).',
+  },
   distribution: {
     title: 'Répartition des prospects',
     subtitle: 'Chaque succursale reçoit sa part des prospects publicitaires, au prorata de sa contribution.',

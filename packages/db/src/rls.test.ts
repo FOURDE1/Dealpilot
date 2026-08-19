@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { createPool, testAdminUrl, testAppUrl, withTenant } from './index.js';
+import { createPool, testAdminUrl, testAppUrl, withTenant, withUser } from './index.js';
 import { reset } from './migrate.js';
 import { ensureTestDatabase } from './test-db.js';
 
@@ -169,6 +169,34 @@ describe('row-level security', () => {
         );
       }),
     ).rejects.toThrow();
+  });
+
+  it('notifications: addressed to a person — another tenant sees nothing, another person sees nothing', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const target = await admin.query<{ id: string }>(
+      `SELECT user_id AS id FROM memberships LIMIT 1`,
+    );
+    await withTenant(app, org1, async (c) => {
+      await c.query(
+        `INSERT INTO notifications (organization_id, user_id, urgency, title_key)
+         VALUES ($1, $2, 'low', 'notif_lead_assigned')`,
+        [org1, target.rows[0]!.id],
+      );
+    });
+    const rival = await withTenant(app, org2, async (c) =>
+      (await c.query(`SELECT * FROM notifications`)).rows,
+    );
+    expect(rival).toHaveLength(0);
+    // The recipient reads their own under USER context alone.
+    const mine = await withUser(app, target.rows[0]!.id, async (c) =>
+      (await c.query(`SELECT * FROM notifications`)).rows,
+    );
+    expect(mine.length).toBeGreaterThan(0);
+    // A different identity under user context sees nothing at all.
+    const stranger = await withUser(app, '00000000-0000-4000-8000-0000000000ff', async (c) =>
+      (await c.query(`SELECT * FROM notifications`)).rows,
+    );
+    expect(stranger).toHaveLength(0);
   });
 
   it('reset refuses non-local database hosts', async () => {

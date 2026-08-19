@@ -1,6 +1,7 @@
 import { withTenant, type Pool } from '@dealpilot/db';
 import { REASSIGN_MAX_ATTEMPTS, type LeadReassignJobT } from '@dealpilot/contracts';
 import { assignLeadToManager, cascadeAssignLead } from '@dealpilot/api/cascade';
+import { notify } from '@dealpilot/api/notifications';
 import type { PresenceStore } from '@dealpilot/api/presence';
 
 /**
@@ -101,6 +102,19 @@ export async function runLeadReassign(
        WHERE id = $1`,
       [job.lead_id, attempt],
     );
+
+    // F-47: tell the agent it was taken (D-046's 'first agent notified') —
+    // a lead that silently vanishes from a list teaches nobody anything.
+    await notify(c, {
+      organizationId: job.organization_id,
+      userId: job.assigned_to,
+      urgency: 'medium',
+      titleKey: 'notif_lead_taken_back',
+      params: { minutes: 10 },
+      link: `/leads/${job.lead_id}`,
+      entityType: 'lead',
+      entityId: job.lead_id,
+    });
 
     if (attempt >= REASSIGN_MAX_ATTEMPTS) {
       const manager = await assignLeadToManager(c, job.organization_id, job.lead_id, 'three_strikes');

@@ -137,6 +137,7 @@ import {
   DistributionQuery,
   DistributionRow,
   PutDistributionConfigInput,
+  NotificationList,
 } from '@dealpilot/schemas';
 const c = initContract();
 
@@ -780,6 +781,30 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: c.noBody(),
       responses: { 200: CascadeAssignResult, ...errorResponses },
+    },
+  }),
+  /**
+   * F-47 staff notifications (automation-notifications.md §5/§14). Entirely
+   * SELF-scoped: no organization parameter exists to ask about anyone else.
+   */
+  notifications: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/notifications',
+      responses: { 200: NotificationList, ...errorResponses },
+    },
+    read: {
+      method: 'POST',
+      path: '/api/v1/notifications/:id/read',
+      pathParams: z.object({ id: Uuid }),
+      body: c.noBody(),
+      responses: { 204: c.noBody(), ...errorResponses },
+    },
+    readAll: {
+      method: 'POST',
+      path: '/api/v1/notifications/read-all',
+      body: c.noBody(),
+      responses: { 204: c.noBody(), ...errorResponses },
     },
   }),
   /**

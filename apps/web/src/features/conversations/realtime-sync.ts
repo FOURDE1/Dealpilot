@@ -29,5 +29,8 @@ export function keysToInvalidate(event: RealtimeEventT): readonly (readonly unkn
       // invalidating everything "just in case" would refetch the whole console
       // every time a lead's status moved anywhere in the dealership.
       return [];
+    case 'notification.created':
+      // The bell owns its own refetch (layout's beacon) — same honest nothing.
+      return [];
   }
 }

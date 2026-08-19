@@ -86,6 +86,6 @@ describe('every event the contract can produce', () => {
     // keysToInvalidate's switch — but only if the switch is exhaustive, which
     // this asserts is still true at runtime for the members that exist.
     const types = RealtimeEvent.options.map((o) => o.shape.type.value);
-    expect(types).toEqual(['message.created', 'conversation.changed', 'lead.changed']);
+    expect(types).toEqual(['message.created', 'conversation.changed', 'lead.changed', 'notification.created']);
   });
 });

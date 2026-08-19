@@ -48,6 +48,10 @@
       "types": "./dist/presence.d.ts",
       "default": "./dist/presence.js"
     },
+    "./notifications": {
+      "types": "./dist/notifications.d.ts",
+      "default": "./dist/notifications.js"
+    },
     "./deliver": {
       "types": "./dist/f30-deliver.d.ts",
       "default": "./dist/f30-deliver.js"

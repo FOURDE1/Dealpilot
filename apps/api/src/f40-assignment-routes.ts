@@ -12,6 +12,7 @@ import type { ReassignQueue } from './reassign-queue.js';
 import { idParam, keysetPage, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
+import { notify } from './notifications.js';
 
 /**
  * F-40 — the assignment engine's API (leads.md §7).
@@ -120,6 +121,19 @@ export async function autoAssignLead(
     action: 'assigned',
     changes: { assigned_to: { to: decision.user_id }, rule: { to: decision.rule_name } },
   });
+  // F-47 (M9): the rules engine rings the new holder's bell too.
+  if (decision.user_id !== actorUserId) {
+    await notify(c, {
+      organizationId,
+      userId: decision.user_id,
+      urgency: 'medium',
+      titleKey: 'notif_lead_assigned',
+      params: { lead: lead.source },
+      link: `/leads/${leadId}`,
+      entityType: 'lead',
+      entityId: leadId,
+    });
+  }
 
   return {
     outcome: 'assigned',

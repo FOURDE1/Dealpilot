@@ -11,6 +11,29 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-050 — F-47 notifications: the row is the truth, the key is the message (2026-08-20)
+
+1. **The notifications ROW is the truth; realtime is a refresh hint.** Routes
+   emit `notification.created` post-commit where an emitter is in reach; the
+   WORKERS have none (the socket server lives in the API process) and emit
+   nothing — the bell's 60-second refetch is the agreed staleness for
+   worker-written rows. No delivery state machine until a channel needs one.
+2. **Titles are i18n KEYS + ICU params, never rendered text** — the same
+   alert reads French to a French user and English to an English one, decided
+   at display time by the recipient's client. `NOTIFICATION_TITLE_KEYS` lives
+   in @dealpilot/schemas so producers (api) and renderers (web locales)
+   lockstep-test without depending on each other.
+3. **Addressed, not shared:** RLS is isolation + SELF-read/SELF-update. No
+   member_read — a colleague's bell is not the team's business.
+4. **Channels this slice: in-app only.** The spec's tier table (medium=email,
+   high=SMS) attaches when SES/Twilio credentials exist; channels_sent
+   records what actually carried each row. Toasts wait for the same slice.
+5. **Producers wired now:** M9 lead.assigned (cascade, rules engine, with
+   self-notify suppressed — the actor already knows), the ladder's
+   taken-back notice to the silent agent, and the HIGH escalation alerts to
+   the manager (closing D-046 #5's in-app half).
+6. **read = read_at IS NOT NULL** — the spec's own reconciliation order.
+
 ## D-049 — F-45 distribution: the queue empties at arrival, and the rule beats the example (2026-08-19)
 
 **Context:** FR-LEAD-007's central queue + weighted store distribution

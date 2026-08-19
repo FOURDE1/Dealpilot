@@ -8,6 +8,8 @@ import { LanguageSwitcher } from '../shared/i18n/language-switcher.js';
 import { ThemeToggle } from '../shared/theme-toggle.js';
 import { BrandStyle, useBrandName } from '../features/branding/brand-style.js';
 import { useOrganizations } from '../features/organizations/api.js';
+import { NotificationsBell } from '../features/notifications/bell.js';
+import { notificationKeys } from '../features/notifications/api.js';
 import { useRealtime } from '../shared/realtime.js';
 
 /**
@@ -19,7 +21,14 @@ import { useRealtime } from '../shared/realtime.js';
  * the heartbeat.
  */
 function PresenceBeacon({ organizationId }: { organizationId: string }) {
-  useRealtime({ kind: 'notifications', organization_id: organizationId }, () => {});
+  useRealtime({ kind: 'notifications', organization_id: organizationId }, (event) => {
+    // F-47: the event is a refresh HINT — the bell refetches; the row is the
+    // truth (D-050). Workers write rows without a hint; the 60s interval
+    // covers those.
+    if (event.type === 'notification.created') {
+      void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    }
+  });
   return null;
 }
 
@@ -123,6 +132,7 @@ export function AppLayout() {
             >
               {t('security:title')}
             </Link>
+            <NotificationsBell />
             <ThemeToggle />
             <LanguageSwitcher />
             <Button variant="outline" size="sm" onClick={() => void handleSignOut()}>

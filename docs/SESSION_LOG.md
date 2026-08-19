@@ -1,3 +1,29 @@
+## 2026-08-20 (cont.) — F-47: the bell rings
+
+Staff notifications core (automation-notifications.md §2/§5/§13.1, D-050):
+0051 (organization_id vocabulary; read_at as THE read vocabulary per the
+spec's own reconciliation note; SELF-read/SELF-update policies — a bell is
+addressed, not shared), notify() helper (title KEYS + ICU params, rendered in
+the recipient's locale at display time; NOTIFICATION_TITLE_KEYS lives in
+schemas so producers and locales lockstep-test without depending on each
+other), self-scoped routes (list 20 + true unread, read, read-all), and the
+topbar bell (details/summary dropdown, urgency stripes + unread dots beyond
+color, deep links). Realtime: notification.created is a refresh HINT emitted
+post-commit where an emitter exists; workers emit nothing and the 60s
+refetch covers them.
+
+Producers wired: M9 lead.assigned (cascade + rules engine, self-notify
+suppressed), the ladder's taken-back notice, HIGH escalation alerts —
+closing D-046 #5's in-app half. Email/SMS channels attach when credentials
+exist (channels_sent records the truth).
+
+THREE guards fired and were answered, not silenced: the conversation
+screen's exhaustive event switch (new case), its event-roster test, and —
+the sharp one — rls-coverage's user-keyed-policy registry, which demanded a
+written reason why a bare user_id policy ORing across tenant isolation is
+safe here (it is: a person's bell is cross-org BY DESIGN, and the routes
+never take an org parameter). Gate 29/29.
+
 ## 2026-08-20 (cont.) — F-46: today's APIs get their screens
 
 FR-LEAD-008 dashboard (/leads/distribution): per-platform month table

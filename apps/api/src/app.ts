@@ -21,6 +21,7 @@ import { registerF13Routes } from './f13-document-routes.js';
 import { registerF14Routes } from './f14-branding-routes.js';
 import { registerF42Routes } from './f42-cascade-routes.js';
 import { registerF45Routes } from './f45-distribution-routes.js';
+import { registerF47Routes } from './f47-notification-routes.js';
 import { registerF15Routes } from './f15-compliance-routes.js';
 import { registerF21Routes } from './f21-conversation-routes.js';
 import { registerF35Routes } from './f35-contact-routes.js';
@@ -421,8 +422,9 @@ export async function buildApp(
   registerF38Routes(app, pool);
   registerF39Routes(app, pool);
   registerF40Routes(app, pool, reassignQueue);
-  registerF42Routes(app, pool, reassignQueue, presence);
+  registerF42Routes(app, pool, reassignQueue, presence, deps.emitter ?? NO_EMITTER);
   registerF45Routes(app, pool);
+  registerF47Routes(app, pool);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN, rateLimiter);
   registerF08Routes(app, pool);

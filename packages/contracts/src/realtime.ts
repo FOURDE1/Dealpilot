@@ -115,6 +115,13 @@ export const RealtimeEvent = z.discriminatedUnion('type', [
     lead_id: z.uuid(),
     status: z.string(),
   }),
+  // F-47: a REFRESH HINT, not the notification itself — the row is the truth
+  // and the bell refetches on sight of this (D-050).
+  z.object({
+    type: z.literal('notification.created'),
+    organization_id: z.uuid(),
+    user_id: z.uuid(),
+  }),
 ]);
 export type RealtimeEventT = z.infer<typeof RealtimeEvent>;
 
