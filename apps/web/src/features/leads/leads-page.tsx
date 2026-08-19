@@ -61,7 +61,7 @@ export function LeadsPage() {
         cell: ({ row }) => {
           const band = agingBand(row.original, Date.now());
           return (
-            <span className="inline-flex items-center gap-1">
+            <span className="flex flex-wrap items-center gap-1">
               <span className="inline-flex rounded-md bg-secondary px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-secondary-foreground">
                 {t(LEAD_STATUS_KEYS[row.original.status])}
               </span>
