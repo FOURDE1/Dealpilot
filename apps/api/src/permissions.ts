@@ -31,10 +31,45 @@ async function assertLiveMember(client: PoolClient, userId: string): Promise<voi
 }
 
 /**
+ * Permissions whose EXERCISE demands an enrolled second factor when the
+ * caller's roles require one (F-41 slice 2, FR-AUTH-006). The set is the
+ * blast-radius list: change who can do what, change the org itself, mint a
+ * standing credential. Everyday lead/deal work is deliberately absent — the
+ * policy binds the powers that could remove the policy.
+ */
+let MFA_ENFORCED = false;
+
+/**
+ * Flipped once at boot from env.REQUIRE_MFA (buildApp). A module switch rather
+ * than threading env through every requirePermission call site — the value is
+ * process-constant, and fifty signatures changing for one boolean is the
+ * wrong trade.
+ */
+export function setMfaEnforcement(on: boolean): void {
+  MFA_ENFORCED = on;
+}
+
+// Typed against the catalogue: a misspelled entry here is a COMPILE error, not
+// a permission that silently gates nothing (the dead-vocabulary pattern).
+const MFA_BOUND_PERMISSIONS: ReadonlySet<PermissionT> = new Set<PermissionT>([
+  'organization:update',
+  'organization:delete',
+  'member:update_roles',
+  'member:revoke',
+  'intake_key:manage',
+]);
+
+/**
  * The gate. 404 when the caller has no business here at all, 403 when they are
  * a real colleague who simply may not do this — the distinction matters,
  * because the second is a conversation with their manager and the first is not
  * a conversation at all.
+ *
+ * A third refusal since F-41: 403 `mfa_enrolment_required` when the caller
+ * HOLDS the permission but their role requires a second factor they have not
+ * enrolled. Without this, "required" was a banner — an owner could ignore the
+ * nag forever and keep wielding every privileged power. The remedy is named:
+ * enrol at /security, and the door opens.
  */
 export async function requirePermission(
   client: PoolClient,
@@ -51,6 +86,26 @@ export async function requirePermission(
     throw new AppError(403, 'forbidden', 'Your role does not allow this', [
       { path: 'permission', code: 'forbidden', message: permission },
     ]);
+  }
+  if (MFA_ENFORCED && MFA_BOUND_PERMISSIONS.has(permission)) {
+    const mfa = await client.query<{ required: boolean; enabled: boolean | null }>(
+      // $1 feeds both memberships.user_id (uuid) and Better Auth "user".id
+      // (text) — cast BOTH uses or the parameter's inferred type collides
+      // (42883 text = uuid; this test suite found it).
+      `SELECT
+         EXISTS (
+           SELECT 1 FROM memberships
+            WHERE user_id = $1::uuid AND status = 'active'
+              AND roles && ARRAY['owner','gm','admin_office']::text[]
+         ) AS required,
+         (SELECT "twoFactorEnabled" FROM "user" WHERE id = $1::text) AS enabled`,
+      [userId],
+    );
+    if (mfa.rows[0]?.required === true && mfa.rows[0].enabled !== true) {
+      throw new AppError(403, 'mfa_enrolment_required', 'Enable two-factor authentication first', [
+        { path: 'permission', code: 'mfa_enrolment_required', message: 'Your role requires a second factor before this action — enrol at /security' },
+      ]);
+    }
   }
 }
 

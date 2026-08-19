@@ -11,6 +11,30 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-044 — MFA enforcement is deploy configuration, and it binds a named permission set (2026-08-19)
+
+**Decision:** FR-AUTH-006's "MFA required for owner/gm/admin_office" is enforced
+server-side inside `requirePermission` — but only for a five-entry blast-radius
+set (`organization:update/delete`, `member:update_roles/revoke`,
+`intake_key:manage`), and only when `REQUIRE_MFA=true` (default off, ON in the
+production deploy config).
+
+**Why a flag:** the same shape as `REQUIRE_EMAIL_VERIFICATION` (D-030 lineage) —
+a hard gate with no flag would lock every fresh dev/test owner out of setup the
+moment they created an org, and every existing e2e journey with it. Enforcement
+is environment policy, not code.
+
+**Why a named set, not all permissions:** gating everything would stop a
+salesperson-facing owner from answering a lead until enrolment — punishment, not
+security. The set binds exactly the powers that could weaken the policy itself
+(change roles, change the org, mint standing intake credentials). The set is
+typed `ReadonlySet<PermissionT>`, so a misspelled entry is a compile error, not
+a silently dead gate (the dead-vocabulary lesson).
+
+**Refusal contract:** 403 `mfa_enrolment_required` with the remedy named
+(enrol at /security) — distinct from `forbidden`, because "your role may not"
+and "your role must enrol first" are different conversations.
+
 ## D-043 — `fast-xml-parser` pinned to 4.5.7, not the current 5.x (2026-07-27)
 
 **Decision:** add `fast-xml-parser@4.5.7` to `packages/core` for ADF lead

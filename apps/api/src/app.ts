@@ -7,6 +7,7 @@ import { createAuth, type Auth } from './auth.js';
 import { loadEnv, type Env } from './env.js';
 import { AppError, envelope } from './errors.js';
 import { createMailer, type Mailer } from './email.js';
+import { setMfaEnforcement } from './permissions.js';
 import { registerF01Routes } from './f01-routes.js';
 import { registerF02Routes } from './f02-leads-routes.js';
 import { registerIntakeKeyRoutes, registerPublicIntakeRoutes } from './f03-intake-routes.js';
@@ -116,6 +117,10 @@ export async function buildApp(
   deps: AppDeps = {},
 ) {
   const env = loadEnv(envOverrides);
+  // F-41 slice 2: whether privileged permissions demand an enrolled second
+  // factor (see permissions.ts). Enforcement is deploy configuration, like
+  // REQUIRE_EMAIL_VERIFICATION.
+  setMfaEnforcement(env.REQUIRE_MFA);
   const pool = createPool({ connectionString: env.DATABASE_URL });
 
   // HO-04: a superuser connection silently BYPASSES all RLS (FORCED included).

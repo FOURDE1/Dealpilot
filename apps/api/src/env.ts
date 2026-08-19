@@ -97,6 +97,17 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+
+  /**
+   * F-41 slice 2: privileged permissions refuse until an MFA-required caller
+   * enrols. Same shape as REQUIRE_EMAIL_VERIFICATION (A-11/D-030): enforcement
+   * is configuration, default OFF so dev and test owners never lock out, and
+   * the PRODUCTION deployment turns it on — deploy config, not code.
+   */
+  REQUIRE_MFA: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;
