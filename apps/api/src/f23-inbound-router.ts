@@ -1,4 +1,7 @@
 import type { PoolClient } from '@dealpilot/db';
+import type { LeadReassignJobT } from '@dealpilot/contracts';
+import { cascadeAssignLead } from './f42-cascade-routes.js';
+import { recordEvent } from './activity.js';
 import { recordInbound } from './f19-send.js';
 import { handleInboundSms } from './f18-inbound-sms.js';
 
@@ -48,6 +51,14 @@ export type InboundRoute =
   | { kind: 'to_assistant'; conversationId: string; messageId: string; leadId: string | null }
   | { kind: 'to_agent'; conversationId: string; messageId: string; assignedAgentId: string | null }
   | { kind: 'reactivated'; conversationId: string; messageId: string; leadId: string | null };
+
+/**
+ * F-48 (FR-LEAD-012, leads.md:459): when a reply reactivated a DORMANT lead
+ * and the funnel re-assigned it, the caller must arm the ten-minute timer —
+ * post-commit, which is why it travels out as a value instead of happening
+ * here.
+ */
+export type RoutedInbound = InboundRoute & { armReassign?: LeadReassignJobT };
 
 /**
  * The live conversation for this number, or a new one.
@@ -111,7 +122,7 @@ async function isSuppressed(c: PoolClient, orgId: string, phone: string): Promis
   return r.rows.length > 0;
 }
 
-export async function routeInbound(c: PoolClient, msg: InboundMessage): Promise<InboundRoute> {
+export async function routeInbound(c: PoolClient, msg: InboundMessage): Promise<RoutedInbound> {
   // 1. Keywords first — §5, and before any routing decision exists to be made.
   const keyword = await handleInboundSms(c, {
     organizationId: msg.organizationId,
@@ -157,11 +168,60 @@ export async function routeInbound(c: PoolClient, msg: InboundMessage): Promise<
     return { kind: 'filed_suppressed', ...base };
   }
 
+  // F-48 (FR-LEAD-012, leads.md:459): "any client reply at any point
+  // reactivates the lead and re-enters the assignment flow". A dormant lead
+  // — unresponsive, nurturing, or already written off as expired — that
+  // ANSWERS is a live lead, whichever branch handles the message. The
+  // comeback gets a FRESH ladder (previous_agents and attempts cleared —
+  // the old ladder's story stays in lead_assignment_history, D-051); a lead
+  // still holding its agent goes straight back to them, an orphan re-enters
+  // the §7.3 funnel here and now.
+  let armReassign: LeadReassignJobT | undefined;
+  if (conversation.lead_id) {
+    const dormant = await c.query<{ assigned_to: string | null; status: string }>(
+      `SELECT assigned_to, status FROM leads
+       WHERE organization_id = $1 AND id = $2
+         AND status IN ('unresponsive','nurture','expired') AND deleted_at IS NULL
+       FOR UPDATE`,
+      [msg.organizationId, conversation.lead_id],
+    );
+    const lead = dormant.rows[0];
+    if (lead !== undefined) {
+      await c.query(
+        `UPDATE leads
+         SET status = CASE WHEN assigned_to IS NULL THEN 'new' ELSE 'assigned' END,
+             previous_agents = '[]'::jsonb, assignment_attempts = 0, updated_at = now()
+         WHERE id = $1`,
+        [conversation.lead_id],
+      );
+      await recordEvent(c, {
+        organizationId: msg.organizationId,
+        storeId: msg.storeId,
+        actorUserId: null,
+        entityType: 'lead',
+        entityId: conversation.lead_id,
+        action: 'updated',
+        changes: { status: { from: lead.status, to: lead.assigned_to === null ? 'new' : 'assigned' }, via: 'reactivation' },
+      });
+      if (lead.assigned_to === null) {
+        const decision = await cascadeAssignLead(c, msg.organizationId, conversation.lead_id, null);
+        if (decision.outcome === 'assigned' || decision.outcome === 'escalated') {
+          armReassign = {
+            organization_id: msg.organizationId,
+            lead_id: conversation.lead_id,
+            assigned_to: decision.user_id,
+            attempt: decision.attempt ?? 0,
+          };
+        }
+      }
+    }
+  }
+
   if (conversation.status === 'handed_off' || conversation.status === 'agent_active') {
     // §9's silent monitoring: after a handoff the assistant never messages the
     // client again. It still reads — the analysis panel updates — but the reply
     // is a person's to write.
-    return { kind: 'to_agent', ...base, assignedAgentId: conversation.assigned_agent_id };
+    return { kind: 'to_agent', ...base, assignedAgentId: conversation.assigned_agent_id, ...(armReassign ? { armReassign } : {}) };
   }
 
   if (conversation.status === 'drip_active') {
@@ -178,8 +238,8 @@ export async function routeInbound(c: PoolClient, msg: InboundMessage): Promise<
         [msg.organizationId, conversation.lead_id],
       );
     }
-    return { kind: 'reactivated', ...base, leadId: conversation.lead_id };
+    return { kind: 'reactivated', ...base, leadId: conversation.lead_id, ...(armReassign ? { armReassign } : {}) };
   }
 
-  return { kind: 'to_assistant', ...base, leadId: conversation.lead_id };
+  return { kind: 'to_assistant', ...base, leadId: conversation.lead_id, ...(armReassign ? { armReassign } : {}) };
 }

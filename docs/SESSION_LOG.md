@@ -1,3 +1,17 @@
+## 2026-08-20 (cont.) — F-48: a reply wakes the dead
+
+FR-LEAD-012's reactivation rule (leads.md:459), in the inbound router where
+the spine lives (D-051): a text from an unresponsive/nurture/expired lead —
+inside the same transaction that records it — resets the ladder, hands a
+still-owned lead back to its holder, re-funnels an orphan through §7.3, and
+floats the ten-minute timer out as a value for the webhook to arm
+post-commit. 'expired' reactivates too: a customer texting after 90 days is
+the strongest comeback there is. Proven through the SIGNED carrier webhook
+(3 cases, first run green): orphan → re-assigned + timer armed; owned
+expired → straight back, funnel untouched; live lead → hook does not exist
+for it. Deferred, named: the unresponsive EXECUTOR (3 attempts, 90-day
+sweep, nurture_expires_at) is its own slice.
+
 ## 2026-08-20 (cont.) — F-47: the bell rings
 
 Staff notifications core (automation-notifications.md §2/§5/§13.1, D-050):

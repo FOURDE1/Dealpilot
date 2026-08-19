@@ -417,7 +417,7 @@ export async function buildApp(
   const deferredQueue =
     deps.deferredQueue ?? createDeferredSendQueue(env, (obj, msg) => app.log.warn(obj, msg));
   registerF21Routes(app, pool, deps.emitter ?? NO_EMITTER, carrier, env, deferredQueue);
-  registerF30Routes(app, pool, carrier, env, deferredQueue);
+  registerF30Routes(app, pool, carrier, env, deferredQueue, reassignQueue);
   registerF35Routes(app, pool);
   registerF38Routes(app, pool);
   registerF39Routes(app, pool);

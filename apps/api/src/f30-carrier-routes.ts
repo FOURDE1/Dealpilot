@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { withTenant, type Pool } from '@dealpilot/db';
 import { routeInbound } from './f23-inbound-router.js';
+import type { ReassignQueue } from './reassign-queue.js';
 import type { Carrier } from './carrier.js';
 import type { DeferredSendQueue } from './deferred-queue.js';
 import type { Env } from './env.js';
@@ -63,6 +64,7 @@ export function registerF30Routes(
   carrier: Carrier,
   env: Env,
   queue: DeferredSendQueue,
+  reassign: ReassignQueue,
 ): void {
   /**
    * An inbound SMS.
@@ -138,19 +140,27 @@ export function registerF30Routes(
       // wants a model — a handed-off thread goes to a person, a suppressed
       // number is filed and not answered, and an opt-out has already been
       // applied above.
-      return route.kind === 'to_assistant'
-        ? { conversationId: route.conversationId, messageId: route.messageId }
-        : null;
+      return {
+        answer: route.kind === 'to_assistant'
+          ? { conversationId: route.conversationId, messageId: route.messageId }
+          : null,
+        armReassign: route.armReassign ?? null,
+      };
     });
 
     // Queued after the commit, so the assistant reads a thread that exists.
-    if (answer) {
+    if (answer?.answer) {
       await queue.enqueueAssistantTurn({
         organization_id: resolved.organization_id,
-        conversation_id: answer.conversationId,
-        message_id: answer.messageId,
+        conversation_id: answer.answer.conversationId,
+        message_id: answer.answer.messageId,
         attempt: 0,
       });
+    }
+    // F-48: a reactivated lead's fresh assignment gets its ten-minute timer,
+    // armed only once the row it guards is committed.
+    if (answer?.armReassign) {
+      await reassign.arm(answer.armReassign);
     }
 
     // 204, and only after everything above committed. §5's "synchronously in

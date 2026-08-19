@@ -63,10 +63,6 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // their credentials (D-050) and retire this line.
   'notifications.channels_sent': 'default in_app until the email/SMS channels ship (D-050)',
 
-  // Written by the FR-LEAD-010 worker (apps/workers/src/lead-reassign.ts),
-  // which lives outside this guard's scan (api + schemas sources only).
-  'leads.previous_agents': 'written by apps/workers lead-reassign (outside this scan)',
-  'leads.assignment_attempts': 'written by apps/workers lead-reassign (outside this scan)',
 
   // Written by the invitation_accept() SQL function, not by a route: accepting
   // an invitation has to reactivate a membership and stamp acceptance in one

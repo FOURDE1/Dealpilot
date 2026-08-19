@@ -11,6 +11,29 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-051 — F-48 reactivation: a reply wakes the dead, with a fresh ladder (2026-08-20)
+
+**Context:** FR-LEAD-012 / leads.md:459 — "any client reply at any point
+reactivates the lead and re-enters the assignment flow (§7.3)". The inbound
+router (F-23) already reactivated drip replies; unresponsive/nurture/expired
+leads stayed dormant even mid-conversation.
+
+1. **The hook lives in the ROUTER** (the single inbound spine, per its own
+   doctrine), fires whatever branch answers the message, and inside the same
+   transaction that recorded the reply.
+2. **The comeback gets a FRESH ladder:** previous_agents and
+   assignment_attempts reset — a customer who returned deserves the full
+   funnel, and the old ladder's story is already in lead_assignment_history.
+3. **Still-owned dormant leads go straight back to their holder**
+   (status → assigned, no re-funnel, no fresh timer — their clock is not
+   fresh); orphans re-enter §7.3 right there, and the caller arms the
+   ten-minute timer post-commit (the armReassign value on the route result).
+4. **'expired' is reactivatable** — the spec says ANY time, and a customer
+   who texts after 90 days is the strongest comeback there is.
+5. **No nurture_expires_at column yet** — it arrives with the unresponsive
+   EXECUTOR (the 3-attempt flow + 90-day sweep), which is the slice this one
+   deliberately does not pretend to be.
+
 ## D-050 — F-47 notifications: the row is the truth, the key is the message (2026-08-20)
 
 1. **The notifications ROW is the truth; realtime is a refresh hint.** Routes
