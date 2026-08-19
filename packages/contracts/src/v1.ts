@@ -128,8 +128,13 @@ import {
   MeResponse,
   Uuid,
   paginated,
+  StaffSchedule,
+  StaffScheduleListQuery,
+  CreateStaffScheduleInput,
+  UpdateStaffScheduleInput,
+  CascadeAssignResult,
+  ScheduleTodayItem,
 } from '@dealpilot/schemas';
-
 const c = initContract();
 
 /**
@@ -724,6 +729,54 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: c.noBody(),
       responses: { 200: AssignLeadResult, ...errorResponses },
+    },
+  }),
+  /**
+   * F-42 staff schedules + the §7.3 cascade (FR-LEAD-009/015, D-045). The
+   * grid is team-visible; writing it is schedule:manage. The cascade endpoint
+   * returns its decision as a VALUE — escalation is an outcome, not an error.
+   */
+  schedules: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/staff-schedules',
+      query: StaffScheduleListQuery,
+      responses: {
+        200: z.object({ items: z.array(StaffSchedule), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/staff-schedules',
+      body: CreateStaffScheduleInput,
+      responses: { 201: StaffSchedule, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/staff-schedules/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateStaffScheduleInput,
+      responses: { 200: StaffSchedule, ...errorResponses },
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/v1/staff-schedules/:id',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 204: c.noBody(), ...errorResponses },
+    },
+    today: {
+      method: 'GET',
+      path: '/api/v1/schedules/today',
+      query: z.object({ organization_id: Uuid.optional() }),
+      responses: { 200: z.object({ items: z.array(ScheduleTodayItem) }), ...errorResponses },
+    },
+    cascadeAssign: {
+      method: 'POST',
+      path: '/api/v1/leads/:id/cascade-assign',
+      pathParams: z.object({ id: Uuid }),
+      body: c.noBody(),
+      responses: { 200: CascadeAssignResult, ...errorResponses },
     },
   }),
   /**

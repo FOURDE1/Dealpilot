@@ -27,7 +27,7 @@ import { callerOrgIds, conflictFrom, idParam, keysetPage, requireMember, session
 /** membership + user, the shape the API returns. */
 const MEMBER_COLUMNS = `
   m.id, m.user_id, m.organization_id, m.store_id, m.roles, m.status,
-  u.email, u.name, m.created_at, m.updated_at`;
+  u.email, u.name, m.preferred_languages, m.max_active_leads, m.created_at, m.updated_at`;
 
 /**
  * An organization must always keep one active owner, or nobody can administer
@@ -314,7 +314,47 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
         const prior = before.rows[0]!;
         const identity = { email: prior.email, name: prior.name };
 
-        const fields = Object.entries(input);
+        // F-42: the agent profile (languages, cap) is MEMBERSHIP data — the
+        // 2026-08-19 review proved (live RLS probe) that a users-level write
+        // would let one org's admin silently reshape another org's routing
+        // for a shared agent. It is written across ALL of the user's rows in
+        // THIS org, so a multi-store member never carries two competing
+        // profiles, and the audit lands in the org that made the change.
+        const { preferred_languages, max_active_leads, ...membershipInput } = input;
+        if (preferred_languages !== undefined || max_active_leads !== undefined) {
+          await requirePermission(c, actor.id, 'member:update_roles');
+          const profSets: string[] = [];
+          const profParams: unknown[] = [membershipId];
+          if (preferred_languages !== undefined) {
+            profParams.push(preferred_languages);
+            profSets.push(`preferred_languages = $${profParams.length}`);
+          }
+          if (max_active_leads !== undefined) {
+            profParams.push(max_active_leads);
+            profSets.push(`max_active_leads = $${profParams.length}`);
+          }
+          // RLS scopes the visible rows to this org; rowCount 0 means the
+          // membership is not ours to see — 404, never a silent 200.
+          const wrote = await c.query(
+            `UPDATE memberships SET ${profSets.join(', ')}
+             WHERE user_id = (SELECT user_id FROM memberships WHERE id = $1)`,
+            profParams,
+          );
+          if (wrote.rowCount === 0) throw notFound();
+          await recordEvent(c, {
+            organizationId: orgId,
+            actorUserId: actor.id,
+            entityType: 'membership',
+            entityId: membershipId,
+            action: 'updated',
+            changes: {
+              ...(preferred_languages !== undefined ? { preferred_languages: { to: preferred_languages } } : {}),
+              ...(max_active_leads !== undefined ? { max_active_leads: { to: max_active_leads } } : {}),
+            },
+          });
+        }
+
+        const fields = Object.entries(membershipInput);
         if (fields.length === 0) {
           const r = await c.query<Record<string, unknown>>(`SELECT * FROM memberships WHERE id = $1`, [membershipId]);
         if (r.rows.length === 0) throw notFound();
@@ -334,7 +374,7 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
         if (input.status && input.status !== 'active') {
           const released = await c.query<{ id: string }>(
             `UPDATE leads
-             SET assigned_to = NULL,
+             SET assigned_to = NULL, assigned_at = NULL, assignment_method = NULL,
                  status = CASE WHEN status = 'assigned' THEN 'new' ELSE status END
              WHERE assigned_to = $1 AND deleted_at IS NULL
              RETURNING id`,

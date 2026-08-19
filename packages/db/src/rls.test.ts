@@ -72,6 +72,11 @@ afterAll(async () => {
   await app?.end();
 });
 
+async function withTenantStore(c: pg.PoolClient): Promise<string> {
+  const r = await c.query<{ id: string }>(`SELECT id FROM stores LIMIT 1`);
+  return r.rows[0]?.id ?? '00000000-0000-4000-8000-000000000002';
+}
+
 describe('row-level security', () => {
   it('tenant 1 sees only its own stores', async (ctx) => {
     if (!dbUp) return ctx.skip();
@@ -109,6 +114,35 @@ describe('row-level security', () => {
       return r.rowCount;
     });
     expect(count).toBe(0);
+  });
+
+  it('staff_schedules: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Seed one schedule row for org1 through org1's own tenant context.
+    await withTenant(app, org1, async (c) => {
+      const store = await c.query<{ id: string }>(`SELECT id FROM stores LIMIT 1`);
+      const member = await c.query<{ user_id: string }>(`SELECT user_id FROM memberships LIMIT 1`);
+      await c.query(
+        `INSERT INTO staff_schedules (organization_id, store_id, user_id, day_of_week, start_time, end_time)
+         VALUES ($1, $2, $3, 1, '09:00', '17:00')`,
+        [org1, store.rows[0]!.id, member.rows[0]!.user_id],
+      );
+    });
+    const theirs = await withTenant(app, org2, async (c) =>
+      (await c.query(`SELECT * FROM staff_schedules`)).rows,
+    );
+    expect(theirs).toHaveLength(0);
+    // WITH CHECK refuses a row smuggled in under the wrong tenant context.
+    await expect(
+      withTenant(app, org2, async (c) => {
+        const store = await withTenantStore(c);
+        await c.query(
+          `INSERT INTO staff_schedules (organization_id, store_id, user_id, day_of_week, start_time, end_time)
+           VALUES ($1, $2, $3, 1, '09:00', '17:00')`,
+          [org1, store, '00000000-0000-4000-8000-000000000001'],
+        );
+      }),
+    ).rejects.toThrow();
   });
 
   it('reset refuses non-local database hosts', async () => {

@@ -65,6 +65,10 @@ export const Member = z.object({
   status: MembershipStatus,
   email: Email,
   name: userName,
+  /** What they can SPEAK (F-42 cascade step 1), not their UI locale. */
+  preferred_languages: z.array(Locale).min(1),
+  /** §7.3 step-4 cap. Lives on the USER (spec leads.md:263) — follows the person. */
+  max_active_leads: z.number().int(),
   created_at: IsoDateTime,
   updated_at: IsoDateTime,
 });
@@ -97,6 +101,9 @@ export const UpdateMemberInput = z.strictObject({
   roles: z.array(Role).min(1).optional(),
   status: MembershipStatus.optional(),
   store_id: Uuid.nullable().optional(),
+  /** F-42 agent profile — user-level (D-045 #6/#7), gated like roles. */
+  preferred_languages: z.array(Locale).min(1).max(2).optional(),
+  max_active_leads: z.number().int().min(1).max(1000).optional(),
 });
 
 export const MemberListQuery = CursorQuery.extend({

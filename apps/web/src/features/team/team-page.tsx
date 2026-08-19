@@ -170,6 +170,10 @@ export function TeamPage() {
       status: 'invited' as const,
       email: inv.email,
       name: inv.name ?? inv.email,
+      // F-42: a synthetic row for someone with no user record yet — these are
+      // the DB defaults their row will carry the moment they accept.
+      preferred_languages: ['fr-CA' as const],
+      max_active_leads: 10,
       created_at: inv.created_at,
       updated_at: inv.updated_at,
       __invitationId: inv.id,

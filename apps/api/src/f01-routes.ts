@@ -183,6 +183,21 @@ export async function keysetPage<Row extends { id: string }>(
 }
 
 /** The caller's active org ids, live orgs only (self-read policies scope this). */
+/**
+ * F-42 review (2026-08-19): stores.timezone feeds `AT TIME ZONE` in the
+ * cascade's schedule verdict, and Postgres aborts the WHOLE statement (22023)
+ * on a name it does not know — one typo'd store would 500 every
+ * cascade-assign in the org. Refuse the typo at the door, naming the fix.
+ */
+export async function assertKnownTimezone(client: PoolClient, timezone: string): Promise<void> {
+  const r = await client.query(`SELECT 1 FROM pg_timezone_names WHERE name = $1`, [timezone]);
+  if (r.rows.length === 0) {
+    throw new AppError(422, 'validation_failed', 'Unknown timezone', [
+      { path: 'timezone', code: 'unknown_timezone', message: `'${timezone}' is not an IANA zone name Postgres recognizes (e.g. America/Montreal)` },
+    ]);
+  }
+}
+
 export async function callerOrgIds(client: PoolClient): Promise<string[]> {
   const r = await client.query<{ organization_id: string }>(
     `SELECT DISTINCT m.organization_id FROM memberships m
@@ -329,6 +344,7 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
     try {
       const store = await withTenant(pool, input.organization_id, async (c) => {
         await requirePermission(c, user.id, 'store:create');
+        await assertKnownTimezone(c, input.timezone);
         const r = await c.query(
           // Every field the input accepts is in this list. CR-12 was one field
           // accepted here and missing from it — 201, and the value gone.
@@ -422,6 +438,7 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
     try {
       const store = await withTenant(pool, orgId, async (c) => {
         await requirePermission(c, user.id, 'store:update');
+        if (input.timezone !== undefined) await assertKnownTimezone(c, input.timezone);
         const beforeRow = await c.query<Record<string, unknown>>(
           `SELECT * FROM stores WHERE id = $1 AND deleted_at IS NULL`,
           [storeId],

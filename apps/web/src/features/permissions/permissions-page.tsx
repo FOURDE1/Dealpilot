@@ -17,7 +17,7 @@ import { usePermissionMatrix, useSetRolePermissions, useSetUserPermission, useUs
  * or it silently disappears from the only screen that can grant it.
  */
 export const GROUPS: { key: string; prefixes: string[] }[] = [
-  { key: 'group_team', prefixes: ['member:'] },
+  { key: 'group_team', prefixes: ['member:', 'schedule:'] },
   { key: 'group_leads', prefixes: ['lead:', 'intake_key:'] },
   { key: 'group_inventory', prefixes: ['vehicle:'] },
   { key: 'group_deals', prefixes: ['deal:', 'checklist:'] },

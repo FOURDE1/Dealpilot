@@ -1137,6 +1137,7 @@ export const frCA = {
     perm_member_invite: 'Inviter un membre',
     perm_member_update_roles: 'Gérer les rôles',
     perm_member_revoke: 'Retirer un membre',
+    perm_schedule_manage: 'Gérer les horaires de travail',
     perm_lead_create: 'Créer un prospect',
     perm_lead_update: 'Modifier un prospect',
     perm_lead_assign: 'Assigner un prospect',

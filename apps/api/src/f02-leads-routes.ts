@@ -254,6 +254,9 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
         // unassignment, since a null owner has no clock.
         if (input.assigned_to !== undefined && input.assigned_to !== prior['assigned_to']) {
           sets.push(input.assigned_to === null ? 'assigned_at = NULL' : 'assigned_at = now()');
+          // F-42 paper trail (D-045 #5): a person choosing a person is 'manual';
+          // an unassignment has no method, only a missing owner.
+          sets.push(input.assigned_to === null ? 'assignment_method = NULL' : "assignment_method = 'manual'");
         }
         const r = await c.query(
           `UPDATE leads SET ${sets.join(', ')} WHERE id = $1 AND deleted_at IS NULL RETURNING *`,

@@ -11,6 +11,73 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-045 — FR-LEAD-009 cascade: interpretations where the spec is silent (2026-08-19)
+
+**Context:** leads.md §7.3 defines the post-handoff funnel (language → online →
+on-schedule → least-loaded under `max_active_leads`, else escalate to the sales
+manager) but leaves ~10 semantics unstated. This entry records the choices so
+the owner can review them as a set; each is also documented at its code site.
+
+1. **Unknown passes, known-false filters.** Presence and schedules are
+   TRI-STATE inputs to the engine (`boolean | null`). `null` = the subsystem
+   has no data (presence not yet built — FR-LEAD-014; user has no schedule
+   rows) and the candidate PASSES that step. `false` = the subsystem
+   affirmatively says unavailable → filtered. Rationale: a funnel that
+   escalates every lead to the manager because an optional subsystem is not
+   deployed is a funnel nobody turns on.
+2. **Language is a HARD filter** — Bill 96 is law, not preference. No
+   FR-capable agent for an FR lead → escalation, never an EN-only agent.
+3. **Tie-break for "fewest active" = first-min in deterministic roster order**
+   (membership created_at) — same rule as §7.2 load_balanced; randomness is a
+   flake generator.
+4. **"Escalate to sales manager" ASSIGNS the lead** (`assignment_method =
+   'escalation'`), matching the 3-strike rule's explicit wording — an alerted
+   but unowned lead is an unowned lead. Target = first active member holding
+   sales_manager (fallback gm, then owner — someone must own it), chosen by
+   membership age. Capacity does NOT block escalation.
+5. **`assignment_method` mapping:** cascade writes `auto_language` when the
+   language step actually narrowed the pool, else `auto_availability`; manual
+   PATCH writes `manual`; escalation writes `escalation`; the FR-LEAD-010
+   re-run will write `reassignment`. The §7.1 rules engine writes NULL — the
+   Target vocabulary has no name for it, and inventing one would be vocabulary
+   drift.
+6. **`preferred_languages` defaults `'{fr-CA}'`, not the spec's `'{en}'`** —
+   the platform is Quebec-first and users.language_pref already defaults
+   fr-CA; backfilled from language_pref. Locale vocabulary stays 'fr-CA'/'en-CA'
+   (the build's), not the spec's bare 'en'.
+7. **The agent profile lives on MEMBERSHIPS, overriding the spec's
+   users-level directive** (leads.md:263). The same-day adversarial review
+   PROVED (live RLS probe) that users-level columns let one org's admin
+   silently rewrite a shared agent's languages/cap and reshape ANOTHER org's
+   routing, unaudited there. Org-scoped rows keep the write under the org
+   that answers for it. The f04 PATCH writes the profile across ALL of the
+   user's membership rows in the org, so a multi-store member never carries
+   two competing profiles; the cascade reads one candidate per person
+   (DISTINCT ON, oldest row). max_active_leads: default 10, CHECK 1–1000 —
+   0 would mean "assign nothing", which is what revocation is for.
+8. **Schedules:** rows live against a store (timezone anchor); a user with NO
+   active rows is always-available (schedules are opt-in until the grid UI
+   ships); windows are same-day only (`end > start`); split shifts = several
+   rows. New permission `schedule:manage` (owner, gm, sales_manager,
+   admin_office) — the catalogue grows by one, seeded for existing orgs in
+   0049.
+9. **History rows:** cascade writes `strategy = 'cascade'` (history CHECK
+   extended in 0049; RULE CHECK unchanged — a rule cannot BE the funnel),
+   `rule_id NULL`, `rule_name` naming the funnel step or escalation reason, so
+   "why did Marc get this one" stays a query.
+10. **Deferred to FR-LEAD-010 (next slice):** the 10-minute BullMQ timer,
+    previous_agents WRITES, attempt counting, timer-cancellation semantics.
+    The cascade already READS `previous_agents` and excludes them.
+11. **Race rule:** the cascade's UPDATE re-checks `assigned_to IS NULL`; the
+    loser of a concurrent assignment returns `already_assigned` and writes no
+    history — the auto path never steals, even from itself.
+12. **Known divergence, kept:** capacity counts treat `expired` as terminal
+    (matching shipped F-40 and the 0047 index) although the spec's §4
+    workload table counts it. Flipping it is FR-LEAD-012's call — that slice
+    owns the `expired` lifecycle. Store timezones are now validated against
+    `pg_timezone_names` at write time, because the cascade's schedule verdict
+    would 500 the whole org on one typo'd zone (review finding).
+
 ## D-044 — MFA enforcement is deploy configuration, and it binds a named permission set (2026-08-19)
 
 **Decision:** FR-AUTH-006's "MFA required for owner/gm/admin_office" is enforced

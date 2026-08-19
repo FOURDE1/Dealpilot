@@ -19,6 +19,7 @@ import { registerA13Routes } from './a13-permission-routes.js';
 import { registerF11Routes } from './f11-dispatch-routes.js';
 import { registerF13Routes } from './f13-document-routes.js';
 import { registerF14Routes } from './f14-branding-routes.js';
+import { registerF42Routes } from './f42-cascade-routes.js';
 import { registerF15Routes } from './f15-compliance-routes.js';
 import { registerF21Routes } from './f21-conversation-routes.js';
 import { registerF35Routes } from './f35-contact-routes.js';
@@ -369,6 +370,7 @@ export async function buildApp(
   registerF38Routes(app, pool);
   registerF39Routes(app, pool);
   registerF40Routes(app, pool);
+  registerF42Routes(app, pool);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);

@@ -1,3 +1,35 @@
+## 2026-08-19 (night) — F-42: the §7.3 assignment cascade
+
+FR-LEAD-009, built plan-first: an understand-workflow mapped the spec + five
+subsystems before a line was written; D-045 records ~12 interpretations where
+the spec is silent (tri-state presence/schedules, language-as-law, escalation
+ASSIGNS, method vocabulary mapping…). Shipped: 0049 (agent profile on
+MEMBERSHIPS, leads paper-trail columns, staff_schedules with RLS+member_read,
+history CHECK += 'cascade', schedule:manage seeded); pure engine
+lead-cascade.ts (13 golden cases); schedules CRUD + /schedules/today + POST
+/leads/:id/cascade-assign; f02 stamps 'manual'; contracts + four drift
+registries extended.
+
+**The adversarial review workflow (20 agents) earned its cost: 13 confirmed
+findings, 3 refuted, two via LIVE RLS probes.** The big one: the spec puts
+preferred_languages/max_active_leads on USERS — proven exploitable (org A
+admin rewrites a shared agent's profile, reshaping org B's routing,
+unaudited). Columns moved to memberships (D-045 #7), which also fixed the
+silent-no-op PATCH and multi-store duplication. Also fixed: store timezones
+now validated against pg_timezone_names (one typo'd zone 500'd the org's
+whole cascade — proven live); revocation now clears assigned_at/method;
+cascade UPDATE re-checks assigned_to IS NULL (race); HH:MM both directions;
+real policy-level RLS test for staff_schedules (the route-level 404 citation
+was insufficient — exactly the trap the registry warns about); f20 wiring
+comment made honest (handOff still has NO production caller — the cascade
+becomes its 'who' when the conversation engine lands).
+
+**Also:** reset() made re-entrant (DROP SCHEMA IF EXISTS) after a wedged test
+DB (a half-died reset left no public schema; every later suite inherited the
+3F000). Deferred: FR-LEAD-010 timer (previous_agents writes — dead-column
+promises registered), presence (FR-LEAD-014), schedule grid + agent profile
+UI, expired-as-terminal divergence (D-045 #12, FR-LEAD-012's call).
+
 ## 2026-08-19 (evening) — MFA binds, ADF lands, audit LOWs closed
 
 **F-41 slice 2 (`5823c66`):** REQUIRE_MFA=true (production deploy config;

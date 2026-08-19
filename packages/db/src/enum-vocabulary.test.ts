@@ -51,7 +51,18 @@ let dbUp = false;
  * "we meant to" is what every bug this guard exists to find would also say.
  * Keyed `field:value`.
  */
-const DELIBERATELY_WIDER: Record<string, string> = {};
+const DELIBERATELY_WIDER: Record<string, string> = {
+  // F-42: the cascade RESPONSE's refusal reason (CascadeAssignResult.reason)
+  // is output-only — the API never accepts it, and history stores it inside
+  // rule_name as free text ('escalation: <reason>'), not an enum column. The
+  // schemas↔core lockstep for this vocabulary lives in
+  // apps/api/src/scoring-vocabulary.test.ts.
+  'reason:no_candidates': 'response-only §7.3 refusal (F-42)',
+  'reason:no_language_match': 'response-only §7.3 refusal (F-42)',
+  'reason:nobody_online': 'response-only §7.3 refusal (F-42)',
+  'reason:nobody_scheduled': 'response-only §7.3 refusal (F-42)',
+  'reason:all_at_capacity': 'response-only §7.3 refusal (F-42)',
+};
 
 beforeAll(async () => {
   await ensureTestDatabase();

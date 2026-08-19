@@ -1137,6 +1137,7 @@ export const enCA = {
     perm_member_invite: 'Invite a member',
     perm_member_update_roles: 'Manage roles',
     perm_member_revoke: 'Remove a member',
+    perm_schedule_manage: 'Manage working schedules',
     perm_lead_create: 'Create a lead',
     perm_lead_update: 'Edit a lead',
     perm_lead_assign: 'Assign a lead',

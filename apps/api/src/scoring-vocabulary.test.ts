@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { ASSIGNMENT_STRATEGIES, SCORING_FIELDS, SCORING_OPERATORS } from '@dealpilot/core';
-import { AssignmentStrategy, ScoringRuleField, ScoringRuleOperator } from '@dealpilot/schemas';
+import { ASSIGNMENT_STRATEGIES, SCORING_FIELDS, SCORING_OPERATORS, ASSIGNMENT_METHODS, CASCADE_STRATEGY, CASCADE_REFUSALS } from '@dealpilot/core';
+import { AssignmentStrategy, ScoringRuleField, ScoringRuleOperator, AssignmentMethod, CascadeRefusal } from '@dealpilot/schemas';
 
 /**
  * The scoring vocabulary lives in THREE places on purpose — the engine
@@ -36,19 +36,40 @@ describe('one vocabulary, three declarations', () => {
     expect([...ScoringRuleOperator.options].sort()).toEqual([...SCORING_OPERATORS].sort());
   });
 
-  it('assignment strategies agree across core, schemas and the 0046 CHECKs', () => {
+  it('assignment strategies agree across core, schemas and the live CHECKs', () => {
     expect([...AssignmentStrategy.options].sort()).toEqual([...ASSIGNMENT_STRATEGIES].sort());
-    const m46 = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'packages', 'db', 'migrations', '20260727000046_lead-assignment.sql'),
+    const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'packages', 'db', 'migrations');
+    const m46 = readFileSync(join(migrationsDir, '20260727000046_lead-assignment.sql'), 'utf8');
+    const m49 = readFileSync(join(migrationsDir, '20260819000049_assignment-cascade.sql'), 'utf8');
+    const listsIn = (sql: string) =>
+      [...sql.matchAll(/CHECK \(strategy IN \(([^)]+)\)/g)].map((m) =>
+        [...m[1]!.matchAll(/'([^']+)'/g)].map((x) => x[1]!).sort(),
+      );
+    // The RULES check is 0046's, unchanged: a rule cannot BE the cascade
+    // (D-045 #9). The HISTORY check's live truth moved to 0049 and includes
+    // 'cascade'. Both 0046 lists still parse (guard against a vacuous regex).
+    const lists46 = listsIn(m46);
+    expect(lists46.length).toBe(2);
+    for (const list of lists46) expect(list).toEqual([...ASSIGNMENT_STRATEGIES].sort());
+    const lists49 = listsIn(m49);
+    expect(lists49.length).toBe(1);
+    expect(lists49[0]).toEqual([...ASSIGNMENT_STRATEGIES, CASCADE_STRATEGY].sort());
+  });
+
+  it('cascade refusals agree between core and schemas (F-42)', () => {
+    expect([...CascadeRefusal.options].sort()).toEqual([...CASCADE_REFUSALS].sort());
+  });
+
+  it('assignment methods agree across core, schemas and the 0049 CHECK (F-42)', () => {
+    expect([...AssignmentMethod.options].sort()).toEqual([...ASSIGNMENT_METHODS].sort());
+    const m49 = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'packages', 'db', 'migrations', '20260819000049_assignment-cascade.sql'),
       'utf8',
     );
-    // Both CHECKs (rules.strategy and history.strategy) must carry the same
-    // list; collect every strategy CHECK in the file and compare each.
-    const lists = [...m46.matchAll(/CHECK \(strategy IN \(([^)]+)\)/g)].map((m) =>
-      [...m[1]!.matchAll(/'([^']+)'/g)].map((x) => x[1]!).sort(),
-    );
-    expect(lists.length).toBe(2);
-    for (const list of lists) expect(list).toEqual([...ASSIGNMENT_STRATEGIES].sort());
+    const m = /CHECK \(assignment_method IN\s*\(([^)]+)\)/.exec(m49);
+    const list = [...(m?.[1] ?? '').matchAll(/'([^']+)'/g)].map((x) => x[1]!).sort();
+    expect(list.length).toBeGreaterThan(3); // vacuous-parse guard
+    expect(list).toEqual([...ASSIGNMENT_METHODS].sort());
   });
 
   it('the 0045 CHECK constraints match the engine', () => {

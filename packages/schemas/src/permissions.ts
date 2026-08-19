@@ -92,6 +92,10 @@ export const PERMISSIONS = [
    */
   'conversation:reply',
 
+  // --- team operations ----------------------------------------------------
+  /** Edit the weekly working-hours grid (staff_schedules) — feeds §7.3. */
+  'schedule:manage',
+
   // --- audit --------------------------------------------------------------
   'activity:read',
 ] as const;
@@ -113,7 +117,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
   gm: PERMISSIONS.filter((p) => p !== 'organization:delete'),
 
   sales_manager: [
-    'member:read',
+    'member:read', 'schedule:manage',
     'lead:create', 'lead:update', 'lead:assign', 'lead:delete',
     'vehicle:create', 'vehicle:update',
     'deal:create', 'deal:update', 'deal:change_stage',
@@ -172,6 +176,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
 
   admin_office: [
     'member:read', 'member:invite', 'member:update_roles', 'member:revoke',
+    'schedule:manage',
     'lead:update',
     'deal:update',
     'checklist:complete',

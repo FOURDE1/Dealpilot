@@ -105,7 +105,11 @@ export async function reset(pool: pg.Pool, migrationsDir: string, databaseUrl: s
     // DROP SCHEMA waits on its locks. Waiting forever turns a flake into a hung
     // CI job; failing after ten seconds turns it into a report.
     await client.query("SET lock_timeout = '10s'");
-    await client.query('DROP SCHEMA public CASCADE');
+    // IF EXISTS: a reset that died between DROP and CREATE leaves no public
+    // schema at all, and a plain DROP then fails FOREVER (3F000) — the wedge
+    // every later suite inherited on 2026-08-19. Recovering from a half-done
+    // reset is precisely this function's job.
+    await client.query('DROP SCHEMA IF EXISTS public CASCADE');
     await client.query('CREATE SCHEMA public');
     await client.query('GRANT ALL ON SCHEMA public TO dealpilot');
     await client.query('GRANT USAGE ON SCHEMA public TO public');
