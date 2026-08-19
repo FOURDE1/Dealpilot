@@ -66,8 +66,14 @@ export function LeadsPage() {
                 {t(LEAD_STATUS_KEYS[row.original.status])}
               </span>
               {band === null ? null : (
-                <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${AGING_CLASSES[band]}`}>
-                  {t(AGING_KEYS[band])}
+                // Inside an auto-sizing table cell flex-wrap cannot save width
+                // (the cell just grows — CI's 360px reflow guard proved it, on
+                // rows old enough to wear the LONG labels). Below sm the chip
+                // is a dot whose label lives in sr-only text; the full word
+                // returns at sm.
+                <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold md:px-2 ${AGING_CLASSES[band]}`}>
+                  <span aria-hidden="true" className="size-2 rounded-full bg-current md:hidden" />
+                  <span className="sr-only md:not-sr-only">{t(AGING_KEYS[band])}</span>
                 </span>
               )}
             </span>
