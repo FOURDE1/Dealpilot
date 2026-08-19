@@ -265,7 +265,12 @@ export function AppointmentsPage() {
                   <span className="ms-auto flex items-center gap-2">
                     {a.status === 'booked' || a.status === 'confirmed' ? (
                       <>
-                        <Label htmlFor={`agent-${a.id}`} className="sr-only">{t('agent')}</Label>
+                        {/* aria-label rather than a <Label>: the accessible name
+                            needs the START TIME so rows are distinguishable to a
+                            screen reader — "Conseiller" nine times is a list
+                            nobody can navigate. (2026-08-19 UI review: a
+                            redundant sr-only Label was removed; aria-label was
+                            winning anyway.) */}
                         <Select
                           id={`agent-${a.id}`}
                           aria-label={`${t('agent')} — ${time(a.starts_at)}`}
