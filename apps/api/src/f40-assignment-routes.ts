@@ -8,6 +8,7 @@ import {
   type AssignLeadResultT,
 } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
+import type { ReassignQueue } from './reassign-queue.js';
 import { idParam, keysetPage, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
@@ -175,7 +176,7 @@ async function assertMemberUuids(
   }
 }
 
-export function registerF40Routes(app: FastifyInstance, pool: Pool): void {
+export function registerF40Routes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue): void {
   app.get('/api/v1/assignment-rules', async (request, reply) => {
     const query = parseOrThrow(AssignmentRuleListQuery, request.query);
     const user = sessionUser(request);
@@ -287,8 +288,22 @@ export function registerF40Routes(app: FastifyInstance, pool: Pool): void {
     });
     const result = await withTenant(pool, orgId, async (c) => {
       await requirePermission(c, user.id, 'lead:assign');
-      return autoAssignLead(c, orgId, leadId, user.id);
+      const decision = await autoAssignLead(c, orgId, leadId, user.id);
+      if (decision.outcome !== 'assigned') return { decision, attempt: 0 };
+      const a = await c.query<{ n: number }>(
+        `SELECT assignment_attempts AS n FROM leads WHERE id = $1`, [leadId],
+      );
+      return { decision, attempt: a.rows[0]?.n ?? 0 };
     });
-    return reply.send(result);
+    // D-046 #2: a machine assignment arms the ten-minute timer.
+    if (result.decision.outcome === 'assigned') {
+      await reassign.arm({
+        organization_id: orgId,
+        lead_id: leadId,
+        assigned_to: result.decision.assigned_to,
+        attempt: result.attempt,
+      });
+    }
+    return reply.send(result.decision);
   });
 }

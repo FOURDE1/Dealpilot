@@ -40,6 +40,10 @@
       "types": "./dist/f19-send.d.ts",
       "default": "./dist/f19-send.js"
     },
+    "./cascade": {
+      "types": "./dist/f42-cascade-routes.d.ts",
+      "default": "./dist/f42-cascade-routes.js"
+    },
     "./deliver": {
       "types": "./dist/f30-deliver.d.ts",
       "default": "./dist/f30-deliver.js"

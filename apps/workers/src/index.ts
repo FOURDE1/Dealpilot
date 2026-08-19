@@ -1,19 +1,22 @@
 import { Queue, Worker, type ConnectionOptions } from 'bullmq';
 import { createPool } from '@dealpilot/db';
 import {
-  QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND, queueOpts,
-  type AssistantTurnJobT, type DeferredSendJobT,
+  QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND, QUEUE_LEAD_REASSIGN, REASSIGN_AFTER_MS, queueOpts,
+  type AssistantTurnJobT, type DeferredSendJobT, type LeadReassignJobT,
 } from '@dealpilot/contracts';
 import { createCarrier } from '@dealpilot/api/carrier';
 import { createAssistant } from '@dealpilot/api/assistant';
 import { loadEnv } from '@dealpilot/api/env';
 import { runDeferredSend } from './deferred-send.js';
 import { runAssistantTurn } from './assistant-turn.js';
+import { runLeadReassign } from './lead-reassign.js';
 
 export { runDeferredSend } from './deferred-send.js';
 export type { DeferredSendDeps, DeferredSendResult } from './deferred-send.js';
 export { runAssistantTurn } from './assistant-turn.js';
 export type { AssistantTurnDeps, AssistantTurnResult } from './assistant-turn.js';
+export { runLeadReassign } from './lead-reassign.js';
+export type { LeadReassignDeps, LeadReassignResult } from './lead-reassign.js';
 
 /**
  * @dealpilot/workers — the job runner (ADR-012).
@@ -88,11 +91,37 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
       )
     : null;
 
+  // F-42.2: the ten-minute reassignment ladder (FR-LEAD-010, D-046). The
+  // module verifies every claim against the database, so concurrency 2 is
+  // parallelism, not risk.
+  const reassignQueue = new Queue<LeadReassignJobT>(QUEUE_LEAD_REASSIGN, queueOpts(connection(env.REDIS_URL)));
+  const reassignWorker = new Worker<LeadReassignJobT>(
+    QUEUE_LEAD_REASSIGN,
+    async (job) =>
+      runLeadReassign(
+        {
+          pool,
+          armNext: async (next) => {
+            await reassignQueue.add(QUEUE_LEAD_REASSIGN, next, {
+              delay: REASSIGN_AFTER_MS,
+              jobId: `reassign:${next.lead_id}:${next.attempt}`,
+              removeOnComplete: 1000,
+              removeOnFail: 5000,
+            });
+          },
+        },
+        job.data,
+      ),
+    { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
+  );
+
   return {
     close: async () => {
       await worker.close();
       await turnWorker?.close();
+      await reassignWorker.close();
       await queue.close();
+      await reassignQueue.close();
       await pool.end();
     },
   };

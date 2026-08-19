@@ -10,6 +10,7 @@ import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
+import type { ReassignQueue } from './reassign-queue.js';
 
 /**
  * F-42 — the §7.3 assignment cascade and the staff-schedule grid it reads
@@ -43,19 +44,26 @@ interface CandidateRow {
  * only caller. Refusals come back as values; `already_assigned` mirrors
  * §7.2's rule — the auto path never takes a lead off somebody.
  */
+export type CascadeAssignOutcome =
+  | (CascadeDecision & { attempt?: number })
+  | { outcome: 'already_assigned'; lead_id: string };
+
 export async function cascadeAssignLead(
   c: PoolClient,
   organizationId: string,
   leadId: string,
   actorUserId: string | null,
-): Promise<CascadeDecision | { outcome: 'already_assigned'; lead_id: string }> {
+  /** FR-LEAD-010's re-run stamps 'reassignment' instead of the funnel method. */
+  opts: { method?: 'reassignment' } = {},
+): Promise<CascadeAssignOutcome> {
   const leadRow = await c.query<{
     preferred_language: string;
     assigned_to: string | null;
     source: string;
     previous_agents: unknown;
+    assignment_attempts: number;
   }>(
-    `SELECT preferred_language, assigned_to, source, previous_agents
+    `SELECT preferred_language, assigned_to, source, previous_agents, assignment_attempts
      FROM leads WHERE id = $1 AND deleted_at IS NULL`,
     [leadId],
   );
@@ -122,7 +130,63 @@ export async function cascadeAssignLead(
 
   // The escalation ladder (D-045 #4): sales_manager first, then gm, then
   // owner — somebody must own the lead. Membership age breaks ties.
-  const managers = await c.query<{ user_id: string }>(
+  const managers = await escalationLadder(c, organizationId);
+
+  const decision = cascadeAssign(
+    { preferred_language: lead.preferred_language },
+    candidates,
+    previousAgents,
+    managers,
+  );
+  if (decision.outcome === 'no_one') return decision;
+
+  // Persist. Status bumps to 'assigned' only from the pre-human states —
+  // a qualified lead re-entering the funnel keeps the truth it had. The
+  // `assigned_to IS NULL` re-check closes the race two concurrent cascades
+  // (or a cascade against a manual PATCH) would otherwise lose silently:
+  // whoever commits second must NOT steal, and must not write history.
+  const method = decision.outcome === 'assigned' ? (opts.method ?? decision.method) : decision.method;
+  const won = await c.query(
+    `UPDATE leads
+     SET assigned_to = $2, assigned_at = now(), assignment_method = $3,
+         status = CASE WHEN status IN ('new','chatbot_engaged') THEN 'assigned' ELSE status END
+     WHERE id = $1 AND assigned_to IS NULL`,
+    [leadId, decision.user_id, method],
+  );
+  if (won.rowCount === 0) return { outcome: 'already_assigned', lead_id: leadId };
+  await c.query(
+    `INSERT INTO lead_assignment_history
+       (organization_id, lead_id, assigned_to, rule_id, rule_name, strategy, lead_source)
+     VALUES ($1, $2, $3, NULL, $4, $5, $6)`,
+    [
+      organizationId, leadId, decision.user_id,
+      decision.outcome === 'escalated' ? `escalation: ${decision.reason}` : `funnel: ${method}`,
+      CASCADE_STRATEGY, lead.source,
+    ],
+  );
+  await recordEvent(c, {
+    organizationId,
+    actorUserId,
+    entityType: 'lead',
+    entityId: leadId,
+    action: 'assigned',
+    changes: {
+      assigned_to: { from: null, to: decision.user_id },
+      assignment_method: method,
+      via: 'cascade',
+      ...(decision.outcome === 'escalated' ? { escalation_reason: decision.reason } : {}),
+    },
+  });
+  return { ...decision, attempt: lead.assignment_attempts };
+}
+
+/**
+ * The escalation ladder (D-045 #4): one user per PERSON, sales_manager first,
+ * then gm, then owner, oldest membership breaking ties. Exported for the
+ * FR-LEAD-010 worker's 3-strike direct assignment.
+ */
+export async function escalationLadder(c: PoolClient, organizationId: string): Promise<string[]> {
+  const r = await c.query<{ user_id: string }>(
     `SELECT t.user_id FROM (
        SELECT m.user_id,
               bool_or('sales_manager' = ANY(m.roles)) AS is_sm,
@@ -136,52 +200,48 @@ export async function cascadeAssignLead(
      ORDER BY (CASE WHEN t.is_sm THEN 0 WHEN t.is_gm THEN 1 ELSE 2 END), t.joined_at, t.user_id`,
     [organizationId],
   );
+  return r.rows.map((row) => row.user_id);
+}
 
-  const decision = cascadeAssign(
-    { preferred_language: lead.preferred_language },
-    candidates,
-    previousAgents,
-    managers.rows.map((r) => r.user_id),
-  );
-  if (decision.outcome === 'no_one') return decision;
-
-  // Persist. Status bumps to 'assigned' only from the pre-human states —
-  // a qualified lead re-entering the funnel keeps the truth it had. The
-  // `assigned_to IS NULL` re-check closes the race two concurrent cascades
-  // (or a cascade against a manual PATCH) would otherwise lose silently:
-  // whoever commits second must NOT steal, and must not write history.
+/**
+ * FR-LEAD-010's 3-strike terminus: the lead goes STRAIGHT to the first rung
+ * of the ladder, capacity notwithstanding, method 'escalation' — and the
+ * ladder ends there (D-046 #3). Returns the manager's id, or null when the
+ * organization has nobody to escalate to (the engine cannot invent people).
+ */
+export async function assignLeadToManager(
+  c: PoolClient,
+  organizationId: string,
+  leadId: string,
+  reason: string,
+): Promise<string | null> {
+  const ladder = await escalationLadder(c, organizationId);
+  const target = ladder[0];
+  if (target === undefined) return null;
   const won = await c.query(
     `UPDATE leads
-     SET assigned_to = $2, assigned_at = now(), assignment_method = $3,
+     SET assigned_to = $2, assigned_at = now(), assignment_method = 'escalation',
          status = CASE WHEN status IN ('new','chatbot_engaged') THEN 'assigned' ELSE status END
-     WHERE id = $1 AND assigned_to IS NULL`,
-    [leadId, decision.user_id, decision.method],
+     WHERE id = $1 AND assigned_to IS NULL AND deleted_at IS NULL`,
+    [leadId, target],
   );
-  if (won.rowCount === 0) return { outcome: 'already_assigned', lead_id: leadId };
+  if (won.rowCount === 0) return null;
+  const src = await c.query<{ source: string }>(`SELECT source FROM leads WHERE id = $1`, [leadId]);
   await c.query(
     `INSERT INTO lead_assignment_history
        (organization_id, lead_id, assigned_to, rule_id, rule_name, strategy, lead_source)
      VALUES ($1, $2, $3, NULL, $4, $5, $6)`,
-    [
-      organizationId, leadId, decision.user_id,
-      decision.outcome === 'escalated' ? `escalation: ${decision.reason}` : `funnel: ${decision.method}`,
-      CASCADE_STRATEGY, lead.source,
-    ],
+    [organizationId, leadId, target, `escalation: ${reason}`, CASCADE_STRATEGY, src.rows[0]?.source ?? 'other'],
   );
   await recordEvent(c, {
     organizationId,
-    actorUserId,
+    actorUserId: null,
     entityType: 'lead',
     entityId: leadId,
     action: 'assigned',
-    changes: {
-      assigned_to: { from: null, to: decision.user_id },
-      assignment_method: decision.method,
-      via: 'cascade',
-      ...(decision.outcome === 'escalated' ? { escalation_reason: decision.reason } : {}),
-    },
+    changes: { assigned_to: { from: null, to: target }, assignment_method: 'escalation', via: 'cascade', escalation_reason: reason },
   });
-  return decision;
+  return target;
 }
 
 /** The row's org, resolved under the caller's own visibility (member_read). */
@@ -230,7 +290,7 @@ function trimTimes<T extends Record<string, unknown>>(row: T): T {
   };
 }
 
-export function registerF42Routes(app: FastifyInstance, pool: Pool): void {
+export function registerF42Routes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue): void {
   app.post('/api/v1/staff-schedules', async (request, reply) => {
     const input = parseOrThrow(CreateStaffScheduleInput, request.body);
     const user = sessionUser(request);
@@ -386,6 +446,18 @@ export function registerF42Routes(app: FastifyInstance, pool: Pool): void {
       await requirePermission(c, user.id, 'lead:assign');
       return cascadeAssignLead(c, orgId, leadId, user.id);
     });
+    // D-046 #2: every machine assignment arms the ten-minute timer —
+    // escalation included (leads.md:374 runs the ladder after escalating).
+    // Armed AFTER the transaction committed; a job for a rolled-back
+    // assignment would only no-op, but why enqueue a lie.
+    if (result.outcome === 'assigned' || result.outcome === 'escalated') {
+      await reassign.arm({
+        organization_id: orgId,
+        lead_id: leadId,
+        assigned_to: result.user_id,
+        attempt: result.attempt ?? 0,
+      });
+    }
     return reply.send(result);
   });
 }

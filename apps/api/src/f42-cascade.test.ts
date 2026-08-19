@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createPool, ensureTestDatabase, reset, testAdminUrl, testAppUrl, type Pool } from '@dealpilot/db';
 import { buildApp } from './app.js';
+import type { LeadReassignJobT } from '@dealpilot/contracts';
 
 /**
  * F-42 — the §7.3 cascade, wired. The funnel's math is golden-tested in
@@ -228,6 +229,53 @@ describe('the funnel, wired (§7.3)', () => {
       payload: { assigned_to: null },
     });
     expect((JSON.parse(unassign.body) as { assignment_method: string | null }).assignment_method).toBeNull();
+  });
+});
+
+describe('the ten-minute timer arms on machine assignment (F-42.2, D-046 #2)', () => {
+  it('cascade-assign arms exactly one timer for the new holder', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const armed: LeadReassignJobT[] = [];
+    const { app: timed } = await buildApp(
+      { DATABASE_URL: APP_URL, NODE_ENV: 'test' },
+      { reassignQueue: { arm: async (j) => { armed.push(j); }, close: async () => {} } },
+    );
+    try {
+      const su = await timed.inject({
+        method: 'POST', url: '/api/auth/sign-up/email',
+        payload: { email: `f42q-${run}@dealpilot.test`, password: 'correct-horse-battery-staple', name: 'Quinn Queue' },
+      });
+      const sc = su.headers['set-cookie'];
+      const qCookie = (Array.isArray(sc) ? sc : [sc!]).map((c) => c!.split(';')[0]).join('; ');
+      const org = await timed.inject({
+        method: 'POST', url: '/api/v1/organizations', headers: { cookie: qCookie },
+        payload: { name: 'Groupe Minute', slug: `groupe-minute-${run}` },
+      });
+      const qOrg = (JSON.parse(org.body) as { id: string }).id;
+      const store = await timed.inject({
+        method: 'POST', url: '/api/v1/stores', headers: { cookie: qCookie },
+        payload: { organization_id: qOrg, name: 'Minute Kia', code: 'MINQ-KIA', province: 'QC' },
+      });
+      const qStore = (JSON.parse(store.body) as { id: string }).id;
+
+      const lead = await timed.inject({
+        method: 'POST', url: '/api/v1/leads', headers: { cookie: qCookie },
+        payload: { organization_id: qOrg, store_id: qStore, phone: '+15145559999', source: 'walk_in' },
+      });
+      const leadId = (JSON.parse(lead.body) as { id: string }).id;
+      // No rules configured: creation armed nothing (no assignment happened).
+      expect(armed).toHaveLength(0);
+
+      const cas = await timed.inject({
+        method: 'POST', url: `/api/v1/leads/${leadId}/cascade-assign`, headers: { cookie: qCookie },
+      });
+      const d = JSON.parse(cas.body) as { user_id: string };
+      expect(armed).toEqual([
+        { organization_id: qOrg, lead_id: leadId, assigned_to: d.user_id, attempt: 0 },
+      ]);
+    } finally {
+      await timed.close();
+    }
   });
 });
 

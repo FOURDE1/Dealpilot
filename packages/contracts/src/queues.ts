@@ -40,6 +40,7 @@ export const QUEUE_PREFIX = 'dealpilot';
 
 export const QUEUE_DEFERRED_SEND = 'deferred-send';
 export const QUEUE_ASSISTANT_TURN = 'assistant-turn';
+export const QUEUE_LEAD_REASSIGN = 'lead-reassign';
 
 /**
  * Build the options every Queue and Worker must be constructed with.
@@ -108,6 +109,30 @@ export const DeferredSendJob = z.object({
   attempt: z.number().int().min(0).max(10).default(0),
 });
 export type DeferredSendJobT = z.infer<typeof DeferredSendJob>;
+
+/**
+ * F-42.2 — the ten-minute reassignment ladder (FR-LEAD-010, leads.md §5.2).
+ * One delayed job per assignment, jobId `reassign:{lead_id}:{attempt}`
+ * (deterministic = idempotent under webhook redelivery and double-enqueue).
+ * The job VERIFIES at fire time instead of being cancelled (D-046 #1):
+ * assigned_to and attempt are the claim check — if either moved, the job is
+ * about an assignment that no longer exists and does nothing.
+ */
+export const LeadReassignJob = z.object({
+  organization_id: z.uuid(),
+  lead_id: z.uuid(),
+  /** Who held the lead when this timer started. */
+  assigned_to: z.uuid(),
+  /** leads.assignment_attempts at enqueue time. */
+  attempt: z.number().int().min(0),
+});
+export type LeadReassignJobT = z.infer<typeof LeadReassignJob>;
+
+/** 10 minutes, per the §5.2 ladder. One constant so both sides agree. */
+export const REASSIGN_AFTER_MS = 10 * 60 * 1000;
+
+/** The ladder's length: the 3rd strike goes straight to the sales manager. */
+export const REASSIGN_MAX_ATTEMPTS = 3;
 
 /**
  * How many times a message may be deferred before it is abandoned.

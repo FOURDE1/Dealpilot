@@ -30,6 +30,7 @@ import { registerF24Routes } from './f24-speed-routes.js';
 import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
 import { createCarrier, type Carrier } from './carrier.js';
 import { createDeferredSendQueue, type DeferredSendQueue } from './deferred-queue.js';
+import { createReassignQueue, type ReassignQueue } from './reassign-queue.js';
 import { registerF30Routes } from './f30-carrier-routes.js';
 import { registerF12Routes } from './f12-invitation-routes.js';
 import { registerF08Routes } from './f08-checklist-routes.js';
@@ -111,6 +112,8 @@ export interface AppDeps {
   carrier?: Carrier;
   /** Injectable so tests assert what was queued without a Redis. */
   deferredQueue?: DeferredSendQueue;
+  /** Injectable so tests assert which timers were armed without a Redis. */
+  reassignQueue?: ReassignQueue;
 }
 
 export async function buildApp(
@@ -346,10 +349,12 @@ export async function buildApp(
     };
   });
 
+  const reassignQueue =
+    deps.reassignQueue ?? createReassignQueue(env, (obj, msg) => app.log.warn(obj, msg));
   registerF01Routes(app, pool);
-  registerF02Routes(app, pool);
+  registerF02Routes(app, pool, reassignQueue);
   registerIntakeKeyRoutes(app, pool, env.BETTER_AUTH_URL);
-  registerPublicIntakeRoutes(app, pool);
+  registerPublicIntakeRoutes(app, pool, reassignQueue);
   registerF04Routes(app, pool);
   registerF05Routes(app, pool);
   registerF07Routes(app, pool);
@@ -369,8 +374,8 @@ export async function buildApp(
   registerF35Routes(app, pool);
   registerF38Routes(app, pool);
   registerF39Routes(app, pool);
-  registerF40Routes(app, pool);
-  registerF42Routes(app, pool);
+  registerF40Routes(app, pool, reassignQueue);
+  registerF42Routes(app, pool, reassignQueue);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);

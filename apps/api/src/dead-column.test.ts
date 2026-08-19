@@ -59,11 +59,10 @@ const STRUCTURAL = new Set([
  * is exactly what the three bugs above would have claimed.
  */
 const DELIBERATELY_UNWRITTEN: Record<string, string> = {
-  // F-42 shipped the cascade READING these (exclusion of previous agents);
-  // the WRITER is FR-LEAD-010's ten-minute reassignment timer, the next
-  // assignment slice. The staleness guard retires these lines when it lands.
-  'leads.previous_agents': 'written by the FR-LEAD-010 reassignment timer (next slice)',
-  'leads.assignment_attempts': 'written by the FR-LEAD-010 reassignment timer (next slice)',
+  // Written by the FR-LEAD-010 worker (apps/workers/src/lead-reassign.ts),
+  // which lives outside this guard's scan (api + schemas sources only).
+  'leads.previous_agents': 'written by apps/workers lead-reassign (outside this scan)',
+  'leads.assignment_attempts': 'written by apps/workers lead-reassign (outside this scan)',
 
   // Written by the invitation_accept() SQL function, not by a route: accepting
   // an invitation has to reactivate a membership and stamp acceptance in one

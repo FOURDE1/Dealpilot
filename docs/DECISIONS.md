@@ -11,6 +11,44 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-046 — FR-LEAD-010 timer: fire-time verification, not job cancellation (2026-08-19)
+
+**Context:** the 10-minute reassignment ladder (leads.md §5.2, :250-254). The
+spec prescribes one BullMQ delayed job per lead keyed
+`reassign:{lead_id}:{attempts}` "cancelled when a communication is logged".
+
+1. **No cancellation plumbing — the job VERIFIES at fire time.** Cancelling
+   requires every message-write path to reach into Redis; a fired job that
+   re-checks the database needs nothing from anybody. The job carries
+   `{lead_id, assigned_to, attempt}`; at fire time it no-ops as `obsolete`
+   when the lead changed hands (assigned_to differs), attempts moved, the
+   lead is terminal/deleted, or as `contacted` when an outbound AGENT message
+   (sender_type='agent' — the assistant's sends do not count as the human
+   contact the SLA demands) exists since assigned_at. Same behavior as
+   cancellation, minus a distributed cache-invalidation problem.
+2. **Which assignments start the timer:** every MACHINE assignment — cascade
+   (assigned or escalated: leads.md:374 runs the timer after escalation too)
+   and the §7.1 rules engine. A MANUAL assignment starts no timer this slice:
+   a human chose a human; auto-take-away behind their back is a policy the
+   owner should switch on knowingly (parked in OWNER-ACTIONS).
+3. **The ladder ends at the 3-strike manager assignment** (method
+   'escalation', history `escalation: three_strikes`). The manager does not
+   get a fresh 10-minute timer — the spec ends the ladder with "direct
+   assignment", and a timer that takes leads away from the person the ladder
+   terminates AT would be a loop, not a ladder.
+4. **Take-away restores the unowned invariant** (assigned_to/assigned_at/
+   method NULL, status assigned→new) and appends
+   `{user_id, assigned_at, reassigned_at, reason:'no_response'}` to
+   previous_agents; the re-run is cascadeAssignLead with method
+   'reassignment', which already excludes previous agents. Nobody eligible →
+   the cascade's own escalation assigns the manager.
+5. **"HIGH alert to sales manager / notify first agent"** is recorded as
+   activity events only — the M9/H-class notification channels do not exist
+   yet; they attach here when the notification slice lands.
+6. **No queue configured = loud degradation, not failure** (the
+   deferred-send precedent): the timer simply does not run, and each skipped
+   enqueue is warn-logged with the lead id.
+
 ## D-045 — FR-LEAD-009 cascade: interpretations where the spec is silent (2026-08-19)
 
 **Context:** leads.md §7.3 defines the post-handoff funnel (language → online →

@@ -86,13 +86,16 @@ export const CascadeAssignResult = z.union([
   z.object({
     outcome: z.literal('assigned'),
     user_id: Uuid,
-    method: z.enum(['auto_language', 'auto_availability']),
+    method: z.enum(['auto_language', 'auto_availability', 'reassignment']),
+    /** leads.assignment_attempts at decision time — the timer's claim check. */
+    attempt: z.number().int().optional(),
   }),
   z.object({
     outcome: z.literal('escalated'),
     user_id: Uuid,
     method: z.literal('escalation'),
     reason: CascadeRefusal,
+    attempt: z.number().int().optional(),
   }),
   z.object({ outcome: z.literal('no_one'), reason: CascadeRefusal }),
   z.object({ outcome: z.literal('already_assigned'), lead_id: Uuid }),

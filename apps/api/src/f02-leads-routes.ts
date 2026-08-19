@@ -14,6 +14,7 @@ import {
   keysetPage,
   sessionUser,
 } from './f01-routes.js';
+import type { ReassignQueue } from './reassign-queue.js';
 
 /**
  * F-02: lead pipeline routes (apiV1.leads). Same tenancy model as F-01:
@@ -72,7 +73,7 @@ async function leadOrg(pool: Pool, userId: string, leadId: string): Promise<stri
 const LEAD_COLUMNS =
   'organization_id, store_id, first_name, last_name, email, phone, source, source_platform, preferred_language, total_budget_cents, monthly_budget_cents, vehicle_interest, trade_in_status';
 
-export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
+export function registerF02Routes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue): void {
   app.post('/api/v1/leads', async (request, reply) => {
     const input = parseOrThrow(CreateLeadInput, request.body);
     const user = sessionUser(request);
@@ -158,13 +159,23 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
         // F-40: routed at birth too (§7.2). Every refusal is a value — with no
         // rules configured this is a no-op and the lead stays unassigned,
         // exactly as before the engine existed.
-        await autoAssignLead(c, input.organization_id, leadId, user.id);
+        const assignDecision = await autoAssignLead(c, input.organization_id, leadId, user.id);
         // Re-read: scoring synced leads.score and assignment may have set
         // assigned_to/status after the INSERT's RETURNING row was captured.
         const fresh = await c.query(`SELECT * FROM leads WHERE id = $1`, [leadId]);
-        return fresh.rows[0];
+        return { row: fresh.rows[0], assignDecision };
       });
-      return await reply.status(201).send(lead);
+      // D-046 #2: a machine assignment arms the ten-minute timer (post-commit;
+      // a fresh lead's attempt counter is zero by definition).
+      if (lead.assignDecision.outcome === 'assigned') {
+        await reassign.arm({
+          organization_id: input.organization_id,
+          lead_id: lead.assignDecision.lead_id,
+          assigned_to: lead.assignDecision.assigned_to,
+          attempt: 0,
+        });
+      }
+      return await reply.status(201).send(lead.row);
     } catch (err) {
       throw conflictFrom(err) ?? err;
     }

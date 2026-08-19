@@ -9,6 +9,7 @@ import { AdfParseError, findConnector, normalizeLead, normalizePhone, parseAdf, 
 import { scoreOnCreate } from './f39-scoring-routes.js';
 import { autoAssignLead } from './f40-assignment-routes.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
+import type { ReassignQueue } from './reassign-queue.js';
 
 /**
  * F-03 lead intake (leads.md §10). Two surfaces:
@@ -213,7 +214,7 @@ function adfToCandidate(adf: AdfLead): Record<string, unknown> {
   };
 }
 
-export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): void {
+export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue): void {
   app.route({
     method: 'POST',
     url: '/in/v1/leads/:token',
@@ -298,7 +299,7 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): vo
         await scoreOnCreate(c, resolved.organization_id, r.rows[0]!.id, (o, m) => request.log.warn(o, m));
         // F-40: routed at birth (§7.2). Actor NULL — a webhook assigned this,
         // not a person, and the history row names the rule that decided.
-        await autoAssignLead(c, resolved.organization_id, r.rows[0]!.id, null);
+        const assignDecision = await autoAssignLead(c, resolved.organization_id, r.rows[0]!.id, null);
         // ADR-005: what this form's consent box granted is a fact about THAT
         // form, so it comes from the connector definition rather than from an
         // assumption here. Written in the same transaction as the lead — an
@@ -341,10 +342,21 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): vo
           }
         }
         await c.query(`UPDATE intake_keys SET last_used_at = now() WHERE token = $1`, [token]);
-        return r.rows[0]!.id;
+        return { id: r.rows[0]!.id, assignDecision };
       });
+      // D-046 #2: a machine assignment arms the ten-minute timer. Post-commit,
+      // and NOT counted against the sub-second ACK budget when there is no
+      // queue (the no-op just logs).
+      if (leadId.assignDecision.outcome === 'assigned') {
+        await reassign.arm({
+          organization_id: resolved.organization_id,
+          lead_id: leadId.id,
+          assigned_to: leadId.assignDecision.assigned_to,
+          attempt: 0,
+        });
+      }
 
-      return reply.status(202).send({ received: true, lead_id: leadId });
+      return reply.status(202).send({ received: true, lead_id: leadId.id });
     },
   });
 }

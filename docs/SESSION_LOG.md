@@ -1,3 +1,31 @@
+## 2026-08-19 (late night) — F-42.2: the ten-minute ladder fires
+
+FR-LEAD-010 built on the D-046 principle: the delayed BullMQ job is a CLAIM
+CHECK, not an order — it carries {lead_id, assigned_to, attempt} and at fire
+time the database decides. No cancellation plumbing anywhere: changed hands /
+attempts moved / terminal / deleted = obsolete; an outbound AGENT message
+since assigned_at = contacted (bot chatter does NOT discharge the SLA).
+Standing claim: take-away (previous_agents ledger entry, reason no_response,
+attempts+1, unowned invariant restored) → §7.3 re-run excluding previous
+agents, method 'reassignment', timer restarts on the new holder. Third
+strike → straight to the manager, method 'escalation', ladder ENDS (no
+manager-timer loop — D-046 #3).
+
+Wiring: every MACHINE assignment arms the timer post-commit (cascade route,
+F-40 button, lead create, ADF/JSON intake); manual assignment deliberately
+does not (a human chose a human — owner can flip that policy, OWNER-ACTIONS).
+No Redis = loud degradation per deferred-send precedent. jobId
+reassign:{lead}:{attempt} per the spec. Worker registered in apps/workers
+(claim-check module tested against real DB, 6 cases, queue-free); api gains
+./cascade subpath export; contracts carry the job schema + 10-min + 3-strike
+constants.
+
+The consent CHECK proved load-bearing during testing: even a test fixture
+cannot INSERT an outbound message without naming its consent grant. Fixture
+notes in the suite say exactly which rows are raw and why (f19 owns the full
+send path). Deferred: notifications for the HIGH alerts (no channel exists —
+D-046 #5); FR-LEAD-014 presence; reactivation re-entry (FR-LEAD-012).
+
 ## 2026-08-19 (night) — F-42: the §7.3 assignment cascade
 
 FR-LEAD-009, built plan-first: an understand-workflow mapped the spec + five
