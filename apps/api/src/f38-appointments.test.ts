@@ -193,6 +193,42 @@ describe('taking an appointment', () => {
   });
 });
 
+describe('the status state machine (2026-08-19 audit)', () => {
+  async function setStatus(id: string, status: string) {
+    return app!.inject({
+      method: 'PATCH', url: `/api/v1/appointments/${id}`, headers: { cookie },
+      payload: { status },
+    });
+  }
+
+  it('an appointment that happened never becomes scheduled again', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const a = JSON.parse((await book()).body) as { id: string };
+    expect((await setStatus(a.id, 'completed')).statusCode).toBe(200);
+    const back = await setStatus(a.id, 'booked');
+    expect(back.statusCode, back.body).toBe(422);
+    expect(back.body).toContain('invalid_status_transition');
+  });
+
+  it('no_show and completed may correct each other — late walk-ins are real', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const a = JSON.parse((await book()).body) as { id: string };
+    expect((await setStatus(a.id, 'no_show')).statusCode).toBe(200);
+    const corrected = await setStatus(a.id, 'completed');
+    expect(corrected.statusCode, corrected.body).toBe(200);
+  });
+
+  it("PATCH can never set 'cancelled' — the schema keeps that value for the cancel endpoint", async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const a = JSON.parse((await book()).body) as { id: string };
+    const res = await setStatus(a.id, 'cancelled');
+    // Refused at the SCHEMA (the enum for PATCH omits it), never reaching SQL
+    // where it would trip the 0037 cancelled_at CHECK as a 500.
+    expect(res.statusCode, res.body).toBe(422);
+    expect(res.body).toContain('"path":"status"');
+  });
+});
+
 describe('cancelling', () => {
   it('requires a real reason and keeps it', async (ctx) => {
     if (!dbUp) return ctx.skip();

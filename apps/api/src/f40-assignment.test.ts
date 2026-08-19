@@ -182,6 +182,48 @@ describe('the named refusals', () => {
   });
 });
 
+describe('rule writes refuse ghost members (2026-08-19 audit LOW)', () => {
+  async function meId(who: string): Promise<string> {
+    const res = await app!.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie: who } });
+    return (JSON.parse(res.body) as { user: { id: string } }).user.id;
+  }
+
+  it('a well-formed uuid that is nobody here is refused 422, named', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await clearRules();
+    const ghost = '00000000-0000-4000-8000-000000000123';
+    const res = await makeRule({ name: 'Ghost include', included_users: [ghost] });
+    expect(res.statusCode, res.body).toBe(422);
+    expect(res.body).toContain('unknown_member');
+    expect(res.body).toContain(ghost);
+  });
+
+  it("a RIVAL org's real user is a ghost in OUR rule — cross-tenant ids never validate", async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await clearRules();
+    const rivalId = await meId(rivalCookie);
+    const res = await makeRule({ name: 'Rival mapping', source_mappings: { walk_in: rivalId } });
+    expect(res.statusCode, res.body).toBe(422);
+    expect(res.body).toContain('unknown_member');
+  });
+
+  it('a real active member validates — no false positive, and PATCH is gated the same way', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await clearRules();
+    const ownId = await meId(cookie);
+    const created = await makeRule({ name: 'Legit include', included_users: [ownId] });
+    expect(created.statusCode, created.body).toBe(201);
+    const ruleId = (JSON.parse(created.body) as { id: string }).id;
+
+    const patched = await app!.inject({
+      method: 'PATCH', url: `/api/v1/assignment-rules/${ruleId}`, headers: { cookie },
+      payload: { excluded_users: ['00000000-0000-4000-8000-000000000456'] },
+    });
+    expect(patched.statusCode, patched.body).toBe(422);
+    expect(patched.body).toContain('unknown_member');
+  });
+});
+
 describe('another dealership (all three 0046 tables)', () => {
   it('cannot see, edit, delete our rules, or assign our leads', async (ctx) => {
     if (!dbUp) return ctx.skip();

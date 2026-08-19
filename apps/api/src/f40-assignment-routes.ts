@@ -144,6 +144,37 @@ async function ruleOrg(pool: Pool, userId: string, ruleId: string): Promise<stri
 const RULE_COLUMNS =
   'organization_id, name, strategy, priority, sources, included_users, excluded_users, source_mappings, max_leads_per_user';
 
+/**
+ * 2026-08-19 audit LOW: rule writes accepted ANY well-formed uuid. The engine
+ * only ever assigns active members, so a ghost id could never LEAK a lead
+ * cross-tenant — but a rule that "includes" a departed colleague or a pasted
+ * wrong uuid assigns nobody and looks configured. A config surface should
+ * refuse a typo at write time, naming it, not honour it silently forever.
+ */
+async function assertMemberUuids(
+  c: PoolClient,
+  input: { included_users?: string[]; excluded_users?: string[]; source_mappings?: Record<string, string> },
+): Promise<void> {
+  const referenced = [
+    ...(input.included_users ?? []),
+    ...(input.excluded_users ?? []),
+    ...Object.values(input.source_mappings ?? {}),
+  ];
+  if (referenced.length === 0) return;
+  const unique = [...new Set(referenced)];
+  const r = await c.query<{ user_id: string }>(
+    `SELECT user_id::text FROM memberships WHERE user_id = ANY($1::uuid[]) AND status = 'active'`,
+    [unique],
+  );
+  const known = new Set(r.rows.map((row) => row.user_id));
+  const ghosts = unique.filter((id) => !known.has(id));
+  if (ghosts.length > 0) {
+    throw new AppError(422, 'validation_failed', 'Rule references users who are not active members', ghosts.map((id) => ({
+      path: 'included_users', code: 'unknown_member', message: id,
+    })));
+  }
+}
+
 export function registerF40Routes(app: FastifyInstance, pool: Pool): void {
   app.get('/api/v1/assignment-rules', async (request, reply) => {
     const query = parseOrThrow(AssignmentRuleListQuery, request.query);
@@ -185,6 +216,7 @@ export function registerF40Routes(app: FastifyInstance, pool: Pool): void {
     const user = sessionUser(request);
     const rule = await withTenant(pool, input.organization_id, async (c) => {
       await requirePermission(c, user.id, 'organization:update');
+      await assertMemberUuids(c, input);
       const r = await c.query<Record<string, unknown>>(
         `INSERT INTO lead_assignment_rules (${RULE_COLUMNS})
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
@@ -206,6 +238,7 @@ export function registerF40Routes(app: FastifyInstance, pool: Pool): void {
     const orgId = await ruleOrg(pool, user.id, id);
     const rule = await withTenant(pool, orgId, async (c) => {
       await requirePermission(c, user.id, 'organization:update');
+      await assertMemberUuids(c, input);
       // Belt-and-braces at the SINK (2026-08-19 audit): keys are already
       // bounded by the strictObject parse, but that invariant lives in a
       // schema file far from this SQL. If the schema ever grows

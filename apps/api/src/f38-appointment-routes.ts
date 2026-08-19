@@ -169,6 +169,27 @@ export function registerF38Routes(app: FastifyInstance, pool: Pool): void {
         ]);
       }
 
+      if (input.status && input.status !== prior.rows[0]!['status']) {
+        // 2026-08-19 audit LOW, now a state machine. The schema already keeps
+        // 'cancelled' out of PATCH (that path belongs to the cancel endpoint
+        // and its bookkeeping); what the enum alone cannot say is DIRECTION —
+        // an appointment that HAPPENED (completed/no_show) never goes back to
+        // being scheduled. The pair may correct each other, because "marked
+        // no-show, customer walked in late" is real.
+        const allowed: Record<string, readonly string[]> = {
+          booked: ['confirmed', 'completed', 'no_show'],
+          confirmed: ['completed', 'no_show'],
+          completed: ['no_show'],
+          no_show: ['completed'],
+        };
+        const from = String(prior.rows[0]!['status']);
+        if (!(allowed[from] ?? []).includes(input.status)) {
+          throw new AppError(422, 'invalid_status_transition', 'That status change is not allowed', [
+            { path: 'status', code: 'invalid_status_transition', message: `'${from}' cannot become '${input.status}'` },
+          ]);
+        }
+      }
+
       if (input.assigned_agent_id) {
         const member = await c.query(
           `SELECT 1 FROM memberships
