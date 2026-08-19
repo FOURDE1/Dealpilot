@@ -11,7 +11,7 @@ import { useSession } from '../../shared/auth/client.js';
 import { useMembers } from '../team/api.js';
 import { scoreBand } from '@dealpilot/core';
 import {
-  LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, SCORE_BAND_CLASSES, SCORE_BAND_KEYS, leadDisplayName,
+  AGING_CLASSES, AGING_KEYS, LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, SCORE_BAND_CLASSES, SCORE_BAND_KEYS, agingBand, leadDisplayName,
 } from './labels.js';
 
 export function LeadsPage() {
@@ -58,11 +58,21 @@ export function LeadsPage() {
       {
         accessorKey: 'status',
         header: t('statusCol'),
-        cell: ({ row }) => (
-          <span className="inline-flex rounded-md bg-secondary px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-secondary-foreground">
-            {t(LEAD_STATUS_KEYS[row.original.status])}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const band = agingBand(row.original, Date.now());
+          return (
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-flex rounded-md bg-secondary px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-secondary-foreground">
+                {t(LEAD_STATUS_KEYS[row.original.status])}
+              </span>
+              {band === null ? null : (
+                <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${AGING_CLASSES[band]}`}>
+                  {t(AGING_KEYS[band])}
+                </span>
+              )}
+            </span>
+          );
+        },
       },
       {
         accessorKey: 'score',

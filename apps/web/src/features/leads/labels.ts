@@ -57,3 +57,33 @@ export const SCORE_BAND_CLASSES = {
   warm: 'bg-warning-bg text-warning-text',
   cold: 'bg-danger-bg text-danger-text',
 } as const satisfies Record<'hot' | 'warm' | 'cold', string>;
+
+/**
+ * §5's lead-age colors (FR-LEAD-016): under 5 minutes the AI should be
+ * engaging (fresh), to 15 it should have handed off (aging), and past 15 a
+ * lead NOBODY owns is overdue — an owned lead's age is its owner's story, so
+ * it stays amber, never red. Only the pre-human states carry a freshness
+ * clock at all; a worked lead has a person, not a timer.
+ */
+export function agingBand(
+  lead: Pick<LeadT, 'created_at' | 'assigned_to' | 'status'>,
+  nowMs: number,
+): 'fresh' | 'aging' | 'overdue' | null {
+  if (lead.status !== 'new' && lead.status !== 'chatbot_engaged') return null;
+  const ageMs = nowMs - Date.parse(lead.created_at);
+  if (ageMs < 5 * 60_000) return 'fresh';
+  if (ageMs < 15 * 60_000) return 'aging';
+  return lead.assigned_to === null ? 'overdue' : 'aging';
+}
+
+export const AGING_KEYS = {
+  fresh: 'aging_fresh',
+  aging: 'aging_aging',
+  overdue: 'aging_overdue',
+} as const satisfies Record<'fresh' | 'aging' | 'overdue', string>;
+
+export const AGING_CLASSES = {
+  fresh: 'bg-success-bg text-success-text',
+  aging: 'bg-warning-bg text-warning-text',
+  overdue: 'bg-danger-bg text-danger-text',
+} as const satisfies Record<'fresh' | 'aging' | 'overdue', string>;

@@ -1,3 +1,13 @@
+## 2026-08-20 (cont.) — FR-LEAD-016: the freshness clock
+
+Lead-age colors on the list: fresh (<5 min — the AI should be engaging),
+aging (5–15 — should have handed off), overdue (>15 AND nobody owns it —
+red is reserved for the unowned; an assigned lead's age is its owner's
+story, amber at worst). Only pre-human statuses carry the clock. Pure
+client-side band (labels.ts) + golden test; beside the status pill.
+Deferred with its executor: the >15-min sales-manager alert (an S-class
+sweep, same slice as the unresponsive executor).
+
 ## 2026-08-20 (cont.) — F-48: a reply wakes the dead
 
 FR-LEAD-012's reactivation rule (leads.md:459), in the inbound router where
