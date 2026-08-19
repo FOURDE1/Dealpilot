@@ -21,6 +21,9 @@ test('full F-09 journey: pay plan → sold-by deal → funded → $1,375 line', 
   await page.getByLabel("Nom de l'organisation").fill(`Groupe F09 ${stamp}`);
   await page.getByLabel('Identifiant (slug)').fill(`groupe-f09-${stamp}`);
   await page.getByRole('button', { name: "Créer l'organisation" }).click();
+  // The create mutation navigates (replace) after its POST resolves; clicking
+  // during that remount silently loses the click (the f04/f11 race).
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]{36}$/);
   await page.getByRole('link', { name: 'Nouvelle succursale' }).click();
   await page.getByLabel('Nom de la succursale').fill('Succursale F09');
   await page.getByLabel('Code').fill(`F09-${stamp % 10000}`);

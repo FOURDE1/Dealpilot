@@ -19,6 +19,9 @@ test('full F-10 journey: lead + deal histories record the acts', async ({ page }
   await page.getByLabel("Nom de l'organisation").fill(`Groupe F10 ${stamp}`);
   await page.getByLabel('Identifiant (slug)').fill(`groupe-f10-${stamp}`);
   await page.getByRole('button', { name: "Créer l'organisation" }).click();
+  // The create mutation navigates (replace) after its POST resolves; clicking
+  // during that remount silently loses the click (the f04/f11 race).
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]{36}$/);
   await page.getByRole('link', { name: 'Nouvelle succursale' }).click();
   await page.getByLabel('Nom de la succursale').fill('Succursale F10');
   await page.getByLabel('Code').fill(`F10-${stamp % 10000}`);

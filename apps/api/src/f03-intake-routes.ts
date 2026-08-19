@@ -7,6 +7,7 @@ import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
 import { findConnector, normalizeLead } from '@dealpilot/core';
 import { scoreOnCreate } from './f39-scoring-routes.js';
+import { autoAssignLead } from './f40-assignment-routes.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 
 /**
@@ -258,6 +259,9 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool): vo
         // somebody to press a button. In-process pure math; the ACK budget is
         // untouched.
         await scoreOnCreate(c, resolved.organization_id, r.rows[0]!.id);
+        // F-40: routed at birth (§7.2). Actor NULL — a webhook assigned this,
+        // not a person, and the history row names the rule that decided.
+        await autoAssignLead(c, resolved.organization_id, r.rows[0]!.id, null);
         // ADR-005: what this form's consent box granted is a fact about THAT
         // form, so it comes from the connector definition rather than from an
         // assumption here. Written in the same transaction as the lead — an

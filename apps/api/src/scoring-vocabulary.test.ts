@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { SCORING_FIELDS, SCORING_OPERATORS } from '@dealpilot/core';
-import { ScoringRuleField, ScoringRuleOperator } from '@dealpilot/schemas';
+import { ASSIGNMENT_STRATEGIES, SCORING_FIELDS, SCORING_OPERATORS } from '@dealpilot/core';
+import { AssignmentStrategy, ScoringRuleField, ScoringRuleOperator } from '@dealpilot/schemas';
 
 /**
  * The scoring vocabulary lives in THREE places on purpose — the engine
@@ -34,6 +34,21 @@ describe('one vocabulary, three declarations', () => {
 
   it('engine and contract agree on operators', () => {
     expect([...ScoringRuleOperator.options].sort()).toEqual([...SCORING_OPERATORS].sort());
+  });
+
+  it('assignment strategies agree across core, schemas and the 0046 CHECKs', () => {
+    expect([...AssignmentStrategy.options].sort()).toEqual([...ASSIGNMENT_STRATEGIES].sort());
+    const m46 = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'packages', 'db', 'migrations', '20260727000046_lead-assignment.sql'),
+      'utf8',
+    );
+    // Both CHECKs (rules.strategy and history.strategy) must carry the same
+    // list; collect every strategy CHECK in the file and compare each.
+    const lists = [...m46.matchAll(/CHECK \(strategy IN \(([^)]+)\)/g)].map((m) =>
+      [...m[1]!.matchAll(/'([^']+)'/g)].map((x) => x[1]!).sort(),
+    );
+    expect(lists.length).toBe(2);
+    for (const list of lists) expect(list).toEqual([...ASSIGNMENT_STRATEGIES].sort());
   });
 
   it('the 0045 CHECK constraints match the engine', () => {

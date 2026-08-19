@@ -54,6 +54,11 @@ import {
   LeadScoringRule,
   ScoringRuleListQuery,
   UpdateScoringRuleInput,
+  AssignLeadResult,
+  AssignmentRuleListQuery,
+  CreateAssignmentRuleInput,
+  LeadAssignmentRule,
+  UpdateAssignmentRuleInput,
   UpdateContactInput,
   CloseConversationInput,
   Conversation,
@@ -678,6 +683,49 @@ export const apiV1 = c.router({
    * from this contract — an API that accepted them would silently drop the most
    * sensitive thing a customer hands over.
    */
+  /**
+   * F-40 lead assignment (leads.md §7). One rule wins (priority ASC, first
+   * source match) — the opposite of scoring, where every rule counts. The
+   * assign endpoint's refusals are named values, and the auto path never
+   * reassigns: taking a lead off somebody is a human act.
+   */
+  assignmentRules: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/assignment-rules',
+      query: AssignmentRuleListQuery,
+      responses: {
+        200: z.object({ items: z.array(LeadAssignmentRule), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/assignment-rules',
+      body: CreateAssignmentRuleInput,
+      responses: { 201: LeadAssignmentRule, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/assignment-rules/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateAssignmentRuleInput,
+      responses: { 200: LeadAssignmentRule, ...errorResponses },
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/v1/assignment-rules/:id',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 204: c.noBody(), ...errorResponses },
+    },
+    assignLead: {
+      method: 'POST',
+      path: '/api/v1/leads/:id/assign',
+      pathParams: z.object({ id: Uuid }),
+      body: c.noBody(),
+      responses: { 200: AssignLeadResult, ...errorResponses },
+    },
+  }),
   /**
    * F-39 lead scoring (leads.md §6). Rule CRUD is an owner/GM power
    * (organization:update — FR-AUTH-004's "manage automation rules");

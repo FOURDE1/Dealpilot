@@ -27,3 +27,4 @@ export * from './conversation.js';
 export * from './contact.js';
 export * from './appointment.js';
 export * from './scoring.js';
+export * from './assignment.js';

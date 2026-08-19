@@ -30,6 +30,9 @@ test('full F-13 journey: derived file → named refusals → print/e-sign → gr
   await page.getByLabel("Nom de l'organisation").fill(`Groupe F13 ${stamp}`);
   await page.getByLabel('Identifiant (slug)').fill(`groupe-f13-${stamp}`);
   await page.getByRole('button', { name: "Créer l'organisation" }).click();
+  // The create mutation navigates (replace) after its POST resolves; clicking
+  // during that remount silently loses the click (the f04/f11 race).
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]{36}$/);
   await page.getByRole('link', { name: 'Nouvelle succursale' }).click();
   await page.getByLabel('Nom de la succursale').fill('Succursale F13');
   await page.getByLabel('Code').fill(`F13-${stamp % 10000}`);
@@ -336,6 +339,9 @@ test('F-13b: removing the last F&I product clears the aggregate — no stale sum
   await page.getByLabel("Nom de l'organisation").fill(`Groupe F13Z ${s}`);
   await page.getByLabel('Identifiant (slug)').fill(`groupe-f13z-${s}`);
   await page.getByRole('button', { name: "Créer l'organisation" }).click();
+  // The create mutation navigates (replace) after its POST resolves; clicking
+  // during that remount silently loses the click (the f04/f11 race).
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]{36}$/);
   await page.getByRole('link', { name: 'Nouvelle succursale' }).click();
   await page.getByLabel('Nom de la succursale').fill('Succursale F13Z');
   await page.getByLabel('Code').fill(`F13Z-${s % 10000}`);

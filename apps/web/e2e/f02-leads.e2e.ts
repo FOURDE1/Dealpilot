@@ -21,6 +21,9 @@ test('full F-02 journey: lead create → list → status change', async ({ page 
   await page.getByLabel("Nom de l'organisation").fill(`Groupe F02 ${stamp}`);
   await page.getByLabel('Identifiant (slug)').fill(`groupe-f02-${stamp}`);
   await page.getByRole('button', { name: "Créer l'organisation" }).click();
+  // The create mutation navigates (replace) after its POST resolves; clicking
+  // during that remount silently loses the click (the f04/f11 race).
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]{36}$/);
   await page.getByRole('link', { name: 'Nouvelle succursale' }).click();
   await page.getByLabel('Nom de la succursale').fill('Succursale F02');
   await page.getByLabel('Code').fill(`F02-${stamp % 10000}`);
@@ -77,6 +80,9 @@ test('client-side validation is localized and blocks a bad phone', async ({ page
   await page.getByLabel("Nom de l'organisation").fill(`Groupe V ${s2}`);
   await page.getByLabel('Identifiant (slug)').fill(`groupe-v-${s2}`);
   await page.getByRole('button', { name: "Créer l'organisation" }).click();
+  // The create mutation navigates (replace) after its POST resolves; clicking
+  // during that remount silently loses the click (the f04/f11 race).
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]{36}$/);
   await page.getByRole('link', { name: 'Nouvelle succursale' }).click();
   await page.getByLabel('Nom de la succursale').fill('Succursale V');
   await page.getByLabel('Code').fill(`V-${s2 % 10000}`);

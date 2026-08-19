@@ -71,6 +71,10 @@ const BEHAVIOURALLY_COVERED = new Set([
   // dealership cannot read, edit, delete or even find our rules" / "cannot
   // reach our lead scores through the recalc endpoint").
   'lead_scoring_rules', 'lead_scores',
+  // F-40: cross-tenant case in apps/api/src/f40-assignment.test.ts ("cannot
+  // see, edit, delete our rules, or assign our leads") — covers all three
+  // tables plus the append-only grant on history.
+  'lead_assignment_rules', 'lead_assignment_state', 'lead_assignment_history',
   // F-13: cross-tenant case in apps/api/src/f13-documents.test.ts
   // ("another organization sees none of these documents").
   'deal_documents',

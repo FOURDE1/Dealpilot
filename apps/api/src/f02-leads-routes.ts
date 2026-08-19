@@ -6,6 +6,7 @@ import { requirePermission } from './permissions.js';
 import { diff, recordEvent } from './activity.js';
 import { inquiryConsentRows } from '@dealpilot/core';
 import { scoreOnCreate } from './f39-scoring-routes.js';
+import { autoAssignLead } from './f40-assignment-routes.js';
 import {
   callerOrgIds,
   conflictFrom,
@@ -154,8 +155,12 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool): void {
           action: 'created',
           changes: { score: (await scoreOnCreate(c, input.organization_id, leadId)).score, source: input.source },
         });
-        // Re-read: scoreOnCreate synced leads.score after the INSERT's
-        // RETURNING row was captured, so that copy is stale by one column.
+        // F-40: routed at birth too (§7.2). Every refusal is a value — with no
+        // rules configured this is a no-op and the lead stays unassigned,
+        // exactly as before the engine existed.
+        await autoAssignLead(c, input.organization_id, leadId, user.id);
+        // Re-read: scoring synced leads.score and assignment may have set
+        // assigned_to/status after the INSERT's RETURNING row was captured.
         const fresh = await c.query(`SELECT * FROM leads WHERE id = $1`, [leadId]);
         return fresh.rows[0];
       });

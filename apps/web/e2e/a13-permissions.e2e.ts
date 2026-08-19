@@ -20,6 +20,9 @@ test('full A-13 journey: matrix → guard → grant to role → deny to person',
   await page.getByLabel("Nom de l'organisation").fill(`Groupe A13 ${stamp}`);
   await page.getByLabel('Identifiant (slug)').fill(`groupe-a13-${stamp}`);
   await page.getByRole('button', { name: "Créer l'organisation" }).click();
+  // The create mutation navigates (replace) after its POST resolves; clicking
+  // during that remount silently loses the click (the f04/f11 race).
+  await expect(page).toHaveURL(/\/organizations\/[0-9a-f-]{36}$/);
   await page.getByRole('link', { name: 'Nouvelle succursale' }).click();
   await page.getByLabel('Nom de la succursale').fill('Succursale A13');
   await page.getByLabel('Code').fill(`A13-${stamp % 10000}`);

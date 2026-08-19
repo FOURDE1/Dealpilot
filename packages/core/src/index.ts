@@ -22,3 +22,4 @@ export * from './handoff.js';
 export * from './speed-to-lead.js';
 export * from './sms-segments.js';
 export * from './lead-scoring.js';
+export * from './lead-assignment.js';
