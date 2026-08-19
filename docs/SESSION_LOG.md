@@ -1,3 +1,40 @@
+## 2026-08-16/17 — F-38 appointments console, F-39 scoring engine, both shipped
+
+**F-38 (`c77b962`, CI green):** the console's side of what the assistant books.
+Board grouped by day (bounded 200 + truncated flag, the pipeline precedent);
+cancel is its own endpoint so the 0037 CHECK's reason is unskippable by
+construction — one UPDATE sets all three facts, a double-cancel 422s and
+PRESERVES the first reason, and a cancelled slot cannot be edited back to life.
+0044 (member_read) written BEFORE the route — D-046 class, prevented at
+authoring time. One repeat mistake caught by its own test: z.coerce.boolean
+turns the string "false" into true (dispatch.ts had documented it); house
+pattern (enum+transform) applied, the wire speaks 'true'/'false'.
+
+**F-39 (`a9ae82b` backend, `ea13c5e` chip, `00083fe` rules screen):**
+`leads.score` was the oldest dead exemption; now leads are BORN scored on both
+create paths (F-02 route + F-03 intake, same helper, same transaction). Pure
+engine in core (15 golden tests: additive, clamp on the RESULT, budget in
+DOLLARS vs cents columns, "unknown" trade-in is not a yes, fail-closed
+valueless comparisons, null≠"null"). Storage 0045 with BOTH policies on day
+one; vocabulary in three places (core/schemas/SQL CHECKs) held in lockstep by
+scoring-vocabulary.test.ts. Rule CRUD behind organization:update; hard DELETE
+because a rule is config. UI: hot/warm/cold chip banded by the ENGINE's own
+scoreBand (moved @dealpilot/core devDep→dep in web — it was already imported by
+a test; lockfile diff reviewed, workspace link only), rules screen at
+/leads/scoring, journey proves rule→birth→chip and that deactivation never
+rewrites recorded scores. One F-02 expectation updated with its reason: score
+at birth is now 0 ("evaluated, nothing matched"), not null ("nobody looked") —
+the single stale assertion cascaded into 7 failures via the suite's shared lead.
+
+**Ops:** Docker containers do not auto-start after reboot (twice now) —
+`docker compose up -d` first. Background API processes get reaped by the
+harness timeout; restart before e2e and health-check first. Port 3001/5175
+checks before every server start (owner runs other VS Codes).
+
+**State:** develop `00083fe`; gate 1036 tests / 89 files; e2e 32/32; CI green
+through `ea13c5e`, `00083fe` pending at save. **Owner:** unchanged —
+OWNER-ACTIONS §4 (Bash permissions), Twilio A2P, Anthropic key.
+
 ## 2026-08-15 — F-36/F-37: the customer master is real, and the pipeline is green
 
 **The whole pipeline is green in CI for the first time** — `61082cd` passed
