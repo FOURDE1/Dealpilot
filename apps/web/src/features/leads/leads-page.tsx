@@ -124,6 +124,9 @@ export function LeadsPage() {
           <Link to="/leads/scoring" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
             {t('scoringRulesLink')}
           </Link>
+          <Link to="/leads/assignment" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+            {t('assignmentRulesLink')}
+          </Link>
           <Link to="/leads/new" className={buttonVariants()}>
             {t('newLead')}
           </Link>

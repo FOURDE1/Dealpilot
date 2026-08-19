@@ -39,6 +39,9 @@ const LeadDetailPage = lazy(() =>
 const AppointmentsPage = lazy(() =>
   import('../features/appointments/appointments-page.js').then((m) => ({ default: m.AppointmentsPage })),
 );
+const AssignmentRulesPage = lazy(() =>
+  import('../features/assignment/assignment-rules-page.js').then((m) => ({ default: m.AssignmentRulesPage })),
+);
 const ScoringRulesPage = lazy(() =>
   import('../features/scoring/scoring-rules-page.js').then((m) => ({ default: m.ScoringRulesPage })),
 );
@@ -124,6 +127,7 @@ export const router = createBrowserRouter([
       { path: 'contacts/:contactId', element: lazyPage(<ContactDetailPage />) },
       { path: 'leads', element: lazyPage(<LeadsPage />) },
       { path: 'leads/scoring', element: lazyPage(<ScoringRulesPage />) },
+      { path: 'leads/assignment', element: lazyPage(<AssignmentRulesPage />) },
       { path: 'leads/new', element: lazyPage(<LeadNewPage />) },
       { path: 'leads/:leadId', element: lazyPage(<LeadDetailPage />) },
       { path: 'leads/:leadId/desk', element: lazyPage(<DeskingPage />) },
