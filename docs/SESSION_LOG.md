@@ -1,3 +1,35 @@
+## 2026-08-19 (evening) — MFA binds, ADF lands, audit LOWs closed
+
+**F-41 slice 2 (`5823c66`):** REQUIRE_MFA=true (production deploy config;
+default off — enforcement is configuration, D-044) makes requirePermission
+refuse five blast-radius permissions for un-enrolled required roles: 403
+`mfa_enrolment_required`, remedy named. The set is ReadonlySet<PermissionT>,
+so a typo is a compile error. The suite caught two real bugs: one parameter
+feeding memberships.user_id (uuid) AND Better Auth "user".id (text) collides
+on type inference (cast both uses), and enabling 2FA ROTATES the session
+cookie.
+
+**FR-LEAD-004 ADF/XML (`7ca0b6a`):** the parser sat complete in core since
+D-043, reachable from NOWHERE — findConnector('adf_xml') returned null and the
+enum never offered it (dead vocabulary, seventh instance). Now wired: XML as
+string bodies (rawBody kept for HMAC), flattened in core, through the SAME
+IntakeLeadPayload gate as JSON. Salvage per field; no usable NANP phone
+refuses the lead 422 (email-only ADF = owner decision, OWNER-ACTIONS). No
+consent rows for syndicated leads (D-042) — asserted. Lockstep test pins
+enum ⊆ registry.
+
+**Audit LOWs (`c8bbae1`):** assertMemberUuids on rule writes (422
+unknown_member naming each ghost; a rival org's REAL user id is a ghost under
+RLS — tested); appointment status state machine (happened never re-becomes
+scheduled; no_show↔completed may correct each other). My first test claimed
+PATCH-to-cancelled could 500 — the test refuted me: the schema already
+excludes it. Comment corrected.
+
+**State:** develop `c8bbae1`, ALL CI green. Gate 1074 tests / 29 tasks.
+Next: FR-LEAD-009 cascade (understand-workflow mapping spec + subsystems).
+Rebuild schemas/core dist before running api tests after enum changes —
+stale dist reads as a phantom 422.
+
 ## 2026-08-19 (later) — security audit, UI review, and MFA (F-41)
 
 **Audit (two independent passes, reconciled — `b17b15e`):** two MEDIUMs fixed
