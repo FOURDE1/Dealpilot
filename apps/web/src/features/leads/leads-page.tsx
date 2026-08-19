@@ -9,7 +9,10 @@ import { useOrganizations } from '../organizations/api.js';
 import { useLeads } from './api.js';
 import { useSession } from '../../shared/auth/client.js';
 import { useMembers } from '../team/api.js';
-import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
+import { scoreBand } from '@dealpilot/core';
+import {
+  LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, SCORE_BAND_CLASSES, SCORE_BAND_KEYS, leadDisplayName,
+} from './labels.js';
 
 export function LeadsPage() {
   const { t, i18n } = useTranslation('leads');
@@ -60,6 +63,23 @@ export function LeadsPage() {
             {t(LEAD_STATUS_KEYS[row.original.status])}
           </span>
         ),
+      },
+      {
+        accessorKey: 'score',
+        header: t('scoreCol'),
+        // §6.4's shared vocabulary, banded by the SAME function the engine
+        // uses — the number and its colour cannot disagree. A null score is a
+        // lead created before F-39; a dash, not a fake zero.
+        cell: ({ row }) =>
+          row.original.score === null ? (
+            <span className="text-muted-foreground">—</span>
+          ) : (
+            <span
+              className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${SCORE_BAND_CLASSES[scoreBand(row.original.score)]}`}
+            >
+              {row.original.score} · {t(SCORE_BAND_KEYS[scoreBand(row.original.score)])}
+            </span>
+          ),
       },
       {
         accessorKey: 'source',

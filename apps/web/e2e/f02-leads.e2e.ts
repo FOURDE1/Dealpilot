@@ -57,6 +57,10 @@ test('full F-02 journey: lead create → list → status change', async ({ page 
   await page.getByRole('link', { name: 'Retour aux prospects' }).click();
   await expect(page.getByRole('link', { name: 'Marie Tremblay' })).toBeVisible();
   await expect(page.getByText('Contacté')).toBeVisible();
+  // F-39: born scored. This fresh org has no scoring rules, so the honest
+  // number is 0 and the band is cold — a chip, never a blank, because "nobody
+  // ever looked" stopped being a state a new lead can be in.
+  await expect(page.getByText('0 · Froid')).toBeVisible();
 });
 
 test('client-side validation is localized and blocks a bad phone', async ({ page }) => {

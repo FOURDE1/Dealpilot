@@ -40,3 +40,20 @@ export function leadDisplayName(lead: Pick<LeadT, 'first_name' | 'last_name'>): 
   const name = [lead.first_name, lead.last_name].filter(Boolean).join(' ');
   return name || null;
 }
+
+/**
+ * §6.4 band → localized-label keys and pill classes (F-39). The band itself
+ * comes from @dealpilot/core's scoreBand — the same function the engine uses,
+ * so the list's colour can never disagree with the API's `band`.
+ */
+export const SCORE_BAND_KEYS = {
+  hot: 'band_hot',
+  warm: 'band_warm',
+  cold: 'band_cold',
+} as const satisfies Record<'hot' | 'warm' | 'cold', string>;
+
+export const SCORE_BAND_CLASSES = {
+  hot: 'bg-success-bg text-success-text',
+  warm: 'bg-warning-bg text-warning-text',
+  cold: 'bg-danger-bg text-danger-text',
+} as const satisfies Record<'hot' | 'warm' | 'cold', string>;

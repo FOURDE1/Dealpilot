@@ -112,6 +112,9 @@ importers:
       '@dealpilot/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@dealpilot/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@dealpilot/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
@@ -161,9 +164,6 @@ importers:
       '@dealpilot/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@dealpilot/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@playwright/test':
         specifier: 1.61.1
         version: 1.61.1
