@@ -283,6 +283,10 @@ export function TeamPage() {
         <p className="mt-1 text-sm">
           <Link to="/team/permissions" className="font-medium text-primary underline-offset-4 hover:underline">
             {t('permissionsLink')}
+          </Link>{' '}
+          ·{' '}
+          <Link to="/team/schedules" className="font-medium text-primary underline-offset-4 hover:underline">
+            {t('schedulesLink')}
           </Link>
         </p>
         {multiOrg ? (

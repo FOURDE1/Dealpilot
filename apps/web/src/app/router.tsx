@@ -51,6 +51,12 @@ const AssignmentRulesPage = lazy(() =>
 const ScoringRulesPage = lazy(() =>
   import('../features/scoring/scoring-rules-page.js').then((m) => ({ default: m.ScoringRulesPage })),
 );
+const DistributionPage = lazy(() =>
+  import('../features/distribution/distribution-page.js').then((m) => ({ default: m.DistributionPage })),
+);
+const SchedulesPage = lazy(() =>
+  import('../features/schedules/schedules-page.js').then((m) => ({ default: m.SchedulesPage })),
+);
 const ContactsPage = lazy(() =>
   import('../features/contacts/contacts-page.js').then((m) => ({ default: m.ContactsPage })),
 );
@@ -138,6 +144,7 @@ export const router = createBrowserRouter([
       { path: 'contacts/:contactId', element: lazyPage(<ContactDetailPage />) },
       { path: 'leads', element: lazyPage(<LeadsPage />) },
       { path: 'leads/scoring', element: lazyPage(<ScoringRulesPage />) },
+      { path: 'leads/distribution', element: lazyPage(<DistributionPage />) },
       { path: 'leads/assignment', element: lazyPage(<AssignmentRulesPage />) },
       { path: 'leads/new', element: lazyPage(<LeadNewPage />) },
       { path: 'leads/:leadId', element: lazyPage(<LeadDetailPage />) },
@@ -145,6 +152,7 @@ export const router = createBrowserRouter([
       { path: 'leads/:leadId/desk/:dealId', element: lazyPage(<DeskingPage />) },
       { path: 'team', element: lazyPage(<TeamPage />) },
       { path: 'team/permissions', element: lazyPage(<PermissionsPage />) },
+      { path: 'team/schedules', element: lazyPage(<SchedulesPage />) },
       { path: 'pipeline', element: lazyPage(<PipelinePage />) },
       { path: 'inventory', element: lazyPage(<InventoryPage />) },
       { path: 'inventory/:vehicleId', element: lazyPage(<VehicleDetailPage />) },

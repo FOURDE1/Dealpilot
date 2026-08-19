@@ -1,3 +1,25 @@
+## 2026-08-20 (cont.) — F-46: today's APIs get their screens
+
+FR-LEAD-008 dashboard (/leads/distribution): per-platform month table
+(spend, target, leads, actual, deviation — colour-graded), dollar-in/
+cents-stored spend editor recalculating every store's target on save, 3-month
+history. FR-LEAD-015 grid (/team/schedules): per-member weekly windows
+(store-anchored), spoken languages + lead cap (the cascade's own inputs,
+finally editable in product), live on-shift/online chips fed by
+/schedules/today on a 60s refetch. Routes hang off leads/ and team/ like
+scoring and permissions; FR+EN namespaces; ICU single-brace (the icu-syntax
+guard caught my i18next-style braces).
+
+Journey f46 (2 tests) drove both screens and caught three real UI traps
+pre-push: the topbar language switcher answers getByLabel('Anglais') along
+with the checkbox (role-scoped); a server-controlled checkbox cannot be
+check()'d — click then let the retrying assertion prove the round-trip; and
+option text collides with row text (row-scoped). ui-review checklist applied:
+one WCAG 2.5.8 fix (checkbox labels get the house max-lg:min-h-11).
+
+Gate 29/29. The stale F-41-era API on :3001 was replaced (verified the PID
+was ours before killing); dev DB migrated FORWARD to 0050 (never reset).
+
 ## 2026-08-20 — F-45: the weighted queue deals at arrival
 
 FR-LEAD-007 shipped: 0050 (lead_distribution_config ledger; leads.store_id
