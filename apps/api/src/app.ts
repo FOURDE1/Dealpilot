@@ -31,6 +31,7 @@ import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDr
 import { createCarrier, type Carrier } from './carrier.js';
 import { createDeferredSendQueue, type DeferredSendQueue } from './deferred-queue.js';
 import { createReassignQueue, type ReassignQueue } from './reassign-queue.js';
+import { inMemoryPresenceStore, redisPresenceStore, type PresenceStore } from './presence.js';
 import { registerF30Routes } from './f30-carrier-routes.js';
 import { registerF12Routes } from './f12-invitation-routes.js';
 import { registerF08Routes } from './f08-checklist-routes.js';
@@ -114,6 +115,8 @@ export interface AppDeps {
   deferredQueue?: DeferredSendQueue;
   /** Injectable so tests assert which timers were armed without a Redis. */
   reassignQueue?: ReassignQueue;
+  /** Injectable so cascade tests STATE who is online instead of opening sockets. */
+  presence?: PresenceStore;
 }
 
 export async function buildApp(
@@ -351,6 +354,12 @@ export async function buildApp(
 
   const reassignQueue =
     deps.reassignQueue ?? createReassignQueue(env, (obj, msg) => app.log.warn(obj, msg));
+  // F-43 (D-047): one store shared by the routes (cascade reads) and the
+  // realtime layer (subscribes write) — Redis-backed when configured, so every
+  // instance behind the ALB agrees about who is online.
+  const presence =
+    deps.presence ?? (env.REDIS_URL ? redisPresenceStore(env.REDIS_URL) : inMemoryPresenceStore());
+  if (!deps.presence) app.addHook('onClose', async () => presence.close());
   registerF01Routes(app, pool);
   registerF02Routes(app, pool, reassignQueue);
   registerIntakeKeyRoutes(app, pool, env.BETTER_AUTH_URL);
@@ -375,7 +384,7 @@ export async function buildApp(
   registerF38Routes(app, pool);
   registerF39Routes(app, pool);
   registerF40Routes(app, pool, reassignQueue);
-  registerF42Routes(app, pool, reassignQueue);
+  registerF42Routes(app, pool, reassignQueue, presence);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
   registerF08Routes(app, pool);
@@ -385,7 +394,7 @@ export async function buildApp(
     await pool.end();
   });
 
-  return { app, env, pool, auth };
+  return { app, env, pool, auth, presence };
 }
 
 declare module 'fastify' {

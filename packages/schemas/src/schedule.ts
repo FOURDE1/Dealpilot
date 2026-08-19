@@ -104,6 +104,8 @@ export const CascadeAssignResult = z.union([
 export const ScheduleTodayItem = z.object({
   user_id: Uuid,
   working_now: z.boolean(),
+  /** F-43 presence verdict; null until the org produces presence data. */
+  online: z.boolean().nullable(),
   windows: z.array(z.object({ store_id: Uuid, start_time: TimeOfDay, end_time: TimeOfDay })),
 });
 

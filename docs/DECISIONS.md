@@ -11,6 +11,34 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-047 — FR-LEAD-014 presence: subscribe-is-life, and absence of data is not offline (2026-08-19)
+
+**Context:** the cascade's "online" step (§7.3 step 2) needs a presence
+source. ADR-004 prescribes Socket.IO connection state + Valkey-backed
+heartbeats, superseding the never-built 60s-polling design.
+
+1. **A successful room SUBSCRIBE is the heartbeat.** F-28's subscribe already
+   re-verifies the session and membership per org — a socket that subscribed
+   in org O is a person actively using O's app. The server refreshes the mark
+   every 60s while the socket lives; marks age out after 180s (the spec's
+   3-minute auto-offline). No explicit offline write on disconnect — TTL
+   handles crashes, sleeping laptops, and clean exits identically.
+2. **Tri-state survives (D-045 #1): an org that has NEVER produced presence
+   data reads `null`** (filter skipped), while an org that HAS reads a real
+   set — possibly empty, which means genuinely nobody online → escalation to
+   the manager, exactly the off-hours behavior the spec wants. The
+   first-touch marker persists 7 days, so a quiet weekend does not silently
+   disable the filter Monday morning.
+3. **Store shape:** one sorted set per org (member = user, score = last
+   touch), pruned on read; Redis-backed when REDIS_URL is set (multi-instance
+   correct), in-memory otherwise (dev/tests, single process). The store is a
+   buildApp dependency shared with attachRealtime — injectable, so cascade
+   tests state who is online instead of opening sockets.
+4. **No presence EVENTS yet** — the contracts' presence room stays
+   unsubscribable until a consumer (team-screen green dots) exists; shipping
+   an event vocabulary nothing renders would be dead vocabulary by
+   construction.
+
 ## D-046 — FR-LEAD-010 timer: fire-time verification, not job cancellation (2026-08-19)
 
 **Context:** the 10-minute reassignment ladder (leads.md §5.2, :250-254). The

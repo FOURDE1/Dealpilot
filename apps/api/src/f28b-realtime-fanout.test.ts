@@ -84,10 +84,10 @@ beforeAll(async () => {
   alpha = await buildApp({ DATABASE_URL: APP_URL, NODE_ENV: 'test' });
   bravo = await buildApp({ DATABASE_URL: APP_URL, NODE_ENV: 'test' });
   alphaRt = await attachRealtime(alpha.app, {
-    auth: alpha.auth, pool: alpha.pool, webOrigin: '*', redisUrl: REDIS_URL,
+    auth: alpha.auth, pool: alpha.pool, presence: alpha.presence, webOrigin: '*', redisUrl: REDIS_URL,
   });
   bravoRt = await attachRealtime(bravo.app, {
-    auth: bravo.auth, pool: bravo.pool, webOrigin: '*', redisUrl: REDIS_URL,
+    auth: bravo.auth, pool: bravo.pool, presence: bravo.presence, webOrigin: '*', redisUrl: REDIS_URL,
   });
 
   await alpha.app.listen({ port: 0, host: '127.0.0.1' });

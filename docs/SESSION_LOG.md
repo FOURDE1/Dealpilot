@@ -1,3 +1,29 @@
+## 2026-08-19 (small hours) — F-43: presence, and the funnel's step 2 goes live
+
+FR-LEAD-014 on the F-28 rails: a successful realtime SUBSCRIBE is the
+heartbeat (D-047 #1 — the subscribe already re-proves session + membership
+per org), the server re-marks every 60s while the socket lives, marks age out
+at 180s = the spec's 3-minute auto-offline, and nobody writes an offline —
+TTL retires crashed tabs and clean exits identically. Store: sorted-set per
+org in Redis when configured (multi-instance correct), in-memory otherwise;
+shared between buildApp routes and attachRealtime; injectable so cascade
+tests STATE who is online. Tri-state preserved (D-047 #2): an org that never
+produced data reads null (filter skipped); one that has reads a real set —
+possibly empty, which escalates: off-hours leads go to the manager, as
+specced. The 7-day first-touch marker stops a quiet weekend silently
+disabling the filter.
+
+Wired: cascade step 2 + the FR-LEAD-010 re-run consume it (worker holds a
+Redis store); /schedules/today gains `online`; the web shell mounts one
+presence BEACON per org (a notifications-room subscription — holding the app
+open is being online; events ignored until the notification slice gives them
+a consumer). No presence events shipped — an event vocabulary nothing renders
+would be dead vocabulary by construction (D-047 #4).
+
+Gate 29/29, 1119 tests. The lead pipeline now runs every §7.3 step with real
+data except nothing else: intake → scored → routed → cascade
+(language+online+schedule+load) → 10-min ladder → 3-strike manager.
+
 ## 2026-08-19 (late night) — F-42.2: the ten-minute ladder fires
 
 FR-LEAD-010 built on the D-046 principle: the delayed BullMQ job is a CLAIM

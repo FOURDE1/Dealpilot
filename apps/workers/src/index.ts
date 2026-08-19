@@ -5,6 +5,7 @@ import {
   type AssistantTurnJobT, type DeferredSendJobT, type LeadReassignJobT,
 } from '@dealpilot/contracts';
 import { createCarrier } from '@dealpilot/api/carrier';
+import { redisPresenceStore } from '@dealpilot/api/presence';
 import { createAssistant } from '@dealpilot/api/assistant';
 import { loadEnv } from '@dealpilot/api/env';
 import { runDeferredSend } from './deferred-send.js';
@@ -95,12 +96,14 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
   // module verifies every claim against the database, so concurrency 2 is
   // parallelism, not risk.
   const reassignQueue = new Queue<LeadReassignJobT>(QUEUE_LEAD_REASSIGN, queueOpts(connection(env.REDIS_URL)));
+  const presence = redisPresenceStore(env.REDIS_URL);
   const reassignWorker = new Worker<LeadReassignJobT>(
     QUEUE_LEAD_REASSIGN,
     async (job) =>
       runLeadReassign(
         {
           pool,
+          presence,
           armNext: async (next) => {
             await reassignQueue.add(QUEUE_LEAD_REASSIGN, next, {
               delay: REASSIGN_AFTER_MS,
@@ -120,6 +123,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
       await worker.close();
       await turnWorker?.close();
       await reassignWorker.close();
+      await presence.close();
       await queue.close();
       await reassignQueue.close();
       await pool.end();

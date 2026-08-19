@@ -44,6 +44,10 @@
       "types": "./dist/f42-cascade-routes.d.ts",
       "default": "./dist/f42-cascade-routes.js"
     },
+    "./presence": {
+      "types": "./dist/presence.d.ts",
+      "default": "./dist/presence.js"
+    },
     "./deliver": {
       "types": "./dist/f30-deliver.d.ts",
       "default": "./dist/f30-deliver.js"

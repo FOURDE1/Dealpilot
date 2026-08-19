@@ -11,6 +11,7 @@ import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import type { ReassignQueue } from './reassign-queue.js';
+import type { PresenceStore } from './presence.js';
 
 /**
  * F-42 — the §7.3 assignment cascade and the staff-schedule grid it reads
@@ -53,8 +54,11 @@ export async function cascadeAssignLead(
   organizationId: string,
   leadId: string,
   actorUserId: string | null,
-  /** FR-LEAD-010's re-run stamps 'reassignment' instead of the funnel method. */
-  opts: { method?: 'reassignment' } = {},
+  /**
+   * method: FR-LEAD-010's re-run stamps 'reassignment' instead of the funnel
+   * method. presence: F-43's store — absent means step 2 reads unknown.
+   */
+  opts: { method?: 'reassignment'; presence?: PresenceStore } = {},
 ): Promise<CascadeAssignOutcome> {
   const leadRow = await c.query<{
     preferred_language: string;
@@ -119,10 +123,13 @@ export async function cascadeAssignLead(
     [organizationId],
   );
 
+  // F-43: tri-state per D-047 — null when this org has never produced
+  // presence data (filter skipped), real booleans once it has.
+  const online = opts.presence ? await opts.presence.onlineIn(organizationId) : null;
   const candidates: CascadeCandidate[] = roster.rows.map((r) => ({
     user_id: r.user_id,
     languages: r.languages,
-    online: null, // FR-LEAD-014: no presence source yet — explicit unknown.
+    online: online === null ? null : online.has(r.user_id),
     scheduled_now: r.scheduled_now,
     active_count: r.active_count,
     max_active_leads: r.max_active_leads,
@@ -290,7 +297,7 @@ function trimTimes<T extends Record<string, unknown>>(row: T): T {
   };
 }
 
-export function registerF42Routes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue): void {
+export function registerF42Routes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue, presence: PresenceStore): void {
   app.post('/api/v1/staff-schedules', async (request, reply) => {
     const input = parseOrThrow(CreateStaffScheduleInput, request.body);
     const user = sessionUser(request);
@@ -425,7 +432,12 @@ export function registerF42Routes(app: FastifyInstance, pool: Pool, reassign: Re
          ORDER BY p.joined_at, p.user_id`,
         [orgId],
       );
-      return r.rows;
+      const online = await presence.onlineIn(orgId);
+      return r.rows.map((row) => ({
+        ...row,
+        // Tri-state flattened for the board: unknown reads as null.
+        online: online === null ? null : online.has(row.user_id),
+      }));
     });
     return reply.send({ items: rows });
   });
@@ -444,7 +456,7 @@ export function registerF42Routes(app: FastifyInstance, pool: Pool, reassign: Re
     });
     const result = await withTenant(pool, orgId, async (c) => {
       await requirePermission(c, user.id, 'lead:assign');
-      return cascadeAssignLead(c, orgId, leadId, user.id);
+      return cascadeAssignLead(c, orgId, leadId, user.id, { presence });
     });
     // D-046 #2: every machine assignment arms the ten-minute timer —
     // escalation included (leads.md:374 runs the ladder after escalating).

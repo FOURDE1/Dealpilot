@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createPool, ensureTestDatabase, reset, testAdminUrl, testAppUrl, type Pool } from '@dealpilot/db';
 import { buildApp } from './app.js';
+import { inMemoryPresenceStore } from './presence.js';
 import type { LeadReassignJobT } from '@dealpilot/contracts';
 
 /**
@@ -229,6 +230,75 @@ describe('the funnel, wired (§7.3)', () => {
       payload: { assigned_to: null },
     });
     expect((JSON.parse(unassign.body) as { assignment_method: string | null }).assignment_method).toBeNull();
+  });
+});
+
+describe('presence feeds step 2 (F-43, D-047)', () => {
+  it('unknown org passes everyone; presence data filters the offline and admits the online', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const presence = inMemoryPresenceStore();
+    const { app: aware } = await buildApp(
+      { DATABASE_URL: APP_URL, NODE_ENV: 'test' },
+      { presence, reassignQueue: { arm: async () => {}, close: async () => {} } },
+    );
+    try {
+      const su = await aware.inject({
+        method: 'POST', url: '/api/auth/sign-up/email',
+        payload: { email: `f43-${run}@dealpilot.test`, password: 'correct-horse-battery-staple', name: 'Presa Ence' },
+      });
+      const sc = su.headers['set-cookie'];
+      const pCookie = (Array.isArray(sc) ? sc : [sc!]).map((c) => c!.split(';')[0]).join('; ');
+      const org = await aware.inject({
+        method: 'POST', url: '/api/v1/organizations', headers: { cookie: pCookie },
+        payload: { name: 'Groupe Présence', slug: `groupe-presence-${run}` },
+      });
+      const pOrg = (JSON.parse(org.body) as { id: string }).id;
+      const store = await aware.inject({
+        method: 'POST', url: '/api/v1/stores', headers: { cookie: pCookie },
+        payload: { organization_id: pOrg, name: 'Presence Kia', code: 'PRE-KIA', province: 'QC' },
+      });
+      const pStore = (JSON.parse(store.body) as { id: string }).id;
+      const me = await aware.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie: pCookie } });
+      const pUser = (JSON.parse(me.body) as { user: { id: string } }).user.id;
+
+      const lead = async () => {
+        const r = await aware.inject({
+          method: 'POST', url: '/api/v1/leads', headers: { cookie: pCookie },
+          payload: { organization_id: pOrg, store_id: pStore, phone: nextPhone(), source: 'walk_in' },
+        });
+        return (JSON.parse(r.body) as { id: string }).id;
+      };
+      const cascadeP = async (id: string) => {
+        const r = await aware.inject({
+          method: 'POST', url: `/api/v1/leads/${id}/cascade-assign`, headers: { cookie: pCookie },
+        });
+        return JSON.parse(r.body) as Record<string, unknown>;
+      };
+
+      // No presence data for this org yet: unknown passes (D-045 #1).
+      expect(await cascadeP(await lead())).toMatchObject({ outcome: 'assigned', user_id: pUser });
+
+      // The org produces data — but for SOMEBODY ELSE. The owner is now
+      // affirmatively offline: filtered, and the escalation names it.
+      await presence.touch(pOrg, '00000000-0000-4000-8000-00000000f43e');
+      expect(await cascadeP(await lead())).toMatchObject({
+        outcome: 'escalated', reason: 'nobody_online', user_id: pUser,
+      });
+
+      // The owner's own heartbeat: online, assigned like before.
+      await presence.touch(pOrg, pUser);
+      expect(await cascadeP(await lead())).toMatchObject({ outcome: 'assigned', user_id: pUser });
+
+      // /schedules/today tells the same story.
+      const today = await aware.inject({
+        method: 'GET', url: `/api/v1/schedules/today?organization_id=${pOrg}`, headers: { cookie: pCookie },
+      });
+      const mine = (JSON.parse(today.body) as { items: Array<{ user_id: string; online: boolean | null }> })
+        .items.find((i) => i.user_id === pUser);
+      expect(mine?.online).toBe(true);
+    } finally {
+      await aware.close();
+    }
   });
 });
 

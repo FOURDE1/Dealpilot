@@ -1,6 +1,7 @@
 import { withTenant, type Pool } from '@dealpilot/db';
 import { REASSIGN_MAX_ATTEMPTS, type LeadReassignJobT } from '@dealpilot/contracts';
 import { assignLeadToManager, cascadeAssignLead } from '@dealpilot/api/cascade';
+import type { PresenceStore } from '@dealpilot/api/presence';
 
 /**
  * F-42.2 — the ten-minute reassignment ladder, fired (FR-LEAD-010, leads.md
@@ -25,6 +26,8 @@ export interface LeadReassignDeps {
   pool: Pool;
   /** Arm the NEXT rung. The queue adds the ten-minute delay; not this module. */
   armNext: (job: LeadReassignJobT) => Promise<void>;
+  /** F-43: the re-run respects who is online, same as any cascade. */
+  presence?: PresenceStore;
 }
 
 export type LeadReassignResult =
@@ -108,6 +111,7 @@ export async function runLeadReassign(
 
     const decision = await cascadeAssignLead(c, job.organization_id, job.lead_id, null, {
       method: 'reassignment',
+      ...(deps.presence ? { presence: deps.presence } : {}),
     });
     if (decision.outcome === 'assigned') {
       await deps.armNext({

@@ -33,6 +33,7 @@ let admin: Pool;
 let appPool: Pool;
 let app: Awaited<ReturnType<typeof buildApp>>['app'] | undefined;
 let realtime: Awaited<ReturnType<typeof attachRealtime>> | undefined;
+let presenceStore: Awaited<ReturnType<typeof buildApp>>['presence'];
 let dbUp = false;
 let url = '';
 
@@ -142,9 +143,11 @@ beforeAll(async () => {
   // The SAME auth instance the HTTP side uses — verifying the handshake against
   // a second instance would test that two Better Auth objects agree, not that
   // the socket accepts the cookie this server issued.
+  presenceStore = built.presence;
   realtime = await attachRealtime(app, {
     auth: built.auth,
     pool: built.pool,
+    presence: built.presence,
     webOrigin: '*',
   });
   emitter.pointTo(realtime.emitter);
@@ -231,6 +234,11 @@ describe('subscribing', () => {
     if (!res.ok) return;
     // The name is the server's, built from ids it checked.
     expect(res.room).toBe(`tenant:${orgId}:conversation:${conversationId}`);
+    // F-43 (D-047 #1): the subscribe IS the heartbeat — the member now reads
+    // as online in exactly the org whose room they hold.
+    const online = await presenceStore.onlineIn(orgId);
+    expect(online).not.toBeNull();
+    expect(online!.size).toBeGreaterThan(0);
   });
 
   it('refuses another organisation’s conversation', async (ctx) => {

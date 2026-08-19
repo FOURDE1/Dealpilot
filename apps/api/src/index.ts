@@ -9,11 +9,12 @@ import { attachRealtime } from './realtime.js';
  * no realtime attached, and the emitter its routes hold is simply silent.
  */
 const emitter = relayEmitter();
-const { app, env, pool, auth } = await buildApp({}, { emitter });
+const { app, env, pool, auth, presence } = await buildApp({}, { emitter });
 
 const realtime = await attachRealtime(app, {
   auth,
   pool,
+  presence,
   redisUrl: env.REDIS_URL,
   webOrigin: env.WEB_ORIGIN,
 });

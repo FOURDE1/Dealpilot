@@ -15,6 +15,7 @@ import {
   type SubscribeResultT,
 } from '@dealpilot/contracts';
 import { hasPermission } from './permissions.js';
+import type { PresenceStore } from './presence.js';
 import type { Auth } from './auth.js';
 
 /**
@@ -53,6 +54,8 @@ const SESSION_RECHECK_MS = 5 * 60 * 1000;
 export interface RealtimeDeps {
   readonly auth: Auth;
   readonly pool: Pool;
+  /** F-43 (D-047): a successful subscribe marks the member online in that org. */
+  readonly presence: PresenceStore;
   /** Absent in tests and single-instance dev: Socket.IO fans out in-process. */
   readonly redisUrl?: string | undefined;
   readonly webOrigin: string;
@@ -62,7 +65,12 @@ export interface RealtimeDeps {
 interface SocketState {
   userId: string;
   cookie: string;
+  /** Orgs this socket has subscribed in — the presence refresher's beat list. */
+  orgs: Set<string>;
 }
+
+/** How often a live socket re-marks its member online (< the 180s window). */
+const PRESENCE_REFRESH_MS = 60 * 1000;
 
 const state = new WeakMap<Socket, SocketState>();
 
@@ -115,7 +123,7 @@ export async function attachRealtime(
     // No session, no socket. The message is deliberately vague: an unauthorised
     // connection learns nothing about why.
     if (!userId) return next(new Error('unauthenticated'));
-    state.set(socket, { userId, cookie: cookie! });
+    state.set(socket, { userId, cookie: cookie!, orgs: new Set() });
     next();
   });
 
@@ -131,7 +139,17 @@ export async function attachRealtime(
       });
     }, recheckMs);
     timer.unref?.();
-    socket.on('disconnect', () => clearInterval(timer));
+    // F-43: while the socket lives, its member stays online in every org it
+    // subscribed in. No offline write on disconnect — the 180s TTL retires
+    // crashed tabs and clean exits identically (D-047 #1).
+    const beat = setInterval(() => {
+      for (const org of own.orgs) void deps.presence.touch(org, own.userId);
+    }, PRESENCE_REFRESH_MS);
+    beat.unref?.();
+    socket.on('disconnect', () => {
+      clearInterval(timer);
+      clearInterval(beat);
+    });
 
     socket.on(REALTIME_SUBSCRIBE, (raw: unknown, ack?: (r: SubscribeResultT) => void) => {
       void (async () => {
@@ -151,6 +169,10 @@ export async function attachRealtime(
         const decision = await authorize(deps.pool, own.userId, req);
         if (!decision.ok) return reply(decision);
         await socket.join(decision.room);
+        // The subscribe IS the heartbeat: membership was just re-proven for
+        // this org, and holding one of its rooms open is what "online" means.
+        own.orgs.add(req.organization_id);
+        await deps.presence.touch(req.organization_id, own.userId);
         return reply(decision);
       })();
     });

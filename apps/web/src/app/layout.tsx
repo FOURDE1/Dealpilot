@@ -7,6 +7,21 @@ import { queryClient } from '../shared/api/queryClient.js';
 import { LanguageSwitcher } from '../shared/i18n/language-switcher.js';
 import { ThemeToggle } from '../shared/theme-toggle.js';
 import { BrandStyle, useBrandName } from '../features/branding/brand-style.js';
+import { useOrganizations } from '../features/organizations/api.js';
+import { useRealtime } from '../shared/realtime.js';
+
+/**
+ * F-43 (D-047 #1): holding the app open IS being online. The shell keeps one
+ * notifications-room subscription per organization the user belongs to; each
+ * successful subscribe marks them present there, and the server's 60s beat
+ * keeps it fresh while any tab lives. Events are ignored until the
+ * notification slice gives them a consumer — the subscription's job today is
+ * the heartbeat.
+ */
+function PresenceBeacon({ organizationId }: { organizationId: string }) {
+  useRealtime({ kind: 'notifications', organization_id: organizationId }, () => {});
+  return null;
+}
 
 // `/pipeline` returns with its feature slice — a dead route belongs in no nav.
 const NAV_ITEMS = [
@@ -44,6 +59,8 @@ export function AppLayout() {
     location.pathname !== '/security';
   // F-14: the tenant's own name in place of the platform name, when published.
   const brandName = useBrandName(t('common:appName'));
+  // F-43: one presence beacon per organization (usually one).
+  const orgs = useOrganizations();
 
   async function handleSignOut() {
     await signOut();
@@ -57,6 +74,9 @@ export function AppLayout() {
     <div className="flex min-h-svh bg-background text-foreground">
       {/* F-14: paint the tenant's published brand over the platform defaults. */}
       <BrandStyle />
+      {(orgs.data?.items ?? []).map((o) => (
+        <PresenceBeacon key={o.id} organizationId={o.id} />
+      ))}
       <a
         href="#main"
         className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:left-2 focus:top-2"
