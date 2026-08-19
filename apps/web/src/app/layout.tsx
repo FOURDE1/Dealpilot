@@ -1,7 +1,8 @@
-import { NavLink, Outlet, useNavigate } from 'react-router';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, cn } from '@dealpilot/ui';
 import { signOut, useSession } from '../shared/auth/client.js';
+import { useMe } from '../shared/api/use-me.js';
 import { queryClient } from '../shared/api/queryClient.js';
 import { LanguageSwitcher } from '../shared/i18n/language-switcher.js';
 import { ThemeToggle } from '../shared/theme-toggle.js';
@@ -29,9 +30,18 @@ const NAV_ITEMS = [
  * tab bar covers that range as an accepted increment until the drawer lands.
  */
 export function AppLayout() {
-  const { t } = useTranslation(['common', 'nav']);
+  const { t } = useTranslation(['common', 'nav', 'security']);
   const { data: session } = useSession();
   const navigate = useNavigate();
+  const location = useLocation();
+  // F-41: the MFA policy banner. `required` is computed server-side from the
+  // caller's roles; the banner nags on every page EXCEPT /security itself,
+  // where the fix lives.
+  const me = useMe();
+  const mfaNag =
+    me.data?.mfa.required === true &&
+    me.data.mfa.enabled === false &&
+    location.pathname !== '/security';
   // F-14: the tenant's own name in place of the platform name, when published.
   const brandName = useBrandName(t('common:appName'));
 
@@ -83,6 +93,16 @@ export function AppLayout() {
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {session?.user.name || session?.user.email}
             </span>
+            <Link
+              to="/security"
+              // Hidden below sm like the username: the topbar does not wrap,
+              // and this label pushed 360px viewports 8px sideways (caught by
+              // the a11y reflow journey). The banner carries the path to
+              // /security on mobile whenever the policy actually demands it.
+              className="hidden text-sm font-medium text-primary underline-offset-4 hover:underline sm:inline"
+            >
+              {t('security:title')}
+            </Link>
             <ThemeToggle />
             <LanguageSwitcher />
             <Button variant="outline" size="sm" onClick={() => void handleSignOut()}>
@@ -90,6 +110,18 @@ export function AppLayout() {
             </Button>
           </div>
         </header>
+        {mfaNag ? (
+          // role=status, NOT alert: this is a standing policy reminder, not an
+          // interruption — and an assertive live region on every page would
+          // also shout over real alerts (screen readers) and collide with
+          // every getByRole('alert') assertion (the f01 journey found that).
+          <p role="status" className="bg-warning-bg px-4 py-2 text-sm font-medium text-warning-text">
+            {t('security:requiredBanner')}{' '}
+            <Link to="/security" className="underline underline-offset-4">
+              {t('security:title')}
+            </Link>
+          </p>
+        ) : null}
         <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[1400px] flex-1 p-4 pb-20 lg:p-6 outline-none max-lg:pb-24">
           <Outlet />
         </main>

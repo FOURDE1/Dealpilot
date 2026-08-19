@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { betterAuth } from 'better-auth';
+import { twoFactor } from 'better-auth/plugins';
 import type { Pool } from '@dealpilot/db';
 import type { Env } from './env.js';
 import { verificationMessage, type Mailer } from './email.js';
@@ -20,6 +21,22 @@ export function createAuth(env: Env, pool: Pool, mailer: Mailer) {
     baseURL: env.BETTER_AUTH_URL,
     basePath: '/api/auth',
     trustedOrigins: [env.WEB_ORIGIN],
+    /**
+     * TOTP two-factor (F-41, FR-AUTH-006). The plugin owns enrolment,
+     * verification, backup codes and the sign-in challenge; WHO must enrol
+     * (owner/gm/admin_office) is a domain rule about roles and lives in the
+     * API + shell, not here — auth only knows whether a user has a secret.
+     * Enrolment requires verifying a code before 2FA turns on
+     * (skipVerificationOnEnable stays false): a typo'd secret discovered at
+     * enrolment is an inconvenience; discovered at next sign-in it is a
+     * locked-out owner.
+     */
+    plugins: [
+      twoFactor({
+        issuer: 'Dealpilot',
+      }),
+    ],
+    appName: 'Dealpilot',
     session: {
       // Explicit (A-05.1, D-025 item 3): 7-day sessions, refreshed daily.
       // cookieCache was tried and REJECTED: a cached cookie outlives sign-out,

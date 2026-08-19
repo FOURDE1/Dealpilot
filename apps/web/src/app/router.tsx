@@ -6,6 +6,9 @@ import { RedirectIfAuthed, RequireAuth } from './guards.js';
 const SignInPage = lazy(() =>
   import('../features/auth/sign-in-page.js').then((m) => ({ default: m.SignInPage })),
 );
+const TwoFactorPage = lazy(() =>
+  import('../features/auth/two-factor-page.js').then((m) => ({ default: m.TwoFactorPage })),
+);
 const SignUpPage = lazy(() =>
   import('../features/auth/sign-up-page.js').then((m) => ({ default: m.SignUpPage })),
 );
@@ -38,6 +41,9 @@ const LeadDetailPage = lazy(() =>
 );
 const AppointmentsPage = lazy(() =>
   import('../features/appointments/appointments-page.js').then((m) => ({ default: m.AppointmentsPage })),
+);
+const SecurityPage = lazy(() =>
+  import('../features/auth/security-page.js').then((m) => ({ default: m.SecurityPage })),
 );
 const AssignmentRulesPage = lazy(() =>
   import('../features/assignment/assignment-rules-page.js').then((m) => ({ default: m.AssignmentRulesPage })),
@@ -104,6 +110,10 @@ export const router = createBrowserRouter([
     element: <RedirectIfAuthed>{lazyPage(<SignInPage />)}</RedirectIfAuthed>,
   },
   {
+    path: '/login/verify',
+    element: <RedirectIfAuthed>{lazyPage(<TwoFactorPage />)}</RedirectIfAuthed>,
+  },
+  {
     path: '/signup',
     element: <RedirectIfAuthed>{lazyPage(<SignUpPage />)}</RedirectIfAuthed>,
   },
@@ -122,6 +132,7 @@ export const router = createBrowserRouter([
       { path: 'organizations/:orgId/stores/new', element: lazyPage(<StoreFormPage />) },
       { path: 'organizations/:orgId/stores/:storeId', element: lazyPage(<StoreFormPage />) },
       { path: 'organizations/:orgId/branding', element: lazyPage(<BrandingEditorPage />) },
+      { path: 'security', element: lazyPage(<SecurityPage />) },
       { path: 'appointments', element: lazyPage(<AppointmentsPage />) },
       { path: 'contacts', element: lazyPage(<ContactsPage />) },
       { path: 'contacts/:contactId', element: lazyPage(<ContactDetailPage />) },

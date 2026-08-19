@@ -9,6 +9,11 @@ import { AuthCard, AuthError, AuthField } from './auth-card.js';
 /**
  * Controlled inputs for this increment: the shared react-hook-form + zod Form
  * primitive is an H-05 deliverable — these screens migrate onto it then.
+ *
+ * F-41: a 2FA-enabled account gets a CHALLENGE instead of a session — the
+ * server answers `twoFactorRedirect: true` and no cookie until the code
+ * verifies. The challenge lives at /login/verify (its own route — see
+ * two-factor-page.tsx for why component state cannot survive here).
  */
 export function SignInPage() {
   const { t } = useTranslation('auth');
@@ -23,10 +28,30 @@ export function SignInPage() {
     event.preventDefault();
     setBusy(true);
     setError(null);
-    const { error: apiError } = await signIn.email({ email, password });
+    // The challenge flag rides the fetch callback's context — the resolved
+    // promise's `data` does NOT reliably carry it (learned by the journey
+    // bouncing /login → / → /login when this read the promise instead).
+    let challengedNow = false;
+    const { error: apiError } = await signIn.email(
+      { email, password },
+      {
+        onSuccess: (ctx) => {
+          if ((ctx.data as { twoFactorRedirect?: boolean } | null)?.twoFactorRedirect) {
+            challengedNow = true;
+          }
+        },
+      },
+    );
     setBusy(false);
     if (apiError) {
       setError(t('invalidCredentials'));
+      return;
+    }
+    if (challengedNow) {
+      // A ROUTE, not component state: this page unmounts whenever useSession
+      // refetches (RedirectIfAuthed shows its skeleton), and a challenge held
+      // in useState died on the first wrong code. The URL survives remounts.
+      navigate(`/login/verify${location.search}`, { replace: true });
       return;
     }
     navigate(safeReturnTo(location.search), { replace: true });

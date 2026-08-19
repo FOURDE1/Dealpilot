@@ -16,6 +16,16 @@ export const MeResponse = z.object({
   session: z.object({
     expires_at: IsoDateTime,
   }),
+  /**
+   * F-41 (FR-AUTH-006): whether this account HAS TOTP, and whether any of its
+   * memberships' roles REQUIRE it (owner/gm/admin_office). The shell reads the
+   * pair to decide between "offer enrolment" and "wall until enrolled" — the
+   * distinction between a suggestion and a policy.
+   */
+  mfa: z.object({
+    enabled: z.boolean(),
+    required: z.boolean(),
+  }),
 });
 
 export type MeResponseT = z.infer<typeof MeResponse>;

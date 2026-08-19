@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyError, type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
-import { createPool } from '@dealpilot/db';
+import { createPool, withUser } from '@dealpilot/db';
 import { NO_EMITTER, type Emitter } from '@dealpilot/contracts';
 import { createAuth, type Auth } from './auth.js';
 import { loadEnv, type Env } from './env.js';
@@ -300,9 +300,31 @@ export async function buildApp(
   app.get('/api/v1/me', async (request) => {
     // Safe: the deny-by-default gate guarantees a session on every non-public route.
     const { user, session } = request.session!;
+    // F-41 (FR-AUTH-006): MFA is REQUIRED when any active membership carries a
+    // role the policy names. Computed here, per request, from the domain
+    // tables — a role granted five minutes ago obliges immediately, because a
+    // policy that waits for the next sign-in is a policy with a hole in it.
+    const mfa = await withUser(pool, user.id, async (c) => {
+      const enabled = await c.query<{ enabled: boolean | null }>(
+        `SELECT "twoFactorEnabled" AS enabled FROM "user" WHERE id = $1`,
+        [user.id],
+      );
+      const required = await c.query(
+        `SELECT 1 FROM memberships
+          WHERE user_id = $1 AND status = 'active'
+            AND roles && ARRAY['owner','gm','admin_office']::text[]
+          LIMIT 1`,
+        [user.id],
+      );
+      return {
+        enabled: enabled.rows[0]?.enabled === true,
+        required: required.rows.length > 0,
+      };
+    });
     return {
       user: { id: user.id, email: user.email, name: user.name },
       session: { expires_at: session.expiresAt },
+      mfa,
     };
   });
 

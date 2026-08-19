@@ -37,7 +37,7 @@ export function AuthField({
   value: string;
   onChange: (value: string) => void;
   autoComplete: string;
-  inputMode?: 'email';
+  inputMode?: 'email' | 'numeric';
   hint?: string;
   required?: boolean;
 }) {
