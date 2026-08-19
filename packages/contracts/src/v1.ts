@@ -138,6 +138,10 @@ import {
   DistributionRow,
   PutDistributionConfigInput,
   NotificationList,
+  TenantConnector,
+  CreateConnectorInput,
+  UpdateConnectorInput,
+  ConnectorListQuery,
 } from '@dealpilot/schemas';
 const c = initContract();
 
@@ -781,6 +785,40 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: c.noBody(),
       responses: { 200: CascadeAssignResult, ...errorResponses },
+    },
+  }),
+  /**
+   * F-49 tenant connectors (FR-LEAD-019): registering a lead provider is a
+   * config row, not a deploy. intake_key:manage both ways.
+   */
+  connectors: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/connectors',
+      query: ConnectorListQuery,
+      responses: {
+        200: z.object({ items: z.array(TenantConnector), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/connectors',
+      body: CreateConnectorInput,
+      responses: { 201: TenantConnector, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/connectors/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateConnectorInput,
+      responses: { 200: TenantConnector, ...errorResponses },
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/v1/connectors/:id',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 204: c.noBody(), ...errorResponses },
     },
   }),
   /**

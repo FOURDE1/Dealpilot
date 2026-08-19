@@ -116,9 +116,9 @@ export function AppLayout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[var(--topbar-height)] items-center justify-between gap-4 border-b border-border bg-card px-4">
+        <header className="flex h-[var(--topbar-height)] items-center justify-between gap-4 border-b border-border bg-card px-3 sm:px-4">
           <p className="text-sm font-semibold lg:hidden">{brandName}</p>
-          <div className="ms-auto flex items-center gap-2 sm:gap-3">
+          <div className="ms-auto flex items-center gap-1.5 sm:gap-3">
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {session?.user.name || session?.user.email}
             </span>
@@ -136,7 +136,12 @@ export function AppLayout() {
             <ThemeToggle />
             <LanguageSwitcher />
             <Button variant="outline" size="sm" onClick={() => void handleSignOut()}>
-              {t('common:signOut')}
+              {/* The F-47 bell spent the topbar's last slack at 360px (the
+                  a11y guard measured EXACTLY zero margin, and CI's wider
+                  fonts tipped it). The short label keeps sign-out present
+                  on the narrowest phones; the full words return at sm. */}
+              <span className="sm:hidden">{t('common:signOutShort')}</span>
+              <span className="hidden sm:inline">{t('common:signOut')}</span>
             </Button>
           </div>
         </header>

@@ -22,14 +22,16 @@ import { ADF_CONNECTOR } from './intake-adf.js';
  */
 
 /** The fields every source is mapped ONTO, whatever it calls them. */
-export type CanonicalField =
-  | 'first_name'
-  | 'last_name'
-  | 'email'
-  | 'phone'
-  | 'vehicle_interest'
-  | 'preferred_language'
-  | 'comments';
+export const CANONICAL_FIELDS = [
+  'first_name',
+  'last_name',
+  'email',
+  'phone',
+  'vehicle_interest',
+  'preferred_language',
+  'comments',
+] as const;
+export type CanonicalField = (typeof CANONICAL_FIELDS)[number];
 
 export interface ConsentMapping {
   /** Where the "yes, contact me" box lives in this provider's payload. */

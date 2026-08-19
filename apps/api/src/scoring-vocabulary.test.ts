@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { ASSIGNMENT_STRATEGIES, SCORING_FIELDS, SCORING_OPERATORS, ASSIGNMENT_METHODS, CASCADE_STRATEGY, CASCADE_REFUSALS, DISTRIBUTION_PLATFORMS } from '@dealpilot/core';
-import { AssignmentStrategy, ScoringRuleField, ScoringRuleOperator, AssignmentMethod, CascadeRefusal, DistributionPlatform } from '@dealpilot/schemas';
+import { ASSIGNMENT_STRATEGIES, SCORING_FIELDS, SCORING_OPERATORS, ASSIGNMENT_METHODS, CASCADE_STRATEGY, CASCADE_REFUSALS, DISTRIBUTION_PLATFORMS, CANONICAL_FIELDS } from '@dealpilot/core';
+import { AssignmentStrategy, ScoringRuleField, ScoringRuleOperator, AssignmentMethod, CascadeRefusal, DistributionPlatform, ConnectorField } from '@dealpilot/schemas';
 
 /**
  * The scoring vocabulary lives in THREE places on purpose — the engine
@@ -66,6 +66,10 @@ describe('one vocabulary, three declarations', () => {
     const list = [...(m?.[1] ?? '').matchAll(/'([^']+)'/g)].map((x) => x[1]!).sort();
     expect(list.length).toBe(2); // vacuous-parse guard
     expect(list).toEqual([...DISTRIBUTION_PLATFORMS].sort());
+  });
+
+  it('connector canonical fields agree between core and schemas (F-49)', () => {
+    expect([...ConnectorField.options].sort()).toEqual([...CANONICAL_FIELDS].sort());
   });
 
   it('cascade refusals agree between core and schemas (F-42)', () => {

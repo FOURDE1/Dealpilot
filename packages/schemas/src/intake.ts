@@ -49,7 +49,14 @@ export const CreateIntakeKeyInput = z.strictObject({
    * lead source is supposed to be configuration, and configuration nobody can
    * set is code with extra steps.
    */
-  connector_key: z.enum(['website_form', 'meta_lead_ads', 'adf_xml']).default('website_form'),
+  /**
+   * A built-in preset OR a tenant connector's source_key (F-49) — the route
+   * verifies existence, because an enum cannot know a tenant's rows.
+   */
+  connector_key: z
+    .string()
+    .regex(/^[a-z0-9_]{2,40}$/)
+    .default('website_form'),
 });
 
 /**

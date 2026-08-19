@@ -1,3 +1,30 @@
+## 2026-08-20 (overnight loop, tick 2) — the truth about CI, the topbar's last pixel, and connectors-as-config
+
+**The verdict audit.** Every backgrounded CI watcher since mid-day had a
+pipeline bug (`gh run watch | tail` — the && chained on tail's exit, always
+0). The TRUE ledger: green through F-47's API slice (1e5d8fd); RED from
+b604c5d (the bell's WEB half) onward — the a11y 360px guard, every run,
+'/leads pans horizontally'. Verdicts now come from `gh run view --json
+conclusion`, watchers pin the run id at push time, and nothing is called
+green without the word 'success' from JSON.
+
+**The pan's real cause** was never the aging chip: a probe measured the
+topbar at EXACTLY 360/360 — zero margin — before the bell; the bell's 36px
+tipped it, and only on CI's wider Linux fonts (local Windows squeaked by).
+Fixed with ~70px of real margin: px-3 below sm, tighter gaps, and the
+sign-out button wearing a short label (Sortir/Exit) below sm. The probe
+script measured before/after and was deleted.
+
+**F-49 tenant connectors (FR-LEAD-019, D-053):** connectors are rows now.
+0053 + CRUD (intake_key:manage), webhook resolution tenant-first with the
+built-ins as the floor, reserved built-in keys, mint-time unknown_connector,
+in-use delete refusal. The suite registers a provider whose payload calls a
+phone `client.cellulaire`, mints a key, posts the odd payload through the
+signed webhook — mapped lead + express-consent row, no deploy. Zod 4 lesson:
+record(enum,…) is exhaustive; partialRecord is the mapping type.
+
+Gate 29/29; pushing with the fixed watcher discipline.
+
 ## 2026-08-20 (overnight loop, tick 1) — recovery, the missed reflow, and the bell journey
 
 The PC restarted overnight: dealpilot containers were down (restarted — never

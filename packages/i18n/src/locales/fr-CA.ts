@@ -12,6 +12,7 @@ export const frCA = {
     themeLight: 'Mode clair',
     appName: '1Dealer',
     signOut: 'Se déconnecter',
+    signOutShort: 'Sortir',
     loading: 'Chargement…',
     validationRequired: 'Ce champ est requis.',
     validationInvalid: 'Valeur invalide.',

@@ -12,6 +12,7 @@ import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from '.
 import type { ReassignQueue } from './reassign-queue.js';
 import type { RateLimiter } from './rate-limit.js';
 import { distributeLead } from './f45-distribution-routes.js';
+import { connectorKeyExists, resolveConnector } from './f49-connector-routes.js';
 
 /**
  * F-03 lead intake (leads.md §10). Two surfaces:
@@ -65,6 +66,14 @@ export function registerIntakeKeyRoutes(app: FastifyInstance, pool: Pool, apiBas
     const key = await withTenant(pool, input.organization_id, async (c) => {
       await requirePermission(c, user.id, 'intake_key:manage');
       if (input.store_id !== null) await requireLiveStore(c, input.store_id);
+      // F-49: the key must point at a REAL connector — a built-in preset or
+      // one of this tenant's active rows. A ghost key would mint a webhook
+      // whose every lead silently wears website_form's mapping.
+      if (!(await connectorKeyExists(c, input.organization_id, input.connector_key))) {
+        throw new AppError(422, 'validation_failed', 'Unknown connector', [
+          { path: 'connector_key', code: 'unknown_connector', message: input.connector_key },
+        ]);
+      }
       const r = await c.query(
         `INSERT INTO intake_keys (organization_id, store_id, label, provider, default_source,
                                   connector_key, token, secret)
@@ -306,7 +315,11 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, rea
         // assumption here. Written in the same transaction as the lead — an
         // enquiry that arrives with permission and stores only half of it is a
         // lead nobody may contact.
-        const connector = findConnector(resolved.connector_key) ?? findConnector('website_form');
+        // F-49: a tenant's ACTIVE connector wins over the built-in of the
+        // same key; unknown keys keep the historical website_form fallback.
+        const connector =
+          (await resolveConnector(c, resolved.organization_id, resolved.connector_key)) ??
+          findConnector('website_form');
         if (connector) {
           const normalized = normalizeLead(adfFlat ?? request.body ?? {}, connector, new Date());
           for (const row of normalized.consent) {

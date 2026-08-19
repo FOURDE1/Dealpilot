@@ -58,6 +58,9 @@ const BEHAVIOURALLY_COVERED = new Set([
   // F-12: cross-tenant case in apps/api/src/f12-invitations.test.ts
   // ("another organization cannot see or revoke these invitations").
   'invitations',
+  // F-49: POLICY-level case in packages/db/src/rls.test.ts
+  // ("tenant_connectors: tenant 2 sees nothing of tenant 1").
+  'tenant_connectors',
   // F-47: POLICY-level case in packages/db/src/rls.test.ts ("notifications:
   // addressed to a person").
   'notifications',

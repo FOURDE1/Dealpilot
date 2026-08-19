@@ -31,3 +31,4 @@ export * from './assignment.js';
 export * from './schedule.js';
 export * from './distribution.js';
 export * from './notification.js';
+export * from './connector.js';

@@ -12,6 +12,7 @@ export const enCA = {
     themeLight: 'Light mode',
     appName: '1Dealer',
     signOut: 'Sign out',
+    signOutShort: 'Exit',
     loading: 'Loading…',
     validationRequired: 'This field is required.',
     validationInvalid: 'Invalid value.',

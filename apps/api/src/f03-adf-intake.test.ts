@@ -3,7 +3,6 @@ import { createHmac } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createPool, ensureTestDatabase, reset, testAdminUrl, testAppUrl, type Pool } from '@dealpilot/db';
-import { CreateIntakeKeyInput } from '@dealpilot/schemas';
 import { findConnector } from '@dealpilot/core';
 import { buildApp } from './app.js';
 
@@ -124,8 +123,10 @@ describe('vocabulary lockstep', () => {
     // The enum a dealer can pick from and the registry the webhook consults
     // must never drift — 'adf_xml' sat in core unreachable until this test's
     // slice, which is exactly the failure this pins.
-    for (const key of CreateIntakeKeyInput.shape.connector_key.unwrap().options) {
-      expect(findConnector(key), `connector_key '${key}' has no definition`).not.toBeNull();
+    // F-49 widened connector_key to any tenant key; the BUILT-IN floor must
+    // still resolve, every entry.
+    for (const key of ['website_form', 'meta_lead_ads', 'adf_xml']) {
+      expect(findConnector(key), `built-in '${key}' has no definition`).not.toBeNull();
     }
   });
 });

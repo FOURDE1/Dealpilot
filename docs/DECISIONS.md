@@ -36,6 +36,29 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-053 — F-49 connectors become configuration, with the built-ins as the floor (2026-08-20)
+
+**Context:** FR-LEAD-019 / leads.md §2.3 — "adding a new lead provider means
+registering a connector + mapping — no code change, no deploy."
+
+1. **tenant_connectors rows ARE the registration** (0053): source_key, type
+   (json_webhook | adf_xml — api_poll ships with its first polling provider),
+   field_map (canonical field → provider paths, first non-empty wins),
+   default_source, dedupe_fields, and the form's OWN consent basis. The
+   webhook resolves a key against the tenant's ACTIVE rows first, then the
+   built-in presets, then the historical website_form fallback.
+2. **Built-in keys are reserved** — a tenant row shadowing website_form would
+   silently rewire every key that names it; 422 reserved_key.
+3. **A key must point at a REAL connector at mint time** (422
+   unknown_connector) — the enum became a string when tenant keys arrived,
+   and the route now carries the check the enum used to.
+4. **Deleting an in-use connector is refused (409)** — deactivate instead;
+   an INACTIVE connector's keys fall back like an unknown one, loudly
+   documented rather than silently rewired at delete.
+5. Gated intake_key:manage both ways — a connector shapes what enters the
+   front door, the same authority that mints its keys. Admin UI screen is
+   the next web slice.
+
 ## D-051 — F-48 reactivation: a reply wakes the dead, with a fresh ladder (2026-08-20)
 
 **Context:** FR-LEAD-012 / leads.md:459 — "any client reply at any point
