@@ -1,3 +1,39 @@
+## 2026-08-19 (later) — security audit, UI review, and MFA (F-41)
+
+**Audit (two independent passes, reconciled — `b17b15e`):** two MEDIUMs fixed
+the day they were written. The sharp one: scoreOnCreate's fallback was
+ILLUSORY — a PG error poisoned the shared transaction (25P02) so the fallback
+writes also threw, failing lead creation in exactly the scenario the fallback
+targets; now SAVEPOINT + rollback-to + warn log. Also: authz denials were
+never logged (401/403 warn, 404/422 info now, actor+route, no PII); local
+column allowlists at the three dynamic-SET sinks (safe today via strictObject,
+one .passthrough() away from identifier injection); 0047 partial index for the
+capacity subquery on the intake ACK path. Eleven refuted attacks recorded in
+SECURITY.md so the next audit does not re-litigate.
+
+**UI review (`3263696`):** three new screens + chip against WCAG 2.2 AA — no
+blockers; contrast machine-verified by the theme's 75-pair guard; one dead
+sr-only label removed; deferred items recorded.
+
+**F-41 MFA (`3587f28`):** Better Auth twoFactor (0048), /security enrolment
+(password → manual-entry secret → first-code proof → backup codes ONCE),
+challenge at /login/verify, /me computes mfa.required from LIVE roles
+(owner/gm/admin_office), shell nag everywhere but the fix page. API tests use
+REAL RFC-6238 codes (node:crypto, no dependency). The journey caught FOUR
+client bugs: challenge flag lives on the fetch callback not the promise;
+challenge state must be a ROUTE because RedirectIfAuthed remounts on every
+useSession refetch; the banner's role=alert shouted over real alerts (now
+status); the topbar link broke 360px reflow (hidden below sm). Deferred:
+QR rendering (needs an owner-approved dependency — `qrcode` is the candidate);
+server-side hard gate of privileged permissions behind MFA (slice 2).
+
+**State:** develop `3587f28`; gate 1062 tests / 29 tasks; e2e 34/34; CI green
+through `3263696`, `3587f28` pending at save. Earlier "cancelled" develop runs
+were GitHub's queued-run dedup attributed to the push author — not the owner,
+not an intruder. **Owner:** client checklist sent
+(docs/CLIENT-CREDENTIALS-CHECKLIST.md — Twilio A2P + Anthropic key); QR
+dependency decision; OWNER-ACTIONS §4 unchanged.
+
 ## 2026-08-16/17 — F-38 appointments console, F-39 scoring engine, both shipped
 
 **F-38 (`c77b962`, CI green):** the console's side of what the assistant books.
