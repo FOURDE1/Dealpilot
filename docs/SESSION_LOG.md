@@ -1,3 +1,23 @@
+## 2026-08-20 (overnight loop, tick 1) — recovery, the missed reflow, and the bell journey
+
+The PC restarted overnight: dealpilot containers were down (restarted — never
+touching the neighbour project's), the local API was stale (restarted on
+HEAD), and the dev DB was two migrations behind (migrated FORWARD to 0052).
+Worse: the background CI watcher had raced onto the wrong run id — 4388dd0
+had actually FAILED (the a11y reflow guard caught FR-LEAD-016's aging chip
+widening /leads past 360px) and 9d18bba was cancelled. Fixed the chip
+(flex-wrap: the badge stacks under the pill), pushed 902d5a6 with the run id
+PINNED at push time, and the verdict is an explicit SUCCESS — everything
+through cost masking is CI-green. Watchers pin ids from now on.
+
+Then the bell got its missing journey (f47-bell.e2e): invite → accept →
+owner assigns BY NAME from the lead page → Marc signs in to a red badge →
+reads the alert in French → deep-links → badge cleared. Writing it exposed
+that MANUAL assignment never notified (only the machine paths did) — the
+producer now rings for a person handing a person a lead, never for
+self-assignment. API case added post-read-test (order matters in a shared
+fixture).
+
 ## 2026-08-20 (cont.) — FR-TEN-006: the cost build-up stays home
 
 App-level column masking at the vehicle serializer (D-052): outside the

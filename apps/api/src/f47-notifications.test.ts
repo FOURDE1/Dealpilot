@@ -176,4 +176,23 @@ describe('the assignment rings the right bell (M9)', () => {
     expect(all.statusCode).toBe(204);
     expect((await bellOf(colleagueCookie)).unread).toBe(0);
   });
+
+  it('a PERSON handing a person a lead rings the bell too — and never their own', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const lead = await app!.inject({
+      method: 'POST', url: '/api/v1/leads', headers: { cookie: ownerCookie },
+      payload: { organization_id: orgId, store_id: storeId, phone: nextPhone(), source: 'walk_in', first_name: 'Manu', last_name: 'Elle' },
+    });
+    const leadId = (JSON.parse(lead.body) as { id: string }).id;
+    const before = (await bellOf(colleagueCookie)).unread;
+    const patch = await app!.inject({
+      method: 'PATCH', url: `/api/v1/leads/${leadId}`, headers: { cookie: ownerCookie },
+      payload: { assigned_to: colleagueId },
+    });
+    expect(patch.statusCode, patch.body).toBe(200);
+    const after = await bellOf(colleagueCookie);
+    expect(after.unread).toBe(before + 1);
+    expect(after.items[0]).toMatchObject({ title_key: 'notif_lead_assigned', link: `/leads/${leadId}` });
+    expect((after.items[0]!['params'] as { lead: string }).lead).toBe('Manu Elle');
+  });
 });

@@ -4,6 +4,7 @@ import { CreateLeadInput, LeadListQuery, UpdateLeadInput } from '@dealpilot/sche
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requirePermission } from './permissions.js';
 import { diff, recordEvent } from './activity.js';
+import { notify } from './notifications.js';
 import { inquiryConsentRows } from '@dealpilot/core';
 import { scoreOnCreate } from './f39-scoring-routes.js';
 import { autoAssignLead } from './f40-assignment-routes.js';
@@ -282,6 +283,23 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool, reassign: Re
             action: input.assigned_to ? 'assigned' : 'unassigned',
             changes: { assigned_to: { from: prior['assigned_to'] ?? null, to: input.assigned_to ?? null } },
           });
+          // F-47 (M9): a person handing a person a lead rings the bell too —
+          // the machine paths already did, and a gap here would teach agents
+          // that only robots announce work. Never self-notify.
+          if (input.assigned_to && input.assigned_to !== user.id) {
+            const leadLabel =
+              [prior['first_name'], prior['last_name']].filter(Boolean).join(' ') || String(prior['phone']);
+            await notify(c, {
+              organizationId: orgId,
+              userId: input.assigned_to,
+              urgency: 'medium',
+              titleKey: 'notif_lead_assigned',
+              params: { lead: leadLabel },
+              link: `/leads/${leadId}`,
+              entityType: 'lead',
+              entityId: leadId,
+            });
+          }
         }
         // Everything a lead PATCH can write, minus assignment which has its own
         // verb above.
