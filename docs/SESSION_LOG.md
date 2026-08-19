@@ -1,3 +1,15 @@
+## 2026-08-20 (overnight loop, tick 3) — the connector console
+
+First honest JSON-verified green since the bell: 14241e3 SUCCESS — the
+topbar fix cured the a11y pan across the whole suite. Then the F-49 admin
+console (/leads/connectors): register a provider with its own field paths
+(comma-separated, first-wins), pick the lead source from the shared
+vocabulary, and declare what that form's consent box actually granted
+(type + channels + all three scopes — ConsentScope's ai_outbound_call
+nearly slipped by the labels). Activate/deactivate, delete with the in-use
+409 surfaced as a sentence. Routes hang off /leads like scoring and
+distribution; FR/EN namespaces; gate 29/29.
+
 ## 2026-08-20 (overnight loop, tick 2) — the truth about CI, the topbar's last pixel, and connectors-as-config
 
 **The verdict audit.** Every backgrounded CI watcher since mid-day had a

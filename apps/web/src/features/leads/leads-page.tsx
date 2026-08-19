@@ -143,6 +143,9 @@ export function LeadsPage() {
           <Link to="/leads/distribution" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
             {t('distributionLink')}
           </Link>
+          <Link to="/leads/connectors" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+            {t('connectorsLink')}
+          </Link>
           <Link to="/leads/assignment" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
             {t('assignmentRulesLink')}
           </Link>

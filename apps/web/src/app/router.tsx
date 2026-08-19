@@ -54,6 +54,9 @@ const ScoringRulesPage = lazy(() =>
 const DistributionPage = lazy(() =>
   import('../features/distribution/distribution-page.js').then((m) => ({ default: m.DistributionPage })),
 );
+const ConnectorsPage = lazy(() =>
+  import('../features/connectors/connectors-page.js').then((m) => ({ default: m.ConnectorsPage })),
+);
 const SchedulesPage = lazy(() =>
   import('../features/schedules/schedules-page.js').then((m) => ({ default: m.SchedulesPage })),
 );
@@ -145,6 +148,7 @@ export const router = createBrowserRouter([
       { path: 'leads', element: lazyPage(<LeadsPage />) },
       { path: 'leads/scoring', element: lazyPage(<ScoringRulesPage />) },
       { path: 'leads/distribution', element: lazyPage(<DistributionPage />) },
+      { path: 'leads/connectors', element: lazyPage(<ConnectorsPage />) },
       { path: 'leads/assignment', element: lazyPage(<AssignmentRulesPage />) },
       { path: 'leads/new', element: lazyPage(<LeadNewPage />) },
       { path: 'leads/:leadId', element: lazyPage(<LeadDetailPage />) },
