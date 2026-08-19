@@ -32,6 +32,7 @@ import { createCarrier, type Carrier } from './carrier.js';
 import { createDeferredSendQueue, type DeferredSendQueue } from './deferred-queue.js';
 import { createReassignQueue, type ReassignQueue } from './reassign-queue.js';
 import { inMemoryPresenceStore, redisPresenceStore, type PresenceStore } from './presence.js';
+import { createRateLimiter, type RateLimiter } from './rate-limit.js';
 import { registerF30Routes } from './f30-carrier-routes.js';
 import { registerF12Routes } from './f12-invitation-routes.js';
 import { registerF08Routes } from './f08-checklist-routes.js';
@@ -117,6 +118,8 @@ export interface AppDeps {
   reassignQueue?: ReassignQueue;
   /** Injectable so cascade tests STATE who is online instead of opening sockets. */
   presence?: PresenceStore;
+  /** Injectable so limit tests spin the clock instead of sending 30 requests. */
+  rateLimiter?: RateLimiter;
 }
 
 export async function buildApp(
@@ -146,6 +149,7 @@ export async function buildApp(
   }
 
   const app = Fastify({
+    trustProxy: env.TRUST_PROXY,
     logger: {
       level: env.NODE_ENV === 'test' ? 'warn' : 'info',
       redact: ['req.headers.authorization', 'req.headers.cookie'],
@@ -298,6 +302,35 @@ export async function buildApp(
     method: ['GET', 'POST'],
     url: '/api/auth/*',
     async handler(request, reply) {
+      // F-44 (D-048): credential endpoints get a per-IP bucket, and sign-in
+      // additionally a per-EMAIL bucket — a distributed guesser rotating IPs
+      // still runs into the account's own budget. GETs (session reads) are
+      // not gated: they are cheap, constant and carry no secret to guess.
+      // TOTP codes have their own server-side counter+lockout (0048).
+      if (request.method === 'POST') {
+        // 60/min is lethal to password spraying yet invisible to a burst of
+        // legitimate sign-ins (four e2e workers signing up at once peak ~10).
+        // The per-EMAIL bucket below is the real brute-force wall.
+        const ipGate = await rateLimiter.take(`auth:ip:${request.ip}`, { ratePerMinute: 60, burst: 30 });
+        if (!ipGate.allowed) {
+          return reply
+            .status(429)
+            .header('retry-after', String(ipGate.retryAfterS))
+            .send(envelope('rate_limited', 'Too many requests', String(request.id)));
+        }
+        if (request.url.includes('/sign-in/email')) {
+          const email = String((request.body as { email?: unknown } | null)?.email ?? '').toLowerCase().trim();
+          if (email !== '') {
+            const emailGate = await rateLimiter.take(`auth:email:${email}`, { ratePerMinute: 2, burst: 8 });
+            if (!emailGate.allowed) {
+              return reply
+                .status(429)
+                .header('retry-after', String(emailGate.retryAfterS))
+                .send(envelope('rate_limited', 'Too many requests', String(request.id)));
+            }
+          }
+        }
+      }
       const response = await auth.handler(await toWebRequest(request, env.BETTER_AUTH_URL));
       reply.status(response.status);
       response.headers.forEach((value, key) => {
@@ -360,10 +393,13 @@ export async function buildApp(
   const presence =
     deps.presence ?? (env.REDIS_URL ? redisPresenceStore(env.REDIS_URL) : inMemoryPresenceStore());
   if (!deps.presence) app.addHook('onClose', async () => presence.close());
+  const rateLimiter =
+    deps.rateLimiter ?? createRateLimiter(env, (obj, msg) => app.log.warn(obj, msg));
+  if (!deps.rateLimiter) app.addHook('onClose', async () => rateLimiter.close());
   registerF01Routes(app, pool);
   registerF02Routes(app, pool, reassignQueue);
   registerIntakeKeyRoutes(app, pool, env.BETTER_AUTH_URL);
-  registerPublicIntakeRoutes(app, pool, reassignQueue);
+  registerPublicIntakeRoutes(app, pool, reassignQueue, rateLimiter);
   registerF04Routes(app, pool);
   registerF05Routes(app, pool);
   registerF07Routes(app, pool);
@@ -386,7 +422,7 @@ export async function buildApp(
   registerF40Routes(app, pool, reassignQueue);
   registerF42Routes(app, pool, reassignQueue, presence);
   registerF24Routes(app, pool);
-  registerF12Routes(app, pool, mailer, env.WEB_ORIGIN);
+  registerF12Routes(app, pool, mailer, env.WEB_ORIGIN, rateLimiter);
   registerF08Routes(app, pool);
 
   app.addHook('onClose', async () => {

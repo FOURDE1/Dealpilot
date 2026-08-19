@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
 import { CreateInvitationInput, InvitationListQuery } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
+import type { RateLimiter } from './rate-limit.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import { assertGrantable } from './f04-members-routes.js';
 import { recordEvent } from './activity.js';
@@ -43,7 +44,7 @@ function acceptUrl(appUrl: string, token: string): string {
   return `${appUrl.replace(/\/$/, '')}/invitations/${token}`;
 }
 
-export function registerF12Routes(app: FastifyInstance, pool: Pool, mailer: Mailer, appUrl: string): void {
+export function registerF12Routes(app: FastifyInstance, pool: Pool, mailer: Mailer, appUrl: string, limiter: RateLimiter): void {
   /** Invite someone. Owner/GM/admin_office, and never above your own ceiling. */
   app.post('/api/v1/invitations', async (request, reply) => {
     const input = parseOrThrow(CreateInvitationInput, request.body);
@@ -112,6 +113,14 @@ export function registerF12Routes(app: FastifyInstance, pool: Pool, mailer: Mail
    * carries it — but that link points at the web app, not at this API.
    */
   app.post('/api/v1/invitations/preview', async (request, reply) => {
+    // F-44: the ONE public endpoint that resolves a secret to a fact — the
+    // exact shape token-enumeration wants. Per-IP bucket, deliberately tight.
+    const gate = await limiter.take(`preview:${request.ip}`, { ratePerMinute: 30, burst: 30 });
+    if (!gate.allowed) {
+      throw new AppError(429, 'rate_limited', 'Too many requests', [
+        { path: 'token', code: 'rate_limited', message: `Retry in ${gate.retryAfterS}s` },
+      ]);
+    }
     const token = tokenFromBody(request.body);
     const r = await pool.query<{ org_name: string; email: string; roles: string[] }>(
       `SELECT org_name, email, roles FROM invitation_resolve($1)`,

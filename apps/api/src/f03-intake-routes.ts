@@ -10,6 +10,7 @@ import { scoreOnCreate } from './f39-scoring-routes.js';
 import { autoAssignLead } from './f40-assignment-routes.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import type { ReassignQueue } from './reassign-queue.js';
+import type { RateLimiter } from './rate-limit.js';
 
 /**
  * F-03 lead intake (leads.md §10). Two surfaces:
@@ -34,21 +35,9 @@ const INTAKE_BODY_LIMIT = 256 * 1024;
 /** Same shape as StoreListQuery + an optional store filter. */
 const IntakeKeyListQuery = StoreListQuery.extend({ store_id: Uuid.optional() });
 
-// -- in-memory fixed-window rate limit (dev; prod = ElastiCache token bucket) --
-const RATE_MAX = 30;
-const RATE_WINDOW_MS = 60_000;
-const buckets = new Map<string, { count: number; resetAt: number }>();
-
-function rateLimited(token: string, now: number): boolean {
-  const b = buckets.get(token);
-  if (!b || now >= b.resetAt) {
-    if (buckets.size > 10_000) for (const [k, v] of buckets) if (now >= v.resetAt) buckets.delete(k);
-    buckets.set(token, { count: 1, resetAt: now + RATE_WINDOW_MS });
-    return false;
-  }
-  b.count += 1;
-  return b.count > RATE_MAX;
-}
+// F-44: the shared token bucket (Redis in prod, memory in dev) — same 30/min
+// budget the fixed window enforced, now burst-tolerant and instance-agnostic.
+const INTAKE_RATE = { ratePerMinute: 30, burst: 30 };
 
 function newToken(): string {
   return randomBytes(16).toString('base64url'); // 22 chars, matches the CHECK
@@ -214,7 +203,7 @@ function adfToCandidate(adf: AdfLead): Record<string, unknown> {
   };
 }
 
-export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue): void {
+export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue, limiter: RateLimiter): void {
   app.route({
     method: 'POST',
     url: '/in/v1/leads/:token',
@@ -223,8 +212,9 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, rea
       const token = (request.params as { token: string }).token;
       const now = Date.now();
 
-      if (rateLimited(token, now)) {
-        return reply.status(429).header('retry-after', '60').send(
+      const gate = await limiter.take(`intake:${token}`, INTAKE_RATE);
+      if (!gate.allowed) {
+        return reply.status(429).header('retry-after', String(gate.retryAfterS)).send(
           envelopePublic('rate_limited', 'Too many requests'),
         );
       }

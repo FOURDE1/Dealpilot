@@ -1,3 +1,22 @@
+## 2026-08-19 (later still) — F-44: production rate limiting
+
+Token buckets per the baseline (D-048): Redis+Lua when configured — one
+atomic bucket per key across every instance — memory otherwise. Gated where
+abuse pays: intake 30/min per key (the old dev window's budget, now
+burst-tolerant and instance-agnostic); auth POSTs 60/min per IP; sign-in
+additionally 2/min burst 8 per EMAIL — the real brute-force wall, IP
+rotation resets nothing; invitation preview 30/min per IP (the
+token-enumeration shape). 429 + Retry-After everywhere. FAIL-OPEN only here,
+loudly: a limiter that turns a Redis outage into an API outage does the
+attacker's job. Deliberately unlimited: Twilio webhooks (signed; 429 would
+fight Twilio's retry semantics — WAF owns it in prod), auth GETs, TOTP
+(0048's own counter+lockout is stricter). TRUST_PROXY env added — without
+it, production per-IP buckets would all share the ALB's address.
+
+Tests: bucket golden with a spun clock; the three surfaces through real
+routes with an injected clock (no thirty-request sleeps). Suite 7/7; gate
+29/29, 1126 tests.
+
 ## 2026-08-19 (small hours) — F-43: presence, and the funnel's step 2 goes live
 
 FR-LEAD-014 on the F-28 rails: a successful realtime SUBSCRIBE is the

@@ -11,6 +11,33 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-048 — F-44 rate limiting: token buckets that fail OPEN (2026-08-19)
+
+**Decision:** one shared token-bucket limiter (Redis + Lua when REDIS_URL is
+set — atomic and instance-agnostic; in-memory otherwise), applied to the
+surfaces where abuse has a payoff: the intake webhook (30/min per key — the
+old fixed window's budget, now burst-tolerant), auth POSTs (60/min per IP,
+lethal to spraying, invisible to real sign-in bursts), sign-in additionally
+2/min burst 8 per EMAIL (the actual brute-force wall — rotating IPs does not
+reset the account's budget), and the invitation preview (30/min per IP — the
+one public endpoint that resolves a secret to a fact, i.e. the enumeration
+shape). 429 + Retry-After everywhere, per the baseline.
+
+**Fail OPEN, only here:** if Redis dies, requests pass and it is warn-logged.
+The auth/signature/consent gates all fail closed; a limiter that turned a
+Redis outage into a full API outage would do the attacker's job for them.
+
+**Deliberately NOT limited:** the Twilio webhooks — provider-signed, and
+Twilio treats non-2xx as delivery failure with its own retry schedule, so a
+429 there would punish real traffic; WAF-level limits cover that surface in
+production. GET /api/auth/* (session reads) — cheap, constant, nothing to
+guess. TOTP verification — 0048's failedVerificationCount + lockedUntil is
+already a stricter per-account wall.
+
+**TRUST_PROXY** env (default false, ON behind the ALB): without it every
+production per-IP bucket would be one shared bucket keyed on the ALB's
+address.
+
 ## D-047 — FR-LEAD-014 presence: subscribe-is-life, and absence of data is not offline (2026-08-19)
 
 **Context:** the cascade's "online" step (§7.3 step 2) needs a presence

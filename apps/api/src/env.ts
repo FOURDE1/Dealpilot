@@ -108,6 +108,18 @@ const EnvSchema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((v) => v === 'true'),
+
+  /**
+   * F-44: 'true' makes Fastify honour X-Forwarded-For, so request.ip is the
+   * CLIENT behind the ALB rather than the ALB itself — without it every
+   * per-IP rate bucket in production would be one shared bucket. Only set it
+   * where a trusted proxy actually fronts the API; locally the socket IP is
+   * already the truth.
+   */
+  TRUST_PROXY: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

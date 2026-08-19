@@ -4,6 +4,16 @@
 > secrets, working exploits against this project, or unpatched vulnerability details
 > beyond what's needed to track the fix.
 
+## 2026-08-19 — F-44 production rate limiting shipped
+
+Token buckets (Redis+Lua shared across instances; memory fallback; FAIL-OPEN
+with warn — D-048) now guard: intake webhook 30/min per key; auth POSTs
+60/min per IP; sign-in 2/min burst 8 per EMAIL (brute-force wall that IP
+rotation cannot reset); invitation preview 30/min per IP (token-enumeration
+shape). 429 + Retry-After. TRUST_PROXY added for correct client IPs behind
+the ALB. Twilio webhooks intentionally unlimited at app level (signed;
+retry semantics) — WAF owns that surface in production.
+
 ## Baseline for this project
 
 Two layers, both binding:
