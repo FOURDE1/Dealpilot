@@ -247,6 +247,37 @@ describe('row-level security', () => {
     ).rejects.toThrow();
   });
 
+  it('lead_duplicates: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const pairIds = await withTenant(app, org1, async (c) => {
+      const leads = await c.query<{ id: string }>(
+        `INSERT INTO leads (organization_id, store_id, phone, source)
+         VALUES ($1, NULL, '+15145550991', 'walk_in'), ($1, NULL, '+15145550992', 'walk_in')
+         RETURNING id`,
+        [org1],
+      );
+      await c.query(
+        `INSERT INTO lead_duplicates (organization_id, lead_id, duplicate_of, match_type, confidence)
+         VALUES ($1, $2, $3, 'phone', 100)`,
+        [org1, leads.rows[0]!.id, leads.rows[1]!.id],
+      );
+      return leads.rows.map((r) => r.id);
+    });
+    const rival = await withTenant(app, org2, async (c) =>
+      (await c.query(`SELECT * FROM lead_duplicates`)).rows,
+    );
+    expect(rival).toHaveLength(0);
+    await expect(
+      withTenant(app, org2, async (c) => {
+        await c.query(
+          `INSERT INTO lead_duplicates (organization_id, lead_id, duplicate_of, match_type, confidence)
+           VALUES ($1, $2, $3, 'email', 100)`,
+          [org1, pairIds[1], pairIds[0]],
+        );
+      }),
+    ).rejects.toThrow();
+  });
+
   it('reset refuses non-local database hosts', async () => {
     await expect(
       reset(admin, migrationsDir, 'postgresql://u:p@prod-rds.ca-central-1.example.com:5432/x'),

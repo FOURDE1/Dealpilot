@@ -8,6 +8,7 @@ import { notify } from './notifications.js';
 import { inquiryConsentRows } from '@dealpilot/core';
 import { scoreOnCreate } from './f39-scoring-routes.js';
 import { autoAssignLead } from './f40-assignment-routes.js';
+import { detectDuplicatesFor } from './f54-duplicate-routes.js';
 import {
   callerOrgIds,
   conflictFrom,
@@ -161,6 +162,9 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool, reassign: Re
         // rules configured this is a no-op and the lead stays unassigned,
         // exactly as before the engine existed.
         const assignDecision = await autoAssignLead(c, input.organization_id, leadId, user.id);
+        // F-54 (§8.1): the same person arriving twice is caught AT arrival —
+        // a pending pair, in the same transaction, never a silent overwrite.
+        await detectDuplicatesFor(c, input.organization_id, leadId);
         // Re-read: scoring synced leads.score and assignment may have set
         // assigned_to/status after the INSERT's RETURNING row was captured.
         const fresh = await c.query(`SELECT * FROM leads WHERE id = $1`, [leadId]);
@@ -363,6 +367,14 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool, reassign: Re
       // Only when a row actually moved: a second DELETE deletes nothing and
       // should not claim otherwise.
       if (gone.rows.length > 0) {
+        // F-54: a deleted lead's pending pairs are unresolvable — retire them
+        // now, or the review queue serves a deleted person's details forever.
+        await c.query(
+          `UPDATE lead_duplicates
+           SET status = 'dismissed', resolved_by = $2, resolved_at = now()
+           WHERE status = 'pending' AND (lead_id = $1 OR duplicate_of = $1)`,
+          [leadId, user.id],
+        );
         await recordEvent(c, {
           organizationId: orgId, actorUserId: user.id,
           entityType: 'lead', entityId: leadId, action: 'deleted',

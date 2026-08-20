@@ -21,6 +21,7 @@ import { formatCents } from '../deals/money.js';
 import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
 import { LostReasonDialog } from './lost-reason-dialog.js';
 import { useLostReasons } from './lost-reason-api.js';
+import { useDuplicates } from './duplicate-api.js';
 import { lostReasonLabel } from '@dealpilot/core';
 import type { DealT } from '@dealpilot/schemas';
 
@@ -53,6 +54,12 @@ export function LeadDetailPage() {
     enabled: lead.data?.status === 'lost' && lead.data.lost_reason_id !== null,
     includeInactive: true,
   });
+  const pendingDups = useDuplicates(lead.data?.organization_id, {
+    status: 'pending',
+    leadId,
+    enabled: lead.isSuccess,
+  });
+  const inPendingPair = (pendingDups.data?.items.length ?? 0) > 0;
   const currentReason =
     lead.data?.lost_reason_id != null
       ? (lostReasons.data?.items.find((r) => r.id === lead.data?.lost_reason_id) ?? null)
@@ -137,6 +144,14 @@ export function LeadDetailPage() {
           </Link>
         ) : null}
       </header>
+      {inPendingPair ? (
+        <p role="status" className="rounded-md bg-caution-bg px-3 py-2 text-sm font-medium text-caution-text">
+          {t('dup_banner')}{' '}
+          <Link to="/leads/duplicates" className="underline underline-offset-4">
+            {t('dup_bannerLink')}
+          </Link>
+        </p>
+      ) : null}
 
       <div className="grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="rounded-lg border border-border bg-card p-4">

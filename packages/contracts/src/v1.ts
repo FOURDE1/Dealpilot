@@ -1,6 +1,11 @@
 import { initContract } from '@ts-rest/core';
 import { z } from 'zod';
 import {
+  LeadDuplicate,
+  DuplicateScanResult,
+  DuplicateScanInput,
+  DuplicatePair,
+  DuplicateListQuery,
   UpdateLostReasonInput,
   CreateLostReasonInput,
   LostReason,
@@ -682,6 +687,45 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       query: ComplianceCheckQuery,
       responses: { 200: ComplianceCheck, ...errorResponses },
+    },
+  }),
+  /** F-54 duplicates (leads.md §8): pairs, scans, and the two verbs. */
+  duplicates: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/duplicates',
+      query: DuplicateListQuery,
+      responses: {
+        200: z.object({ items: z.array(DuplicatePair), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    scan: {
+      method: 'POST',
+      path: '/api/v1/duplicates/scan',
+      body: DuplicateScanInput,
+      responses: { 200: DuplicateScanResult, ...errorResponses },
+    },
+    scanLead: {
+      method: 'POST',
+      path: '/api/v1/leads/:id/duplicate-scan',
+      pathParams: z.object({ id: Uuid }),
+      body: z.undefined(),
+      responses: { 200: DuplicateScanResult, ...errorResponses },
+    },
+    merge: {
+      method: 'POST',
+      path: '/api/v1/duplicates/:id/merge',
+      pathParams: z.object({ id: Uuid }),
+      body: z.undefined(),
+      responses: { 200: LeadDuplicate, ...errorResponses },
+    },
+    dismiss: {
+      method: 'POST',
+      path: '/api/v1/duplicates/:id/dismiss',
+      pathParams: z.object({ id: Uuid }),
+      body: z.undefined(),
+      responses: { 200: LeadDuplicate, ...errorResponses },
     },
   }),
   /** F-53 lost reasons (leads.md §11): tenant vocabulary for WHY. */

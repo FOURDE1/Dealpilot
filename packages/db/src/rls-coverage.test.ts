@@ -67,6 +67,9 @@ const BEHAVIOURALLY_COVERED = new Set([
   // F-53: POLICY-level case in packages/db/src/rls.test.ts
   // ("lost_reasons: tenant 2 sees nothing of tenant 1").
   'lost_reasons',
+  // F-54: POLICY-level case in packages/db/src/rls.test.ts
+  // ("lead_duplicates: tenant 2 sees nothing of tenant 1").
+  'lead_duplicates',
   // F-45: POLICY-level case in packages/db/src/rls.test.ts
   // ("lead_distribution_config: tenant 2 sees nothing of tenant 1").
   'lead_distribution_config',

@@ -33,3 +33,4 @@ export * from './distribution.js';
 export * from './notification.js';
 export * from './connector.js';
 export * from './lost-reason.js';
+export * from './duplicate.js';

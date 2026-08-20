@@ -33,6 +33,9 @@ const BrandingEditorPage = lazy(() =>
 const LeadsPage = lazy(() =>
   import('../features/leads/leads-page.js').then((m) => ({ default: m.LeadsPage })),
 );
+const DuplicatesPage = lazy(() =>
+  import('../features/leads/duplicates-page.js').then((m) => ({ default: m.DuplicatesPage })),
+);
 const LostReasonsPage = lazy(() =>
   import('../features/leads/lost-reasons-page.js').then((m) => ({ default: m.LostReasonsPage })),
 );
@@ -158,6 +161,7 @@ export const router = createBrowserRouter([
       { path: 'leads/assignment', element: lazyPage(<AssignmentRulesPage />) },
       { path: 'leads/be-back', element: lazyPage(<BeBackPage />) },
       { path: 'leads/lost-reasons', element: lazyPage(<LostReasonsPage />) },
+      { path: 'leads/duplicates', element: lazyPage(<DuplicatesPage />) },
       { path: 'leads/new', element: lazyPage(<LeadNewPage />) },
       { path: 'leads/:leadId', element: lazyPage(<LeadDetailPage />) },
       { path: 'leads/:leadId/desk', element: lazyPage(<DeskingPage />) },

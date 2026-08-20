@@ -16,7 +16,12 @@ export const LOST_REASON_DEFAULTS = [
   { name: 'Financing denied', name_fr: 'Financement refusé', icon: '🏦' },
   { name: 'Just browsing', name_fr: 'Juste en exploration', icon: '👀' },
   { name: 'Other', name_fr: 'Autre', icon: '📝' },
+  /** §8.2: what a merged-away source lead carries. System-set, never picked. */
+  { name: 'Merged duplicate', name_fr: 'Doublon fusionné', icon: '🔗' },
 ] as const;
+
+/** The reason the merge flow stamps on the source lead. */
+export const MERGED_DUPLICATE_REASON = 'Merged duplicate';
 
 /** The label a reader should see: FR-first product, FR when the locale is French. */
 export function lostReasonLabel(

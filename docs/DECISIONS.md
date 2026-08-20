@@ -36,6 +36,25 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-056 — 2026-08-20 — Duplicate merge: what follows the keeper and what stays
+
+F-54 (leads.md §8) interpretations. (1) Re-pointed to the keeper in the
+merge transaction: deals, conversations, appointments. (2) Deliberately
+NOT re-pointed: consent_ledger (append-only by trigger, and consent keys
+on phone/email — the keeper, being the same person, inherits by
+identity); lead_assignment_history and conversation_analysis (both
+append-only snapshots OF the source — moving them would falsify the
+keeper's history; the source survives as a lost lead carrying them).
+(3) The source's lead_scores row is deleted per §8.2 #3 — 0056 grants the
+app DELETE on lead_scores for exactly this. (4) The 'Merged duplicate'
+lost reason (#10) is system vocabulary: merge re-seeds it idempotently if
+a tenant deleted it, so the merge path cannot fail on missing config.
+(5) §8.3 duplicate-as-signal (auto-message, auto-reactivation) waits for
+the AI engine — the PAIR is recorded at webhook arrival today, so no
+signal is lost, only the automated response. (6) Detection runs in the
+same transaction as every lead create (manual + intake): a duplicate
+exists the moment its lead does, or neither exists.
+
 ## D-055 — 2026-08-20 — Lost reasons: history keeps its label, retirement beats deletion
 
 F-53 (leads.md §11) interpretations. (1) A reactivated lead KEEPS its

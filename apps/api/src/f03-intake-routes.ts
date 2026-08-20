@@ -13,6 +13,7 @@ import type { ReassignQueue } from './reassign-queue.js';
 import type { RateLimiter } from './rate-limit.js';
 import { distributeLead } from './f45-distribution-routes.js';
 import { connectorKeyExists, resolveConnector } from './f49-connector-routes.js';
+import { detectDuplicatesFor } from './f54-duplicate-routes.js';
 
 /**
  * F-03 lead intake (leads.md §10). Two surfaces:
@@ -355,6 +356,10 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, rea
             });
           }
         }
+        // F-54 (§8.1): webhook arrivals are checked too — a duplicate
+        // submission is a signal somebody is still shopping (§8.3's AI
+        // response arrives with the engine; the PAIR is recorded today).
+        await detectDuplicatesFor(c, resolved.organization_id, r.rows[0]!.id);
         await c.query(`UPDATE intake_keys SET last_used_at = now() WHERE token = $1`, [token]);
         return { id: r.rows[0]!.id, assignDecision };
       });

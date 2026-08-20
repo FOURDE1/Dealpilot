@@ -1,3 +1,30 @@
+## 2026-08-20 (tick 8) — F-54 duplicates, and the review's biggest haul
+
+leads.md §8 complete: detection at every arrival (manual + webhook, same
+transaction), the pending-pair review queue with side-by-side highlights,
+and the §8.2 merge — atomic, keeper-wins backfill, children re-pointed,
+source retired under the new 'Merged duplicate' system reason (#10),
+sibling pairs auto-dismissed. What stays put is a decision, not an
+accident (D-056): consent (append-only, keys on identity), assignment
+history and analyses (snapshots of the source).
+
+The 21-agent review confirmed 18 defects, refuted none — the record so
+far. The big ones: SQL name-matching missed what core's contract matches
+(internal whitespace — 'Jean  Pierre' never paired), the keeper was never
+RESCORED after gaining email/budget (§8.2 #7 simply missing), the full
+scan was O(n²)-unbounded behind a comment claiming a cap (real LIMIT 500
++ NOT EXISTS batch-resume now), two concurrent merges sharing a lead
+could deadlock (per-org advisory lock), merged-away ghosts re-entered
+detection as fake keepers, and soft-deleted leads' PII sat in pending
+pairs forever (delete now retires them). Plus ten web findings (silent
+network failures, fake tablist ARIA, focus loss, invalidation gaps,
+pagination dead-end, FR wording). All fixed, all regression-tested —
+11/11 on the F-54 suite, gate 29/29. leads.md is now END TO END: every
+section §1–§12 has a shipped implementation; only AI-gated behaviors
+wait on the Anthropic key. Migration checksum ledger caught the
+edited-after-apply 0055/0056 on dev — reconciled (canonical files are
+what CI builds from zero).
+
 ## 2026-08-20 (tick 7) — F-53 lost reasons, and the review earned its keep again
 
 leads.md §11 complete: lost_reasons vocabulary (nine bilingual defaults
