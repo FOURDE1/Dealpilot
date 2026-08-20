@@ -1,3 +1,19 @@
+## 2026-08-20 (overnight loop, tick 5) — audit clean; the last config gap closed
+
+/security-audit over F-41..F-51: no critical or high. Everything held —
+timing-safe intake HMAC in a ±5-min window, fail-closed carrier signatures,
+matrix-driven cost masking in SQL, allow-listed PATCH sinks, read-only path
+walking (no prototype pollution possible), loud fail-open limiter with
+fail-closed auth. Two lows proposed in SECURITY.md (dup source_key 500→409;
+delete TOCTOU) — owner's call.
+
+Then the gap the audit walk exposed: connectors existed, keys existed, but no
+UI could mint a key POINTING at a tenant connector — the framework was
+reachable only by curl. intake-sources now carries a connector picker
+(built-ins FR-labelled via i18n with core's label as fallback; the org's
+active connectors grouped below) and the keys table shows which connector
+reads each key. Gate 29/29.
+
 ## 2026-08-20 (overnight loop, tick 4) — two FR rows pinned shut
 
 Connector console CI-green (4603368, JSON verdict). Then FR-AUTH-008,

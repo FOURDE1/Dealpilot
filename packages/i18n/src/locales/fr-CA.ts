@@ -1293,6 +1293,12 @@ export const frCA = {
     perm_activity_read: 'Voir l’historique',
   },
   intake: {
+    connector: 'Connecteur',
+    builtinGroup: 'Préréglages intégrés',
+    tenantGroup: 'Connecteurs de l’organisation',
+    builtin_website_form: 'Formulaire du site du concessionnaire',
+    builtin_meta_lead_ads: 'Meta Lead Ads',
+    builtin_adf_xml: 'ADF/XML (courriel)',
     title: "Sources d'admission",
     subtitle: 'Chaque clé reçoit des prospects automatiquement via une URL de webhook signée.',
     actions: 'Actions',

@@ -24,6 +24,8 @@ import {
 } from '@dealpilot/schemas';
 import { ApiError, apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
 import { LEAD_SOURCE_KEYS } from '../leads/labels.js';
+import { BUILT_IN_CONNECTORS } from '@dealpilot/core';
+import { useConnectors } from '../connectors/api.js';
 
 const PaginatedKeys = paginated(IntakeKey);
 const PROVIDERS = IntakeProvider.options;
@@ -35,6 +37,14 @@ const PROVIDER_KEYS = {
   adf_email: 'provider_adf_email',
   chat_widget: 'provider_chat_widget',
 } as const satisfies Record<IntakeKeyT['provider'], string>;
+
+// FR-first labels for the built-in presets; core's English label is only the
+// fallback for a preset added before its translation.
+const BUILTIN_LABEL_KEYS: Record<string, string> = {
+  website_form: 'builtin_website_form',
+  meta_lead_ads: 'builtin_meta_lead_ads',
+  adf_xml: 'builtin_adf_xml',
+};
 
 const intakeKeysKey = (orgId: string) => ['intake-keys', orgId] as const;
 
@@ -85,6 +95,7 @@ export function IntakeSources({ orgId, storeId }: { orgId: string; storeId: stri
   const [label, setLabel] = useState('');
   const [provider, setProvider] = useState<IntakeKeyT['provider']>('generic_json');
   const [source, setSource] = useState<IntakeKeyT['default_source']>('website');
+  const [connectorKey, setConnectorKey] = useState('website_form');
   const [created, setCreated] = useState<IntakeKeyCreatedT | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<IntakeKeyT | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,10 +103,21 @@ export function IntakeSources({ orgId, storeId }: { orgId: string; storeId: stri
   const createAlertRef = useRef<HTMLParagraphElement>(null);
   const revealRef = useRef<HTMLDivElement>(null);
 
+  const connectors = useConnectors(orgId);
+  const activeConnectors = (connectors.data?.items ?? []).filter((c) => c.is_active);
+  const connectorLabel = (key: string): string => {
+    const builtin = BUILT_IN_CONNECTORS.find((c) => c.key === key);
+    if (builtin) {
+      const k = BUILTIN_LABEL_KEYS[key];
+      return k ? t(k, { defaultValue: builtin.label }) : builtin.label;
+    }
+    return (connectors.data?.items ?? []).find((c) => c.source_key === key)?.label ?? key;
+  };
+
   const createKey = useMutation({
     mutationFn: async () => {
       const res = await apiRequest(routes.intakeKeys.create, {
-        body: { organization_id: orgId, store_id: storeId, label, provider, default_source: source },
+        body: { organization_id: orgId, store_id: storeId, label, provider, default_source: source, connector_key: connectorKey },
       });
       if (res.status !== 201) fail(res.status, res.body);
       return IntakeKeyCreated.parse(res.body);
@@ -150,6 +172,11 @@ export function IntakeSources({ orgId, storeId }: { orgId: string; storeId: stri
         accessorKey: 'provider',
         header: t('provider'),
         cell: ({ row }) => t(PROVIDER_KEYS[row.original.provider]),
+      },
+      {
+        accessorKey: 'connector_key',
+        header: t('connector'),
+        cell: ({ row }) => connectorLabel(row.original.connector_key),
       },
       {
         accessorKey: 'default_source',
@@ -212,7 +239,7 @@ export function IntakeSources({ orgId, storeId }: { orgId: string; storeId: stri
 
       <form
         onSubmit={(e) => void handleCreate(e)}
-        className="grid grid-cols-1 items-end gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
+        className="grid grid-cols-1 items-end gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto]"
       >
         <div className="space-y-1">
           <Label htmlFor="intake-label">{t('label')}</Label>
@@ -246,11 +273,36 @@ export function IntakeSources({ orgId, storeId }: { orgId: string; storeId: stri
             ))}
           </Select>
         </div>
+        <div className="space-y-1">
+          <Label htmlFor="intake-connector">{t('connector')}</Label>
+          <Select
+            id="intake-connector"
+            value={connectorKey}
+            onChange={(e) => setConnectorKey(e.target.value)}
+          >
+            <optgroup label={t('builtinGroup')}>
+              {BUILT_IN_CONNECTORS.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {connectorLabel(c.key)}
+                </option>
+              ))}
+            </optgroup>
+            {activeConnectors.length > 0 ? (
+              <optgroup label={t('tenantGroup')}>
+                {activeConnectors.map((c) => (
+                  <option key={c.source_key} value={c.source_key}>
+                    {c.label}
+                  </option>
+                ))}
+              </optgroup>
+            ) : null}
+          </Select>
+        </div>
         <Button type="submit" disabled={createKey.isPending || label.trim() === ''}>
           {createKey.isPending ? t('creating') : t('create')}
         </Button>
         {error ? (
-          <p ref={createAlertRef} tabIndex={-1} role="alert" className="text-sm text-danger-text sm:col-span-4">
+          <p ref={createAlertRef} tabIndex={-1} role="alert" className="text-sm text-danger-text sm:col-span-2 lg:col-span-5">
             {error}
           </p>
         ) : null}

@@ -1293,6 +1293,12 @@ export const enCA = {
     perm_activity_read: 'See history',
   },
   intake: {
+    connector: 'Connector',
+    builtinGroup: 'Built-in presets',
+    tenantGroup: 'Organization connectors',
+    builtin_website_form: 'Dealership website form',
+    builtin_meta_lead_ads: 'Meta Lead Ads',
+    builtin_adf_xml: 'ADF/XML (email)',
     title: 'Intake sources',
     subtitle: 'Each key receives leads automatically through a signed webhook URL.',
     actions: 'Actions',
