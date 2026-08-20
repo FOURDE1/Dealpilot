@@ -155,6 +155,55 @@ export const LeadListQuery = CursorQuery.extend({
   assigned_to: Uuid.optional(),
 });
 
+/**
+ * F-52 be-back queue (leads.md §9). Not keyset-paginated: a re-engagement
+ * queue is worked from the TOP under one of four sort orders, so the endpoint
+ * returns a bounded, sorted head plus honest totals — `total` says how deep
+ * the pile is, `critical` feeds the header alert.
+ */
+export const BeBackSort = z.enum(['aging', 'score', 'recent', 'created']);
+export const BeBackQuery = z.object({
+  organization_id: Uuid.optional(),
+  store_id: Uuid.optional(),
+  sort: BeBackSort.default('aging'),
+  /** Matches name, vehicle of interest, phone or email. */
+  q: z.string().trim().min(1).max(120).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export const BeBackLead = Lead.pick({
+  id: true,
+  store_id: true,
+  status: true,
+  first_name: true,
+  last_name: true,
+  phone: true,
+  email: true,
+  vehicle_interest: true,
+  score: true,
+  source: true,
+  assigned_to: true,
+  contact_attempts: true,
+  last_contacted_at: true,
+  created_at: true,
+  updated_at: true,
+}).extend({
+  /** COALESCE(last_contacted_at, updated_at) — what the tiers measure from. */
+  dormant_since: IsoDateTime,
+});
+
+export const BeBackQueue = z.object({
+  items: z.array(BeBackLead),
+  /** Everything matching the filter, not just the returned head. */
+  total: z.number().int().min(0),
+  /** How many of `total` have had no contact for 90+ days. */
+  critical: z.number().int().min(0),
+});
+
+export type BeBackQueryT = z.infer<typeof BeBackQuery>;
+export type BeBackLeadT = z.infer<typeof BeBackLead>;
+export type BeBackQueueT = z.infer<typeof BeBackQueue>;
+
 export type LeadT = z.infer<typeof Lead>;
 export type CreateLeadInputT = z.infer<typeof CreateLeadInput>;
 export type UpdateLeadInputT = z.infer<typeof UpdateLeadInput>;

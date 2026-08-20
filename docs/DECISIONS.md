@@ -36,6 +36,19 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-054 — 2026-08-20 — Be-back queue: caution token, queue-wide alert, lost_reason deferred
+
+F-52 (leads.md §9) forced three calls. (1) The spec's four-color urgency ramp
+(red/orange/yellow/emerald) needed a yellow the token system lacked — added the
+`caution-bg`/`caution-text` semantic pair (AA-gated both themes) rather than
+collapsing medium into warning's amber or a signal-free gray. (2) The
+"N critical" header alert is QUEUE-WIDE state: the search term filters items
+and `total` but never `critical`, so a search matching only calm leads cannot
+hide the red banner. (3) Spec cards surface `lost_reason`; no such column
+exists yet — the card shows the status pill instead, and the field arrives
+with the lost-reasons feature (leads.md §11) rather than being faked here.
+Adversarial review (3 finders, 13 raw findings, 10 confirmed) drove all three.
+
 ## D-053 — F-49 connectors become configuration, with the built-ins as the floor (2026-08-20)
 
 **Context:** FR-LEAD-019 / leads.md §2.3 — "adding a new lead provider means

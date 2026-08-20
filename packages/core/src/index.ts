@@ -25,3 +25,4 @@ export * from './lead-scoring.js';
 export * from './lead-assignment.js';
 export * from './lead-cascade.js';
 export * from './lead-distribution.js';
+export * from './beback.js';

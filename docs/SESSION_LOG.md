@@ -1,3 +1,17 @@
+## 2026-08-20 (tick 6) — F-52 be-back queue, reviewed the hard way
+
+leads.md §9 whole: GET /api/v1/leads/be-back (four dormant statuses, four
+sorts, full-name search, bounded head + honest totals), tier logic in core
+beside scoreBand, and the /leads/be-back screen (ranked <ol> of cards, tier
+chips, tel:/sms:/mailto:, reactivate = the EXISTING status PATCH). A
+16-agent adversarial review before push confirmed 10 real defects — the
+big three: full-name search matched nothing (first/last tested only
+individually), the critical alert vanished under a search term (now
+queue-wide by construction, D-054), and medium-tier yellow didn't exist in
+the token system (caution pair added, AA both themes). All fixed, all
+regression-tested. lost_reason display deferred with the lost-reasons
+feature (no column exists — D-054). Gate 29/29.
+
 ## 2026-08-20 (overnight loop, tick 5) — audit clean; the last config gap closed
 
 /security-audit over F-41..F-51: no critical or high. Everything held —

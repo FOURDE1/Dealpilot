@@ -1,6 +1,8 @@
 import { initContract } from '@ts-rest/core';
 import { z } from 'zod';
 import {
+  BeBackQuery,
+  BeBackQueue,
   CreateLeadInput,
   CreateOrganizationInput,
   CreateStoreInput,
@@ -676,6 +678,15 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       query: ComplianceCheckQuery,
       responses: { 200: ComplianceCheck, ...errorResponses },
+    },
+  }),
+  /** F-52 be-back queue (leads.md §9): dormant leads worth another call. */
+  beBack: c.router({
+    queue: {
+      method: 'GET',
+      path: '/api/v1/leads/be-back',
+      query: BeBackQuery,
+      responses: { 200: BeBackQueue, ...errorResponses },
     },
   }),
   /** F-24 speed to lead (leads.md §5, ADR-025): the number this is sold on. */

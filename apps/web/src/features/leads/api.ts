@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Lead, paginated, type CreateLeadInputT, type UpdateLeadInputT } from '@dealpilot/schemas';
+import { BeBackQueue, Lead, paginated, type BeBackQueryT, type CreateLeadInputT, type UpdateLeadInputT } from '@dealpilot/schemas';
 import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
 
 const PaginatedLeads = paginated(Lead);
@@ -87,6 +87,51 @@ export function useUpdateLead(id: string) {
       return Lead.parse(res.body);
     },
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: leadKeys.all });
+      void queryClient.invalidateQueries({ queryKey: ['activity'] });
+    },
+  });
+}
+
+/** F-52 be-back queue (leads.md §9): dormant leads ranked for another try. */
+export function useBeBackQueue(
+  args: { orgId?: string | undefined; sort: BeBackQueryT['sort']; q: string },
+  opts?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ['beback', args.orgId ?? 'single-org', args.sort, args.q],
+    enabled: opts?.enabled ?? true,
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.beBack.queue, {
+        query: {
+          organization_id: args.orgId,
+          sort: args.sort,
+          q: args.q.trim() === '' ? undefined : args.q.trim(),
+          limit: 100,
+        },
+        signal,
+      });
+      if (res.status !== 200) fail(res.status, res.body);
+      return BeBackQueue.parse(res.body);
+    },
+  });
+}
+
+/**
+ * Reactivation IS the ordinary status PATCH (leads.md §9) — one write path.
+ * Separate from useUpdateLead only to invalidate the queue and to key
+ * pending state per card rather than per page.
+ */
+export function useReactivateLead() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest(routes.leads.update, { params: { id }, body: { status: 'contacted' } });
+      if (res.status !== 200) fail(res.status, res.body);
+      return Lead.parse(res.body);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['beback'] });
       void queryClient.invalidateQueries({ queryKey: leadKeys.all });
       void queryClient.invalidateQueries({ queryKey: ['activity'] });
     },
