@@ -1,3 +1,21 @@
+## 2026-08-20 (tick 7) — F-53 lost reasons, and the review earned its keep again
+
+leads.md §11 complete: lost_reasons vocabulary (nine bilingual defaults
+provisioned per org + backfilled, name_fr NOT NULL — Bill 96 as a
+constraint), the requires-reason rule on the lead PATCH, the
+LostReasonModal intercept, a management screen, and the be-back card
+finally saying WHY. The 18-agent adversarial review confirmed 14 defects
+before push; the ones that mattered: the gate could be BYPASSED by
+clearing the reason (now judged on the final state), include_inactive
+used the z.coerce.boolean foot-gun the repo itself bans ("false" → true),
+store-scoped reasons were offered but never narrowed (pick-list now
+filters by the lead's store), the bare store FK would have accepted a
+rival org's store id (house composite FK now, dev DB reconciled), and the
+audit whitelist missed both new columns. STOP-opt-out losses documented
+as the rule's one exception (D-055 #6 — a customer's own decision carries
+no staff-picked reason). One finding refuted: the FR "?" spacing was a
+correct narrow no-break space. Gate 29/29, 9/9 on the F-53 suite.
+
 ## 2026-08-20 (tick 6) — F-52 be-back queue, reviewed the hard way
 
 leads.md §9 whole: GET /api/v1/leads/be-back (four dormant statuses, four

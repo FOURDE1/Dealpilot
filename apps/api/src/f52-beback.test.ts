@@ -27,6 +27,7 @@ let cookie = '';
 let orgId = '';
 let storeId = '';
 const leadId: Record<string, string> = {};
+let lostReasonId = '';
 
 function cookiesOf(res: { headers: Record<string, unknown> }): string {
   const sc = res.headers['set-cookie'];
@@ -48,9 +49,11 @@ async function makeLead(
   const id = (JSON.parse(created.body) as { id: string }).id;
   leadId[name] = id;
   if (status !== 'new') {
+    // F-53: a loss carries its WHY — the fixture obeys the product's rule.
+    const payload = status === 'lost' ? { status, lost_reason_id: lostReasonId } : { status };
     const moved = await app!.inject({
       method: 'PATCH', url: `/api/v1/leads/${id}`, headers: { cookie },
-      payload: { status },
+      payload,
     });
     expect(moved.statusCode, moved.body).toBe(200);
   }
@@ -93,6 +96,10 @@ beforeAll(async () => {
   });
   expect(store.statusCode, store.body).toBe(201);
   storeId = (JSON.parse(store.body) as { id: string }).id;
+  const reasons = await app!.inject({
+    method: 'GET', url: `/api/v1/lost-reasons?organization_id=${orgId}`, headers: { cookie },
+  });
+  lostReasonId = (JSON.parse(reasons.body) as { items: { id: string }[] }).items[0]!.id;
 
   await makeLead('critical', { first_name: 'Yvon', last_name: 'Tremblay', vehicle_interest: 'Kia Sportage', phone: '+15145550101' }, 'lost', 100);
   await makeLead('high', { first_name: 'Manon', last_name: 'Bélanger', phone: '+15145550102' }, 'nurture', 45, 80);

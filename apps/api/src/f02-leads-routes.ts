@@ -257,6 +257,36 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool, reassign: Re
         if (beforeRow.rows.length === 0) throw notFound();
         const prior = beforeRow.rows[0]!;
 
+        // leads.md §11: no lead goes lost without a WHY — judged on the FINAL
+        // state, so the invariant can be neither dodged (status: 'lost' with
+        // no reason anywhere) nor unpicked (lost_reason_id: null while lost,
+        // or riding null in the very PATCH that marks the loss).
+        {
+          const finalStatus = input.status ?? (prior['status'] as string);
+          const finalReason =
+            'lost_reason_id' in input ? input.lost_reason_id : (prior['lost_reason_id'] as string | null);
+          if (finalStatus === 'lost' && !finalReason) {
+            throw new AppError(422, 'validation_failed', 'Marking a lead lost requires a reason', [
+              { path: 'lost_reason_id', code: 'lost_reason_required', message: 'Pick a lost reason' },
+            ]);
+          }
+        }
+        // Whatever the status, a reason must be THIS org's, active, and either
+        // org-wide or scoped to the lead's own store.
+        if (input.lost_reason_id) {
+          const ok = await c.query(
+            `SELECT 1 FROM lost_reasons
+             WHERE id = $1 AND is_active
+               AND (store_id IS NULL OR store_id = $2)`,
+            [input.lost_reason_id, input.store_id ?? prior['store_id']],
+          );
+          if (ok.rows.length === 0) {
+            throw new AppError(422, 'validation_failed', 'Unknown or inactive lost reason', [
+              { path: 'lost_reason_id', code: 'unknown_lost_reason', message: input.lost_reason_id },
+            ]);
+          }
+        }
+
         const fields = Object.entries(input);
         if (fields.length === 0) return prior;
         const sets = fields.map(([k], i) => `${k} = $${i + 2}`);
@@ -307,7 +337,7 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool, reassign: Re
           'first_name', 'last_name', 'email', 'phone', 'status', 'source',
           'source_platform', 'preferred_language', 'total_budget_cents', 'monthly_budget_cents',
           'vehicle_interest',
-          'trade_in_status', 'store_id',
+          'trade_in_status', 'store_id', 'lost_reason_id', 'lost_reason_note',
         ]);
         if (Object.keys(changed).length > 0) {
           await recordEvent(c, { ...evt, action: 'updated', changes: changed });

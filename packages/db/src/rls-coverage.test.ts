@@ -64,6 +64,9 @@ const BEHAVIOURALLY_COVERED = new Set([
   // F-47: POLICY-level case in packages/db/src/rls.test.ts ("notifications:
   // addressed to a person").
   'notifications',
+  // F-53: POLICY-level case in packages/db/src/rls.test.ts
+  // ("lost_reasons: tenant 2 sees nothing of tenant 1").
+  'lost_reasons',
   // F-45: POLICY-level case in packages/db/src/rls.test.ts
   // ("lead_distribution_config: tenant 2 sees nothing of tenant 1").
   'lead_distribution_config',

@@ -1,6 +1,10 @@
 import { initContract } from '@ts-rest/core';
 import { z } from 'zod';
 import {
+  UpdateLostReasonInput,
+  CreateLostReasonInput,
+  LostReason,
+  LostReasonListQuery,
   BeBackQuery,
   BeBackQueue,
   CreateLeadInput,
@@ -678,6 +682,38 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       query: ComplianceCheckQuery,
       responses: { 200: ComplianceCheck, ...errorResponses },
+    },
+  }),
+  /** F-53 lost reasons (leads.md §11): tenant vocabulary for WHY. */
+  lostReasons: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/lost-reasons',
+      query: LostReasonListQuery,
+      responses: {
+        200: z.object({ items: z.array(LostReason), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/lost-reasons',
+      body: CreateLostReasonInput,
+      responses: { 201: LostReason, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/lost-reasons/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateLostReasonInput,
+      responses: { 200: LostReason, ...errorResponses },
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/v1/lost-reasons/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: z.undefined(),
+      responses: { 204: z.undefined(), ...errorResponses },
     },
   }),
   /** F-52 be-back queue (leads.md §9): dormant leads worth another call. */

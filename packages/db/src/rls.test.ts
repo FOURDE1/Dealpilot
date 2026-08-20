@@ -223,6 +223,30 @@ describe('row-level security', () => {
     ).rejects.toThrow();
   });
 
+  it('lost_reasons: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await withTenant(app, org1, async (c) => {
+      await c.query(
+        `INSERT INTO lost_reasons (organization_id, name, name_fr)
+         VALUES ($1, 'Probe reason', 'Raison sonde')`,
+        [org1],
+      );
+    });
+    const rival = await withTenant(app, org2, async (c) =>
+      (await c.query(`SELECT * FROM lost_reasons WHERE name = 'Probe reason'`)).rows,
+    );
+    expect(rival).toHaveLength(0);
+    await expect(
+      withTenant(app, org2, async (c) => {
+        await c.query(
+          `INSERT INTO lost_reasons (organization_id, name, name_fr)
+           VALUES ($1, 'Smuggled', 'Passée en douce')`,
+          [org1],
+        );
+      }),
+    ).rejects.toThrow();
+  });
+
   it('reset refuses non-local database hosts', async () => {
     await expect(
       reset(admin, migrationsDir, 'postgresql://u:p@prod-rds.ca-central-1.example.com:5432/x'),

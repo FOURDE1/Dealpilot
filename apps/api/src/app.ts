@@ -31,6 +31,7 @@ import { registerF39Routes } from './f39-scoring-routes.js';
 import { registerF40Routes } from './f40-assignment-routes.js';
 import { registerF24Routes } from './f24-speed-routes.js';
 import { registerF52Routes } from './f52-beback-routes.js';
+import { registerF53Routes } from './f53-lost-reason-routes.js';
 import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
 import { createCarrier, type Carrier } from './carrier.js';
 import { createDeferredSendQueue, type DeferredSendQueue } from './deferred-queue.js';
@@ -429,6 +430,7 @@ export async function buildApp(
   registerF47Routes(app, pool);
   registerF49Routes(app, pool);
   registerF52Routes(app, pool);
+  registerF53Routes(app, pool);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN, rateLimiter);
   registerF08Routes(app, pool);

@@ -19,6 +19,9 @@ import { DocumentsDialog } from '../documents/documents-dialog.js';
 import { DEAL_TYPE_KEYS, FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from '../deals/labels.js';
 import { formatCents } from '../deals/money.js';
 import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
+import { LostReasonDialog } from './lost-reason-dialog.js';
+import { useLostReasons } from './lost-reason-api.js';
+import { lostReasonLabel } from '@dealpilot/core';
 import type { DealT } from '@dealpilot/schemas';
 
 /** The F-02 acceptance action: change a lead's status from its record page. */
@@ -43,13 +46,44 @@ export function LeadDetailPage() {
   const [activityDeal, setActivityDeal] = useState<DealT | null>(null);
   const [dispatchDeal, setDispatchDeal] = useState<DealT | null>(null);
   const [documentsDeal, setDocumentsDeal] = useState<DealT | null>(null);
+  const [lostDialogOpen, setLostDialogOpen] = useState(false);
+  // The stored WHY, shown while the lead sits lost (inactive reasons still
+  // resolve — history keeps its label after retirement).
+  const lostReasons = useLostReasons(lead.data?.organization_id, {
+    enabled: lead.data?.status === 'lost' && lead.data.lost_reason_id !== null,
+    includeInactive: true,
+  });
+  const currentReason =
+    lead.data?.lost_reason_id != null
+      ? (lostReasons.data?.items.find((r) => r.id === lead.data?.lost_reason_id) ?? null)
+      : null;
 
   async function handleStatusChange(status: LeadStatusT) {
     setFeedback(null);
+    // leads.md §11: a loss needs a WHY — intercept with the modal instead of
+    // collecting the API's 422 after the fact. A re-loss (reason already on
+    // the row) passes straight through.
+    if (status === 'lost' && lead.data?.status !== 'lost' && !lead.data?.lost_reason_id) {
+      setLostDialogOpen(true);
+      return;
+    }
     try {
       await updateLead.mutateAsync({ status });
       setFeedback('saved');
     } catch (err) {
+      setFeedback('error');
+      if (!(err instanceof ApiError)) throw err;
+    }
+  }
+
+  async function handleLostConfirm(reasonId: string, note: string | null) {
+    setFeedback(null);
+    try {
+      await updateLead.mutateAsync({ status: 'lost', lost_reason_id: reasonId, lost_reason_note: note });
+      setLostDialogOpen(false);
+      setFeedback('saved');
+    } catch (err) {
+      setLostDialogOpen(false);
       setFeedback('error');
       if (!(err instanceof ApiError)) throw err;
     }
@@ -161,6 +195,13 @@ export function LeadDetailPage() {
               </option>
             ))}
           </Select>
+          {lead.data.status === 'lost' && currentReason ? (
+            <p className="text-sm text-muted-foreground">
+              {t('lostReason_current')} <span aria-hidden="true">{currentReason.icon}</span>{' '}
+              {lostReasonLabel(currentReason, i18n.language)}
+              {lead.data.lost_reason_note ? <> — {lead.data.lost_reason_note}</> : null}
+            </p>
+          ) : null}
           {feedback === 'saved' ? (
             <p role="status" className="text-sm font-medium text-success-text">
               {t('saved')}
@@ -280,6 +321,14 @@ export function LeadDetailPage() {
           />
         </div>
       </div>
+      <LostReasonDialog
+        open={lostDialogOpen}
+        orgId={lead.data.organization_id}
+        storeId={lead.data.store_id}
+        pending={updateLead.isPending}
+        onConfirm={(reasonId, note) => void handleLostConfirm(reasonId, note)}
+        onClose={() => setLostDialogOpen(false)}
+      />
       <ChecklistDialog
         deal={checklistDeal}
         dealLabel={checklistDeal ? td(DEAL_TYPE_KEYS[checklistDeal.deal_type]) : undefined}

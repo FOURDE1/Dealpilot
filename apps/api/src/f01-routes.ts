@@ -11,6 +11,7 @@ import {
   UpdateStoreInput,
   Uuid,
 } from '@dealpilot/schemas';
+import { LOST_REASON_DEFAULTS } from '@dealpilot/core';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { ensureTemplate } from './checklist.js';
 import { requirePermission, seedPermissions } from './permissions.js';
@@ -212,6 +213,23 @@ export async function callerOrgIds(client: PoolClient): Promise<string[]> {
 export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
   // ---- organizations ------------------------------------------------------
 
+  /** F-53 provisioning: every new organization starts with the nine
+   * bilingual lost-reason defaults (leads.md §11) — the first lost lead
+   * must find a pick-list, not an empty modal. */
+  async function seedLostReasons(c: PoolClient, organizationId: string): Promise<void> {
+    await c.query(
+      `INSERT INTO lost_reasons (organization_id, name, name_fr, icon, display_order)
+       SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::int[])`,
+      [
+        organizationId,
+        LOST_REASON_DEFAULTS.map((r) => r.name),
+        LOST_REASON_DEFAULTS.map((r) => r.name_fr),
+        LOST_REASON_DEFAULTS.map((r) => r.icon),
+        LOST_REASON_DEFAULTS.map((_, i) => i + 1),
+      ],
+    );
+  }
+
   app.post('/api/v1/organizations', async (request, reply) => {
     const input = parseOrThrow(CreateOrganizationInput, request.body);
     const user = sessionUser(request);
@@ -241,6 +259,9 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
         // The matrix exists before anyone can hit a permission check, so an
         // organization is never briefly one where nobody can do anything.
         await seedPermissions(c, orgId);
+        // The lost-reason vocabulary likewise (leads.md §11): the first lost
+        // lead must find a pick-list, not an empty modal.
+        await seedLostReasons(c, orgId);
         await recordEvent(c, {
           organizationId: orgId, actorUserId: user.id,
           entityType: 'organization', entityId: orgId, action: 'created',

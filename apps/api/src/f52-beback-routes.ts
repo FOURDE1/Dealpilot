@@ -58,10 +58,10 @@ export function registerF52Routes(app: FastifyInstance, pool: Pool): void {
 
       const params: unknown[] = [orgId, [...BEBACK_STATUSES]];
       let where = `FROM leads
-        WHERE organization_id = $1 AND deleted_at IS NULL AND status = ANY($2::text[])`;
+        WHERE leads.organization_id = $1 AND deleted_at IS NULL AND status = ANY($2::text[])`;
       if (query.store_id) {
         params.push(query.store_id);
-        where += ` AND store_id = $${params.length}`;
+        where += ` AND leads.store_id = $${params.length}`;
       }
       // The search predicate stays OUT of `where`: the critical alert is
       // queue-wide state (leads.md §9) and must not vanish because the user
@@ -83,11 +83,15 @@ export function registerF52Routes(app: FastifyInstance, pool: Pool): void {
       );
 
       params.push(query.limit);
+      // The reason resolves here so the card can say WHY (F-53) without a
+      // second fetch; a subquery keeps `where` join-free for the totals.
       const items = await c.query(
-        `SELECT id, store_id, status, first_name, last_name, phone, email, vehicle_interest,
-                score, source, assigned_to, contact_attempts, last_contacted_at,
-                created_at, updated_at,
-                COALESCE(last_contacted_at, updated_at) AS dormant_since
+        `SELECT leads.id, leads.store_id, status, first_name, last_name, phone, email,
+                vehicle_interest, score, source, assigned_to, contact_attempts,
+                last_contacted_at, leads.created_at, leads.updated_at,
+                COALESCE(last_contacted_at, updated_at) AS dormant_since,
+                (SELECT jsonb_build_object('name', lr.name, 'name_fr', lr.name_fr, 'icon', lr.icon)
+                 FROM lost_reasons lr WHERE lr.id = leads.lost_reason_id) AS lost_reason
          ${where}${qPred ? ` AND ${qPred}` : ''}
          ORDER BY ${SORT_SQL[query.sort]!}
          LIMIT $${params.length}`,

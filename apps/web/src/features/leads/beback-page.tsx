@@ -1,7 +1,7 @@
 import { useDeferredValue, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { bebackTier, daysDormant, scoreBand, type BeBackTier } from '@dealpilot/core';
+import { bebackTier, daysDormant, lostReasonLabel, scoreBand, type BeBackTier } from '@dealpilot/core';
 import type { BeBackLeadT, BeBackQueryT } from '@dealpilot/schemas';
 import { Input, Label, Select, Button } from '@dealpilot/ui';
 import { usePageTitle } from '../../shared/use-page-title.js';
@@ -56,7 +56,7 @@ function TierChip({ tier, label }: { tier: BeBackTier; label: string }) {
 }
 
 export function BeBackPage() {
-  const { t } = useTranslation('leads');
+  const { t, i18n } = useTranslation('leads');
   const { t: tCommon } = useTranslation('common');
   usePageTitle(t('beback_title'));
   const orgs = useOrganizations();
@@ -185,6 +185,13 @@ export function BeBackPage() {
                     <p className="text-muted-foreground">
                       {t('beback_days', { count: days })} · {t('beback_attempts', { count: lead.contact_attempts })}
                       {lead.vehicle_interest ? <> · {lead.vehicle_interest}</> : null}
+                      {lead.lost_reason ? (
+                        <>
+                          {' · '}
+                          <span aria-hidden="true">{lead.lost_reason.icon}</span>{' '}
+                          {lostReasonLabel(lead.lost_reason, i18n.language)}
+                        </>
+                      ) : null}
                     </p>
                     <div className="flex flex-wrap items-center gap-3">
                       <a href={`tel:${lead.phone}`} aria-label={`${t('beback_call')} — ${name}`} className={ACTION_LINK}>

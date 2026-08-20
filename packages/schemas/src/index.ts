@@ -32,3 +32,4 @@ export * from './schedule.js';
 export * from './distribution.js';
 export * from './notification.js';
 export * from './connector.js';
+export * from './lost-reason.js';

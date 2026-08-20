@@ -101,6 +101,9 @@ export const Lead = z.object({
   assignment_method: z.enum(['auto_language','auto_availability','manual','escalation','reassignment']).nullable(),
   assignment_attempts: z.number().int(),
   previous_agents: z.array(z.unknown()),
+  /** F-53 (leads.md §11): WHY the lead was lost, and in whose words. */
+  lost_reason_id: Uuid.nullable(),
+  lost_reason_note: z.string().nullable(),
   created_at: IsoDateTime,
   updated_at: IsoDateTime,
   deleted_at: IsoDateTime.nullable(),
@@ -143,6 +146,9 @@ export const UpdateLeadInput = z.strictObject({
   monthly_budget_cents: NonNegativeCents.nullable().optional(),
   vehicle_interest: z.string().trim().min(1).max(200).nullable().optional(),
   trade_in_status: TradeInStatus.optional(),
+  /** Required by the API when status moves TO lost (leads.md §11). */
+  lost_reason_id: Uuid.nullable().optional(),
+  lost_reason_note: z.string().trim().min(1).max(500).nullable().optional(),
 });
 
 /** Org-scoped list with optional store/status filters (F-02); the
@@ -190,6 +196,10 @@ export const BeBackLead = Lead.pick({
 }).extend({
   /** COALESCE(last_contacted_at, updated_at) — what the tiers measure from. */
   dormant_since: IsoDateTime,
+  /** Resolved at read time so the card can say WHY without a second fetch. */
+  lost_reason: z
+    .object({ name: z.string(), name_fr: z.string(), icon: z.string() })
+    .nullable(),
 });
 
 export const BeBackQueue = z.object({

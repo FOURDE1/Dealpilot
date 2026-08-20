@@ -36,6 +36,24 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-055 — 2026-08-20 — Lost reasons: history keeps its label, retirement beats deletion
+
+F-53 (leads.md §11) interpretations. (1) A reactivated lead KEEPS its
+lost_reason — the fields document the last loss, and wiping them on
+reactivation would erase exactly what the be-back caller wants to know; a
+RE-loss passes without the modal for the same reason. (2) An inactive
+reason still resolves on old leads (labels are history) but is refused for
+NEW losses and hidden from the pick-list. (3) A reason leads reference
+cannot be DELETEd (FK, 409 reason_in_use) — deactivation is the retirement
+path. (4) name_fr is NOT NULL by schema — Bill 96 is a constraint, not a
+convention; the legacy's nullable name_fr is not carried forward. (5) The
+vocabulary list is ordered by display_order and returns one bounded page —
+a pick-list, not a feed. (6) The STOP opt-out (f18) still writes
+status = 'lost' with NO reason: the spec scopes the requires-reason rule to
+the single-update path (a person deciding), and a customer's own opt-out is
+neither — putting a staff-picked reason on it would fabricate attribution.
+Win/loss analytics must treat reason-less lost leads as opt-outs/system.
+
 ## D-054 — 2026-08-20 — Be-back queue: caution token, queue-wide alert, lost_reason deferred
 
 F-52 (leads.md §9) forced three calls. (1) The spec's four-color urgency ramp
