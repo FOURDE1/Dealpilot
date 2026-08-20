@@ -106,6 +106,50 @@ Per-topic implementation reference: OWASP Cheat Sheet Series
 
 <!-- Entries begin below. -->
 
+### 2026-08-20 — F-41..F-51 surface (presence, rate limits, cost masking, notifications, reactivation, connectors, revocation, business hours)
+
+Scope: everything since the F-38/40 entry — f42 cascade + staff-schedule routes,
+f43 presence, f44/rate-limit.ts, f45 distribution, f47 notifications, f48
+reactivation (via f30 inbound), f49 connectors (routes + resolveConnector +
+core readPath), f50 revocation proof, F-51 store business-hours PATCH, and the
+connectors web screen. Checked by reading code and re-running the relevant
+suites; no live probe beyond the existing behavioural tests.
+
+**No critical or high findings.** What held under attack-reading:
+
+- Intake webhook: constant-time signature compare (`timingSafeEqual`), HMAC over
+  `${ts}.${raw}` with a ±5-min window (replay-bounded), uniform 401 for
+  unknown-token vs bad-signature, 256KB body cap, per-key rate limit.
+- Carrier inbound (reactivation's trigger): Twilio signature verified
+  FAIL-CLOSED (403 + warn log) before any row is touched.
+- Connectors: CRUD behind intake_key:manage, list behind membership; PATCH uses
+  the house allow-list-at-the-sink pattern; delete refuses while an active
+  intake key references the connector (409). `readPath` is read-only walking —
+  no assignment, so tenant-authored paths cannot pollute prototypes.
+- Cost masking: `vehicle:read_costs` resolved in SQL from the matrix — the
+  server never sends masked figures for the client to hide.
+- Rate limiter: fails OPEN by design (D-048) but warn-logs every pass-through;
+  authn/signature/consent gates all remain fail-closed.
+- Notifications: self-scoped under withUser + 0051 self-only policies; foreign
+  ids are indistinguishable from absent (404 either way).
+- Secrets sweep clean; `.env*` ignored with `!.env.example`.
+
+Low / accepted:
+
+- **low** · f49-connector-routes.ts POST — a duplicate `source_key` in the same
+  org surfaces as a raw unique-violation 500 instead of a 409. Same-org only
+  (RLS), no leak; cosmetic robustness. Proposed: catch 23505 → 409.
+- **low** · f49 DELETE — TOCTOU between the in-use check and the delete: a key
+  minted in the same instant could reference a just-deleted connector and fall
+  back to website_form's mapping. Soft reference by design; window is
+  milliseconds; consequence is a mapping fallback, not access.
+- **info** · core readPath resolves inherited properties (`constructor`,
+  `toString`) — read-only, config is already privilege-gated; hardening would
+  be an own-property guard.
+- **info** · f49 POST checks the reserved-key collision before the permission
+  check, so a plain member sees 422 vs 403 ordering; built-in keys are public
+  product vocabulary, nothing learned.
+
 ### 2026-08-19 — F-38/F-39/F-40 surface (appointments, scoring, assignment)
 
 **Scope:** the three route files, both core engines, migrations 0044–0046, the
