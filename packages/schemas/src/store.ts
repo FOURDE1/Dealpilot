@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TimeOfDay } from './schedule.js';
 import { CursorQuery, IsoDateTime, Locale, MESSAGE_KEYS, PhoneE164, PostalCodeCA, ProvinceCA, Uuid, withKey } from './common.js';
 
 export const StoreStatus = z.enum(['active', 'paused', 'closed']);
@@ -45,6 +46,8 @@ export const Store = z.object({
   default_locale: Locale,
   /** Quiet-hours + drip scheduling are tenant-local (multi-tenancy.md §3). */
   timezone: z.string().min(1),
+  business_hours: z.record(z.string(), z.object({ open: z.string(), close: z.string() })),
+  holiday_dates: z.array(z.string()),
   status: StoreStatus,
   bill_of_sale_system: BillOfSaleSystem,
   esign_platform: StoreEsignPlatform.nullable(),
@@ -54,6 +57,28 @@ export const Store = z.object({
   updated_at: IsoDateTime,
   deleted_at: IsoDateTime.nullable(),
 });
+
+/**
+ * F-51 (FR-AI-011 config): per-day opening window in the STORE's timezone;
+ * a missing day is a closed day. Consumed by the assistant's after-hours
+ * behaviour when the AI engine lands.
+ */
+const DayHours = z.strictObject({ open: TimeOfDay, close: TimeOfDay }).refine(
+  (d) => d.close > d.open,
+  { message: 'close must be after open' },
+);
+// Shape and default kept SEPARATE: an update input carrying .default() would
+// inject {} into every unrelated PATCH and silently erase the hours — the
+// defaults-leak guard exists for exactly that, and it fired on the first try.
+const BusinessHoursShape = z.partialRecord(
+  z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']),
+  DayHours,
+);
+export const BusinessHours = BusinessHoursShape.default({});
+const HolidayDatesShape = z
+  .array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD'))
+  .max(60);
+const HolidayDates = HolidayDatesShape.default([]);
 
 export const CreateStoreInput = z.strictObject({
   organization_id: Uuid,
@@ -66,6 +91,8 @@ export const CreateStoreInput = z.strictObject({
   postal_code: PostalCodeCA.optional(),
   default_locale: Locale.default('fr-CA'),
   timezone: z.string().min(1).default('America/Montreal'),
+  business_hours: BusinessHours,
+  holiday_dates: HolidayDates,
   status: StoreStatus.default('active'),
   // Optional, not defaulted: a store is opened first and configured after, and
   // a `.default()` here would make these REQUIRED in the inferred input type —
@@ -91,6 +118,8 @@ export const UpdateStoreInput = z.strictObject({
   postal_code: PostalCodeCA.nullable().optional(),
   default_locale: Locale.optional(),
   timezone: z.string().min(1).optional(),
+  business_hours: BusinessHoursShape.optional(),
+  holiday_dates: HolidayDatesShape.optional(),
   status: StoreStatus.optional(),
   bill_of_sale_system: BillOfSaleSystem.optional(),
   esign_platform: StoreEsignPlatform.nullable().optional(),

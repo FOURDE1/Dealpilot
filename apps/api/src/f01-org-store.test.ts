@@ -428,3 +428,45 @@ describe('F-01 org delete + revocation', () => {
     expect(after.statusCode).toBe(404);
   });
 });
+
+describe('store business hours (F-51, FR-AI-011 config)', () => {
+  it('created with hours and holidays, patched to new hours, refuses a backwards window', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Its own organization: the suite's final test soft-deletes the shared
+    // one, and a fixture that depends on running-order is a fixture that lies.
+    const ownOrg = await app!.inject({
+      method: 'POST', url: '/api/v1/organizations', headers: { cookie: cookieA },
+      payload: { name: 'Groupe Heures', slug: `groupe-heures-${run}` },
+    });
+    expect(ownOrg.statusCode, ownOrg.body).toBe(201);
+    const hoursOrgId = (JSON.parse(ownOrg.body) as { id: string }).id;
+    const created = await app!.inject({
+      method: 'POST', url: '/api/v1/stores', headers: { cookie: cookieA },
+      payload: {
+        organization_id: hoursOrgId, name: 'Heures Kia', code: `HRS-${run.slice(-5)}`, province: 'QC',
+        business_hours: { mon: { open: '09:00', close: '18:00' }, sat: { open: '10:00', close: '16:00' } },
+        holiday_dates: ['2026-12-25', '2027-01-01'],
+      },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const store = JSON.parse(created.body) as { id: string; business_hours: Record<string, unknown>; holiday_dates: string[] };
+    expect(store.business_hours['mon']).toEqual({ open: '09:00', close: '18:00' });
+    expect(store.holiday_dates).toHaveLength(2);
+
+    const patched = await app!.inject({
+      method: 'PATCH', url: `/api/v1/stores/${store.id}`, headers: { cookie: cookieA },
+      payload: { business_hours: { tue: { open: '08:30', close: '17:30' } } },
+    });
+    expect(patched.statusCode, patched.body).toBe(200);
+    expect((JSON.parse(patched.body) as { business_hours: Record<string, unknown> }).business_hours).toEqual({
+      tue: { open: '08:30', close: '17:30' },
+    });
+
+    // A day that closes before it opens never reaches the row.
+    const backwards = await app!.inject({
+      method: 'PATCH', url: `/api/v1/stores/${store.id}`, headers: { cookie: cookieA },
+      payload: { business_hours: { wed: { open: '18:00', close: '09:00' } } },
+    });
+    expect(backwards.statusCode, backwards.body).toBe(422);
+  });
+});

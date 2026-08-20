@@ -1,3 +1,17 @@
+## 2026-08-20 (overnight loop, tick 4) — two FR rows pinned shut
+
+Connector console CI-green (4603368, JSON verdict). Then FR-AUTH-008,
+PROVEN rather than built: authority is re-derived per request, so the new
+f50 suite pins the half a13-rbac didn't — revoking a membership ends THAT
+tenancy on the very next request while the session (/me) and the person's
+OTHER organization survive untouched. And F-51: stores gain business_hours
++ holiday_dates (0054, FR-AI-011's config half — the consumer ships with
+the AI engine). Two guards earned keep: the shared-fixture trap (the f01
+suite's last test deletes the shared org; the new test builds its own) and
+the defaults-leak guard, which caught .default({}) riding into
+UpdateStoreInput where it would have silently erased hours on every
+unrelated PATCH. Gate 29/29.
+
 ## 2026-08-20 (overnight loop, tick 3) — the connector console
 
 First honest JSON-verified green since the bell: 14241e3 SUCCESS — the

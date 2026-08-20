@@ -100,6 +100,8 @@ export function StoreFormPage() {
           city: city || undefined,
           default_locale: locale,
           timezone: 'America/Montreal',
+          business_hours: {},
+          holiday_dates: [],
           status: 'active',
         });
       }

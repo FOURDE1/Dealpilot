@@ -351,8 +351,9 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
           `INSERT INTO stores (organization_id, name, code, phone, address_line1, city,
                                province, postal_code, default_locale, timezone, status,
                                bill_of_sale_system, esign_platform,
-                               dispatch_conflict_window_hours)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+                               dispatch_conflict_window_hours,
+                               business_hours, holiday_dates)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
           [
             input.organization_id, input.name, input.code, input.phone ?? null,
             input.address_line1 ?? null, input.city ?? null, input.province,
@@ -360,6 +361,7 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
             // Same defaults as migration 0023/0017 declare on the columns.
             input.bill_of_sale_system ?? 'CAMS', input.esign_platform ?? null,
             input.dispatch_conflict_window_hours ?? 4,
+            JSON.stringify(input.business_hours), input.holiday_dates,
           ],
         );
         // F-08: a new store gets the canonical delivery checklist immediately,
