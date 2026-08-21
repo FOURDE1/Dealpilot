@@ -266,4 +266,93 @@ describe('first touch (F-59, §5/§6)', () => {
     const out = await runFirstTouch(deps(), { organization_id: orgId, lead_id: leadId });
     expect(out.kind).toBe('not_sent');
   });
+
+  it('a duplicate-confirmation job messages the KEEPER, as re_engagement, in a thread the KEEPER owns (F-63)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // SAME phone — the only state the §8.3 phone-match gate can produce.
+    // The review's blocker hid behind different-phone fixtures: the created
+    // conversation attached to the newest lead (the duplicate) and the
+    // confirmation refused its own thread.
+    const keeperId = await makeLead(40);
+    const sourceId = await makeLead(41, { phone: '+15145559240' });
+    const out = await runFirstTouch(deps(), {
+      organization_id: orgId, lead_id: sourceId, duplicate_of: keeperId,
+    });
+    expect(out.kind, JSON.stringify(out)).toBe('sent');
+    if (out.kind !== 'sent') return;
+
+    const msg = await admin.query<{
+      lead_id: string | null; message_class: string; body: string; provider_ref: string | null;
+    }>(
+      `SELECT c.lead_id, d.message_class, m.body, m.provider_ref
+       FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       JOIN send_decisions d ON d.id = m.send_decision_id
+       WHERE m.id = $1`,
+      [out.messageId],
+    );
+    expect(msg.rows[0]!.lead_id).toBe(keeperId);
+    expect(msg.rows[0]!.message_class).toBe('re_engagement');
+    expect(msg.rows[0]!.body).toContain('déjà soumis une demande');
+    expect(msg.rows[0]!.provider_ref).not.toBeNull();
+
+    // The submission record is stamped handled — the replay anchor.
+    const src = await admin.query<{ chatbot_engaged_at: Date | null }>(
+      `SELECT chatbot_engaged_at FROM leads WHERE id = $1`, [sourceId],
+    );
+    expect(src.rows[0]!.chatbot_engaged_at).not.toBeNull();
+
+    // An at-least-once REPLAY is a recorded no-op: one message, ever.
+    const again = await runFirstTouch(deps(), {
+      organization_id: orgId, lead_id: sourceId, duplicate_of: keeperId,
+    });
+    expect(again.kind).toBe('skipped');
+    const count = await admin.query(
+      `SELECT 1 FROM messages m JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.phone_e164 = '+15145559240' AND m.direction = 'outbound'`,
+    );
+    expect(count.rows).toHaveLength(1);
+  });
+
+  it('a thread bound to the DUPLICATE record is adopted by the keeper, not refused (F-63)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const keeperId = await makeLead(44);
+    const sourceId = await makeLead(45, { phone: '+15145559244' });
+    // The pathological state the blocker produced: the phone's one live
+    // thread already belongs to the duplicate record.
+    await admin.query(
+      `INSERT INTO conversations (organization_id, store_id, lead_id, phone_e164)
+       VALUES ($1,$2,$3,'+15145559244')`,
+      [orgId, storeId, sourceId],
+    );
+    const out = await runFirstTouch(deps(), {
+      organization_id: orgId, lead_id: sourceId, duplicate_of: keeperId,
+    });
+    expect(out.kind, JSON.stringify(out)).toBe('sent');
+    const conv = await admin.query<{ lead_id: string | null }>(
+      `SELECT lead_id FROM conversations WHERE phone_e164 = '+15145559244' AND status <> 'closed'`,
+    );
+    expect(conv.rows[0]!.lead_id).toBe(keeperId);
+  });
+
+  it('the confirmation stays out of a thread a person holds (F-63)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const keeperId = await makeLead(42);
+    const sourceId = await makeLead(43, { phone: '+15145559242' });
+    const agent = await admin.query<{ user_id: string }>(
+      `SELECT user_id FROM memberships WHERE organization_id = $1 LIMIT 1`, [orgId],
+    );
+    const phone = (
+      await admin.query<{ phone: string }>(`SELECT phone FROM leads WHERE id = $1`, [keeperId])
+    ).rows[0]!.phone;
+    await admin.query(
+      `INSERT INTO conversations (organization_id, store_id, lead_id, phone_e164, status, assigned_agent_id)
+       VALUES ($1,$2,$3,$4,'agent_active',$5)`,
+      [orgId, storeId, keeperId, phone, agent.rows[0]!.user_id],
+    );
+    const out = await runFirstTouch(deps(), {
+      organization_id: orgId, lead_id: sourceId, duplicate_of: keeperId,
+    });
+    expect(out).toEqual({ kind: 'skipped', reason: 'a person has the thread' });
+  });
 });

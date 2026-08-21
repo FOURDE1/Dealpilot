@@ -18,7 +18,7 @@ const ADMIN_URL = testAdminUrl();
 const APP_URL = testAppUrl();
 
 /** F-59 seam: the one bridge from intake to the first-touch worker. */
-const firstTouches: { lead_id: string }[] = [];
+const firstTouches: { lead_id: string; duplicate_of?: string }[] = [];
 const recordingQueue = {
   enqueue: () => Promise.resolve(),
   enqueueAssistantTurn: () => Promise.resolve(),
@@ -325,5 +325,138 @@ describe('an intake lead arrives with the permission the form collected (ADR-005
       headers: { cookie: cookieA },
     });
     expect(JSON.parse(gate.body)).toMatchObject({ status: 'blocked', reason: 'consent_absent' });
+  });
+});
+
+describe('duplicate-as-signal (F-63, §8.3)', () => {
+  // A key of its own — the shared one is revoked by an earlier case.
+  let dupToken = '';
+  let dupSecret = '';
+
+  beforeAll(async () => {
+    if (!dbUp) return;
+    const res = await app!.inject({
+      method: 'POST', url: '/api/v1/intake-keys', headers: { cookie: cookieA },
+      payload: { organization_id: orgId, store_id: storeId, label: 'Dup signal test', default_source: 'website' },
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    const created = JSON.parse(res.body) as { token: string; secret: string };
+    dupToken = created.token;
+    dupSecret = created.secret;
+  });
+
+  async function intakeLead(phone: string, extra: Record<string, unknown> = {}): Promise<string> {
+    const ts = Math.floor(Date.now() / 1000).toString();
+    const body = JSON.stringify({ phone, first_name: 'Redite', ...extra });
+    const res = await app!.inject({
+      method: 'POST',
+      url: `/in/v1/leads/${dupToken}`,
+      headers: {
+        'content-type': 'application/json',
+        'x-intake-timestamp': ts,
+        'x-intake-signature': sign(ts, body, dupSecret),
+      },
+      payload: body,
+    });
+    expect(res.statusCode, res.body).toBe(202);
+    return (JSON.parse(res.body) as { lead_id: string }).lead_id;
+  }
+
+  it('a same-phone resubmission backfills the keeper and books the CONFIRMING message; the duplicate holds no agent', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const keeperId = await intakeLead('514 555 0361');
+    // An ORPHAN dormant keeper with gaps the resubmission can fill.
+    await admin.query(
+      `UPDATE leads SET status = 'nurture', assigned_to = NULL, assignment_attempts = 2, email = NULL
+       WHERE id = $1`,
+      [keeperId],
+    );
+
+    firstTouches.length = 0;
+    const sourceId = await intakeLead('514 555 0361', { email: 'redite@client.test', vehicle_interest: 'Kia Seltos' });
+    expect(sourceId).not.toBe(keeperId);
+
+    // One person, ONE message: the confirmation goes to the KEEPER's thread;
+    // no plain greeting for the new record.
+    expect(firstTouches).toHaveLength(1);
+    expect(firstTouches[0]).toMatchObject({ lead_id: sourceId, duplicate_of: keeperId });
+
+    // The backfill lands; the ORPHAN stays dormant on purpose (its reply
+    // reactivates + cascades through f23 — D-064).
+    const keeper = await admin.query<{ status: string; email: string | null }>(
+      `SELECT status, email FROM leads WHERE id = $1`, [keeperId],
+    );
+    expect(keeper.rows[0]).toEqual({ status: 'nurture', email: 'redite@client.test' });
+
+    // The duplicate record is pair-evidence, not workable inventory: no
+    // agent, no ten-minute ladder (review finding).
+    const source = await admin.query<{ assigned_to: string | null }>(
+      `SELECT assigned_to FROM leads WHERE id = $1`, [sourceId],
+    );
+    expect(source.rows[0]!.assigned_to).toBeNull();
+
+    const trail = await admin.query(
+      `SELECT 1 FROM activity_events
+       WHERE entity_id = $1 AND action = 'updated'
+         AND changes->>'reaction' = 'confirmation_to_keeper'`,
+      [keeperId],
+    );
+    expect(trail.rows).toHaveLength(1);
+  });
+
+  it('a keeper WITH an agent reactivates on resubmission — fresh ladder, honest trail', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const keeperId = await intakeLead('514 555 0363');
+    const agent = await admin.query<{ user_id: string }>(
+      `SELECT user_id FROM memberships WHERE organization_id = $1 LIMIT 1`, [orgId],
+    );
+    await admin.query(
+      `UPDATE leads SET status = 'expired', assigned_to = $2, assignment_attempts = 2 WHERE id = $1`,
+      [keeperId, agent.rows[0]!.user_id],
+    );
+
+    firstTouches.length = 0;
+    await intakeLead('514 555 0363');
+    expect(firstTouches).toHaveLength(1);
+
+    const keeper = await admin.query<{ status: string; assignment_attempts: number }>(
+      `SELECT status, assignment_attempts FROM leads WHERE id = $1`, [keeperId],
+    );
+    expect(keeper.rows[0]).toEqual({ status: 'assigned', assignment_attempts: 0 });
+  });
+
+  it('a resubmission while a deal is ACTIVE alerts the salesperson instead of re-engaging', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const keeperId = await intakeLead('514 555 0362');
+    const agent = await admin.query<{ user_id: string }>(
+      `SELECT user_id FROM memberships WHERE organization_id = $1 LIMIT 1`, [orgId],
+    );
+    const agentId = agent.rows[0]!.user_id;
+    await admin.query(`UPDATE leads SET assigned_to = $2 WHERE id = $1`, [keeperId, agentId]);
+    const deal = await app!.inject({
+      method: 'POST', url: '/api/v1/deals', headers: { cookie: cookieA },
+      payload: {
+        organization_id: orgId, store_id: storeId, lead_id: keeperId,
+        province: 'QC', deal_type: 'finance',
+        sale_price_cents: 2_500_000, vehicle_cost_cents: 2_100_000,
+        trade_allowance_cents: 0, trade_acv_cents: 0, trade_lien_cents: 0,
+        rebate_cents: 0, fees_cents: 0, fees_taxable: false,
+        fi_price_cents: 0, fi_cost_cents: 0,
+      },
+    });
+    expect(deal.statusCode, deal.body).toBe(201);
+
+    firstTouches.length = 0;
+    await intakeLead('514 555 0362');
+
+    // The machine steps aside: no confirmation, no greeting…
+    expect(firstTouches).toHaveLength(0);
+    // …and the PERSON hears about the signal.
+    const bell = await admin.query(
+      `SELECT 1 FROM notifications
+       WHERE user_id = $1 AND title_key = 'notif_duplicate_resubmission' AND entity_id = $2`,
+      [agentId, keeperId],
+    );
+    expect(bell.rows).toHaveLength(1);
   });
 });

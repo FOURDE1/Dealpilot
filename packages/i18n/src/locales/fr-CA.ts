@@ -197,6 +197,7 @@ export const frCA = {
     notif_lead_assigned: 'Le prospect {lead} vous a été assigné.',
     notif_lead_taken_back: 'Un prospect vous a été retiré — sans contact en {minutes} minutes.',
     notif_lead_escalated: 'Prospect escaladé vers vous ({reason}).',
+    notif_duplicate_resubmission: '{lead} a soumis une nouvelle demande alors qu’un dossier est actif.',
   },
   distribution: {
     title: 'Répartition des prospects',

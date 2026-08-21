@@ -90,6 +90,17 @@ export function registerF55Routes(app: FastifyInstance, pool: Pool): void {
       const open = s.total - s.won - s.lost;
       const decided = s.won + s.lost;
 
+      // F-63 (§8.3): "duplicate counts feed analytics" — certain
+      // resubmissions whose NEW record falls in this window/scope. The pair's
+      // lead_id side is the resubmission, so the same lead filters apply.
+      const dupRow = await c.query<{ n: number }>(
+        `SELECT count(*)::int AS n
+         FROM lead_duplicates ld
+         JOIN leads l ON l.id = ld.lead_id
+         ${where.replace('FROM leads l WHERE', 'WHERE')} AND ld.confidence = 100`,
+        params,
+      );
+
       // Grouped by ID, never by name: a tenant may legally NAME a reason
       // 'unknown', and only a null id means "no reason recorded".
       const reasons = await c.query<{ id: string | null; name: string; name_fr: string; icon: string; count: number }>(
@@ -132,6 +143,7 @@ export function registerF55Routes(app: FastifyInstance, pool: Pool): void {
           open,
           win_rate: pct1dp(s.won, decided),
           loss_rate: pct1dp(s.lost, decided),
+          duplicate_resubmissions: dupRow.rows[0]!.n,
         },
         lost_reasons: reasons.rows.map((r) => ({
           ...r,

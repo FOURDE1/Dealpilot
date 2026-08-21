@@ -25,6 +25,8 @@ export const WinLossSummary = z.object({
   /** won / (won + lost) × 100, one decimal; null when nothing is decided. */
   win_rate: z.number().nullable(),
   loss_rate: z.number().nullable(),
+  /** §8.3: certain resubmissions in the window — the duplicate-as-signal count. */
+  duplicate_resubmissions: z.number().int(),
 });
 
 /** Localizable by construction — the legacy aggregated the EN name only

@@ -1,4 +1,4 @@
-import { withTenant, type Pool } from '@dealpilot/db';
+import { withTenant, type Pool, type PoolClient } from '@dealpilot/db';
 import { FirstTouchJob, type DeferredSendJobT } from '@dealpilot/contracts';
 import { safeFirstTouchMessage } from '@dealpilot/ai';
 import { sendMessage } from '@dealpilot/api/send';
@@ -52,11 +52,194 @@ type Staged =
   | { kind: 'not_sent'; reason: string }
   | { kind: 'skipped'; reason: string };
 
+/**
+ * F-63 (§8.3): the confirming re-engagement for a HIGH-CONFIDENCE duplicate
+ * submission — sent to the KEEPER's thread, because the resubmission is a
+ * fact about the relationship that already exists, not about the record
+ * intake just wrote. Same gate, same deferral, same delivery discipline as
+ * the greeting; a different message class ('re_engagement') because that is
+ * what it is.
+ */
+async function stageDuplicateConfirm(
+  c: PoolClient,
+  job: { organization_id: string; lead_id: string },
+  keeperId: string,
+  now: Date,
+): Promise<Staged> {
+  const keeperRow = await c.query<{
+    id: string; store_id: string | null; phone: string; first_name: string | null;
+    preferred_language: string;
+  }>(
+    `SELECT id, store_id, phone, first_name, preferred_language
+     FROM leads WHERE id = $1 AND deleted_at IS NULL`,
+    [keeperId],
+  );
+  const keeper = keeperRow.rows[0];
+  if (keeper === undefined) return { kind: 'skipped', reason: 'keeper gone' };
+  if (keeper.store_id === null) return { kind: 'skipped', reason: 'keeper has no store yet' };
+  const store = await c.query<{ name: string; sms_number: string | null }>(
+    `SELECT name, sms_number FROM stores WHERE id = $1 AND deleted_at IS NULL`,
+    [keeper.store_id],
+  );
+  const storeRow = store.rows[0];
+  if (!storeRow?.sms_number) return { kind: 'skipped', reason: 'store has no carrier number' };
+
+  // The submission record is the job's idempotency ANCHOR: its
+  // chatbot_engaged_at stamps "this resubmission got its machine response",
+  // so a replay after any crash window is a recorded no-op, not a second
+  // text (the greeting path's own discipline, applied to this identity).
+  const source = await c.query<{ chatbot_engaged_at: string | null; created_at: Date }>(
+    `SELECT chatbot_engaged_at, created_at FROM leads WHERE id = $1`,
+    [job.lead_id],
+  );
+  if (source.rows[0]?.chatbot_engaged_at) {
+    return { kind: 'skipped', reason: 'this resubmission was already confirmed' };
+  }
+  const sourceCreatedAt = source.rows[0]?.created_at ?? now;
+
+  const language: 'fr' | 'en' = keeper.preferred_language.startsWith('fr') ? 'fr' : 'en';
+  // NOT findOrCreateConversation: its lead-attach picks the NEWEST lead on
+  // the phone, which — since the §8.3 gate requires a phone match — is
+  // always the just-created duplicate record. The confirmation would then
+  // refuse its own conversation and the phone's one live thread would be
+  // bound to a record nobody works (review blocker). The thread belongs to
+  // the KEEPER; we find it, adopt it, or create it saying so.
+  const live = await c.query<{ id: string; lead_id: string | null; status: string }>(
+    `SELECT id, lead_id, status FROM conversations
+     WHERE organization_id = $1 AND phone_e164 = $2 AND channel = 'sms'
+       AND status <> 'closed' AND deleted_at IS NULL`,
+    [job.organization_id, keeper.phone],
+  );
+  let conversation = live.rows[0];
+  if (conversation) {
+    if (conversation.lead_id === null || conversation.lead_id === job.lead_id) {
+      // Unowned, or owned by our own duplicate record: the keeper adopts it.
+      await c.query(`UPDATE conversations SET lead_id = $2 WHERE id = $1`, [
+        conversation.id, keeper.id,
+      ]);
+    } else if (conversation.lead_id !== keeper.id) {
+      return { kind: 'skipped', reason: 'phone already has an active conversation on another lead' };
+    }
+  } else {
+    await c.query(
+      `INSERT INTO conversations (organization_id, store_id, lead_id, phone_e164, channel, language)
+       VALUES ($1,$2,$3,$4,'sms',$5)
+       ON CONFLICT (organization_id, phone_e164, channel)
+         WHERE status <> 'closed' AND deleted_at IS NULL
+       DO NOTHING`,
+      [job.organization_id, keeper.store_id, keeper.id, keeper.phone, language],
+    );
+    conversation = (
+      await c.query<{ id: string; lead_id: string | null; status: string }>(
+        `SELECT id, lead_id, status FROM conversations
+         WHERE organization_id = $1 AND phone_e164 = $2 AND channel = 'sms'
+           AND status <> 'closed' AND deleted_at IS NULL`,
+        [job.organization_id, keeper.phone],
+      )
+    ).rows[0]!;
+  }
+  // A person holds the thread: they can see the resubmission themselves —
+  // the machine interjecting to confirm interest would talk over them.
+  if (conversation.status === 'agent_active' || conversation.status === 'handed_off') {
+    return { kind: 'skipped', reason: 'a person has the thread' };
+  }
+
+  // Person-level dedupe: however many jobs a form double-submit or provider
+  // retry mints, one confirming text a day is the ceiling for one human.
+  const recent = await c.query(
+    `SELECT 1 FROM messages m
+     JOIN send_decisions d ON d.id = m.send_decision_id
+     WHERE m.conversation_id = $1 AND m.direction = 'outbound' AND m.sender_type = 'bot'
+       AND d.message_class = 're_engagement' AND m.provider_ref IS NOT NULL
+       AND m.created_at > now() - interval '24 hours' LIMIT 1`,
+    [conversation.id],
+  );
+  if (recent.rows.length > 0) {
+    // Mark the submission handled so nothing ever revisits it — the person
+    // already has today's confirmation on their phone.
+    await c.query(
+      `UPDATE leads SET chatbot_engaged_at = COALESCE(chatbot_engaged_at, $2) WHERE id = $1`,
+      [job.lead_id, now],
+    );
+    return { kind: 'skipped', reason: 'this person was confirmed within the last day' };
+  }
+
+  // Crash recovery scoped to THIS resubmission: a staged confirmation whose
+  // carrier call never concluded is redelivered; a delivered one that missed
+  // its stamp is stamped — never a second row (the greeting's discipline).
+  const prior = await c.query<{ id: string; body: string; provider_ref: string | null }>(
+    `SELECT m.id, m.body, m.provider_ref FROM messages m
+     JOIN send_decisions d ON d.id = m.send_decision_id
+     WHERE m.conversation_id = $1 AND m.direction = 'outbound' AND m.sender_type = 'bot'
+       AND d.message_class = 're_engagement' AND m.created_at >= $2
+     ORDER BY m.created_at DESC LIMIT 1`,
+    [conversation.id, sourceCreatedAt],
+  );
+  if (prior.rows[0]) {
+    if (prior.rows[0].provider_ref !== null) {
+      return { kind: 'stamp_only', messageId: prior.rows[0].id, conversationId: conversation.id, leadId: job.lead_id };
+    }
+    return {
+      kind: 'deliver', messageId: prior.rows[0].id, conversationId: conversation.id,
+      leadId: job.lead_id, to: keeper.phone, from: storeRow.sms_number, body: prior.rows[0].body,
+    };
+  }
+
+  const body = safeFirstTouchMessage({
+    firstName: keeper.first_name,
+    personaName: 'Alex',
+    dealership: storeRow.name,
+    vehicleInterest: null,
+    language,
+    isDuplicate: true,
+  });
+  const send = await sendMessage(c, {
+    organizationId: job.organization_id,
+    storeId: keeper.store_id,
+    conversationId: conversation.id,
+    leadId: keeper.id,
+    phoneE164: keeper.phone,
+    body,
+    senderType: 'bot',
+    messageClass: 're_engagement',
+    scope: 'conversational',
+    isSolicitation: false,
+    nowUtc: now,
+  });
+  if (send.kind === 'deferred') {
+    return {
+      kind: 'defer',
+      runAt: send.runAt.toISOString(),
+      job: {
+        organization_id: job.organization_id,
+        conversation_id: conversation.id,
+        send_decision_id: send.decisionId,
+        body,
+        sender_type: 'bot',
+        message_class: 're_engagement',
+        attempt: 0,
+      },
+    };
+  }
+  if (send.kind !== 'sent') {
+    const reason = send.kind === 'blocked' ? `${send.kind}: ${send.reason}` : send.kind;
+    return { kind: 'not_sent', reason };
+  }
+  // leadId here is the STAMP target — the source record, the job's anchor.
+  // The message itself is attributed to the keeper (sendMessage above).
+  return {
+    kind: 'deliver', messageId: send.messageId, conversationId: conversation.id, leadId: job.lead_id,
+    to: keeper.phone, from: storeRow.sms_number, body,
+  };
+}
+
 export async function runFirstTouch(deps: FirstTouchDeps, raw: unknown): Promise<FirstTouchResult> {
   const job = FirstTouchJob.parse(raw);
   const now = deps.now?.() ?? new Date();
 
   const staged = await withTenant(deps.pool, job.organization_id, async (c): Promise<Staged> => {
+    // F-63: a duplicate-confirmation job targets the keeper, not this lead.
+    if (job.duplicate_of) return stageDuplicateConfirm(c, job, job.duplicate_of, now);
     const leadRow = await c.query<{
       id: string; store_id: string | null; phone: string; first_name: string | null;
       vehicle_interest: string | null; preferred_language: string; status: string;

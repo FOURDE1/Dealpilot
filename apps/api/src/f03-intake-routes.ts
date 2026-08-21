@@ -5,6 +5,8 @@ import { CreateIntakeKeyInput, Email, IntakeLeadPayload, StoreListQuery, Uuid } 
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
+import { notify } from './notifications.js';
+import { recalculateLeadScore } from './f39-scoring-routes.js';
 import { AdfParseError, distributionPlatformOf, findConnector, normalizeLead, normalizePhone, parseAdf, type AdfLead } from '@dealpilot/core';
 import { scoreOnCreate } from './f39-scoring-routes.js';
 import { autoAssignLead } from './f40-assignment-routes.js';
@@ -15,6 +17,7 @@ import type { RateLimiter } from './rate-limit.js';
 import { distributeLead } from './f45-distribution-routes.js';
 import { connectorKeyExists, resolveConnector } from './f49-connector-routes.js';
 import { detectDuplicatesFor } from './f54-duplicate-routes.js';
+import { reactivateLeadEnrollments } from './f61-drip-routes.js';
 
 /**
  * F-03 lead intake (leads.md §10). Two surfaces:
@@ -309,9 +312,167 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, rea
         // somebody to press a button. In-process pure math; the ACK budget is
         // untouched.
         await scoreOnCreate(c, resolved.organization_id, r.rows[0]!.id, (o, m) => request.log.warn(o, m));
-        // F-40: routed at birth (§7.2). Actor NULL — a webhook assigned this,
-        // not a person, and the history row names the rule that decided.
-        const assignDecision = await autoAssignLead(c, resolved.organization_id, r.rows[0]!.id, null);
+        // F-54 (§8.1): webhook arrivals are checked too — a duplicate
+        // submission is a signal somebody is still shopping.
+        await detectDuplicatesFor(c, resolved.organization_id, r.rows[0]!.id);
+
+        // F-63 (§8.3, D-064): a CERTAIN resubmission (confidence 100) is a
+        // high-intent signal about the KEEPER, and the whole reaction is
+        // atomic with the intake. Runs BEFORE assignment on purpose: the
+        // duplicate record itself must never hold an agent or arm the
+        // ten-minute ladder — it exists as pair-evidence for the human merge
+        // (D-056), and a cascade over it is three notifications about a
+        // record nobody will ever work (review finding).
+        let touch: { kind: 'first_touch' } | { kind: 'dup_confirm'; keeperId: string } | { kind: 'none' } =
+          { kind: 'first_touch' };
+        // The CANONICAL keeper: oldest first (a third submission pairs with
+        // both the original and yesterday's duplicate — the original wins),
+        // phone matches preferred over email-only.
+        const pair = await c.query<{ duplicate_of: string; match_type: string }>(
+          `SELECT ld.duplicate_of, ld.match_type
+           FROM lead_duplicates ld
+           JOIN leads k ON k.id = ld.duplicate_of AND k.deleted_at IS NULL
+           WHERE ld.lead_id = $1 AND ld.status = 'pending' AND ld.confidence = 100
+           ORDER BY (ld.match_type LIKE 'phone%') DESC, k.created_at ASC, k.id ASC
+           LIMIT 1`,
+          [r.rows[0]!.id],
+        );
+        if (pair.rows[0]) {
+          const keeperId = pair.rows[0].duplicate_of;
+          const phoneMatch = pair.rows[0].match_type.startsWith('phone');
+          // NOWAIT under a SAVEPOINT: the F-54 human merge may hold this row
+          // for its whole transaction, and the webhook ACK (p99 < 1s) must
+          // not queue behind it — a keeper being merged right now simply
+          // gets no automated reaction this once.
+          await c.query('SAVEPOINT dup_claim');
+          let keeper:
+            | { id: string; status: string; assigned_to: string | null; first_name: string | null; last_name: string | null; phone: string }
+            | undefined;
+          try {
+            keeper = (
+              await c.query<{ id: string; status: string; assigned_to: string | null; first_name: string | null; last_name: string | null; phone: string }>(
+                `SELECT id, status, assigned_to, first_name, last_name, phone
+                 FROM leads WHERE id = $1 AND deleted_at IS NULL FOR UPDATE NOWAIT`,
+                [keeperId],
+              )
+            ).rows[0];
+            await c.query('RELEASE SAVEPOINT dup_claim');
+          } catch {
+            await c.query('ROLLBACK TO SAVEPOINT dup_claim');
+          }
+          if (keeper) {
+            // "Merge new submission data into the existing lead": the
+            // keeper's EMPTY fields take the submission's values — the same
+            // backfill shape as the human merge (§8.2 #1) — and the keeper
+            // rescores (SAVEPOINT-guarded: a scoring bug must not eat an
+            // intake).
+            await c.query(
+              `UPDATE leads k SET
+                 first_name = COALESCE(k.first_name, s.first_name),
+                 last_name  = COALESCE(k.last_name,  s.last_name),
+                 email      = COALESCE(k.email,      s.email),
+                 vehicle_interest     = COALESCE(k.vehicle_interest,     s.vehicle_interest),
+                 total_budget_cents   = COALESCE(k.total_budget_cents,   s.total_budget_cents),
+                 monthly_budget_cents = COALESCE(k.monthly_budget_cents, s.monthly_budget_cents),
+                 source_platform      = COALESCE(k.source_platform,      s.source_platform),
+                 updated_at = now()
+               FROM leads s WHERE k.id = $1 AND s.id = $2`,
+              [keeperId, r.rows[0]!.id],
+            );
+            await c.query('SAVEPOINT dup_rescore');
+            try {
+              await recalculateLeadScore(c, resolved.organization_id, keeperId);
+              await c.query('RELEASE SAVEPOINT dup_rescore');
+            } catch {
+              await c.query('ROLLBACK TO SAVEPOINT dup_rescore');
+            }
+
+            const activeDeal = await c.query(
+              `SELECT 1 FROM deals WHERE lead_id = $1 AND deleted_at IS NULL
+                 AND pipeline_stage NOT IN ('delivered','complete','lost') LIMIT 1`,
+              [keeperId],
+            );
+            let reaction: string;
+            if (activeDeal.rows.length > 0) {
+              // §8.3: already mid-deal — the machine steps aside and the
+              // PERSON hears about it.
+              touch = { kind: 'none' };
+              reaction = 'salesperson_alerted';
+              if (keeper.assigned_to) {
+                const label =
+                  [keeper.first_name, keeper.last_name].filter(Boolean).join(' ') || keeper.phone;
+                await notify(c, {
+                  organizationId: resolved.organization_id,
+                  userId: keeper.assigned_to,
+                  urgency: 'high',
+                  titleKey: 'notif_duplicate_resubmission',
+                  params: { lead: label },
+                  link: `/leads/${keeperId}`,
+                  entityType: 'lead',
+                  entityId: keeperId,
+                });
+              }
+            } else {
+              // Phone match: the confirmation rides the KEEPER's thread.
+              // Email-only: the person gave a NEW number — the new record's
+              // own first touch opens with the confirming variant (F-59's
+              // pending-pair wording), so first_touch stands.
+              touch = phoneMatch ? { kind: 'dup_confirm', keeperId } : { kind: 'first_touch' };
+              reaction = phoneMatch ? 'confirmation_to_keeper' : 'confirmation_via_new_number';
+              // §11.3 discipline: the person just re-engaged themselves —
+              // whatever nurture ride was running is over.
+              await reactivateLeadEnrollments(c, keeperId);
+              // §8.3 reactivation, on F-48's dormant set — but only a keeper
+              // WITH an agent flips here. An orphan stays dormant on purpose:
+              // its REPLY to the confirmation routes through f23, whose
+              // comeback cascades it — cascading at intake would spend the
+              // ACK budget and mark interest nobody confirmed yet.
+              if (
+                keeper.assigned_to !== null &&
+                ['nurture', 'expired', 'lost', 'unresponsive'].includes(keeper.status)
+              ) {
+                await c.query(
+                  `UPDATE leads
+                   SET status = 'assigned', previous_agents = '[]'::jsonb,
+                       assignment_attempts = 0, updated_at = now()
+                   WHERE id = $1`,
+                  [keeperId],
+                );
+                await recordEvent(c, {
+                  organizationId: resolved.organization_id,
+                  storeId: resolved.store_id,
+                  actorUserId: null,
+                  entityType: 'lead',
+                  entityId: keeperId,
+                  action: 'updated',
+                  changes: {
+                    status: { from: keeper.status, to: 'assigned' },
+                    via: 'duplicate_resubmission',
+                  },
+                });
+              }
+            }
+            // The §8.3 paper trail: every branch says what the machine did
+            // with the signal (review: two of three branches were silent).
+            await recordEvent(c, {
+              organizationId: resolved.organization_id,
+              storeId: resolved.store_id,
+              actorUserId: null,
+              entityType: 'lead',
+              entityId: keeperId,
+              action: 'updated',
+              changes: { via: 'duplicate_resubmission', reaction, resubmission: r.rows[0]!.id },
+            });
+          }
+        }
+
+        // F-40: routed at birth (§7.2) — but never for a record §8.3 just
+        // sidelined: the duplicate is pair-evidence, not workable inventory,
+        // and an agent assigned to it inherits an undischargeable ladder.
+        const assignDecision =
+          touch.kind === 'first_touch'
+            ? await autoAssignLead(c, resolved.organization_id, r.rows[0]!.id, null)
+            : ({ outcome: 'unassigned' } as const);
         // ADR-005: what this form's consent box granted is a fact about THAT
         // form, so it comes from the connector definition rather than from an
         // assumption here. Written in the same transaction as the lead — an
@@ -357,12 +518,9 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, rea
             });
           }
         }
-        // F-54 (§8.1): webhook arrivals are checked too — a duplicate
-        // submission is a signal somebody is still shopping (§8.3's AI
-        // response arrives with the engine; the PAIR is recorded today).
-        await detectDuplicatesFor(c, resolved.organization_id, r.rows[0]!.id);
+
         await c.query(`UPDATE intake_keys SET last_used_at = now() WHERE token = $1`, [token]);
-        return { id: r.rows[0]!.id, assignDecision };
+        return { id: r.rows[0]!.id, assignDecision, touch };
       });
       // D-046 #2: a machine assignment arms the ten-minute timer. Post-commit,
       // and NOT counted against the sub-second ACK budget when there is no
@@ -384,10 +542,16 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, rea
       // a sick Redis: p99 < 1s is a promise to the provider, so a lost
       // enqueue is a loud log, not a hung webhook (D-059).
       await Promise.race([
-        deferred.enqueueFirstTouch({
-          organization_id: resolved.organization_id,
-          lead_id: leadId.id,
-        }),
+        leadId.touch.kind === 'none'
+          ? Promise.resolve()
+          : deferred.enqueueFirstTouch({
+              organization_id: resolved.organization_id,
+              lead_id: leadId.id,
+              // F-63 (§8.3): a high-confidence resubmission sends the
+              // confirming re-engagement to the KEEPER's thread instead of
+              // greeting the new record — one person, one message.
+              ...(leadId.touch.kind === 'dup_confirm' ? { duplicate_of: leadId.touch.keeperId } : {}),
+            }),
         new Promise<void>((resolve) => setTimeout(resolve, 1500)),
       ]).catch((err: unknown) => {
         request.log.warn(

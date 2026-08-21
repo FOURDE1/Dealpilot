@@ -36,6 +36,47 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-064 — 2026-08-22 — Duplicate-as-signal: the resubmission is about the KEEPER
+
+F-63 (leads.md §8.3). (1) The §8.3 auto-reaction fires only on CERTAINTY —
+confidence 100 with a phone match; email/name pairs stay pending for a
+human, exactly as F-54 shipped them, and the full lead-merge REMAINS a
+human verb (D-056): what automates is the backfill (keeper's empty fields
+take the submission's values, same COALESCE shape as §8.2 #1) plus a
+SAVEPOINT-guarded rescore, atomic with the intake. (2) One person, one
+message: the confirming re-engagement goes to the KEEPER's thread as a
+bot 're_engagement' through the full gate — the new record gets no
+greeting of its own. On an ACTIVE deal (pipeline_stage not delivered/
+complete/lost) the machine steps aside entirely and the assigned
+salesperson gets a high-urgency notification instead. (3) Reactivation
+from nurture/expired uses F-48's comeback shape (fresh ladder, paper
+trail via duplicate_resubmission) WITHOUT cascading at intake — the
+customer's reply to the confirmation routes through f23, which cascades
+an orphan there; the intake ACK budget stays sub-second. (4) The
+confirmation rides the first-touch worker as a mode (duplicate_of on the
+job, its own jobId) with its own crash-recovery probe scoped to
+re_engagement-class messages — the greeting probe would mistake months-old
+history for this send.
+(5) The review (21 agents, 16 confirmed / 3 refuted) rewrote the seams:
+the confirmation finds/adopts/creates a thread the KEEPER owns —
+findOrCreateConversation's newest-lead attach would have bound the phone's
+one live thread to the duplicate record and the confirmation would have
+refused its own conversation, silently, forever (the different-phone test
+fixture was hiding a state the phone-match gate cannot produce). The
+submission record's chatbot_engaged_at is the replay anchor (delivered-
+but-unstamped recovery + at-least-once idempotency), with a 24-hour
+person-level cooldown over jobId granularity. The duplicate record is
+never assigned and never arms the ladder (§8.3 runs BEFORE routing); the
+canonical keeper is the OLDEST lead with phone-matches preferred; the
+keeper lock is NOWAIT under a savepoint so the F-54 merge cannot stall
+the ACK; email-only certainty joins the gate (backfill + alert; the
+confirmation rides the new number's own first touch); reactivation flips
+only keepers WITH an agent (orphans stay dormant — their reply cascades
+through f23) over F-48's full dormant set including lost; every §8.3
+branch writes its reaction to the paper trail; drip rides end on
+confirmation; and duplicate_resubmissions joined the win-loss summary.
+**Decided by:** Claude (implementation), 2026-08-22
+
 ## D-063 — 2026-08-22 — Silent monitoring: a third pass that judges, never speaks
 
 F-62 (appointments-tasks-communications.md §10 post-handoff). (1) Beside

@@ -1,3 +1,21 @@
+## 2026-08-22 (tick 17) — F-63 duplicate-as-signal: the resubmission is about the keeper
+
+Drain fix verified green (32533551675, b9b9499). F-63 (leads.md §8.3,
+D-064) rode almost entirely on machinery already here: F-54's detection
+and backfill shape, F-59's confirming template variant, the first-touch
+worker as the send vehicle (a duplicate_of mode with its own jobId and
+re_engagement class). The review (21 agents, 16 confirmed) was decisive
+again — its blocker was self-defeating code: the confirmation's own
+conversation-create bound the phone's one live thread to the duplicate
+record and then refused to use it, masked by a test fixture giving keeper
+and source different phones, a state the phone-match gate cannot produce.
+All 16 fixed: keeper-owned thread find/adopt/create, replay anchor on the
+submission record + 24h person cooldown, duplicates never assigned/never
+laddered (§8.3 before routing), canonical-oldest keeper, NOWAIT keeper
+lock, email-certainty joins the gate, orphans stay dormant for f23's
+cascade, full paper trail per branch, drip rides end, analytics counter.
+Suites: f03 16, first-touch 12, f55 6. Gate 29/29. Pushing.
+
 ## 2026-08-22 (tick 16b) — First red in 18: the SIGTERM drain, twice over
 
 Run 32531141801 (516916f) went RED on the e2e drain check — first red

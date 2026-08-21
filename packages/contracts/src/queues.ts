@@ -123,6 +123,13 @@ export type LiveAnalysisJobT = z.infer<typeof LiveAnalysisJob>;
 export const FirstTouchJob = z.object({
   organization_id: z.uuid(),
   lead_id: z.uuid(),
+  /**
+   * F-63 (§8.3 duplicate-as-signal): when set, this is not a greeting — the
+   * submission was a high-confidence duplicate and the message is the
+   * confirming re-engagement, sent to THIS keeper lead's thread instead of
+   * a first touch to the new record.
+   */
+  duplicate_of: z.uuid().optional(),
 });
 export type FirstTouchJobT = z.infer<typeof FirstTouchJob>;
 

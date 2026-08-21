@@ -139,8 +139,10 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
     async enqueueFirstTouch(job) {
       await firstTouches.add(QUEUE_FIRST_TOUCH, job, {
         // Deterministic: an intake retry that slips past the ACK dedupe still
-        // cannot queue a second greeting for the same lead.
-        jobId: `lead:${job.lead_id}:first-touch`,
+        // cannot queue a second greeting for the same lead. The §8.3
+        // confirmation gets its own id — it is a different message with its
+        // own once-per-resubmission identity (F-63).
+        jobId: job.duplicate_of ? `lead:${job.lead_id}:dup-confirm` : `lead:${job.lead_id}:first-touch`,
         removeOnComplete: 1000,
         removeOnFail: 5000,
         attempts: 3,

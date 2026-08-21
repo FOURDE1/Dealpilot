@@ -197,6 +197,7 @@ export const enCA = {
     notif_lead_assigned: 'Lead {lead} was assigned to you.',
     notif_lead_taken_back: 'A lead was taken back — no contact within {minutes} minutes.',
     notif_lead_escalated: 'Lead escalated to you ({reason}).',
+    notif_duplicate_resubmission: '{lead} submitted a new application while on an active deal.',
   },
   distribution: {
     title: 'Lead distribution',
