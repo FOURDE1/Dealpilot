@@ -44,6 +44,10 @@
       "types": "./dist/f23-inbound-router.d.ts",
       "default": "./dist/f23-inbound-router.js"
     },
+    "./realtime": {
+      "types": "./dist/realtime.d.ts",
+      "default": "./dist/realtime.js"
+    },
     "./assignment": {
       "types": "./dist/f40-assignment-routes.d.ts",
       "default": "./dist/f40-assignment-routes.js"

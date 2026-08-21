@@ -45,6 +45,8 @@ export const QUEUE_AI_EXTRACTION = 'ai-extraction';
 export const QUEUE_FIRST_TOUCH = 'first-touch';
 /** Hourly repeatable scan (automation-notifications.md §11.1) — no payload. */
 export const QUEUE_DRIP_TICK = 'drip-tick';
+/** Silent monitoring pass per message on a human-held thread (F-62, §10). */
+export const QUEUE_LIVE_ANALYSIS = 'live-analysis';
 
 /**
  * Build the options every Queue and Worker must be constructed with.
@@ -99,6 +101,19 @@ export const AiExtractionJob = z.object({
   message_id: z.uuid(),
 });
 export type AiExtractionJobT = z.infer<typeof AiExtractionJob>;
+
+/**
+ * F-62 — one silent-monitoring pass over a human-held thread (§10
+ * post-handoff). Ids only, same reasoning as extraction: the worker re-reads
+ * the thread under a tenant context.
+ */
+export const LiveAnalysisJob = z.object({
+  organization_id: z.uuid(),
+  conversation_id: z.uuid(),
+  /** The message (either side) that triggered this pass. */
+  message_id: z.uuid(),
+});
+export type LiveAnalysisJobT = z.infer<typeof LiveAnalysisJob>;
 
 /**
  * A fresh lead's first AI message (F-59, overview.md §5): the 60-second SLA

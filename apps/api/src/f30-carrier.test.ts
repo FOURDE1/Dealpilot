@@ -36,7 +36,11 @@ let storeNumber = '';
 
 /** Every job the webhook enqueues, recorded — the seam the roundtrip suite
  * cannot see from the workers side. */
-const enqueued = { turns: [] as { conversation_id: string }[], extractions: [] as { conversation_id: string }[] };
+const enqueued = {
+  turns: [] as { conversation_id: string }[],
+  extractions: [] as { conversation_id: string }[],
+  analyses: [] as { conversation_id: string }[],
+};
 const recordingQueue = {
   enqueue: () => Promise.resolve(),
   enqueueAssistantTurn: (job: { conversation_id: string }) => {
@@ -45,6 +49,10 @@ const recordingQueue = {
   },
   enqueueExtraction: (job: { conversation_id: string }) => {
     enqueued.extractions.push(job);
+    return Promise.resolve();
+  },
+  enqueueLiveAnalysis: (job: { conversation_id: string }) => {
+    enqueued.analyses.push(job);
     return Promise.resolve();
   },
   enqueueFirstTouch: () => Promise.resolve(),
@@ -146,12 +154,16 @@ describe('the queue seam (F-57): who gets a job for which branch', () => {
     enqueued.turns.length = 0;
     enqueued.extractions.length = 0;
 
+    enqueued.analyses.length = 0;
+
     const first = await webhook('/carrier/v1/sms/inbound', {
       To: storeNumber, From: phone, Body: 'Bonjour, je cherche un VUS', MessageSid: `SM-seam-1-${run}`,
     });
     expect(first.statusCode, first.body).toBe(204);
     expect(enqueued.turns).toHaveLength(1);
     expect(enqueued.extractions).toHaveLength(1);
+    // The assistant holds this thread — no silent analyst duplicating it.
+    expect(enqueued.analyses).toHaveLength(0);
 
     // Hand the thread to a person (the CHECK demands an assigned agent);
     // §5 extraction must keep riding messages.
@@ -168,6 +180,9 @@ describe('the queue seam (F-57): who gets a job for which branch', () => {
     expect(second.statusCode, second.body).toBe(204);
     expect(enqueued.turns).toHaveLength(1);
     expect(enqueued.extractions).toHaveLength(2);
+    // F-62: a human holds it now — the message rides the silent-monitoring
+    // pass so the panel keeps judging both sides.
+    expect(enqueued.analyses).toHaveLength(1);
   });
 
   it('a reply to a DRIP gets an answer — reactivation enqueues the assistant (F-61)', async (ctx) => {

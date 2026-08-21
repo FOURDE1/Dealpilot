@@ -36,6 +36,46 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-063 — 2026-08-22 — Silent monitoring: a third pass that judges, never speaks
+
+F-62 (appointments-tasks-communications.md §10 post-handoff). (1) Beside
+the conversation pass (TONE) and extraction (DATA), a third stateless pass
+owns JUDGEMENT — it runs one analysis per message on a HUMAN-held thread
+(handed_off/agent_active, re-checked at run time), writes one
+conversation_analysis 'live_update' row (the declared-but-dead vocabulary
+from 0033, now live), and has no tools and no send path. Its
+suggested_response reaches a customer only if a person pastes it into the
+composer and sends through the full gate. (2) The realtime event is a
+REFRESH HINT like the bell's (D-050): analysis.created carries ids only,
+the row is the truth, and the panel refetches the conversation detail. A
+worker publishes it through an emit-ONLY Socket.IO server on the same
+Redis adapter the API instances share — exactly the f28b fanout topology,
+one more server that happens to have no listeners; without Redis it
+degrades to silence, never a crash. (3) Enqueue sites are the two places a
+human-held thread gains a message: the carrier webhook on a 'to_agent'
+route, and f21's agent send. Jobs dedupe per triggering message
+(jobId analysis:{message_id}). (4) The analysis schema IS the table's
+CHECKs (strict zod, enums identical), the transcript window and model are
+extraction's (§5's 20 messages, Haiku-class), and customer text is
+spotlighted in the analyst prompt like every other model's view of it.
+(5) The review (13 agents, 10 confirmed) hardened the seams: analysis rows
+carry message_id + model + tokens (0061) — the idempotency anchor that
+makes BullMQ's at-least-once replay a free skip instead of a second model
+spend, the §13 meter, and the freshness guard (a stale job that lost the
+race to a fresher message declines to top the panel). Transcript speakers
+are what the DATABASE recorded — ASSISTANT/AGENT/SYSTEM, never the bot's
+words in the human's mouth. Every analysis enqueue is HINT-grade (try/
+catch-and-log): it must never hang or fail a response whose SMS already
+left, and in the webhook it sits AFTER reassign.arm — nothing may stand
+between the commit and the one side effect that cannot heal itself. The
+handoff moment itself now emits (conversation.changed + analysis.created
+from the turn worker); takeover and deferred agent sends enqueue passes;
+the panel renders score_reason; the realtime vocabulary guard scans
+apps/workers. Invalid model output rides the job result with its token
+cost — the completed-job log is the regression corpus until an analysis
+table earns its keep.
+**Decided by:** Claude (implementation), 2026-08-22
+
 ## D-062 — 2026-08-21 — Drips: due-ness is scheduling, permission is the gate's
 
 F-61 (automation-notifications.md §11). (1) The engine decides only WHEN a

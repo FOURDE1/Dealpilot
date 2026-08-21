@@ -7,6 +7,7 @@ import {
   QUEUE_DEFERRED_SEND,
   QUEUE_LEAD_REASSIGN,
   QUEUE_DRIP_TICK,
+  QUEUE_LIVE_ANALYSIS,
   REASSIGN_AFTER_MS,
   queueOpts,
   type AiExtractionJobT,
@@ -14,6 +15,7 @@ import {
   type AssistantTurnJobT,
   type DeferredSendJobT,
   type LeadReassignJobT,
+  type LiveAnalysisJobT,
 } from '@dealpilot/contracts';
 import { createCarrier } from '@dealpilot/api/carrier';
 import { redisPresenceStore } from '@dealpilot/api/presence';
@@ -26,6 +28,9 @@ import { runFirstTouch } from './first-touch.js';
 import { createAnthropicExtractionClient } from '@dealpilot/ai';
 import { runLeadReassign } from './lead-reassign.js';
 import { runDripTick } from './drip-tick.js';
+import { runLiveAnalysisJob } from './live-analysis.js';
+import { createEmitOnlyEmitter } from '@dealpilot/api/realtime';
+import { createAnthropicAnalysisClient } from '@dealpilot/ai';
 
 export { runDeferredSend } from './deferred-send.js';
 export type { DeferredSendDeps, DeferredSendResult } from './deferred-send.js';
@@ -73,6 +78,12 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
   });
   const queue = createDeferredSendQueue(env.REDIS_URL);
 
+  // F-62: the producer side of the analysis queue, for the deferred-send
+  // worker's agent replies (the API has its own in deferred-queue.ts).
+  const analysisQueue = new Queue<LiveAnalysisJobT>(
+    QUEUE_LIVE_ANALYSIS,
+    queueOpts(connection(env.REDIS_URL)),
+  );
   const worker = new Worker<DeferredSendJobT>(
     QUEUE_DEFERRED_SEND,
     async (job) =>
@@ -81,6 +92,15 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
           pool,
           carrier,
           env,
+          analyze: async (next) => {
+            await analysisQueue.add(QUEUE_LIVE_ANALYSIS, next, {
+              jobId: `analysis:${next.message_id}`,
+              removeOnComplete: 1000,
+              removeOnFail: 5000,
+              attempts: 3,
+              backoff: { type: 'exponential', delay: 2000 },
+            });
+          },
           reschedule: async (next, runAt) => {
             await queue.add(QUEUE_DEFERRED_SEND, next, {
               delay: Math.max(0, runAt.getTime() - Date.now()),
@@ -98,6 +118,10 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
   // queue with no model would mark every customer's message handled and answer
   // none of them, which is worse than the jobs piling up visibly.
   const assistant = createAssistant(env);
+  // F-62: workers publish refresh hints through the same Redis the API's
+  // Socket.IO adapter shares (f28b's fanout topology) — declared up here
+  // because the turn worker's handoff moment emits too, not just analysis.
+  const realtime = createEmitOnlyEmitter(env.REDIS_URL);
   const turnWorker = assistant.enabled
     ? new Worker<AssistantTurnJobT>(
         QUEUE_ASSISTANT_TURN,
@@ -105,6 +129,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
           runAssistantTurn(
             {
               pool, model: assistant.client, carrier, env,
+              emitter: realtime.emitter,
               armReassign: async (next) => {
                 await reassignQueue.add(QUEUE_LEAD_REASSIGN, next, {
                   delay: REASSIGN_AFTER_MS,
@@ -133,6 +158,29 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
                 apiKey: env.ANTHROPIC_API_KEY ?? '',
                 model: env.AI_EXTRACTION_MODEL,
               }),
+              model: env.AI_EXTRACTION_MODEL,
+            },
+            job.data,
+          ),
+        { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
+      )
+    : null;
+
+  // F-62: silent monitoring (§10 post-handoff) — same gating as the other
+  // model passes. With no Redis the emitter is silent and the panel simply
+  // refetches on its own.
+  const analysisWorker = assistant.enabled
+    ? new Worker<LiveAnalysisJobT>(
+        QUEUE_LIVE_ANALYSIS,
+        async (job) =>
+          runLiveAnalysisJob(
+            {
+              pool,
+              analyst: createAnthropicAnalysisClient({
+                apiKey: env.ANTHROPIC_API_KEY ?? '',
+                model: env.AI_EXTRACTION_MODEL,
+              }),
+              emitter: realtime.emitter,
               model: env.AI_EXTRACTION_MODEL,
             },
             job.data,
@@ -217,6 +265,9 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
       await turnWorker?.close();
       await extractionWorker?.close();
       await firstTouchWorker?.close();
+      await analysisWorker?.close();
+      await analysisQueue.close();
+      await realtime.close();
       await dripWorker.close();
       await dripQueue.close();
       await reassignWorker.close();

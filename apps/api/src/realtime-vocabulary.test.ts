@@ -55,7 +55,10 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
-const SCANNED = ['apps/api/src', 'apps/web/src', 'packages/contracts/src', 'packages/core/src']
+// apps/workers joined the list with F-62: workers became an EMITTING process
+// (the emit-only adapter), so a hand-built room name there must fail the
+// build exactly like one here.
+const SCANNED = ['apps/api/src', 'apps/web/src', 'apps/workers/src', 'packages/contracts/src', 'packages/core/src']
   .map((p) => join(repo, ...p.split('/')))
   .flatMap((d) => sourceFiles(d));
 

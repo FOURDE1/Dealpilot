@@ -24,6 +24,11 @@ export function keysToInvalidate(event: RealtimeEventT): readonly (readonly unkn
       return [conversationKeys.thread(event.conversation_id), conversationKeys.all];
     case 'conversation.changed':
       return [conversationKeys.detail(event.conversation_id), conversationKeys.all];
+    case 'analysis.created':
+      // F-62: the silent analyst wrote a fresh live_update row — the detail
+      // query carries the analysis panel, so it refetches; the inbox doesn't
+      // care what the analyst thinks.
+      return [conversationKeys.detail(event.conversation_id)];
     case 'lead.changed':
       // Not this screen's business. Returning nothing is the honest answer;
       // invalidating everything "just in case" would refetch the whole console

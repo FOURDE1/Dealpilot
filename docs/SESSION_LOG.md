@@ -1,3 +1,21 @@
+## 2026-08-22 (tick 16) — F-62 silent monitoring: the panel goes live
+
+F-61 CI-green (32525989945, adb76d2 — seventeen straight). F-62 (D-063):
+the third pass — JUDGEMENT — runs per message on human-held threads,
+writes conversation_analysis 'live_update' (the dead vocabulary from 0033,
+now live), and nudges every console over analysis.created; workers gained
+an emit-only Socket.IO server on the shared Redis adapter (f28b's
+topology). The panel was already built — it renders the rows and now the
+score_reason too. Review (13 agents, 10 confirmed / 1 refuted) hardened
+it: 0061 gives rows message_id+model+tokens (replay = free skip, §13
+metered, freshness-guarded), transcript speakers are the database's
+(ASSISTANT ≠ AGENT — the bot's Law 25 disclosure was landing in the
+human's mouth), every enqueue is hint-grade and the webhook's sits after
+reassign.arm, the handoff moment itself emits, takeover + deferred agent
+sends enqueue passes, vocabulary guard scans workers. Suites: ai 7,
+worker 6, sync 8, f30 16. Gate 29/29. Dev servers running for the owner
+(web :5173 / api :3001, workers off).
+
 ## 2026-08-21 (tick 15) — F-61 drip sequences: the nurture engine, gate-subordinate
 
 F-60 verified green on CI (run 32505988364, 2187513 — sixteen straight).

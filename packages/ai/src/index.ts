@@ -16,3 +16,5 @@ export * from './extraction/lead-extraction.js';
 export * from './extraction/anthropic-extraction.js';
 export * from './evals/live.js';
 export * from './first-touch.js';
+export * from './analysis/live-analysis.js';
+export * from './analysis/anthropic-analysis.js';

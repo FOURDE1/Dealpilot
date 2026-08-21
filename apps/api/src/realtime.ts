@@ -82,6 +82,40 @@ const state = new WeakMap<Socket, SocketState>();
  * an API that cannot start without a message bus is an API that stops taking
  * orders when the message bus is down.
  */
+/**
+ * An emit-ONLY handle for processes that are not the API — the workers.
+ *
+ * f28b proves the topology: a browser holds its socket to one Socket.IO
+ * server, an emit lands on another, and the Redis adapter carries it across.
+ * A worker is just one more "another": a server that never listens for HTTP
+ * or websocket upgrades, exists purely to publish into tenant rooms, and
+ * shares nothing but the adapter. No Redis URL (a dev without Redis, a unit
+ * test) degrades to NO_EMITTER's silence rather than a crash — the row is
+ * always the truth and the event only a refresh hint.
+ */
+export function createEmitOnlyEmitter(redisUrl: string | undefined): {
+  emitter: Emitter;
+  close: () => Promise<void>;
+} {
+  if (!redisUrl) return { emitter: { emit() {} }, close: async () => {} };
+  const io = new IOServer();
+  const pub = new Redis(redisUrl, { maxRetriesPerRequest: 3, lazyConnect: false });
+  const sub = pub.duplicate();
+  io.adapter(createAdapter(pub, sub));
+  return {
+    emitter: {
+      emit(room, event) {
+        io.to(roomName(room)).emit(REALTIME_EVENT, RealtimeEvent.parse(event));
+      },
+    },
+    close: async () => {
+      await io.close();
+      pub.disconnect();
+      sub.disconnect();
+    },
+  };
+}
+
 export async function attachRealtime(
   app: FastifyInstance,
   deps: RealtimeDeps,

@@ -63,6 +63,13 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // this guard scans apps/api only.
   'leads.chatbot_engaged_at': 'written by the first-touch worker',
 
+  // F-62: the live-analysis WORKER writes these (apps/workers/src/
+  // live-analysis.ts) — idempotency anchor and §13 metering (0061); this
+  // guard scans apps/api only.
+  'conversation_analysis.message_id': 'written by the live-analysis worker',
+  'conversation_analysis.input_tokens': 'written by the live-analysis worker',
+  'conversation_analysis.output_tokens': 'written by the live-analysis worker',
+
   // F-61: the hourly drip-tick WORKER advances rides and stamps sends
   // (apps/workers/src/drip-tick.ts); this guard scans apps/api only. The
   // API's own writes (f18 opt-out, f61 reactivation) are attributed above.

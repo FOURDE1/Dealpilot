@@ -288,6 +288,21 @@ export function registerF21Routes(
           created_at: new Date(String(m['created_at'])).toISOString(),
         },
       );
+      // F-62 (§10): the analyst reads BOTH sides — the agent's answer changes
+      // where the deal stands as much as the customer's question did. But the
+      // SMS is already out the door above: a refresh-hint-grade job must not
+      // hang or 500 a response whose side effect is irreversible — a visible
+      // failure here is how an agent retries and a customer gets the same
+      // text twice (F-62 review).
+      try {
+        await deferred.enqueueLiveAnalysis({
+          organization_id: orgId,
+          conversation_id: id,
+          message_id: String(m['id']),
+        });
+      } catch (err) {
+        request.log.warn({ err, conversation_id: id }, 'live-analysis enqueue failed after agent send — panel refreshes on the next message');
+      }
     }
     return reply.send(result);
   });
@@ -349,6 +364,25 @@ export function registerF21Routes(
         assigned_agent_id: (row['assigned_agent_id'] as string | null) ?? null,
       },
     );
+    // F-62: an agent who just took a 20-message history deserves a judged
+    // panel, not a dark one until the customer's next text. Keyed to the
+    // latest message so the idempotency index makes a repeat takeover free.
+    // Hint-grade: a queue failure must not fail the takeover.
+    try {
+      const last = await withTenant(pool, orgId, async (c) => {
+        const r = await c.query<{ id: string }>(
+          `SELECT id FROM messages WHERE conversation_id = $1
+           ORDER BY created_at DESC, id DESC LIMIT 1`,
+          [id],
+        );
+        return r.rows[0]?.id ?? null;
+      });
+      if (last) {
+        await deferred.enqueueLiveAnalysis({ organization_id: orgId, conversation_id: id, message_id: last });
+      }
+    } catch (err) {
+      request.log.warn({ err, conversation_id: id }, 'live-analysis enqueue failed after takeover — panel refreshes on the next message');
+    }
     return reply.send(row);
   });
 

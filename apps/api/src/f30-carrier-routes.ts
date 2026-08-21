@@ -153,6 +153,11 @@ export function registerF30Routes(
         // §5: the DATA pass rides every recorded client message — a customer
         // talking numbers with a human is exactly the window worth capturing.
         extract: { conversationId: route.conversationId, messageId: route.messageId },
+        // F-62 (§10 post-handoff): a human holds this thread — the silent
+        // analyst re-reads it so the panel stays live while the bot stays mute.
+        analyze: route.kind === 'to_agent'
+          ? { conversationId: route.conversationId, messageId: route.messageId }
+          : null,
         armReassign: route.armReassign ?? null,
       };
     });
@@ -174,9 +179,26 @@ export function registerF30Routes(
       });
     }
     // F-48: a reactivated lead's fresh assignment gets its ten-minute timer,
-    // armed only once the row it guards is committed.
+    // armed only once the row it guards is committed. BEFORE the analysis
+    // hint on purpose: a failed enqueue here 500s the webhook and the carrier
+    // retry lands on the provider_ref dedupe with answer=null — anything
+    // sitting between the commit and this arm is a chance to lose the one
+    // side effect that cannot heal itself (F-62 review).
     if (answer?.armReassign) {
       await reassign.arm(answer.armReassign);
+    }
+    if (answer?.analyze) {
+      // Hint-grade: the panel refreshes on the next message either way; a
+      // Redis blip must not fail a webhook whose SMS is already recorded.
+      try {
+        await queue.enqueueLiveAnalysis({
+          organization_id: resolved.organization_id,
+          conversation_id: answer.analyze.conversationId,
+          message_id: answer.analyze.messageId,
+        });
+      } catch (err) {
+        request.log.warn({ err, conversation_id: answer.analyze.conversationId }, 'live-analysis enqueue failed on inbound — panel refreshes on the next message');
+      }
     }
 
     // 204, and only after everything above committed. §5's "synchronously in

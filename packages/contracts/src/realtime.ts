@@ -122,6 +122,14 @@ export const RealtimeEvent = z.discriminatedUnion('type', [
     organization_id: z.uuid(),
     user_id: z.uuid(),
   }),
+  // F-62 silent monitoring: a fresh conversation_analysis row landed for a
+  // human-held thread. A refresh hint like the bell's — the row is the truth
+  // and the panel refetches the conversation on sight of this.
+  z.object({
+    type: z.literal('analysis.created'),
+    organization_id: z.uuid(),
+    conversation_id: z.uuid(),
+  }),
 ]);
 export type RealtimeEventT = z.infer<typeof RealtimeEvent>;
 

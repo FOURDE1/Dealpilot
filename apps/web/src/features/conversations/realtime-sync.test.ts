@@ -65,6 +65,22 @@ describe('a status change', () => {
   });
 });
 
+describe('a fresh silent-monitoring analysis (F-62)', () => {
+  const e = event({
+    type: 'analysis.created',
+    organization_id: ORG,
+    conversation_id: CONV,
+  });
+
+  it('refetches the conversation detail — that query carries the panel', () => {
+    expect(keysToInvalidate(e)).toEqual([conversationKeys.detail(CONV)]);
+  });
+
+  it('leaves the inbox alone — the analyst changes nothing the list shows', () => {
+    expect(keysToInvalidate(e)).not.toContainEqual(conversationKeys.all);
+  });
+});
+
 describe('an event this screen has no use for', () => {
   it('invalidates nothing rather than everything', () => {
     const e = event({
@@ -86,6 +102,9 @@ describe('every event the contract can produce', () => {
     // keysToInvalidate's switch — but only if the switch is exhaustive, which
     // this asserts is still true at runtime for the members that exist.
     const types = RealtimeEvent.options.map((o) => o.shape.type.value);
-    expect(types).toEqual(['message.created', 'conversation.changed', 'lead.changed', 'notification.created']);
+    expect(types).toEqual([
+      'message.created', 'conversation.changed', 'lead.changed', 'notification.created',
+      'analysis.created',
+    ]);
   });
 });

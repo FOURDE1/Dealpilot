@@ -1,8 +1,9 @@
 import { Queue } from 'bullmq';
 import {
   QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND, queueOpts,
-  QUEUE_AI_EXTRACTION, QUEUE_FIRST_TOUCH,
+  QUEUE_AI_EXTRACTION, QUEUE_FIRST_TOUCH, QUEUE_LIVE_ANALYSIS,
   type AiExtractionJobT, type AssistantTurnJobT, type DeferredSendJobT, type FirstTouchJobT,
+  type LiveAnalysisJobT,
 } from '@dealpilot/contracts';
 import type { Env } from './env.js';
 
@@ -32,6 +33,8 @@ export interface DeferredSendQueue {
   enqueueAssistantTurn(job: AssistantTurnJobT): Promise<void>;
   enqueueExtraction(job: AiExtractionJobT): Promise<void>;
   enqueueFirstTouch(job: FirstTouchJobT): Promise<void>;
+  /** F-62: one silent-monitoring pass over a human-held thread (§10). */
+  enqueueLiveAnalysis(job: LiveAnalysisJobT): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -76,6 +79,12 @@ export function noDeferredSendQueue(
         'a fresh lead needs its first touch and there is no queue — the 60s SLA cannot be met (set REDIS_URL)',
       );
     },
+    async enqueueLiveAnalysis(job) {
+      warn(
+        { conversation_id: job.conversation_id },
+        'a message on a human-held thread has no queue to run silent monitoring — the panel goes stale (set REDIS_URL)',
+      );
+    },
     async close() {},
   };
 }
@@ -94,6 +103,7 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
   const turns = new Queue<AssistantTurnJobT>(QUEUE_ASSISTANT_TURN, queueOpts(connection));
   const extractions = new Queue<AiExtractionJobT>(QUEUE_AI_EXTRACTION, queueOpts(connection));
   const firstTouches = new Queue<FirstTouchJobT>(QUEUE_FIRST_TOUCH, queueOpts(connection));
+  const analyses = new Queue<LiveAnalysisJobT>(QUEUE_LIVE_ANALYSIS, queueOpts(connection));
 
   return {
     async enqueue(job, runAt) {
@@ -137,8 +147,20 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
         backoff: { type: 'exponential', delay: 2000 },
       });
     },
+    async enqueueLiveAnalysis(job) {
+      await analyses.add(QUEUE_LIVE_ANALYSIS, job, {
+        // Deterministic per triggering message: a carrier retry that slips
+        // past the dedupe cannot queue a second pass for the same message.
+        jobId: `analysis:${job.message_id}`,
+        removeOnComplete: 1000,
+        removeOnFail: 5000,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+      });
+    },
     close: async () => {
       await queue.close();
+      await analyses.close();
       await turns.close();
       await extractions.close();
       await firstTouches.close();

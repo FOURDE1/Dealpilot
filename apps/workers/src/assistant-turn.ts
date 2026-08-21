@@ -1,5 +1,5 @@
 import { withTenant, type Pool, type PoolClient } from '@dealpilot/db';
-import { AssistantTurnJob } from '@dealpilot/contracts';
+import { AssistantTurnJob, type Emitter } from '@dealpilot/contracts';
 import { LeadExtraction, runTurn, type ModelClient, type ModelMessage } from '@dealpilot/ai';
 import { evaluateHandoff, type ConversationFlags } from '@dealpilot/core';
 import { autoAssignLead } from '@dealpilot/api/assignment';
@@ -43,6 +43,13 @@ export interface AssistantTurnDeps {
   readonly armReassign?: (job: {
     organization_id: string; lead_id: string; assigned_to: string; attempt: number;
   }) => Promise<void>;
+  /**
+   * F-62: the handoff moment itself must reach every open console — status
+   * flip AND the fresh handoff_summary — or the panel opens dark at the
+   * exact moment §10's silent monitoring begins, and the inbox keeps saying
+   * "Assistant" about a thread a person now owns.
+   */
+  readonly emitter?: Emitter;
   readonly now?: () => Date;
 }
 
@@ -458,6 +465,32 @@ async function runHandoffPhase(
 
   if (staged.kind === 'none') return undefined;
   if (staged.kind === 'skipped') return { skipped: staged.reason };
+
+  // F-62: tell every open console, post-commit — the status changed hands
+  // and the handoff_summary row is the panel's first content. Hint-grade:
+  // a failed emit costs freshness, never the handoff.
+  try {
+    deps.emitter?.emit(
+      { kind: 'conversation', organizationId: input.organizationId, conversationId: input.conversationId },
+      {
+        type: 'conversation.changed',
+        organization_id: input.organizationId,
+        conversation_id: input.conversationId,
+        status: 'handed_off',
+        assigned_agent_id: staged.agentId,
+      },
+    );
+    deps.emitter?.emit(
+      { kind: 'conversation', organizationId: input.organizationId, conversationId: input.conversationId },
+      {
+        type: 'analysis.created',
+        organization_id: input.organizationId,
+        conversation_id: input.conversationId,
+      },
+    );
+  } catch {
+    // The rows are committed; consoles refetch on their next event or open.
+  }
 
   // D-046 #2: an assignment WE made arms the ten-minute ladder, like every
   // other machine-assignment site.

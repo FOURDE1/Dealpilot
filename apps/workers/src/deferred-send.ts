@@ -37,6 +37,14 @@ export interface DeferredSendDeps {
   readonly now?: () => Date;
   /** Put a job back to sleep. Returns nothing; failure to reschedule throws. */
   readonly reschedule: (job: DeferredSendJobT, runAt: Date) => Promise<void>;
+  /**
+   * F-62: an AGENT reply that slept through quiet hours still changes where
+   * the deal stands — the silent analyst reads it when it finally goes out.
+   * Hint-grade and optional, like every analysis enqueue.
+   */
+  readonly analyze?: (job: {
+    organization_id: string; conversation_id: string; message_id: string;
+  }) => Promise<void>;
 }
 
 export type DeferredSendResult =
@@ -114,6 +122,20 @@ export async function runDeferredSend(
         from: store.sms_number,
         body: job.body,
       });
+    }
+    // F-62: the analyst reads the agent's slept-through reply too. The
+    // analysis worker re-checks the thread is still human-held; a failed
+    // enqueue costs panel freshness, never the send that already happened.
+    if (job.sender_type === 'agent') {
+      try {
+        await deps.analyze?.({
+          organization_id: job.organization_id,
+          conversation_id: conversation.id,
+          message_id: outcome.messageId,
+        });
+      } catch {
+        // Hint-grade by contract.
+      }
     }
     return { kind: 'sent', messageId: outcome.messageId };
   }

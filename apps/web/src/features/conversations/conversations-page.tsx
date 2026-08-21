@@ -282,6 +282,9 @@ export function ConversationsPage() {
                   {t(`sentiment_${latest.sentiment}`)}
                 </span>
               </div>
+              {/* §10 promises the score WITH its reason — a bare Cold pill
+                  doesn't tell the agent whether to keep working the lead. */}
+              <p className="text-xs text-muted-foreground">{latest.score_reason}</p>
               {latest.buying_signals.length > 0 && (
                 <div>
                   <h2 className="text-sm font-semibold">{t('signals')}</h2>
