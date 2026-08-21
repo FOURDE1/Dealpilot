@@ -69,7 +69,14 @@ export type RoutedInbound = InboundRoute & { armReassign?: LeadReassignJobT };
  * (the mistake that cost CR-14 a day). Two webhooks arriving together therefore
  * produce one conversation and one loser that re-reads it.
  */
-async function findOrCreateConversation(c: PoolClient, msg: InboundMessage): Promise<{
+export async function findOrCreateConversation(
+  c: PoolClient,
+  msg: InboundMessage,
+  /** First-touch only: the conversation's locked language when WE create it
+   * for an outbound greeting. Inbound creation keeps the 'fr' default and
+   * lets the language detection settle it. */
+  opts?: { language?: 'fr' | 'en' },
+): Promise<{
   id: string; status: string; lead_id: string | null; assigned_agent_id: string | null;
 }> {
   const row = { organizationId: msg.organizationId, phone: msg.phoneE164 };
@@ -94,12 +101,12 @@ async function findOrCreateConversation(c: PoolClient, msg: InboundMessage): Pro
   );
 
   await c.query(
-    `INSERT INTO conversations (organization_id, store_id, lead_id, phone_e164, channel)
-     VALUES ($1,$2,$3,$4,'sms')
+    `INSERT INTO conversations (organization_id, store_id, lead_id, phone_e164, channel, language)
+     VALUES ($1,$2,$3,$4,'sms',$5)
      ON CONFLICT (organization_id, phone_e164, channel)
        WHERE status <> 'closed' AND deleted_at IS NULL
      DO NOTHING`,
-    [msg.organizationId, msg.storeId, lead.rows[0]?.id ?? null, msg.phoneE164],
+    [msg.organizationId, msg.storeId, lead.rows[0]?.id ?? null, msg.phoneE164, opts?.language ?? 'fr'],
   );
 
   const created = await c.query<{

@@ -47,6 +47,7 @@ const recordingQueue = {
     enqueued.extractions.push(job);
     return Promise.resolve();
   },
+  enqueueFirstTouch: () => Promise.resolve(),
   close: () => Promise.resolve(),
 };
 

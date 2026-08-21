@@ -16,6 +16,19 @@ import { buildApp } from './app.js';
 
 const ADMIN_URL = testAdminUrl();
 const APP_URL = testAppUrl();
+
+/** F-59 seam: the one bridge from intake to the first-touch worker. */
+const firstTouches: { lead_id: string }[] = [];
+const recordingQueue = {
+  enqueue: () => Promise.resolve(),
+  enqueueAssistantTurn: () => Promise.resolve(),
+  enqueueExtraction: () => Promise.resolve(),
+  enqueueFirstTouch: (job: { lead_id: string }) => {
+    firstTouches.push(job);
+    return Promise.resolve();
+  },
+  close: () => Promise.resolve(),
+};
 const migrationsDir = join(
   dirname(fileURLToPath(import.meta.url)),
   '..', '..', '..', 'packages', 'db', 'migrations',
@@ -61,7 +74,7 @@ beforeAll(async () => {
     return;
   }
   await reset(admin, migrationsDir, ADMIN_URL);
-  ({ app } = await buildApp({ DATABASE_URL: APP_URL, NODE_ENV: 'test' }));
+  ({ app } = await buildApp({ DATABASE_URL: APP_URL, NODE_ENV: 'test' }, { deferredQueue: recordingQueue }));
 
   const su = await app!.inject({ method: 'POST', url: '/api/auth/sign-up/email', payload: A });
   const sc = su.headers['set-cookie'];
@@ -128,6 +141,9 @@ describe('F-03 public webhook', () => {
     expect(lead!.source).toBe('website');
     expect(lead!.store_id).toBe(storeId);
     expect(lead!.status).toBe('new');
+
+    // F-59 seam: the intake actually queued the first touch for THIS lead.
+    expect(firstTouches.some((j) => j.lead_id === ack.lead_id)).toBe(true);
   });
 
   it('a bad signature is 401 and creates nothing', async (ctx) => {

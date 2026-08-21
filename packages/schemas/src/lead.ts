@@ -97,6 +97,8 @@ export const Lead = z.object({
   response_time_seconds: z.number().int().min(0).nullable(),
   contact_attempts: z.number().int().min(0),
   assigned_at: IsoDateTime.nullable(),
+  /** F-59: when the assistant's first message went out (the 60s SLA stamp). */
+  chatbot_engaged_at: IsoDateTime.nullable(),
   /** F-42 paper trail (D-045 #5). NULL = §7.1 rules engine or pre-0049 row. */
   assignment_method: z.enum(['auto_language','auto_availability','manual','escalation','reassignment']).nullable(),
   assignment_attempts: z.number().int(),

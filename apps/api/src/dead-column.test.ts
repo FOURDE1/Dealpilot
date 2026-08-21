@@ -59,6 +59,10 @@ const STRUCTURAL = new Set([
  * is exactly what the three bugs above would have claimed.
  */
 const DELIBERATELY_UNWRITTEN: Record<string, string> = {
+  // F-59: stamped by the first-touch WORKER (apps/workers/src/first-touch.ts);
+  // this guard scans apps/api only.
+  'leads.chatbot_engaged_at': 'written by the first-touch worker',
+
   // F-57: the extraction WORKER writes these (apps/workers/src/ai-extraction.ts)
   // — this guard scans apps/api only, and the worker is the only writer by
   // design (§5: write-back happens in the extraction worker).
@@ -131,7 +135,6 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // assistant's summary — is the agent console, and lands next. `evaluateSend`
   // already READS conversations.status to suspend the assistant, which is why
   // the table exists a slice before the screen that fills it in.
-  'conversations.language': 'set by the conversation router (the model runtime slice)',
 };
 
 beforeAll(async () => {

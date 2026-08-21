@@ -10,6 +10,7 @@ import { scoreOnCreate } from './f39-scoring-routes.js';
 import { autoAssignLead } from './f40-assignment-routes.js';
 import { callerOrgIds, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import type { ReassignQueue } from './reassign-queue.js';
+import type { DeferredSendQueue } from './deferred-queue.js';
 import type { RateLimiter } from './rate-limit.js';
 import { distributeLead } from './f45-distribution-routes.js';
 import { connectorKeyExists, resolveConnector } from './f49-connector-routes.js';
@@ -214,7 +215,7 @@ function adfToCandidate(adf: AdfLead): Record<string, unknown> {
   };
 }
 
-export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue, limiter: RateLimiter): void {
+export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, reassign: ReassignQueue, limiter: RateLimiter, deferred: DeferredSendQueue): void {
   app.route({
     method: 'POST',
     url: '/in/v1/leads/:token',
@@ -374,6 +375,26 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, rea
           attempt: 0,
         });
       }
+
+      // F-59 (overview.md §5): the 60-second clock starts at this ACK — the
+      // first-touch job goes on the queue the moment the lead is committed.
+      // The job id is deterministic PER LEAD (a BullMQ retry of this enqueue
+      // cannot double-greet); provider-level intake idempotency is the
+      // spool's job when the Flow pipeline lands. And the ACK never waits on
+      // a sick Redis: p99 < 1s is a promise to the provider, so a lost
+      // enqueue is a loud log, not a hung webhook (D-059).
+      await Promise.race([
+        deferred.enqueueFirstTouch({
+          organization_id: resolved.organization_id,
+          lead_id: leadId.id,
+        }),
+        new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+      ]).catch((err: unknown) => {
+        request.log.warn(
+          { lead_id: leadId.id, err: err instanceof Error ? err.message : String(err) },
+          'first-touch enqueue failed — the lead is committed but ungreeted',
+        );
+      });
 
       return reply.status(202).send({ received: true, lead_id: leadId.id });
     },

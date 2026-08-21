@@ -40,6 +40,10 @@
       "types": "./dist/f19-send.d.ts",
       "default": "./dist/f19-send.js"
     },
+    "./inbound-router": {
+      "types": "./dist/f23-inbound-router.d.ts",
+      "default": "./dist/f23-inbound-router.js"
+    },
     "./cascade": {
       "types": "./dist/f42-cascade-routes.d.ts",
       "default": "./dist/f42-cascade-routes.js"

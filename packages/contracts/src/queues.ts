@@ -42,6 +42,7 @@ export const QUEUE_DEFERRED_SEND = 'deferred-send';
 export const QUEUE_ASSISTANT_TURN = 'assistant-turn';
 export const QUEUE_LEAD_REASSIGN = 'lead-reassign';
 export const QUEUE_AI_EXTRACTION = 'ai-extraction';
+export const QUEUE_FIRST_TOUCH = 'first-touch';
 
 /**
  * Build the options every Queue and Worker must be constructed with.
@@ -96,6 +97,17 @@ export const AiExtractionJob = z.object({
   message_id: z.uuid(),
 });
 export type AiExtractionJobT = z.infer<typeof AiExtractionJob>;
+
+/**
+ * A fresh lead's first AI message (F-59, overview.md §5): the 60-second SLA
+ * job, deterministic id lead:{leadId}:first-touch so a double intake ACK
+ * cannot queue two greetings.
+ */
+export const FirstTouchJob = z.object({
+  organization_id: z.uuid(),
+  lead_id: z.uuid(),
+});
+export type FirstTouchJobT = z.infer<typeof FirstTouchJob>;
 
 /**
  * A message the compliance gate deferred (usually quiet hours).

@@ -1,3 +1,20 @@
+## 2026-08-21 (tick 13) — F-59 first touch, reviewed twice (session limit ate round one)
+
+The 60-second greeting is real: intake commits the lead, enqueues
+lead:{id}:first-touch, the worker composes the §6 template (identification
++ STOP/ARRÊT, FR default, duplicate-confirming variant) and sends it
+through the SAME gate as every human. The review run that a session limit
+aborted returned empty — shipping on that would have missed NINE real
+defect classes the resumed run confirmed: quiet-deferred greetings dropped
+forever, SLA stamps committed before delivery (with idempotency keyed on
+the very stamp), carrier rejections swallowed, provider-supplied
+vehicle_interest tripping the guard into silence, EN conversations locked
+French, cross-lead thread barging, a Redis outage hanging the intake ACK.
+All fixed: stage→deliver→stamp ordering with crash recovery, deferral
+rides the F-21 deferred-send job, safeFirstTouchMessage degrades dirty
+interests, conversation language locks at creation. 9/9 worker suite,
+gate 29/29. Never trust an aborted review's empty verdict.
+
 ## 2026-08-21 (tick 12) — the live eval tier ran, and the model aced it
 
 runLiveEvals in packages/ai: behavioral probes against the REAL model

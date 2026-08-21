@@ -36,6 +36,27 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-059 — 2026-08-21 — First touch: stage, deliver, THEN stamp
+
+F-59 (overview.md §5, §6 templates), shaped by the review's nine confirmed
+defect classes. (1) Order is the design: message row commits first, the
+carrier delivers second, the SLA stamp (chatbot_engaged_at + forward-only
+status) lands ONLY on carrier acceptance — a crash between any two steps
+re-runs into redeliver/stamp-only recovery, never a second greeting row.
+(2) A gate deferral (tenant turned first_touch_quiet_exempt off) rides a
+DeferredSendJob to the window opening — the F-21 shape, re-gated on wake —
+never a silent drop. (3) The template is composed through
+safeFirstTouchMessage: a price-shaped vehicle_interest from a provider
+degrades to the generic phrase instead of tripping the guard the message
+must pass as a bot send. (4) The conversation's language is locked at
+creation from the lead's preference — an EN lead's later turns cannot
+drift French. (5) A phone whose live conversation belongs to ANOTHER lead
+is skipped: no barging into somebody's thread, no cross-lead SLA stamps.
+(6) The intake ACK never waits on a sick Redis (1.5s race + loud log);
+provider-level intake idempotency belongs to the Flow spool when it lands.
+(7) The worker gates on the DEPLOYMENT AI switch; the per-tenant switch
+arrives with the admin console.
+
 ## D-058 — 2026-08-21 — Extraction: every message, every snapshot, throws retry
 
 F-57 (conversation-engine.md §5), shaped by the review's 13 confirmed

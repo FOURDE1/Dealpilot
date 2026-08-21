@@ -1,8 +1,8 @@
 import { Queue } from 'bullmq';
 import {
   QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND, queueOpts,
-  QUEUE_AI_EXTRACTION,
-  type AiExtractionJobT, type AssistantTurnJobT, type DeferredSendJobT,
+  QUEUE_AI_EXTRACTION, QUEUE_FIRST_TOUCH,
+  type AiExtractionJobT, type AssistantTurnJobT, type DeferredSendJobT, type FirstTouchJobT,
 } from '@dealpilot/contracts';
 import type { Env } from './env.js';
 
@@ -31,6 +31,7 @@ export interface DeferredSendQueue {
    */
   enqueueAssistantTurn(job: AssistantTurnJobT): Promise<void>;
   enqueueExtraction(job: AiExtractionJobT): Promise<void>;
+  enqueueFirstTouch(job: FirstTouchJobT): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -69,6 +70,12 @@ export function noDeferredSendQueue(
         'a client message arrived and there is no queue to run extraction — data capture is skipped (set REDIS_URL)',
       );
     },
+    async enqueueFirstTouch(job) {
+      warn(
+        { lead_id: job.lead_id },
+        'a fresh lead needs its first touch and there is no queue — the 60s SLA cannot be met (set REDIS_URL)',
+      );
+    },
     async close() {},
   };
 }
@@ -86,6 +93,7 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
   const queue = new Queue<DeferredSendJobT>(QUEUE_DEFERRED_SEND, queueOpts(connection));
   const turns = new Queue<AssistantTurnJobT>(QUEUE_ASSISTANT_TURN, queueOpts(connection));
   const extractions = new Queue<AiExtractionJobT>(QUEUE_AI_EXTRACTION, queueOpts(connection));
+  const firstTouches = new Queue<FirstTouchJobT>(QUEUE_FIRST_TOUCH, queueOpts(connection));
 
   return {
     async enqueue(job, runAt) {
@@ -118,10 +126,22 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
         backoff: { type: 'exponential', delay: 2000 },
       });
     },
+    async enqueueFirstTouch(job) {
+      await firstTouches.add(QUEUE_FIRST_TOUCH, job, {
+        // Deterministic: an intake retry that slips past the ACK dedupe still
+        // cannot queue a second greeting for the same lead.
+        jobId: `lead:${job.lead_id}:first-touch`,
+        removeOnComplete: 1000,
+        removeOnFail: 5000,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+      });
+    },
     close: async () => {
       await queue.close();
       await turns.close();
       await extractions.close();
+      await firstTouches.close();
     },
   };
 }

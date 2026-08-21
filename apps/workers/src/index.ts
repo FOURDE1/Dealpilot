@@ -2,12 +2,14 @@ import { Queue, Worker, type ConnectionOptions } from 'bullmq';
 import { createPool } from '@dealpilot/db';
 import {
   QUEUE_AI_EXTRACTION,
+  QUEUE_FIRST_TOUCH,
   QUEUE_ASSISTANT_TURN,
   QUEUE_DEFERRED_SEND,
   QUEUE_LEAD_REASSIGN,
   REASSIGN_AFTER_MS,
   queueOpts,
   type AiExtractionJobT,
+  type FirstTouchJobT,
   type AssistantTurnJobT,
   type DeferredSendJobT,
   type LeadReassignJobT,
@@ -19,6 +21,7 @@ import { loadEnv } from '@dealpilot/api/env';
 import { runDeferredSend } from './deferred-send.js';
 import { runAssistantTurn } from './assistant-turn.js';
 import { runAiExtraction } from './ai-extraction.js';
+import { runFirstTouch } from './first-touch.js';
 import { createAnthropicExtractionClient } from '@dealpilot/ai';
 import { runLeadReassign } from './lead-reassign.js';
 
@@ -123,6 +126,34 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
       )
     : null;
 
+  // F-59: the first touch — template-only (no model), yet gated with the
+  // same DEPLOYMENT-level switch as the assistant (AI_TRANSPORT): a greeting
+  // from an assistant that cannot then reply is worse than a visible queue
+  // of waiting jobs. The per-tenant ai_enabled switch arrives with the
+  // admin console (D-059).
+  const firstTouchWorker = assistant.enabled
+    ? new Worker<FirstTouchJobT>(
+        QUEUE_FIRST_TOUCH,
+        async (job) =>
+          runFirstTouch(
+            {
+              pool, carrier, env,
+              // A tenant-disabled quiet-hours exemption defers the greeting to
+              // the window opening — as a deferred-send job, re-gated on wake.
+              defer: async (next, runAt) => {
+                await queue.add(QUEUE_DEFERRED_SEND, next, {
+                  delay: Math.max(0, runAt.getTime() - Date.now()),
+                  removeOnComplete: 1000,
+                  removeOnFail: 5000,
+                });
+              },
+            },
+            job.data,
+          ),
+        { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
+      )
+    : null;
+
   // F-42.2: the ten-minute reassignment ladder (FR-LEAD-010, D-046). The
   // module verifies every claim against the database, so concurrency 2 is
   // parallelism, not risk.
@@ -154,6 +185,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
       await worker.close();
       await turnWorker?.close();
       await extractionWorker?.close();
+      await firstTouchWorker?.close();
       await reassignWorker.close();
       await presence.close();
       await queue.close();

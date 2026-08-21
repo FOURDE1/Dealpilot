@@ -406,7 +406,9 @@ export async function buildApp(
   registerF01Routes(app, pool);
   registerF02Routes(app, pool, reassignQueue);
   registerIntakeKeyRoutes(app, pool, env.BETTER_AUTH_URL);
-  registerPublicIntakeRoutes(app, pool, reassignQueue, rateLimiter);
+  const deferredQueue =
+    deps.deferredQueue ?? createDeferredSendQueue(env, (obj, msg) => app.log.warn(obj, msg));
+  registerPublicIntakeRoutes(app, pool, reassignQueue, rateLimiter, deferredQueue);
   registerF04Routes(app, pool);
   registerF05Routes(app, pool);
   registerF07Routes(app, pool);
@@ -419,8 +421,7 @@ export async function buildApp(
   registerF14Routes(app, pool, storage);
   registerF15Routes(app, pool);
   const carrier = deps.carrier ?? createCarrier(env, app.log);
-  const deferredQueue =
-    deps.deferredQueue ?? createDeferredSendQueue(env, (obj, msg) => app.log.warn(obj, msg));
+
   registerF21Routes(app, pool, deps.emitter ?? NO_EMITTER, carrier, env, deferredQueue);
   registerF30Routes(app, pool, carrier, env, deferredQueue, reassignQueue);
   registerF35Routes(app, pool);
