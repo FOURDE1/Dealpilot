@@ -36,6 +36,27 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-061 — 2026-08-21 — Owner budget phasing for AWS (D-060 reserved for F-60 handoff)
+
+Owner decision (via Hassan, 2026-08-21): AWS spend is phased by RESULTS,
+not by calendar. (1) Build phase (now): minimal footprint per
+reliability-and-cost.md §9's build-phase paragraph — ~US$30–60/mo.
+(2) Pilot phase (launched, one dealership, not yet selling to others):
+lean shapes the plan itself documents — Single-AZ db.t4g.small without
+Proxy, one Graviton API task, WAF deferred to hardening — AWS
+~US$175–230/mo, ceiling US$300. (3) Selling phase (product genuinely
+selling leads / onboarding dealer #2): hardening knobs engage — second
+API task, WAF, the documented Multi-AZ db.t4g.small option (~$90 DB
+line) — AWS ceiling US$500. The full ~$750–1,100 envelope engages at
+scale (≈10 rooftops), where the plan's own margin table funds it.
+
+The ONE deferred commitment, named: NFR availability "min 2 tasks /
+2 AZs from production launch" moves from launch to the selling phase —
+a pilot-period AZ event can mean minutes of downtime. No architecture,
+vendor, residency or security change; upgrades are sizing knobs.
+Guardrails: AWS Budgets alerts at $250 (pilot) and $450 (selling);
+ARM64/Graviton images per ADR-014's stated preference.
+
 ## D-059 — 2026-08-21 — First touch: stage, deliver, THEN stamp
 
 F-59 (overview.md §5, §6 templates), shaped by the review's nine confirmed
