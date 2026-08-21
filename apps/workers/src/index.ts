@@ -65,6 +65,25 @@ export function createDeferredSendQueue(redisUrl: string): Queue<DeferredSendJob
   return new Queue<DeferredSendJobT>(QUEUE_DEFERRED_SEND, queueOpts(connection(redisUrl)));
 }
 
+/**
+ * Every BullMQ Worker and Queue is an EventEmitter that re-emits its Redis
+ * connection's errors — and an EventEmitter with no 'error' listener turns
+ * any Redis blip (a disconnect race during drain included) into an uncaught
+ * exception that kills the whole process. Found when the SIGTERM drain check
+ * went flaky-red: the crash wasn't in a job, it was Node's default handler.
+ */
+function guarded<T extends { on(event: 'error', cb: (err: Error) => void): unknown }>(
+  label: string,
+  entity: T,
+): T {
+  entity.on('error', (err) => {
+    process.stderr.write(
+      `${JSON.stringify({ level: 50, time: Date.now(), name: 'workers', label, err: err.message, msg: 'queue connection error' })}\n`,
+    );
+  });
+  return entity;
+}
+
 export async function start(): Promise<{ close: () => Promise<void> }> {
   const env = loadEnv();
   if (!env.REDIS_URL) {
@@ -80,11 +99,11 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
 
   // F-62: the producer side of the analysis queue, for the deferred-send
   // worker's agent replies (the API has its own in deferred-queue.ts).
-  const analysisQueue = new Queue<LiveAnalysisJobT>(
+  const analysisQueue = guarded('analysis-queue', new Queue<LiveAnalysisJobT>(
     QUEUE_LIVE_ANALYSIS,
     queueOpts(connection(env.REDIS_URL)),
-  );
-  const worker = new Worker<DeferredSendJobT>(
+  ));
+  const worker = guarded('deferred-send', new Worker<DeferredSendJobT>(
     QUEUE_DEFERRED_SEND,
     async (job) =>
       runDeferredSend(
@@ -112,7 +131,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
         job.data,
       ),
     { ...queueOpts(connection(env.REDIS_URL)), concurrency: 4 },
-  );
+  ));
 
   // The assistant only consumes when it is switched on. A worker draining the
   // queue with no model would mark every customer's message handled and answer
@@ -123,7 +142,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
   // because the turn worker's handoff moment emits too, not just analysis.
   const realtime = createEmitOnlyEmitter(env.REDIS_URL);
   const turnWorker = assistant.enabled
-    ? new Worker<AssistantTurnJobT>(
+    ? guarded('assistant-turn', new Worker<AssistantTurnJobT>(
         QUEUE_ASSISTANT_TURN,
         async (job) =>
           runAssistantTurn(
@@ -142,13 +161,13 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
             job.data,
           ),
         { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
-      )
+      ))
     : null;
 
   // F-57: the data pass — same gating as the talk pass: only consumes when a
   // model is configured, so jobs pile up visibly rather than draining silently.
   const extractionWorker = assistant.enabled
-    ? new Worker<AiExtractionJobT>(
+    ? guarded('ai-extraction', new Worker<AiExtractionJobT>(
         QUEUE_AI_EXTRACTION,
         async (job) =>
           runAiExtraction(
@@ -163,14 +182,14 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
             job.data,
           ),
         { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
-      )
+      ))
     : null;
 
   // F-62: silent monitoring (§10 post-handoff) — same gating as the other
   // model passes. With no Redis the emitter is silent and the panel simply
   // refetches on its own.
   const analysisWorker = assistant.enabled
-    ? new Worker<LiveAnalysisJobT>(
+    ? guarded('live-analysis', new Worker<LiveAnalysisJobT>(
         QUEUE_LIVE_ANALYSIS,
         async (job) =>
           runLiveAnalysisJob(
@@ -186,7 +205,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
             job.data,
           ),
         { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
-      )
+      ))
     : null;
 
   // F-59: the first touch — template-only (no model), yet gated with the
@@ -195,7 +214,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
   // of waiting jobs. The per-tenant ai_enabled switch arrives with the
   // admin console (D-059).
   const firstTouchWorker = assistant.enabled
-    ? new Worker<FirstTouchJobT>(
+    ? guarded('first-touch', new Worker<FirstTouchJobT>(
         QUEUE_FIRST_TOUCH,
         async (job) =>
           runFirstTouch(
@@ -214,31 +233,31 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
             job.data,
           ),
         { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
-      )
+      ))
     : null;
 
   // F-61: the hourly drip tick (§11.1). NOT gated on assistant.enabled —
   // drips are tenant-authored templates, no model involved, and a rooftop
   // running with AI off still nurtures its lost leads. Repeatable job:
   // BullMQ upserts by (name, repeat), so re-registration on boot is a no-op.
-  const dripQueue = new Queue(QUEUE_DRIP_TICK, queueOpts(connection(env.REDIS_URL)));
+  const dripQueue = guarded('drip-queue', new Queue(QUEUE_DRIP_TICK, queueOpts(connection(env.REDIS_URL))));
   await dripQueue.add(
     QUEUE_DRIP_TICK,
     {},
     { repeat: { pattern: '0 * * * *' }, removeOnComplete: 100, removeOnFail: 100 },
   );
-  const dripWorker = new Worker(
+  const dripWorker = guarded('drip-tick', new Worker(
     QUEUE_DRIP_TICK,
     async () => runDripTick({ pool, carrier, env }),
     { ...queueOpts(connection(env.REDIS_URL)), concurrency: 1 },
-  );
+  ));
 
   // F-42.2: the ten-minute reassignment ladder (FR-LEAD-010, D-046). The
   // module verifies every claim against the database, so concurrency 2 is
   // parallelism, not risk.
-  const reassignQueue = new Queue<LeadReassignJobT>(QUEUE_LEAD_REASSIGN, queueOpts(connection(env.REDIS_URL)));
+  const reassignQueue = guarded('reassign-queue', new Queue<LeadReassignJobT>(QUEUE_LEAD_REASSIGN, queueOpts(connection(env.REDIS_URL))));
   const presence = redisPresenceStore(env.REDIS_URL);
-  const reassignWorker = new Worker<LeadReassignJobT>(
+  const reassignWorker = guarded('lead-reassign', new Worker<LeadReassignJobT>(
     QUEUE_LEAD_REASSIGN,
     async (job) =>
       runLeadReassign(
@@ -257,7 +276,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
         job.data,
       ),
     { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
-  );
+  ));
 
   return {
     close: async () => {

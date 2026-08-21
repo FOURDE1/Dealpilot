@@ -101,6 +101,10 @@ export function createEmitOnlyEmitter(redisUrl: string | undefined): {
   const io = new IOServer();
   const pub = new Redis(redisUrl, { maxRetriesPerRequest: 3, lazyConnect: false });
   const sub = pub.duplicate();
+  // A hint channel degrades, never crashes: an unlistened ioredis 'error'
+  // event takes the whole worker process down with it.
+  pub.on('error', () => {});
+  sub.on('error', () => {});
   io.adapter(createAdapter(pub, sub));
   return {
     emitter: {
@@ -109,9 +113,15 @@ export function createEmitOnlyEmitter(redisUrl: string | undefined): {
       },
     },
     close: async () => {
-      await io.close();
-      pub.disconnect();
-      sub.disconnect();
+      // NOT io.close(): that path assumes an attached HTTP server and reads
+      // httpServer.close — an emit-only server never had one, and the read
+      // throws, which is how CI's SIGTERM drain check went red (run
+      // 32531141801). And quit(), not disconnect(): the adapter's psubscribe
+      // may still be in flight during a fast drain, and an abrupt disconnect
+      // rejects that floating promise — an unhandled rejection that kills
+      // the process mid-shutdown. QUIT waits for pending commands first.
+      await pub.quit().catch(() => {});
+      await sub.quit().catch(() => {});
     },
   };
 }

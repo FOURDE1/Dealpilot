@@ -1,3 +1,21 @@
+## 2026-08-22 (tick 16b) — First red in 18: the SIGTERM drain, twice over
+
+Run 32531141801 (516916f) went RED on the e2e drain check — first red
+since the streak began. Root cause 1 (deterministic, F-62's):
+createEmitOnlyEmitter's close() called io.close(), which assumes an
+attached HTTP server and reads undefined.close — an emit-only server
+never had one. Fixed: close only what we own, via QUIT (not disconnect —
+an abrupt disconnect rejects the adapter's in-flight psubscribe, an
+unhandled rejection that kills the process mid-drain). Root cause 2
+(pre-existing, FLAKY — proven by a worktree baseline at adb76d2 crashing
+1-in-3): every BullMQ Worker/Queue was an EventEmitter with no 'error'
+listener, so any Redis blip during drain became Node's default crash.
+All ten entities now wear guarded() (log-and-continue). Drain proof:
+6/6 clean programmatic start→close cycles (was 4/4 crashes). Lab note:
+a Git Bash `kill` killed the shell wrapper, not the child — the orphaned
+workers process ate queue-roundtrip's jobs until PowerShell Stop-Process
+found it. Regression: f28c-emit-only.test.ts pins the emitter lifecycle.
+
 ## 2026-08-22 (tick 16) — F-62 silent monitoring: the panel goes live
 
 F-61 CI-green (32525989945, adb76d2 — seventeen straight). F-62 (D-063):
