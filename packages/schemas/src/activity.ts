@@ -22,6 +22,8 @@ export const ActivityAction = z.enum([
   'roles_changed', 'revoked', 'reinstated',
   /** Two customer records folded into one (FR-CON-003). */
   'merged',
+  /** A lost lead enrolled in a nurture sequence (automation-notifications.md §11). */
+  'drip_enrolled',
 ]);
 
 export const ActivityEvent = z.object({

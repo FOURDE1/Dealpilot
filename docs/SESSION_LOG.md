@@ -1,3 +1,39 @@
+## 2026-08-21 (tick 15) — F-61 drip sequences: the nurture engine, gate-subordinate
+
+F-60 verified green on CI (run 32505988364, 2187513 — sixteen straight).
+Built F-61 per automation-notifications.md §11 (D-062): 0060 migration
+(drip_sequences config + drip_enrollments rides, RLS iso+member_read,
+SECURITY DEFINER id-only due-scan, activity vocabulary +drip_enrolled),
+core/drip.ts pure engine (dueness, merge fields, CASL footer, condition
+match — 12 unit tests), f61 routes (CRUD as f53's sibling + enrollments
+list), enrollment inside the f02 lost transaction, STOP ends rides in
+f18's atomic act, positive reply ends them in f23, hourly drip-tick worker
+(FOR UPDATE SKIP LOCKED, full f19 gate per send, stage→deliver post-commit,
+honest ride endings per refusal class, human-held threads untouched,
+conversations turn drip_active — previously declared-unreachable vocabulary
+now live). Fixes the build itself surfaced: all-steps-sent scan blind spot
+(finished rides sat active until expiry), 'won' is not a LEAD status
+(half-dead condition removed), dead-column matcher crossing template
+literals (an INSERT with no SET swallowed the next statement's columns),
+agent_active requires assigned_agent_id. Tests: core 12, api f61 5,
+worker tick 7, STOP + reactivation assertions added to f18/f23 suites,
+RLS probe + coverage registry. Gate 29/29 pre-review.
+
+Review wf_18b50a3c-7cd (33 agents; round 1 lost 13 verifiers to the
+session limit — resumed per the never-ship-on-partial rule) confirmed 28 /
+refuted 2: the biggest slice-review harvest yet. All 13 distinct defects
+fixed with regressions (D-062 #8): 'lost' joins F-48's dormant set and a
+drip reply gets an assistant answer (the re-engaged customer heard
+SILENCE before); drips now spend the assistant's daily cap (originator
+'ai' — 4th same-day machine text proven refused); FR/EN step pairs with
+§12's exact merge vocabulary, whole-word opt-out detection, structural
+CASL identification; the tick rides f23's findOrCreateConversation (no
+closed-thread necromancy, no second live thread), redelivers
+never-concluded carrier calls before composing new steps, ends rides on
+permanent rejection, waits without sms_number/store, isolates poison
+rows, and any inbound from an enrolled lead ends their rides. Suites:
+core 14, tick 10, f61 5, f23 12, f30 15, f18 9. Gate 29/29 again. Pushing.
+
 ## 2026-08-21 (tick 14) — F-60 shipped the right way: on the machinery that already existed
 
 The review's decisive finding: core/handoff.ts + f20-handoff.ts already

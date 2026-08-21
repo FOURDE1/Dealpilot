@@ -22,6 +22,7 @@
   "dependencies": {
     "@dealpilot/ai": "workspace:*",
     "@dealpilot/core": "workspace:*",
+    "@dealpilot/schemas": "workspace:*",
     "@dealpilot/api": "workspace:*",
     "@dealpilot/contracts": "workspace:*",
     "@dealpilot/db": "workspace:*",

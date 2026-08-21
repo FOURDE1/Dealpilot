@@ -4,6 +4,19 @@
 > secrets, working exploits against this project, or unpatched vulnerability details
 > beyond what's needed to track the fix.
 
+## 2026-08-21 — F-61 drip engine: accepted risk on the due-scan definer
+
+`drip_due_enrollments()` (0060) is SECURITY DEFINER and EXECUTE-granted to
+`dealpilot_app`, so any request context can invoke it and observe
+(organization_id, enrollment_id) uuid pairs across tenants — opaque
+identifiers only; RLS makes them unusable for any further read or write.
+Accepted for the build phase (same shape as `carrier_resolve_number`,
+0036); the fix on file is a dedicated worker DB role at deploy time, when
+workers get their own credentials (tracked for the AWS phase, D-061).
+Every drip send passes the full f19 compliance gate; the F-61 review
+additionally closed a real gap here: drips now originate as 'ai' and are
+limited by (and counted against) the per-lead daily frequency cap.
+
 ## 2026-08-20 — FR-TEN-006 cost masking shipped
 
 Cross-store cost visibility is now enforced server-side (D-052): masked cost

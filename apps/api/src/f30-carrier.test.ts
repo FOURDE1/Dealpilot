@@ -169,6 +169,30 @@ describe('the queue seam (F-57): who gets a job for which branch', () => {
     expect(enqueued.turns).toHaveLength(1);
     expect(enqueued.extractions).toHaveLength(2);
   });
+
+  it('a reply to a DRIP gets an answer — reactivation enqueues the assistant (F-61)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const phone = '+15145557778';
+    enqueued.turns.length = 0;
+
+    const first = await webhook('/carrier/v1/sms/inbound', {
+      To: storeNumber, From: phone, Body: 'Bonjour', MessageSid: `SM-drip-1-${run}`,
+    });
+    expect(first.statusCode, first.body).toBe(204);
+    expect(enqueued.turns).toHaveLength(1);
+
+    // The campaign thread: a drip went out, the customer answers it. A
+    // re-engaged customer who hears nothing back was re-engaged for nothing.
+    await admin.query(
+      `UPDATE conversations SET status = 'drip_active' WHERE phone_e164 = $1`,
+      [phone],
+    );
+    const reply = await webhook('/carrier/v1/sms/inbound', {
+      To: storeNumber, From: phone, Body: 'Oui, toujours intéressé!', MessageSid: `SM-drip-2-${run}`,
+    });
+    expect(reply.statusCode, reply.body).toBe(204);
+    expect(enqueued.turns).toHaveLength(2);
+  });
 });
 
 describe('an unsigned or forged webhook', () => {

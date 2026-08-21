@@ -262,12 +262,57 @@ describe('a text into a conversation somebody already has', () => {
     const leadId = (JSON.parse(lead.body) as { id: string }).id;
     const first = await withTenant(appPool, orgId, (c) => routeInbound(c, inbound(phone, 'Allo')));
     await admin.query(`UPDATE conversations SET status = 'drip_active' WHERE id = $1`, [first.conversationId]);
-    await admin.query(`UPDATE leads SET status = 'nurture' WHERE id = $1`, [leadId]);
+    // The REACHABLE case (F-61 review): the only drip trigger firing today is
+    // lead.lost, so the campaign's answerer is a LOST lead — the fixture that
+    // used 'nurture' here was exercising a path no production ride takes. The
+    // stale ladder makes the F-48 reset observable.
+    await admin.query(
+      `UPDATE leads SET status = 'lost', assignment_attempts = 2,
+              previous_agents = '["deadbeef-0000-0000-0000-000000000000"]'::jsonb
+       WHERE id = $1`,
+      [leadId],
+    );
+    // F-61: the ride whose message they answered — the reply must end it.
+    const enrollmentId = await withTenant(appPool, orgId, async (c) => {
+      const seq = await c.query<{ id: string }>(
+        `INSERT INTO drip_sequences (organization_id, name, trigger_event, steps, duration_days)
+         VALUES ($1, 'Relance F23', 'lead.lost', '[{"day":0,"body_fr":"Bonjour, des nouvelles?","body_en":"Hello, any news?"}]', 90)
+         RETURNING id`,
+        [orgId],
+      );
+      const enr = await c.query<{ id: string }>(
+        `INSERT INTO drip_enrollments (organization_id, drip_sequence_id, lead_id, conversation_id, expires_at)
+         VALUES ($1, $2, $3, $4, now() + interval '90 days') RETURNING id`,
+        [orgId, seq.rows[0]!.id, leadId, first.conversationId],
+      );
+      return enr.rows[0]!.id;
+    });
 
     const r = await withTenant(appPool, orgId, (c) =>
       routeInbound(c, inbound(phone, 'Oui, ça m’intéresse encore')),
     );
     expect(r).toMatchObject({ kind: 'reactivated', leadId });
+
+    // §11.3: a positive reply pauses the campaign — the ride records WHY.
+    const ride = await admin.query<{ status: string; reactivated_at: Date | null }>(
+      `SELECT status, reactivated_at FROM drip_enrollments WHERE id = $1`, [enrollmentId],
+    );
+    expect(ride.rows[0]!.status).toBe('reactivated');
+    expect(ride.rows[0]!.reactivated_at).not.toBeNull();
+
+    // …and the comeback re-entered the ASSIGNMENT flow (§11.3): fresh ladder,
+    // with the paper trail saying reactivation did it.
+    const ladder = await admin.query<{ assignment_attempts: number; previous_agents: unknown }>(
+      `SELECT assignment_attempts, previous_agents FROM leads WHERE id = $1`, [leadId],
+    );
+    expect(ladder.rows[0]!.assignment_attempts).toBe(0);
+    expect(ladder.rows[0]!.previous_agents).toEqual([]);
+    const trail = await admin.query(
+      `SELECT 1 FROM activity_events
+       WHERE entity_id = $1 AND action = 'updated' AND changes->>'via' = 'reactivation'`,
+      [leadId],
+    );
+    expect(trail.rows.length).toBeGreaterThan(0);
 
     const conv = await admin.query<{ status: string }>(
       `SELECT status FROM conversations WHERE id = $1`, [first.conversationId],

@@ -47,6 +47,19 @@ export interface OutboundRequest {
   readonly jitterMs?: number;
 }
 
+/**
+ * Machine-initiated client messaging is 'ai' (compliance-and-quality.md §1,
+ * §3 classes drips with the assistant's sends): drips share and spend the
+ * same per-lead daily budget. Only the SYSTEM sender — handoff notices,
+ * D-060 — escapes the cap, and 'drip' mapping to 'system' was exactly how
+ * three same-tick drips plus three assistant messages reached one person in
+ * one day with no gate objecting (F-61 review).
+ */
+function originatorOf(senderType: OutboundRequest['senderType']): 'ai' | 'human' | 'system' {
+  if (senderType === 'bot' || senderType === 'drip') return 'ai';
+  return senderType === 'agent' ? 'human' : 'system';
+}
+
 export type SendOutcome =
   | { kind: 'sent'; messageId: string; decisionId: string; consentLedgerId: string }
   | { kind: 'deferred'; decisionId: string; runAt: Date; reason: string }
@@ -151,7 +164,7 @@ async function writeDecision(
      RETURNING id`,
     [
       req.organizationId, req.storeId, req.leadId, req.phoneE164, req.scope, req.messageClass,
-      req.senderType === 'bot' ? 'ai' : req.senderType === 'agent' ? 'human' : 'system',
+      originatorOf(req.senderType),
       d.status,
       d.status === 'allowed' ? null : d.reason,
       d.status === 'allowed' ? d.consentLedgerId : null,
@@ -182,7 +195,7 @@ export async function sendMessage(c: PoolClient, req: OutboundRequest): Promise<
     channel: 'sms',
     scope: req.scope,
     messageClass: req.messageClass,
-    originator: req.senderType === 'bot' ? 'ai' : req.senderType === 'agent' ? 'human' : 'system',
+    originator: originatorOf(req.senderType),
     isSolicitation: req.isSolicitation,
     // Read at execution time, never at enqueue time: a job queued at 20:00 and
     // run at 21:40 must be judged against 21:40.

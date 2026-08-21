@@ -106,6 +106,27 @@ describe('somebody texts STOP', () => {
     await seedConsent();
     expect(await liveConsents()).toBeGreaterThan(0);
 
+    // F-61: a live drip ride for this number — STOP must end it too (§11.3).
+    const enrollmentId = await withTenant(appPool, orgId, async (c) => {
+      const lead = await c.query<{ id: string }>(
+        `INSERT INTO leads (organization_id, store_id, phone, source)
+         VALUES ($1, $2, $3, 'walk_in') RETURNING id`,
+        [orgId, storeA, PHONE],
+      );
+      const seq = await c.query<{ id: string }>(
+        `INSERT INTO drip_sequences (organization_id, name, trigger_event, steps, duration_days)
+         VALUES ($1, 'Relance F18', 'lead.lost', '[{"day":0,"body_fr":"Bonjour, des nouvelles?","body_en":"Hello, any news?"}]', 90)
+         RETURNING id`,
+        [orgId],
+      );
+      const enr = await c.query<{ id: string }>(
+        `INSERT INTO drip_enrollments (organization_id, drip_sequence_id, lead_id, expires_at)
+         VALUES ($1, $2, $3, now() + interval '90 days') RETURNING id`,
+        [orgId, seq.rows[0]!.id, lead.rows[0]!.id],
+      );
+      return enr.rows[0]!.id;
+    });
+
     const outcome = await withTenant(appPool, orgId, (c) =>
       handleInboundSms(c, {
         organizationId: orgId, storeId: storeA, phoneE164: PHONE,
@@ -143,6 +164,13 @@ describe('somebody texts STOP', () => {
       `SELECT 1 FROM platform_suppression WHERE phone_sha256 = $1 AND channel = 'sms'`, [hash],
     );
     expect(platform.rows).toHaveLength(1);
+
+    // 5. the drip ride, ended with the honest status (F-61, §11.3)
+    const ride = await admin.query<{ status: string; opted_out_at: Date | null }>(
+      `SELECT status, opted_out_at FROM drip_enrollments WHERE id = $1`, [enrollmentId],
+    );
+    expect(ride.rows[0]!.status).toBe('opted_out');
+    expect(ride.rows[0]!.opted_out_at).not.toBeNull();
   });
 
   it('stops the OTHER rooftop of the same group too', async (ctx) => {

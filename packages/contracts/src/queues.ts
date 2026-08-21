@@ -43,6 +43,8 @@ export const QUEUE_ASSISTANT_TURN = 'assistant-turn';
 export const QUEUE_LEAD_REASSIGN = 'lead-reassign';
 export const QUEUE_AI_EXTRACTION = 'ai-extraction';
 export const QUEUE_FIRST_TOUCH = 'first-touch';
+/** Hourly repeatable scan (automation-notifications.md §11.1) — no payload. */
+export const QUEUE_DRIP_TICK = 'drip-tick';
 
 /**
  * Build the options every Queue and Worker must be constructed with.

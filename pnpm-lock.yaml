@@ -209,6 +209,9 @@ importers:
       '@dealpilot/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@dealpilot/schemas':
+        specifier: workspace:*
+        version: link:../../packages/schemas
       bullmq:
         specifier: 5.81.3
         version: 5.81.3

@@ -6,6 +6,7 @@ import {
   QUEUE_ASSISTANT_TURN,
   QUEUE_DEFERRED_SEND,
   QUEUE_LEAD_REASSIGN,
+  QUEUE_DRIP_TICK,
   REASSIGN_AFTER_MS,
   queueOpts,
   type AiExtractionJobT,
@@ -24,6 +25,7 @@ import { runAiExtraction } from './ai-extraction.js';
 import { runFirstTouch } from './first-touch.js';
 import { createAnthropicExtractionClient } from '@dealpilot/ai';
 import { runLeadReassign } from './lead-reassign.js';
+import { runDripTick } from './drip-tick.js';
 
 export { runDeferredSend } from './deferred-send.js';
 export type { DeferredSendDeps, DeferredSendResult } from './deferred-send.js';
@@ -167,6 +169,22 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
       )
     : null;
 
+  // F-61: the hourly drip tick (§11.1). NOT gated on assistant.enabled —
+  // drips are tenant-authored templates, no model involved, and a rooftop
+  // running with AI off still nurtures its lost leads. Repeatable job:
+  // BullMQ upserts by (name, repeat), so re-registration on boot is a no-op.
+  const dripQueue = new Queue(QUEUE_DRIP_TICK, queueOpts(connection(env.REDIS_URL)));
+  await dripQueue.add(
+    QUEUE_DRIP_TICK,
+    {},
+    { repeat: { pattern: '0 * * * *' }, removeOnComplete: 100, removeOnFail: 100 },
+  );
+  const dripWorker = new Worker(
+    QUEUE_DRIP_TICK,
+    async () => runDripTick({ pool, carrier, env }),
+    { ...queueOpts(connection(env.REDIS_URL)), concurrency: 1 },
+  );
+
   // F-42.2: the ten-minute reassignment ladder (FR-LEAD-010, D-046). The
   // module verifies every claim against the database, so concurrency 2 is
   // parallelism, not risk.
@@ -199,6 +217,8 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
       await turnWorker?.close();
       await extractionWorker?.close();
       await firstTouchWorker?.close();
+      await dripWorker.close();
+      await dripQueue.close();
       await reassignWorker.close();
       await presence.close();
       await queue.close();

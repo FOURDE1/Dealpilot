@@ -36,6 +36,54 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-062 — 2026-08-21 — Drips: due-ness is scheduling, permission is the gate's
+
+F-61 (automation-notifications.md §11). (1) The engine decides only WHEN a
+step is due; every send still passes the full f19 compliance gate, and the
+hourly tick is the ONLY retry mechanism — a deferred step is simply retried
+next hour, never handed to a second scheduler (two schedulers for one
+message is two chances to send it). (2) Gate refusals map to honest ride
+endings: suppression/DNC → opted_out, consent gone → expired, guard-unsafe
+template → expired (deterministic failure would retry forever); frequency
+cap and human takeover just wait. (3) The spec's 'paused' status is folded
+into 'reactivated' — its only trigger ("positive reply during a drip") IS
+the reactivation event; one event, one status. lead.unresponsive and
+delivery.completed stay declared in the trigger enum but fire nothing until
+their upstream modules exist. (4) Sequences default to the 'conversational'
+consent scope (re-engagement about the customer's own inquiry rides the
+inquiry basis); 'marketing' is opt-in per sequence and declares
+is_solicitation, which demands express consent at the gate. (5) Enrollment
+happens INSIDE the f02 lost-transition transaction (loss and ride commit
+together); STOP ends rides in f18's atomic act; a positive reply ends them
+in f23. (6) The cross-tenant scan is a SECURITY DEFINER function returning
+ids only (0036 precedent) — every read and write then re-enters RLS under
+withTenant. It also surfaces all-steps-sent rides, a blind spot the worker
+suite caught: a finished ride otherwise sat 'active' until expiry. (7) The
+dead-column guard's UPDATE matcher no longer crosses template-literal
+boundaries — an INSERT with no SET was swallowing the next statement's SET
+list and claiming its columns (found because f18's enrollment opt-out
+vanished into the platform_suppression INSERT).
+(8) The adversarial review (33 agents, 28 confirmed) reshaped the slice:
+steps are an FR/EN PAIR (body_fr/body_en, ADR-019) rendered by conversation
+language ('en-CA' counts as English); merge fields are §12's exact
+vocabulary ({{first_name}} {{last_name}} {{vehicle}} {{salesperson}}
+{{store_name}} {{store_phone}}) with unknown tokens stripped, the store
+name appended when the body lacks it (CASL identification) and the opt-out
+check by whole word (substring read 'financement' as teaching FIN); drips
+originate as 'ai' and SPEND the assistant's daily cap (they mapped to
+'system' and escaped it — only D-060's SYSTEM notices escape); the tick
+finds threads through f23's findOrCreateConversation (never a closed one,
+never a second live thread per phone), redelivers a step whose carrier
+call never concluded before composing anything new (F-59 discipline), ends
+a ride on permanent carrier rejection, waits when the rooftop has no
+sms_number or the lead no store, isolates poison rows per enrollment, and
+a reply from an enrolled lead ends their rides from ANY branch — 'lost'
+now counts as dormant in F-48's comeback (the only firing trigger IS
+lead.lost) and a 'reactivated' route gets an assistant answer. Declared
+deviation kept: consent scope stays per-sequence (per-step cem_class
+arrives with the template module).
+**Decided by:** Claude (implementation), 2026-08-21
+
 ## D-060 — 2026-08-21 — Handoff: the existing machinery wins; every reason hands off
 
 F-60 (conversation-engine.md §9), rebuilt after review. (1) The rules and

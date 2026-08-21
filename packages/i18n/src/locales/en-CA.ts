@@ -1009,6 +1009,7 @@ export const enCA = {
     action_revoked: 'Access revoked',
     action_reinstated: 'Access reinstated',
     action_merged: 'Records merged',
+    action_drip_enrolled: 'Enrolled in a follow-up sequence',
   },
   invitations: {
     title: 'Invitation',

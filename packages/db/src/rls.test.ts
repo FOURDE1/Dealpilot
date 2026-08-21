@@ -247,6 +247,53 @@ describe('row-level security', () => {
     ).rejects.toThrow();
   });
 
+  it('drip_sequences + drip_enrollments: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const seqId = await withTenant(app, org1, async (c) => {
+      const seq = await c.query<{ id: string }>(
+        `INSERT INTO drip_sequences (organization_id, name, trigger_event, steps, duration_days)
+         VALUES ($1, 'Probe drip', 'lead.lost', '[{"day":0,"body_fr":"Bonjour, des nouvelles?","body_en":"Hello, any news?"}]', 90)
+         RETURNING id`,
+        [org1],
+      );
+      const lead = await c.query<{ id: string }>(
+        `INSERT INTO leads (organization_id, store_id, phone, source)
+         VALUES ($1, NULL, '+15145550993', 'walk_in') RETURNING id`,
+        [org1],
+      );
+      await c.query(
+        `INSERT INTO drip_enrollments (organization_id, drip_sequence_id, lead_id, expires_at)
+         VALUES ($1, $2, $3, now() + interval '90 days')`,
+        [org1, seq.rows[0]!.id, lead.rows[0]!.id],
+      );
+      return seq.rows[0]!.id;
+    });
+    const rival = await withTenant(app, org2, async (c) => ({
+      sequences: (await c.query(`SELECT * FROM drip_sequences WHERE name = 'Probe drip'`)).rows,
+      enrollments: (await c.query(`SELECT * FROM drip_enrollments`)).rows,
+    }));
+    expect(rival.sequences).toHaveLength(0);
+    expect(rival.enrollments).toHaveLength(0);
+    await expect(
+      withTenant(app, org2, async (c) => {
+        await c.query(
+          `INSERT INTO drip_sequences (organization_id, name, trigger_event, steps, duration_days)
+           VALUES ($1, 'Smuggled drip', 'lead.lost', '[{"day":0,"body_fr":"Bonjour, des nouvelles?","body_en":"Hello, any news?"}]', 90)`,
+          [org1],
+        );
+      }),
+    ).rejects.toThrow();
+    // The definer scan sees due work across tenants (its whole job), but
+    // exposes ids ONLY — no body, no phone, nothing worth stealing.
+    const scanned = await withTenant(app, org2, async (c) =>
+      (await c.query<Record<string, unknown>>(`SELECT * FROM drip_due_enrollments(now())`)).rows,
+    );
+    const ours = scanned.filter((r) => r['organization_id'] === org1);
+    expect(ours.length).toBeGreaterThan(0);
+    expect(Object.keys(ours[0]!).sort()).toEqual(['enrollment_id', 'organization_id']);
+    void seqId;
+  });
+
   it('lead_duplicates: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const pairIds = await withTenant(app, org1, async (c) => {

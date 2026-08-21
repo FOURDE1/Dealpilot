@@ -24,6 +24,7 @@ const ACTION_KEYS = {
   revoked: 'action_revoked',
   reinstated: 'action_reinstated',
   merged: 'action_merged',
+  drip_enrolled: 'action_drip_enrolled',
 } as const satisfies Record<ActivityActionT, string>;
 
 /** Dealer-facing names for the most common wire fields; raw name otherwise. */

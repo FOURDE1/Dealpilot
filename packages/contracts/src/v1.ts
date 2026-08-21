@@ -155,6 +155,12 @@ import {
   CreateConnectorInput,
   UpdateConnectorInput,
   ConnectorListQuery,
+  DripSequence,
+  CreateDripSequenceInput,
+  UpdateDripSequenceInput,
+  ListDripSequencesQuery,
+  DripEnrollment,
+  ListDripEnrollmentsQuery,
 } from '@dealpilot/schemas';
 const c = initContract();
 
@@ -769,6 +775,43 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: z.undefined(),
       responses: { 204: z.undefined(), ...errorResponses },
+    },
+  }),
+  /** F-61 drip sequences (automation-notifications.md §11): client-facing
+   * nurture config + the enrollments riding it. No DELETE — a sequence with
+   * history deactivates (active=false); erasing it would orphan the audit
+   * trail of what was sent and why. */
+  dripSequences: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/drip-sequences',
+      query: ListDripSequencesQuery,
+      responses: {
+        200: z.object({ items: z.array(DripSequence), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/drip-sequences',
+      body: CreateDripSequenceInput,
+      responses: { 201: DripSequence, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/drip-sequences/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateDripSequenceInput,
+      responses: { 200: DripSequence, ...errorResponses },
+    },
+    enrollments: {
+      method: 'GET',
+      path: '/api/v1/drip-enrollments',
+      query: ListDripEnrollmentsQuery,
+      responses: {
+        200: z.object({ items: z.array(DripEnrollment), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
     },
   }),
   /** F-52 be-back queue (leads.md §9): dormant leads worth another call. */

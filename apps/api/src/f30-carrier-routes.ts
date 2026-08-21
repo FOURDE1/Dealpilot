@@ -140,12 +140,14 @@ export function registerF30Routes(
         body: text,
         providerRef: messageSid,
       });
-      // The router decides WHO answers. `to_assistant` is the only branch that
-      // wants a model — a handed-off thread goes to a person, a suppressed
-      // number is filed and not answered, and an opt-out has already been
-      // applied above.
+      // The router decides WHO answers. `to_assistant` wants a model, and so
+      // does `reactivated` (F-61 review): the router just flipped that thread
+      // back to bot_active because a drip landed — a customer who answered a
+      // campaign and hears nothing back was re-engaged for nothing. A
+      // handed-off thread still goes to a person, a suppressed number is
+      // filed and not answered, and an opt-out has already been applied above.
       return {
-        answer: route.kind === 'to_assistant'
+        answer: route.kind === 'to_assistant' || route.kind === 'reactivated'
           ? { conversationId: route.conversationId, messageId: route.messageId }
           : null,
         // §5: the DATA pass rides every recorded client message — a customer

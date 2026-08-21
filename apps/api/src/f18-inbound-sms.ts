@@ -97,7 +97,20 @@ async function applyOptOut(
     [phoneHash(msg.phoneE164)],
   );
 
-  // 5. The trail. actor_user_id is NULL because a customer did this, not a
+  // 5. Every live drip ride for this number, ended (§11.3: STOP is "global
+  //    across sequences"). The suppression row already blocks the sends at
+  //    the gate; this makes the enrollment SAY why it stopped, instead of
+  //    ticking forever against a wall.
+  await c.query(
+    `UPDATE drip_enrollments e
+     SET status = 'opted_out', opted_out_at = now()
+     FROM leads l
+     WHERE l.organization_id = e.organization_id AND l.id = e.lead_id
+       AND e.organization_id = $1 AND e.status = 'active' AND l.phone = $2`,
+    [msg.organizationId, msg.phoneE164],
+  );
+
+  // 6. The trail. actor_user_id is NULL because a customer did this, not a
   //    member of staff — pretending otherwise would put a name against
   //    somebody else's decision.
   await c.query(

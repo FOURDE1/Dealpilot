@@ -9,6 +9,7 @@ import { inquiryConsentRows } from '@dealpilot/core';
 import { scoreOnCreate } from './f39-scoring-routes.js';
 import { autoAssignLead } from './f40-assignment-routes.js';
 import { detectDuplicatesFor } from './f54-duplicate-routes.js';
+import { enrollLeadInDrips } from './f61-drip-routes.js';
 import {
   callerOrgIds,
   conflictFrom,
@@ -347,6 +348,17 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool, reassign: Re
         ]);
         if (Object.keys(changed).length > 0) {
           await recordEvent(c, { ...evt, action: 'updated', changes: changed });
+        }
+        // F-61: the moment a lead BECOMES lost, every matching lead.lost drip
+        // sequence enrolls it — in this same transaction, so the loss and its
+        // nurture ride commit together or not at all. The reason is non-null
+        // here by the invariant enforced above.
+        if (input.status === 'lost' && prior['status'] !== 'lost') {
+          const reasonId =
+            'lost_reason_id' in input ? input.lost_reason_id : (prior['lost_reason_id'] as string | null);
+          if (reasonId) {
+            await enrollLeadInDrips(c, { organizationId: orgId, leadId, lostReasonId: reasonId });
+          }
         }
         return r.rows[0];
       });

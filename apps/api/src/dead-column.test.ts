@@ -63,6 +63,12 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // this guard scans apps/api only.
   'leads.chatbot_engaged_at': 'written by the first-touch worker',
 
+  // F-61: the hourly drip-tick WORKER advances rides and stamps sends
+  // (apps/workers/src/drip-tick.ts); this guard scans apps/api only. The
+  // API's own writes (f18 opt-out, f61 reactivation) are attributed above.
+  'drip_enrollments.current_step': 'written by the drip-tick worker',
+  'drip_enrollments.last_message_sent_at': 'written by the drip-tick worker',
+
   // F-57: the extraction WORKER writes these (apps/workers/src/ai-extraction.ts)
   // — this guard scans apps/api only, and the worker is the only writer by
   // design (§5: write-back happens in the extraction worker).
@@ -199,8 +205,13 @@ function qualifiedWrites(apiSrc: string): Set<string> {
   // INSERT INTO t (a, b, c)
   for (const m of apiSrc.matchAll(/INSERT\s+INTO\s+(\w+)\s*\(([^)]*)\)/gis)) add(m[1]!, m[2]!);
   // UPDATE t SET a = …, b = …    (and the ON CONFLICT DO UPDATE SET of an insert)
+  // The span must not cross a template-literal boundary: SQL statements live
+  // one per literal, and letting the match run past a backtick let an INSERT
+  // with no SET of its own swallow the NEXT statement's SET list and claim
+  // its columns (found when f18's drip_enrollments UPDATE vanished into the
+  // platform_suppression INSERT above it).
   for (const m of apiSrc.matchAll(
-    /(?:UPDATE|INSERT\s+INTO)\s+(\w+)[\s\S]{0,600}?\bSET\s+([\s\S]{0,400}?)(?:WHERE|RETURNING|`|;)/gis,
+    /(?:UPDATE|INSERT\s+INTO)\s+(\w+)[^`]{0,600}?\bSET\s+([\s\S]{0,400}?)(?:WHERE|RETURNING|`|;)/gis,
   )) {
     const table = m[1]!;
     for (const pair of m[2]!.matchAll(/(\w+)\s*=/g)) add(table, pair[1]!);

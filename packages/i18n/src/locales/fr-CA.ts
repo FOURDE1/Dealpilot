@@ -1009,6 +1009,7 @@ export const frCA = {
     action_revoked: 'Accès retiré',
     action_reinstated: 'Accès rétabli',
     action_merged: 'Fiches fusionnées',
+    action_drip_enrolled: 'Inscrit à une séquence de relance',
   },
   invitations: {
     title: 'Invitation',

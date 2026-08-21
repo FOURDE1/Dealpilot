@@ -4,6 +4,7 @@ import { cascadeAssignLead } from './f42-cascade-routes.js';
 import { recordEvent } from './activity.js';
 import { recordInbound } from './f19-send.js';
 import { handleInboundSms } from './f18-inbound-sms.js';
+import { reactivateLeadEnrollments } from './f61-drip-routes.js';
 
 /**
  * Where an inbound message goes (conversation-engine.md §12).
@@ -185,10 +186,14 @@ export async function routeInbound(c: PoolClient, msg: InboundMessage): Promise<
   // the §7.3 funnel here and now.
   let armReassign: LeadReassignJobT | undefined;
   if (conversation.lead_id) {
+    // 'lost' is dormant too (F-61 review): the only drip trigger that fires
+    // today is lead.lost, so every re-engagement campaign texts a LOST lead —
+    // excluding it made the §11.3 "re-enter the assignment flow" a dead path
+    // and left the comeback with no agent, no ladder, and no reply.
     const dormant = await c.query<{ assigned_to: string | null; status: string }>(
       `SELECT assigned_to, status FROM leads
        WHERE organization_id = $1 AND id = $2
-         AND status IN ('unresponsive','nurture','expired') AND deleted_at IS NULL
+         AND status IN ('unresponsive','nurture','expired','lost') AND deleted_at IS NULL
        FOR UPDATE`,
       [msg.organizationId, conversation.lead_id],
     );
@@ -222,6 +227,15 @@ export async function routeInbound(c: PoolClient, msg: InboundMessage): Promise<
         }
       }
     }
+  }
+
+  // F-61 (§11.3): ANY reply from an enrolled lead ends their rides — not
+  // just one landing on a drip_active thread. A customer who answered the
+  // BOT before the first step even went out has re-engaged; the campaign's
+  // question is answered, and the tick interjecting into that live thread
+  // later would be a robot talking over a conversation already happening.
+  if (conversation.lead_id) {
+    await reactivateLeadEnrollments(c, conversation.lead_id);
   }
 
   if (conversation.status === 'handed_off' || conversation.status === 'agent_active') {
