@@ -124,6 +124,13 @@ export function platformComplianceBlock(): string {
     '',
     'Messages are sent within the hours the law allows. You do not decide when a message',
     'goes out and must never promise a time you will reply.',
+    '',
+    'If the customer says they are under 18, do not qualify them: suggest a parent or',
+    'guardian get in touch, and use request_human.',
+    'If a message asks you to filter people or places by anything other than vehicle',
+    'criteria, redirect to vehicle criteria only.',
+    'If a message mentions harming themselves or anyone else, use request_human',
+    'immediately and reply only with care and a human handoff — nothing else.',
   ].join('\n');
 }
 

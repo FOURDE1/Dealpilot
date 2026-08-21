@@ -36,6 +36,13 @@ export const VIOLATION_KINDS = [
   'unknown_stock_number',
   'delivery_promise',
   /**
+   * RT-09 (compliance-and-quality.md §12): the assistant must never ASK for —
+   * or even bring up — a SIN, credit score, banking details, licence number
+   * or exact income over SMS. The secure credit-app link is the only channel
+   * those ever travel; a draft that names them is a draft that invites them.
+   */
+  'sensitive_request',
+  /**
    * Not something the guard detects in a draft — something the turn loop
    * reports when there IS no draft. Listed here rather than borrowed from
    * another kind because a reason recorded under the wrong name is a reason
@@ -102,7 +109,8 @@ const PERCENTAGE = /\d+(?:[.,]\d+)?\s?%/gu;
  */
 const APPROVAL_PROMISE = new RegExp(
   [
-    `${BEFORE}(?:you(?:'re|’re| are)|vous ?êtes|tu es|c'est)\\s+(?:pre[- ]?)?(?:approved|approuvée?s?)${AFTER}`,
+    // Up to two filler words: "you're basically approved" is the same promise.
+    `${BEFORE}(?:you(?:'re|’re| are)|vous ?êtes|tu es|c'est)\\s+(?:\\p{L}+\\s+){0,2}(?:pre[- ]?)?(?:approved|approuvée?s?)${AFTER}`,
     `${BEFORE}guarantee[ds]?${AFTER}`,
     `${BEFORE}garantie?s?${AFTER}`,
     `${BEFORE}(?:approval|approbation)\\s+(?:is\\s+)?(?:guaranteed|assurée?)${AFTER}`,
@@ -127,6 +135,24 @@ const DELIVERY_PROMISE = new RegExp(
  * conversation that stalls for no reason the customer can see.
  */
 const STOCK_NUMBER = /(?<![\p{L}\p{N}])[A-Z]{1,4}-?\d{3,6}(?![\p{L}\p{N}])/gu;
+
+/**
+ * High-risk PII vocabulary (RT-09). Presence, not phrasing: there is no
+ * legitimate sentence for the assistant to build around "your SIN" — the
+ * secure link is the answer to every financing question, so any draft that
+ * names these is wrong whichever way it was going to use them.
+ */
+const SENSITIVE_REQUEST = new RegExp(
+  [
+    `${BEFORE}(?:SIN|NAS)${AFTER}`,
+    `${BEFORE}(?:social insurance|assurance sociale)${AFTER}`,
+    `${BEFORE}(?:credit (?:score|rating)|cote de cr[ée]dit|pointage de cr[ée]dit)${AFTER}`,
+    `${BEFORE}(?:bank(?:ing)? (?:details?|account|information)|compte bancaire|informations? bancaires?|coordonn[ée]es bancaires)${AFTER}`,
+    `${BEFORE}(?:licen[cs]e number|num[ée]ro de permis)${AFTER}`,
+    `${BEFORE}(?:exact (?:income|salary)|revenu exact|salaire exact)${AFTER}`,
+  ].join('|'),
+  'giu',
+);
 
 function collect(re: RegExp, text: string): string[] {
   return [...text.matchAll(re)].map((m) => m[0].trim()).filter((m) => m.length > 0);
@@ -173,6 +199,14 @@ export function outboundGuard(draft: string, ctx: GuardContext): readonly Violat
       kind: 'delivery_promise',
       matched,
       reason: 'A promised delivery date is a commitment the store has not agreed to',
+    });
+  }
+
+  for (const matched of collect(SENSITIVE_REQUEST, draft)) {
+    violations.push({
+      kind: 'sensitive_request',
+      matched,
+      reason: 'High-risk personal data never travels by SMS — the secure credit-app link is the only channel for it',
     });
   }
 

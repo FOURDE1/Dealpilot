@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { redactHighRiskPII } from '@dealpilot/ai';
 import { withTenant, type Pool } from '@dealpilot/db';
 import { routeInbound } from './f23-inbound-router.js';
 import type { ReassignQueue } from './reassign-queue.js';
@@ -89,7 +90,10 @@ export function registerF30Routes(
 
     const to = one(body, 'To');
     const from = one(body, 'From');
-    const text = one(body, 'Body') ?? '';
+    // §7 / RT-08: volunteered SINs and card numbers are redacted AT the door —
+    // stored redacted, logged redacted, modelled redacted. STOP keywords are
+    // words, not digits, so the opt-out pipeline is unaffected.
+    const text = redactHighRiskPII(one(body, 'Body') ?? '');
     const messageSid = one(body, 'MessageSid') ?? one(body, 'SmsMessageSid');
     if (!to || !from || !messageSid) {
       return reply.status(400).send(envelopePublic('validation_failed', 'Missing To, From or MessageSid'));

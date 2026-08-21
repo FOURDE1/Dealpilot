@@ -36,6 +36,27 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-057 — 2026-08-21 — Eval harness: deterministic CI core, live tier declared
+
+F-56 (compliance-and-quality.md §10, ADR-023). (1) CI cases are fully
+deterministic — the model is a SCRIPT, so what CI proves is the machinery:
+spotlighting, defanging, redaction, the guard, the one-regeneration path,
+tool-loop bounds. Live-model categories (happy-path 40, objections,
+handoff triggers, extraction F1, judge scoring) are DECLARED in the same
+jsonl with kind:'live' and counted by CI — never silently dropped — and
+run nightly/pre-release once the Anthropic account has credits. (2)
+Cross-layer red-team cases (STOP, consent expiry, quiet hours, verbatim
+YES/OUI) are 'xlayer' pins: the eval suite asserts the API/core test that
+owns the behavior still exists and still names it, so deleting a pinning
+suite breaks the release gate here. (3) The suite-only-grows rule is a
+count floor plus a required RT-01..23 id set. (4) Building the suite
+found and fixed four product gaps before any customer exists: the guard
+never blocked ASKING for SIN/banking (new sensitive_request kind, FR+EN);
+volunteered SINs/cards were not redacted at intake (now redacted at the
+carrier door, before storage and before any model); the compliance block
+lacked the minor/steering/self-harm rules (RT-18/19/20); and
+"you're basically approved" slipped the approval regex (filler-word gap).
+
 ## D-056 — 2026-08-20 — Duplicate merge: what follows the keeper and what stays
 
 F-54 (leads.md §8) interpretations. (1) Re-pointed to the keeper in the

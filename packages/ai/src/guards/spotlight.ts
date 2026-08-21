@@ -64,13 +64,30 @@ const INVISIBLE = new RegExp(
  * this runs before anything downstream reads the text.
  */
 export function sanitizeUntrusted(raw: string, maxLength: number): string {
-  return raw
-    .normalize('NFC')
-    .replace(INVISIBLE, '')
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-    .slice(0, maxLength);
+  return redactHighRiskPII(
+    raw
+      .normalize('NFC')
+      .replace(INVISIBLE, '')
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim(),
+  ).slice(0, maxLength);
+}
+
+/** A SIN in its written forms: 3-3-3 groups, or a bare 9-digit run that is
+ * not part of a longer number (a 10-digit phone must survive intact). */
+const SIN = /(?<!\d)\d{3}[ -]\d{3}[ -]\d{3}(?!\d)|(?<![\d(+])\d{9}(?!\d)/g;
+/** Card-shaped digit runs: 13-19 digits, optionally grouped. */
+const CARD = /(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)/g;
+
+/**
+ * RT-08 (§7): volunteered high-risk PII is redacted AT INTAKE — before the
+ * model, before storage, before any log. "My SIN is 123 456 789" must reach
+ * every downstream reader as "[REDACTED]": a number nobody stored is a number
+ * nobody can leak, and the assistant cannot echo what it never saw.
+ */
+export function redactHighRiskPII(text: string): string {
+  return text.replace(CARD, '[REDACTED]').replace(SIN, '[REDACTED]');
 }
 
 /**

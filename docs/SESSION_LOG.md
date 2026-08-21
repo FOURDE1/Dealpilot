@@ -1,3 +1,20 @@
+## 2026-08-21 (tick 10) — F-56 eval harness; the suite found four holes on day one
+
+ADR-023's release gate exists: packages/ai/evals (adversarial.jsonl with
+all RT-01..23 + variants = 30 cases, golden.jsonl, judge-rubric.md) and a
+deterministic harness that scripts the model and proves the MACHINERY —
+spotlight wrapping, wrapper-escape defanging, SIN redaction, guard
+violations, the one-regeneration path, tool-loop bounds. Cross-layer
+cases pin the API/core suites that own STOP/consent/quiet-hours, so
+removing those tests breaks this gate. Suite-only-grows enforced as a
+count floor + required id set. And it earned its keep immediately: four
+gaps fixed (sensitive_request guard class, intake PII redaction at the
+carrier door, minor/steering/self-harm prompt rules, the
+'basically approved' regex gap). 101/101 in packages/ai; gate 29/29.
+Twilio verified live (+18195814440 on the Kia Mont-Laurier store);
+Anthropic key valid, waiting on credits — live eval tier armed for the
+moment they land.
+
 ## 2026-08-20 (tick 9) — F-55 win/loss analytics; reports module opens
 
 reports-analytics.md §9 + the leads.md §12 gap it exposed: deal-create now
