@@ -41,6 +41,7 @@ export const QUEUE_PREFIX = 'dealpilot';
 export const QUEUE_DEFERRED_SEND = 'deferred-send';
 export const QUEUE_ASSISTANT_TURN = 'assistant-turn';
 export const QUEUE_LEAD_REASSIGN = 'lead-reassign';
+export const QUEUE_AI_EXTRACTION = 'ai-extraction';
 
 /**
  * Build the options every Queue and Worker must be constructed with.
@@ -80,6 +81,21 @@ export const AssistantTurnJob = z.object({
   attempt: z.number().int().min(0).max(3).default(0),
 });
 export type AssistantTurnJobT = z.infer<typeof AssistantTurnJob>;
+
+/**
+ * Re-derive the structured facts after a client message (F-57, §5).
+ *
+ * Ids only, same reasoning as the assistant turn: the worker re-reads the
+ * thread under a tenant context; a payload carrying text could drift from
+ * what the database holds.
+ */
+export const AiExtractionJob = z.object({
+  organization_id: z.uuid(),
+  conversation_id: z.uuid(),
+  /** The inbound message that triggered this pass. */
+  message_id: z.uuid(),
+});
+export type AiExtractionJobT = z.infer<typeof AiExtractionJob>;
 
 /**
  * A message the compliance gate deferred (usually quiet hours).

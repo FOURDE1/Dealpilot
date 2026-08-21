@@ -1,7 +1,8 @@
 import { Queue } from 'bullmq';
 import {
   QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND, queueOpts,
-  type AssistantTurnJobT, type DeferredSendJobT,
+  QUEUE_AI_EXTRACTION,
+  type AiExtractionJobT, type AssistantTurnJobT, type DeferredSendJobT,
 } from '@dealpilot/contracts';
 import type { Env } from './env.js';
 
@@ -29,6 +30,7 @@ export interface DeferredSendQueue {
    * waited would have the carrier time out and retry.
    */
   enqueueAssistantTurn(job: AssistantTurnJobT): Promise<void>;
+  enqueueExtraction(job: AiExtractionJobT): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -61,6 +63,12 @@ export function noDeferredSendQueue(
         'a customer message needs an answer and there is no queue to run the assistant — nobody will reply (set REDIS_URL)',
       );
     },
+    async enqueueExtraction(job) {
+      warn(
+        { conversation_id: job.conversation_id },
+        'a client message arrived and there is no queue to run extraction — data capture is skipped (set REDIS_URL)',
+      );
+    },
     async close() {},
   };
 }
@@ -77,6 +85,7 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
   };
   const queue = new Queue<DeferredSendJobT>(QUEUE_DEFERRED_SEND, queueOpts(connection));
   const turns = new Queue<AssistantTurnJobT>(QUEUE_ASSISTANT_TURN, queueOpts(connection));
+  const extractions = new Queue<AiExtractionJobT>(QUEUE_AI_EXTRACTION, queueOpts(connection));
 
   return {
     async enqueue(job, runAt) {
@@ -99,9 +108,20 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
         backoff: { type: 'exponential', delay: 2000 },
       });
     },
+    async enqueueExtraction(job) {
+      await extractions.add(QUEUE_AI_EXTRACTION, job, {
+        removeOnComplete: 1000,
+        removeOnFail: 5000,
+        // Extraction is retry-safe: it re-reads the thread and re-derives from
+        // scratch, so a duplicate run converges on the same facts.
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+      });
+    },
     close: async () => {
       await queue.close();
       await turns.close();
+      await extractions.close();
     },
   };
 }

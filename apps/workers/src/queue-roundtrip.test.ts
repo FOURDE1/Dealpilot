@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Queue, Worker } from 'bullmq';
 import Redis from 'ioredis';
 import {
-  QUEUE_DEFERRED_SEND, QUEUE_PREFIX, queueOpts, type DeferredSendJobT,
+  QUEUE_AI_EXTRACTION, QUEUE_DEFERRED_SEND, QUEUE_PREFIX, queueOpts,
+  type AiExtractionJobT, type DeferredSendJobT,
 } from '@dealpilot/contracts';
 import { createDeferredSendQueue } from '@dealpilot/api/deferred-queue';
 
@@ -81,6 +82,43 @@ afterAll(async () => {
 });
 
 describe('API → Redis → worker', () => {
+  it('delivers an ai-extraction job through the real producer', async (ctx) => {
+    if (!ready) return ctx.skip();
+    const producer = createDeferredSendQueue({ REDIS_URL } as never, () => {});
+    const received: AiExtractionJobT[] = [];
+    const worker = new Worker<AiExtractionJobT>(
+      QUEUE_AI_EXTRACTION,
+      async (j) => {
+        received.push(j.data);
+      },
+      { ...queueOpts({ host: new URL(REDIS_URL).hostname, port: Number(new URL(REDIS_URL).port || 6379), maxRetriesPerRequest: null }), concurrency: 1 },
+    );
+    try {
+      const sent: AiExtractionJobT = {
+        organization_id: '00000000-0000-4000-8000-000000000001',
+        conversation_id: `00000000-0000-4000-8000-00000000${String(Date.now() % 10000).padStart(4, '0')}`,
+        message_id: '00000000-0000-4000-8000-000000000005',
+      };
+      await producer.enqueueExtraction(sent);
+      const landed = await new Promise<AiExtractionJobT | null>((resolve) => {
+        const deadline = setTimeout(() => resolve(null), 10_000);
+        const poll = setInterval(() => {
+          const hit = received.find((r) => r.conversation_id === sent.conversation_id);
+          if (hit) {
+            clearInterval(poll);
+            clearTimeout(deadline);
+            resolve(hit);
+          }
+        }, 50);
+      });
+      expect(landed, 'the extraction job never reached the worker — suspect the namespace').not.toBeNull();
+      expect(landed).toMatchObject({ organization_id: sent.organization_id, message_id: sent.message_id });
+    } finally {
+      await worker.close();
+      await producer.close();
+    }
+  });
+
   it('delivers a job enqueued through the real producer', async (ctx) => {
     if (!ready) return ctx.skip();
 

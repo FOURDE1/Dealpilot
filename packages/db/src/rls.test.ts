@@ -278,6 +278,35 @@ describe('row-level security', () => {
     ).rejects.toThrow();
   });
 
+  it('lead_extractions: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await withTenant(app, org1, async (c) => {
+      const lead = await c.query<{ id: string }>(
+        `INSERT INTO leads (organization_id, store_id, phone, source)
+         VALUES ($1, NULL, '+15145550993', 'walk_in') RETURNING id`,
+        [org1],
+      );
+      await c.query(
+        `INSERT INTO lead_extractions (organization_id, lead_id, payload, model)
+         VALUES ($1, $2, '{}', 'test-model')`,
+        [org1, lead.rows[0]!.id],
+      );
+    });
+    const rival = await withTenant(app, org2, async (c) =>
+      (await c.query(`SELECT * FROM lead_extractions`)).rows,
+    );
+    expect(rival).toHaveLength(0);
+    await expect(
+      withTenant(app, org2, async (c) => {
+        await c.query(
+          `INSERT INTO lead_extractions (organization_id, lead_id, payload, model)
+           VALUES ($1, gen_random_uuid(), '{}', 'x')`,
+          [org1],
+        );
+      }),
+    ).rejects.toThrow();
+  });
+
   it('reset refuses non-local database hosts', async () => {
     await expect(
       reset(admin, migrationsDir, 'postgresql://u:p@prod-rds.ca-central-1.example.com:5432/x'),

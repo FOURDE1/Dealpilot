@@ -1,3 +1,23 @@
+## 2026-08-21 (tick 11) — F-57 extraction shipped; the product went LIVE twice
+
+The day the fakes retired. Anthropic credits landed: the assistant's first
+two REAL turns were flawless — French greeting with tool-grounded
+inventory and the Bill 96 language question; a price-fish deflected with
+no number and a budget question back. Then the first REAL SMS: consent
+recorded, and the CASL gate DEFERRED it — 8:45 in Ontario, quiet hours —
+then delivered at exactly 9:00:10 (Twilio SMd8e8f71f…, 2 segments) to the
+owner's test number. The compliance engine's first live decision was to
+stop us texting too early, which is precisely the product.
+
+F-57 structured extraction shipped behind a 17-agent review that confirmed
+13 defects — the big ones: extraction only ran for bot-active threads
+(handed-off customers' numbers vanished), throwing extractors were
+swallowed so the retry budget never fired, invalid output wasn't
+snapshotted (the regression corpus discarded, §13's metered tokens lost),
+duplicate snapshots on retry, unknown-type budgets guessed into a column.
+All fixed with regression tests + a real Redis roundtrip for the new
+queue and a webhook-to-queue seam test. Gate 29/29.
+
 ## 2026-08-21 (tick 10) — F-56 eval harness; the suite found four holes on day one
 
 ADR-023's release gate exists: packages/ai/evals (adversarial.jsonl with

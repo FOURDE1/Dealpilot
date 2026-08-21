@@ -148,6 +148,9 @@ export function registerF30Routes(
         answer: route.kind === 'to_assistant'
           ? { conversationId: route.conversationId, messageId: route.messageId }
           : null,
+        // §5: the DATA pass rides every recorded client message — a customer
+        // talking numbers with a human is exactly the window worth capturing.
+        extract: { conversationId: route.conversationId, messageId: route.messageId },
         armReassign: route.armReassign ?? null,
       };
     });
@@ -159,6 +162,13 @@ export function registerF30Routes(
         conversation_id: answer.answer.conversationId,
         message_id: answer.answer.messageId,
         attempt: 0,
+      });
+    }
+    if (answer?.extract) {
+      await queue.enqueueExtraction({
+        organization_id: resolved.organization_id,
+        conversation_id: answer.extract.conversationId,
+        message_id: answer.extract.messageId,
       });
     }
     // F-48: a reactivated lead's fresh assignment gets its ten-minute timer,

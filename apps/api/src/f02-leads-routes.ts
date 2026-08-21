@@ -342,6 +342,8 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool, reassign: Re
           'source_platform', 'preferred_language', 'total_budget_cents', 'monthly_budget_cents',
           'vehicle_interest',
           'trade_in_status', 'store_id', 'lost_reason_id', 'lost_reason_note',
+          'purchase_timeline', 'credit_band', 'trade_in_year', 'trade_in_make',
+          'trade_in_model', 'trade_in_mileage_km', 'trade_in_condition',
         ]);
         if (Object.keys(changed).length > 0) {
           await recordEvent(c, { ...evt, action: 'updated', changes: changed });

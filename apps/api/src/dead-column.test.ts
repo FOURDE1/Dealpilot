@@ -59,6 +59,14 @@ const STRUCTURAL = new Set([
  * is exactly what the three bugs above would have claimed.
  */
 const DELIBERATELY_UNWRITTEN: Record<string, string> = {
+  // F-57: the extraction WORKER writes these (apps/workers/src/ai-extraction.ts)
+  // — this guard scans apps/api only, and the worker is the only writer by
+  // design (§5: write-back happens in the extraction worker).
+  'lead_extractions.conversation_id': 'written by the ai-extraction worker',
+  'lead_extractions.message_id': 'written by the ai-extraction worker',
+  'lead_extractions.input_tokens': 'written by the ai-extraction worker',
+  'lead_extractions.output_tokens': 'written by the ai-extraction worker',
+
   // F-47: '{in_app}' by default; the email/SMS channel writers arrive with
   // their credentials (D-050) and retire this line.
   'notifications.channels_sent': 'default in_app until the email/SMS channels ship (D-050)',

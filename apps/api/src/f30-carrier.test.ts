@@ -34,6 +34,22 @@ let orgId = '';
 let storeId = '';
 let storeNumber = '';
 
+/** Every job the webhook enqueues, recorded — the seam the roundtrip suite
+ * cannot see from the workers side. */
+const enqueued = { turns: [] as { conversation_id: string }[], extractions: [] as { conversation_id: string }[] };
+const recordingQueue = {
+  enqueue: () => Promise.resolve(),
+  enqueueAssistantTurn: (job: { conversation_id: string }) => {
+    enqueued.turns.push(job);
+    return Promise.resolve();
+  },
+  enqueueExtraction: (job: { conversation_id: string }) => {
+    enqueued.extractions.push(job);
+    return Promise.resolve();
+  },
+  close: () => Promise.resolve(),
+};
+
 const silentLogger: CarrierLogger = { info: () => {}, warn: () => {} };
 
 /** POST a form-encoded webhook, signed exactly as the carrier would sign it. */
@@ -74,7 +90,7 @@ beforeAll(async () => {
   });
   ({ app } = await buildApp(
     { DATABASE_URL: APP_URL, NODE_ENV: 'test', TWILIO_AUTH_TOKEN: TOKEN, PUBLIC_WEBHOOK_ORIGIN: ORIGIN },
-    { carrier: createCarrier(env, silentLogger) },
+    { carrier: createCarrier(env, silentLogger), deferredQueue: recordingQueue },
   ));
 
   const su = await app!.inject({
@@ -121,6 +137,38 @@ async function messagesFor(phone: string): Promise<{ body: string; direction: st
   );
   return r.rows;
 }
+
+describe('the queue seam (F-57): who gets a job for which branch', () => {
+  it('a bot-active message enqueues BOTH passes; a handed-off one still gets the DATA pass', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const phone = '+15145557777';
+    enqueued.turns.length = 0;
+    enqueued.extractions.length = 0;
+
+    const first = await webhook('/carrier/v1/sms/inbound', {
+      To: storeNumber, From: phone, Body: 'Bonjour, je cherche un VUS', MessageSid: `SM-seam-1-${run}`,
+    });
+    expect(first.statusCode, first.body).toBe(204);
+    expect(enqueued.turns).toHaveLength(1);
+    expect(enqueued.extractions).toHaveLength(1);
+
+    // Hand the thread to a person (the CHECK demands an assigned agent);
+    // §5 extraction must keep riding messages.
+    await admin.query(
+      `UPDATE conversations
+       SET status = 'agent_active',
+           assigned_agent_id = (SELECT user_id FROM memberships WHERE organization_id = $2 LIMIT 1)
+       WHERE phone_e164 = $1`,
+      [phone, orgId],
+    );
+    const second = await webhook('/carrier/v1/sms/inbound', {
+      To: storeNumber, From: phone, Body: 'Je peux faire 600$ par mois', MessageSid: `SM-seam-2-${run}`,
+    });
+    expect(second.statusCode, second.body).toBe(204);
+    expect(enqueued.turns).toHaveLength(1);
+    expect(enqueued.extractions).toHaveLength(2);
+  });
+});
 
 describe('an unsigned or forged webhook', () => {
   it('is refused with no signature at all', async (ctx) => {

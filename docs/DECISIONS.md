@@ -36,6 +36,23 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-058 — 2026-08-21 — Extraction: every message, every snapshot, throws retry
+
+F-57 (conversation-engine.md §5), shaped by the review's 13 confirmed
+findings. (1) The DATA pass rides EVERY recorded client message — including
+handed-off threads, where a customer talking numbers with a human is the
+window most worth capturing; only the TALK pass is to_assistant-gated.
+(2) Every snapshot is stored verbatim, valid or not: off-schema output IS
+the eval regression corpus, and §13 meters its tokens either way. One
+snapshot per triggering message (partial unique index + ON CONFLICT), so
+retries converge instead of appending. (3) Transient model failures THROW —
+the queue's attempts/backoff budget exists for exactly that; only schema
+mismatch is a value. (4) An amount whose budget_type is unknown is written
+NOWHERE (D-043 split the columns so nothing guesses). (5) Language is
+never written by extraction — set at creation, locked by the as-is rule.
+(6) conversation_flags/consent_signals are snapshot material only until the
+handoff-trigger and analysis slices consume them.
+
 ## D-057 — 2026-08-21 — Eval harness: deterministic CI core, live tier declared
 
 F-56 (compliance-and-quality.md §10, ADR-023). (1) CI cases are fully

@@ -1,8 +1,16 @@
 import { Queue, Worker, type ConnectionOptions } from 'bullmq';
 import { createPool } from '@dealpilot/db';
 import {
-  QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND, QUEUE_LEAD_REASSIGN, REASSIGN_AFTER_MS, queueOpts,
-  type AssistantTurnJobT, type DeferredSendJobT, type LeadReassignJobT,
+  QUEUE_AI_EXTRACTION,
+  QUEUE_ASSISTANT_TURN,
+  QUEUE_DEFERRED_SEND,
+  QUEUE_LEAD_REASSIGN,
+  REASSIGN_AFTER_MS,
+  queueOpts,
+  type AiExtractionJobT,
+  type AssistantTurnJobT,
+  type DeferredSendJobT,
+  type LeadReassignJobT,
 } from '@dealpilot/contracts';
 import { createCarrier } from '@dealpilot/api/carrier';
 import { redisPresenceStore } from '@dealpilot/api/presence';
@@ -10,6 +18,8 @@ import { createAssistant } from '@dealpilot/api/assistant';
 import { loadEnv } from '@dealpilot/api/env';
 import { runDeferredSend } from './deferred-send.js';
 import { runAssistantTurn } from './assistant-turn.js';
+import { runAiExtraction } from './ai-extraction.js';
+import { createAnthropicExtractionClient } from '@dealpilot/ai';
 import { runLeadReassign } from './lead-reassign.js';
 
 export { runDeferredSend } from './deferred-send.js';
@@ -92,6 +102,27 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
       )
     : null;
 
+  // F-57: the data pass — same gating as the talk pass: only consumes when a
+  // model is configured, so jobs pile up visibly rather than draining silently.
+  const extractionWorker = assistant.enabled
+    ? new Worker<AiExtractionJobT>(
+        QUEUE_AI_EXTRACTION,
+        async (job) =>
+          runAiExtraction(
+            {
+              pool,
+              extractor: createAnthropicExtractionClient({
+                apiKey: env.ANTHROPIC_API_KEY ?? '',
+                model: env.AI_EXTRACTION_MODEL,
+              }),
+              model: env.AI_EXTRACTION_MODEL,
+            },
+            job.data,
+          ),
+        { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
+      )
+    : null;
+
   // F-42.2: the ten-minute reassignment ladder (FR-LEAD-010, D-046). The
   // module verifies every claim against the database, so concurrency 2 is
   // parallelism, not risk.
@@ -122,6 +153,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
     close: async () => {
       await worker.close();
       await turnWorker?.close();
+      await extractionWorker?.close();
       await reassignWorker.close();
       await presence.close();
       await queue.close();

@@ -101,6 +101,14 @@ export const Lead = z.object({
   assignment_method: z.enum(['auto_language','auto_availability','manual','escalation','reassignment']).nullable(),
   assignment_attempts: z.number().int(),
   previous_agents: z.array(z.unknown()),
+  /** F-57 (conversation-engine.md §5): extraction write-back targets. */
+  purchase_timeline: z.enum(['now', 'this_week', 'this_month', 'one_to_three_months', 'three_plus_months', 'unknown']),
+  credit_band: z.enum(['prime', 'near_prime', 'subprime', 'deep_subprime', 'unknown']),
+  trade_in_year: z.number().int().nullable(),
+  trade_in_make: z.string().nullable(),
+  trade_in_model: z.string().nullable(),
+  trade_in_mileage_km: z.number().int().nullable(),
+  trade_in_condition: z.enum(['excellent', 'good', 'fair', 'poor']).nullable(),
   /** F-53 (leads.md §11): WHY the lead was lost, and in whose words. */
   lost_reason_id: Uuid.nullable(),
   lost_reason_note: z.string().nullable(),
@@ -146,6 +154,14 @@ export const UpdateLeadInput = z.strictObject({
   monthly_budget_cents: NonNegativeCents.nullable().optional(),
   vehicle_interest: z.string().trim().min(1).max(200).nullable().optional(),
   trade_in_status: TradeInStatus.optional(),
+  /** F-57: staff may correct what extraction captured (or capture it by hand). */
+  purchase_timeline: z.enum(['now', 'this_week', 'this_month', 'one_to_three_months', 'three_plus_months', 'unknown']).optional(),
+  credit_band: z.enum(['prime', 'near_prime', 'subprime', 'deep_subprime', 'unknown']).optional(),
+  trade_in_year: z.number().int().min(1950).max(2100).nullable().optional(),
+  trade_in_make: z.string().trim().min(1).max(60).nullable().optional(),
+  trade_in_model: z.string().trim().min(1).max(60).nullable().optional(),
+  trade_in_mileage_km: z.number().int().min(0).nullable().optional(),
+  trade_in_condition: z.enum(['excellent', 'good', 'fair', 'poor']).nullable().optional(),
   /** Required by the API when status moves TO lost (leads.md §11). */
   lost_reason_id: Uuid.nullable().optional(),
   lost_reason_note: z.string().trim().min(1).max(500).nullable().optional(),

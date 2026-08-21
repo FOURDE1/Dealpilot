@@ -91,6 +91,8 @@ const EnvSchema = z.object({
   AI_TRANSPORT: z.enum(['anthropic', 'off']).default('off'),
   ANTHROPIC_API_KEY: z.string().optional(),
   AI_MODEL: z.string().default('claude-sonnet-5'),
+  /** The cheap per-turn extraction pass (§1: Haiku-class by default). */
+  AI_EXTRACTION_MODEL: z.string().default('claude-haiku-4-5'),
   AI_MAX_TOKENS: z.coerce.number().int().min(64).max(8192).default(1024),
 
   REQUIRE_EMAIL_VERIFICATION: z
