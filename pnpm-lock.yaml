@@ -203,6 +203,9 @@ importers:
       '@dealpilot/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@dealpilot/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@dealpilot/db':
         specifier: workspace:*
         version: link:../../packages/db

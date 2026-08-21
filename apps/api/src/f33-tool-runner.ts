@@ -60,6 +60,7 @@ function failed(reason: string): ToolResult {
  */
 export function createToolRunner(c: PoolClient, ctx: ToolContext) {
   const stockNumbersReturned: string[] = [];
+  const humanRequests: string[] = [];
 
   async function lookupInventory(raw: unknown): Promise<ToolResult> {
     const input = LookupInventoryInput.safeParse(raw);
@@ -187,13 +188,11 @@ export function createToolRunner(c: PoolClient, ctx: ToolContext) {
     const input = RequestHumanInput.safeParse(raw);
     if (!input.success) return failed('invalid arguments for request_human');
 
-    // Idempotent, and never a failure (§4). Asking twice is what a worried
-    // model does, and refusing the second one would be a reason to keep talking.
-    await c.query(
-      `UPDATE conversations SET status = 'handed_off', handed_off_at = COALESCE(handed_off_at, now())
-       WHERE id = $1 AND status = 'bot_active' AND assigned_agent_id IS NOT NULL`,
-      [ctx.conversationId],
-    );
+    // The tool RECORDS; the F-60 evaluator + F-20 handOff() execute after
+    // the reply, with locking and agent validation this inline flip never
+    // had. (The old direct UPDATE required an assigned_agent_id that is
+    // never set during bot_active — dead in practice, retired for real.)
+    humanRequests.push(input.data.reason);
     return { ok: true, handoff_requested: true, reason: input.data.reason };
   }
 
@@ -260,5 +259,8 @@ export function createToolRunner(c: PoolClient, ctx: ToolContext) {
     run,
     /** Stock numbers this conversation was actually shown, for the guard. */
     allowedStockNumbers: () => [...stockNumbersReturned],
+    /** §9: which request_human reasons fired this turn — the handoff
+     * evaluator needs the REASON (safety outranks client_asked). */
+    humanRequests: () => [...humanRequests],
   };
 }

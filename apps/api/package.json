@@ -44,6 +44,14 @@
       "types": "./dist/f23-inbound-router.d.ts",
       "default": "./dist/f23-inbound-router.js"
     },
+    "./assignment": {
+      "types": "./dist/f40-assignment-routes.d.ts",
+      "default": "./dist/f40-assignment-routes.js"
+    },
+    "./handoff": {
+      "types": "./dist/f20-handoff.d.ts",
+      "default": "./dist/f20-handoff.js"
+    },
     "./cascade": {
       "types": "./dist/f42-cascade-routes.d.ts",
       "default": "./dist/f42-cascade-routes.js"

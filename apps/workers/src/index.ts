@@ -100,7 +100,20 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
     ? new Worker<AssistantTurnJobT>(
         QUEUE_ASSISTANT_TURN,
         async (job) =>
-          runAssistantTurn({ pool, model: assistant.client, carrier, env }, job.data),
+          runAssistantTurn(
+            {
+              pool, model: assistant.client, carrier, env,
+              armReassign: async (next) => {
+                await reassignQueue.add(QUEUE_LEAD_REASSIGN, next, {
+                  delay: REASSIGN_AFTER_MS,
+                  jobId: `reassign:${next.lead_id}:${next.attempt}`,
+                  removeOnComplete: 1000,
+                  removeOnFail: 5000,
+                });
+              },
+            },
+            job.data,
+          ),
         { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
       )
     : null;

@@ -36,6 +36,30 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-060 — 2026-08-21 — Handoff: the existing machinery wins; every reason hands off
+
+F-60 (conversation-engine.md §9), rebuilt after review. (1) The rules and
+the execution ALREADY EXISTED: core/handoff.ts evaluateHandoff and F-20's
+handOff() (FOR UPDATE + status recheck, agent membership validation,
+SYSTEM-sender notice so the assistant's own daily cap cannot swallow it) —
+the F-60 duplicate was deleted, the worker wires facts into them. The
+lesson is procedural: grep core+api for the concept before writing any new
+module. (2) EVERY request_human reason starts a handoff — complaint maps
+to wants-a-human; the tool told the model a person is coming, so one must
+come. (3) Extraction flags align by message_id and are re-validated per
+row (invalid snapshots exist by design and contribute nothing); when this
+turn's extraction has not landed (it races on another queue), this turn's
+flags come from the tools and the streak counts what exists — honest lag,
+never a crash. (4) The whole handoff phase is crash-isolated: the reply is
+already delivered, so a handoff error may never fail the job (a retry
+would double-text); it logs, skips, and the next turn re-evaluates.
+(5) Turn cap comes from tenant_comms_config.bot_turn_cap. (6) A handoff
+that itself assigned the agent arms the D-046 ladder like every other
+machine assignment. (7) No agent available = no handoff, reason recorded —
+never promise a person who does not exist. (8) bot_summary quotes the
+customer's last messages; scores stay rule-derived so routing and the
+be-back sort never depend on prose.
+
 ## D-061 — 2026-08-21 — Owner budget phasing for AWS (D-060 reserved for F-60 handoff)
 
 Owner decision (via Hassan, 2026-08-21): AWS spend is phased by RESULTS,

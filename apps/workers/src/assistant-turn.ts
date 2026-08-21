@@ -1,6 +1,9 @@
 import { withTenant, type Pool, type PoolClient } from '@dealpilot/db';
 import { AssistantTurnJob } from '@dealpilot/contracts';
-import { runTurn, type ModelClient, type ModelMessage } from '@dealpilot/ai';
+import { LeadExtraction, runTurn, type ModelClient, type ModelMessage } from '@dealpilot/ai';
+import { evaluateHandoff, type ConversationFlags } from '@dealpilot/core';
+import { autoAssignLead } from '@dealpilot/api/assignment';
+import { handOff, handoffNotice } from '@dealpilot/api/handoff';
 import { sendMessage } from '@dealpilot/api/send';
 import { deliverMessage } from '@dealpilot/api/deliver';
 import { createToolRunner } from '@dealpilot/api/tools';
@@ -36,11 +39,19 @@ export interface AssistantTurnDeps {
   readonly model: ModelClient;
   readonly carrier: Carrier;
   readonly env: Env;
+  /** D-046 #2: arms the ten-minute ladder when a HANDOFF made the assignment. */
+  readonly armReassign?: (job: {
+    organization_id: string; lead_id: string; assigned_to: string; attempt: number;
+  }) => Promise<void>;
   readonly now?: () => Date;
 }
 
 export type AssistantTurnResult =
-  | { kind: 'replied'; messageId: string; toolsUsed: readonly string[]; regenerated: boolean }
+  | {
+      kind: 'replied'; messageId: string; toolsUsed: readonly string[]; regenerated: boolean;
+      /** §9: what ended the bot's ownership of this thread, when something did. */
+      handoff?: { trigger: string } | { skipped: string };
+    }
   | { kind: 'fallback'; messageId: string | null; reason: string }
   | { kind: 'not_sent'; reason: string }
   | { kind: 'skipped'; reason: string };
@@ -197,7 +208,7 @@ export async function runAssistantTurn(
       allowedStockNumbers: tools.allowedStockNumbers(),
       nowUtc: now,
     });
-    return { turn, sent };
+    return { turn, sent, humanRequests: tools.humanRequests() };
   });
 
   if (outcome.sent.kind !== 'sent') {
@@ -225,12 +236,255 @@ export async function runAssistantTurn(
     });
   }
 
+  // §9 — after the reply is on its way, decide whether the assistant's part
+  // is done. The RULES live in @dealpilot/core (evaluateHandoff); the
+  // EXECUTION lives in F-20's handOff() (FOR UPDATE, status recheck, agent
+  // membership validation, system-sender notice). This block only gathers
+  // facts and wires the two together — and it may NEVER fail the job: the
+  // reply is already delivered, and a BullMQ retry here would text the
+  // customer a duplicate. A handoff error is a logged skip; the next turn
+  // re-evaluates from scratch.
+  let handoffOutcome: { trigger: string } | { skipped: string } | undefined;
+  const conversationId = loaded.conversation.id;
+  const leadId = loaded.conversation.lead_id;
+  if (leadId !== null) {
+    try {
+      handoffOutcome = await runHandoffPhase(deps, {
+        organizationId: job.organization_id,
+        conversationId,
+        leadId,
+        storeId: loaded.conversation.store_id,
+        phoneE164: loaded.conversation.phone_e164,
+        messageId: job.message_id,
+        humanRequests: outcome.humanRequests,
+        smsNumber: store?.sms_number ?? null,
+        now,
+      });
+    } catch (err) {
+      handoffOutcome = { skipped: `handoff error: ${err instanceof Error ? err.message : String(err)}` };
+    }
+  }
+
   return outcome.turn.kind === 'reply'
     ? {
         kind: 'replied',
         messageId: outcome.sent.messageId,
         toolsUsed: outcome.turn.toolsUsed,
         regenerated: outcome.turn.regenerated,
+        ...(handoffOutcome !== undefined ? { handoff: handoffOutcome } : {}),
       }
     : { kind: 'fallback', messageId: outcome.sent.messageId, reason: 'two drafts broke the rules' };
+}
+
+interface HandoffPhaseInput {
+  readonly organizationId: string;
+  readonly conversationId: string;
+  readonly leadId: string;
+  readonly storeId: string;
+  readonly phoneE164: string;
+  /** The inbound message this turn answered — extraction rows align on it. */
+  readonly messageId: string;
+  readonly humanRequests: readonly string[];
+  readonly smsNumber: string | null;
+  readonly now: Date;
+}
+
+/** Deterministic hot/warm/cold: bands are rule-based so routing and the
+ * be-back sort never depend on prose (model-judged WORDING can come later). */
+function scoreFor(
+  trigger: string,
+  flags: ConversationFlags,
+  sentiment: 'positive' | 'neutral' | 'frustrated' | 'losing_interest',
+  fieldsComplete: boolean,
+): { score: 'hot' | 'warm' | 'cold'; reason: string } {
+  if (trigger === 'safety') return { score: 'cold', reason: 'safety handoff — a person must take this over' };
+  if (flags.highIntent || trigger === 'high_intent') {
+    return { score: 'hot', reason: 'explicit buying intent in the conversation' };
+  }
+  if (sentiment === 'frustrated' || sentiment === 'losing_interest') {
+    return { score: 'cold', reason: `sentiment turned ${sentiment}` };
+  }
+  if (fieldsComplete) return { score: 'hot', reason: 'fully qualified: name, vehicle, budget and trade-in captured' };
+  return { score: 'warm', reason: 'engaged but not yet fully qualified' };
+}
+
+async function runHandoffPhase(
+  deps: AssistantTurnDeps,
+  input: HandoffPhaseInput,
+): Promise<{ trigger: string } | { skipped: string } | undefined> {
+  const staged = await withTenant(deps.pool, input.organizationId, async (c) => {
+    const leadRow = await c.query<{
+      first_name: string | null; vehicle_interest: string | null;
+      monthly_budget_cents: number | null; total_budget_cents: number | null;
+      trade_in_status: 'none' | 'has_trade' | 'unknown'; assigned_to: string | null;
+    }>(
+      `SELECT first_name, vehicle_interest, monthly_budget_cents, total_budget_cents,
+              trade_in_status, assigned_to
+       FROM leads WHERE id = $1 AND deleted_at IS NULL`,
+      [input.leadId],
+    );
+    const lead = leadRow.rows[0];
+    if (lead === undefined) return { kind: 'skipped' as const, reason: 'lead gone' };
+
+    // Extraction flags, aligned to MESSAGES and parsed defensively: the
+    // snapshot table stores INVALID payloads verbatim by design (F-57), so
+    // every row is re-validated and the invalid ones contribute nothing.
+    // The extraction for THIS message races this turn on another queue —
+    // when it has not landed yet, this turn's flags come from the tools and
+    // the streak counts what exists. Honest lag, never a crash.
+    const extractionRows = await c.query<{ message_id: string | null; payload: unknown }>(
+      `SELECT message_id, payload FROM lead_extractions
+       WHERE conversation_id = $1 ORDER BY created_at DESC LIMIT 3`,
+      [input.conversationId],
+    );
+    const parsed = extractionRows.rows
+      .map((r) => ({ message_id: r.message_id, flags: LeadExtraction.safeParse(r.payload) }))
+      .filter((r) => r.flags.success)
+      .map((r) => ({ message_id: r.message_id, f: r.flags.success ? r.flags.data.conversation_flags : null! }));
+    const thisTurn = parsed.find((r) => r.message_id === input.messageId)?.f;
+    const priorTurn = parsed.find((r) => r.message_id !== input.messageId)?.f;
+
+    // §4: EVERY request_human reason starts a handoff — the tool told the
+    // model (and so the customer) that a person is coming. complaint maps to
+    // wants-a-human; the model's own intent/cannot-answer claims join the
+    // extraction's (D-060).
+    const flags: ConversationFlags = {
+      safety: input.humanRequests.includes('safety'),
+      wantsHuman:
+        input.humanRequests.includes('client_asked') ||
+        input.humanRequests.includes('complaint') ||
+        thisTurn?.wants_human === true,
+      highIntent: input.humanRequests.includes('high_intent') || thisTurn?.high_intent === true,
+      cannotAnswer: input.humanRequests.includes('cannot_answer') || thisTurn?.cannot_answer === true,
+    };
+    const consecutiveCannotAnswer =
+      (flags.cannotAnswer ? 1 : 0) + (priorTurn?.cannot_answer === true ? 1 : 0);
+
+    const botCount = await c.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM messages
+       WHERE conversation_id = $1 AND direction = 'outbound' AND sender_type = 'bot'`,
+      [input.conversationId],
+    );
+    // §9 #5 is a TENANT setting (0033), not a constant.
+    const cap = await c.query<{ bot_turn_cap: number }>(
+      `SELECT bot_turn_cap FROM tenant_comms_config
+       WHERE organization_id = $1 AND store_id IS NULL AND deleted_at IS NULL`,
+      [input.organizationId],
+    );
+
+    const decision = evaluateHandoff({
+      status: 'bot_active',
+      flags,
+      lead: {
+        firstName: lead.first_name,
+        vehicleInterest: lead.vehicle_interest,
+        budgetCents: lead.monthly_budget_cents ?? lead.total_budget_cents,
+        tradeInStatus: lead.trade_in_status,
+      },
+      consecutiveCannotAnswer,
+      botMessagesSent: botCount.rows[0]?.n ?? 0,
+      botTurnCap: cap.rows[0]?.bot_turn_cap ?? 15,
+    });
+    if (!decision.handOff) return { kind: 'none' as const };
+
+    // WHO takes it: the owner, or the routing engine's pick right now.
+    // Nobody = no handoff; the bot keeps the thread and the ladder hunts.
+    let agentId = lead.assigned_to;
+    let weAssigned = false;
+    if (agentId === null) {
+      const assigned = await autoAssignLead(c, input.organizationId, input.leadId, null);
+      if (assigned.outcome === 'assigned') {
+        agentId = assigned.assigned_to;
+        weAssigned = true;
+      }
+    }
+    if (agentId === null) {
+      return { kind: 'skipped' as const, reason: `${decision.trigger}: no agent available` };
+    }
+
+    const sentiment = thisTurn?.sentiment ?? priorTurn?.sentiment ?? 'neutral';
+    const fieldsComplete =
+      lead.first_name !== null && lead.vehicle_interest !== null &&
+      (lead.monthly_budget_cents !== null || lead.total_budget_cents !== null) &&
+      lead.trade_in_status !== 'unknown';
+    const { score, reason } = scoreFor(decision.trigger, flags, sentiment, fieldsComplete);
+
+    // §9: a summary FOR the agent — what the customer actually said, not a
+    // restatement of the lead form they can already see.
+    const lastClient = await c.query<{ body: string }>(
+      `SELECT body FROM messages
+       WHERE conversation_id = $1 AND direction = 'inbound'
+       ORDER BY created_at DESC LIMIT 3`,
+      [input.conversationId],
+    );
+    const quotes = lastClient.rows.map((m) => `«${m.body.slice(0, 140)}»`).reverse().join(' ');
+    const summary =
+      `${decision.reason}. Customer's last messages: ${quotes || '(none on file)'}` +
+      (lead.vehicle_interest ? ` Interest: ${lead.vehicle_interest}.` : '');
+
+    const result = await handOff(c, {
+      organizationId: input.organizationId,
+      storeId: input.storeId,
+      conversationId: input.conversationId,
+      leadId: input.leadId,
+      phoneE164: input.phoneE164,
+      assignedAgentId: agentId,
+      trigger: decision.trigger,
+      analysis: {
+        sentiment,
+        buyingSignals: flags.highIntent ? ['high intent this turn'] : [],
+        concerns: sentiment === 'frustrated' || sentiment === 'losing_interest' ? [`sentiment: ${sentiment}`] : [],
+        summary,
+        score,
+        scoreReason: reason,
+        suggestedResponse: null,
+      },
+      followsClientMessage: true,
+      nowUtc: input.now,
+    });
+    if (result.kind !== 'handed_off') {
+      return { kind: 'skipped' as const, reason: `${decision.trigger}: ${result.kind}` };
+    }
+    return {
+      kind: 'handed_off' as const,
+      trigger: decision.trigger,
+      agentFirstName: result.agentFirstName,
+      weAssigned,
+      agentId,
+      noticeMessageId: result.notice.kind === 'sent' ? result.notice.messageId : null,
+      language: null as 'fr' | 'en' | null,
+    };
+  });
+
+  if (staged.kind === 'none') return undefined;
+  if (staged.kind === 'skipped') return { skipped: staged.reason };
+
+  // D-046 #2: an assignment WE made arms the ten-minute ladder, like every
+  // other machine-assignment site.
+  if (staged.weAssigned) {
+    await deps.armReassign?.({
+      organization_id: input.organizationId,
+      lead_id: input.leadId,
+      assigned_to: staged.agentId,
+      attempt: 0,
+    });
+  }
+
+  // The notice rides the carrier post-commit like every send.
+  if (staged.noticeMessageId && input.smsNumber) {
+    const language = await withTenant(deps.pool, input.organizationId, async (c) => {
+      const r = await c.query<{ language: 'fr' | 'en' }>(
+        `SELECT language FROM conversations WHERE id = $1`, [input.conversationId],
+      );
+      return r.rows[0]?.language ?? 'fr';
+    });
+    await deliverMessage(deps.pool, deps.carrier, deps.env, {
+      organizationId: input.organizationId,
+      messageId: staged.noticeMessageId,
+      to: input.phoneE164,
+      from: input.smsNumber,
+      body: handoffNotice(staged.agentFirstName, language),
+    });
+  }
+  return { trigger: staged.trigger };
 }

@@ -1,3 +1,17 @@
+## 2026-08-21 (tick 14) — F-60 shipped the right way: on the machinery that already existed
+
+The review's decisive finding: core/handoff.ts + f20-handoff.ts already
+held a better §9 than my new code — locking, membership validation, the
+SYSTEM-sender notice. Deleted the duplicate, wired the worker into the
+real thing, and fixed the review's genuine 16: crash-isolated handoff
+phase (a post-delivery error can never re-text the customer), extraction
+flags aligned by message_id and zod-revalidated (null/invalid snapshots
+exist by design), ALL five request_human reasons hand off (complaint
+included), tenant bot_turn_cap honored, D-046 ladder armed on
+handoff-made assignments, summary quotes the customer. 12/12 worker
+suite incl. a model-initiated request_human(safety) regression; gate
+29/29. Memory + checkpoint written for compaction.
+
 ## 2026-08-21 (compaction checkpoint) — F-60 review verdict in; REWORK plan
 
 STATE: F-60 staged (NOT pushed). Review wf_55535aaf-72b: 21/21 agents,

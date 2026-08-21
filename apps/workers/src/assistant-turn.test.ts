@@ -264,6 +264,177 @@ describe('a draft that breaks the rules', () => {
   });
 });
 
+describe('the six §9 handoff triggers', () => {
+  async function qualifiedFixture(opts: { assign?: boolean; budget?: boolean } = {}) {
+    const phone = nextPhone();
+    const consent = await app!.inject({
+      method: 'POST', url: '/api/v1/consent', headers: { cookie },
+      payload: {
+        organization_id: orgId, phone_e164: phone,
+        channels: ['sms'], scopes: ['conversational'],
+        consent_type: 'express', source: 'staff_manual',
+        evidence: { note: 'handoff test' },
+      },
+    });
+    expect(consent.statusCode, consent.body).toBe(201);
+    const lead = await app!.inject({
+      method: 'POST', url: '/api/v1/leads', headers: { cookie },
+      payload: {
+        organization_id: orgId, store_id: storeId, source: 'walk_in',
+        first_name: 'Chantal', last_name: 'Handoff', phone,
+        vehicle_interest: 'Kia Sorento',
+        ...(opts.budget === false ? {} : { monthly_budget_cents: 45000 }),
+      },
+    });
+    expect(lead.statusCode, lead.body).toBe(201);
+    const leadId = (JSON.parse(lead.body) as { id: string }).id;
+    const patch = await app!.inject({
+      method: 'PATCH', url: `/api/v1/leads/${leadId}`, headers: { cookie },
+      payload: { trade_in_status: 'none', ...(opts.assign === false ? {} : { assigned_to: userId }) },
+    });
+    expect(patch.statusCode, patch.body).toBe(200);
+    const conversationId = await withTenant(appPool, orgId, async (c) => {
+      const r = await c.query<{ id: string }>(
+        `INSERT INTO conversations (organization_id, store_id, lead_id, phone_e164)
+         VALUES ($1,$2,$3,$4) RETURNING id`,
+        [orgId, storeId, leadId, phone],
+      );
+      return r.rows[0]!.id;
+    });
+    const messageId = await withTenant(appPool, orgId, (c) =>
+      recordInbound(c, {
+        organizationId: orgId, conversationId,
+        body: 'Parfait, mon budget est 450$/mois et pas d’échange',
+        providerRef: `SM-${run}-h${seq}`,
+      }),
+    );
+    return { leadId, conversationId, messageId, phone };
+  }
+
+  it('a fully qualified lead hands off: status, agent, stamps, analysis row and the promise message', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const f = await qualifiedFixture();
+    const result = await runAssistantTurn(
+      deps(fakeModel(['Merci! Je vous reviens tout de suite.'])),
+      { organization_id: orgId, conversation_id: f.conversationId, message_id: f.messageId, attempt: 0 },
+    );
+    expect(result.kind).toBe('replied');
+    if (result.kind !== 'replied') throw new Error('unreachable');
+    expect(result.handoff).toEqual({ trigger: 'fields_complete' });
+
+    const conv = await admin.query<{ status: string; assigned_agent_id: string | null; bot_score: string | null; bot_summary: string | null }>(
+      `SELECT status, assigned_agent_id, bot_score, bot_summary FROM conversations WHERE id = $1`,
+      [f.conversationId],
+    );
+    expect(conv.rows[0]).toMatchObject({ status: 'handed_off', assigned_agent_id: userId, bot_score: 'hot' });
+    // §9: the summary is FOR the agent — it quotes what the customer said,
+    // not a trigger token.
+    expect(conv.rows[0]!.bot_summary).toContain('mon budget est');
+
+    const lead = await admin.query<{ chatbot_handoff_at: string | null }>(
+      `SELECT chatbot_handoff_at FROM leads WHERE id = $1`, [f.leadId],
+    );
+    expect(lead.rows[0]!.chatbot_handoff_at).not.toBeNull();
+
+    const analysis = await admin.query<{ analysis_type: string; score: string }>(
+      `SELECT analysis_type, score FROM conversation_analysis WHERE conversation_id = $1`,
+      [f.conversationId],
+    );
+    expect(analysis.rows).toHaveLength(1);
+    expect(analysis.rows[0]).toMatchObject({ analysis_type: 'handoff_summary', score: 'hot' });
+
+    // The reply AND the promise both went out; the promise names the human.
+    const sent = await outbound(f.conversationId);
+    expect(sent).toHaveLength(2);
+    expect(sent[1]!.body).toContain('Sophie');
+  });
+
+  it('request_human(safety) from the model hands off IMMEDIATELY — under-qualified or not', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const f = await qualifiedFixture({ budget: false });
+    // A model that calls the tool, then answers with care.
+    let call = 0;
+    const toolModel: ModelClient = {
+      complete: () => {
+        call += 1;
+        return Promise.resolve(
+          call === 1
+            ? {
+                text: '',
+                toolCalls: [{ id: 't1', name: 'request_human', input: { reason: 'safety' } }],
+                inputTokens: 0, outputTokens: 0,
+              }
+            : {
+                text: 'Je suis vraiment désolé — je vous mets en contact avec une personne immédiatement.',
+                toolCalls: [], inputTokens: 0, outputTokens: 0,
+              },
+        );
+      },
+    };
+    const result = await runAssistantTurn(
+      deps(toolModel),
+      { organization_id: orgId, conversation_id: f.conversationId, message_id: f.messageId, attempt: 0 },
+    );
+    if (result.kind !== 'replied') throw new Error(`expected replied, got ${result.kind}`);
+    expect(result.handoff).toEqual({ trigger: 'safety' });
+    const conv = await admin.query<{ status: string; bot_score: string | null }>(
+      `SELECT status, bot_score FROM conversations WHERE id = $1`, [f.conversationId],
+    );
+    expect(conv.rows[0]).toMatchObject({ status: 'handed_off', bot_score: 'cold' });
+  });
+
+  it('an under-qualified lead does NOT hand off', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const f = await qualifiedFixture({ budget: false });
+    const result = await runAssistantTurn(
+      deps(fakeModel(['Et quel serait votre budget mensuel?'])),
+      { organization_id: orgId, conversation_id: f.conversationId, message_id: f.messageId, attempt: 0 },
+    );
+    if (result.kind !== 'replied') throw new Error(`expected replied, got ${result.kind}`);
+    expect(result.handoff).toBeUndefined();
+    const conv = await admin.query<{ status: string }>(
+      `SELECT status FROM conversations WHERE id = $1`, [f.conversationId],
+    );
+    expect(conv.rows[0]!.status).toBe('bot_active');
+  });
+
+  it('a qualified lead with NOBODY to take it stays with the bot, reason recorded', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const f = await qualifiedFixture({ assign: false });
+    const result = await runAssistantTurn(
+      deps(fakeModel(['Un instant!'])),
+      { organization_id: orgId, conversation_id: f.conversationId, message_id: f.messageId, attempt: 0 },
+    );
+    if (result.kind !== 'replied') throw new Error(`expected replied, got ${result.kind}`);
+    expect(result.handoff).toMatchObject({ skipped: expect.stringContaining('no agent available') });
+    const conv = await admin.query<{ status: string }>(
+      `SELECT status FROM conversations WHERE id = $1`, [f.conversationId],
+    );
+    expect(conv.rows[0]!.status).toBe('bot_active');
+  });
+
+  it('the turn cap fires at 15 bot messages (backdated so the daily cap is not the thing tested)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const f = await qualifiedFixture({ budget: false });
+    // Outbound rows must carry their consent basis (0031 CHECK) — reuse the
+    // fixture's express grant for this phone.
+    await admin.query(
+      `INSERT INTO messages (organization_id, conversation_id, direction, sender_type, body, consent_ledger_id, created_at)
+       SELECT $1, $2, 'outbound', 'bot', 'ancien message ' || g,
+              (SELECT id FROM consent_ledger WHERE phone_e164 = $3 AND organization_id = $1 LIMIT 1),
+              now() - interval '3 days' + (g || ' minutes')::interval
+       FROM generate_series(1, 14) g`,
+      [orgId, f.conversationId, f.phone],
+    );
+    const result = await runAssistantTurn(
+      deps(fakeModel(['Je vous mets en contact avec un conseiller.'])),
+      { organization_id: orgId, conversation_id: f.conversationId, message_id: f.messageId, attempt: 0 },
+    );
+    if (result.kind !== 'replied') throw new Error(`expected replied, got ${result.kind}`);
+    expect(result.handoff).toEqual({ trigger: 'turn_cap' });
+  });
+});
+
 describe('a conversation a person has taken', () => {
   it('is left alone', async (ctx) => {
     if (!dbUp) return ctx.skip();
