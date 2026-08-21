@@ -1,6 +1,8 @@
 import { initContract } from '@ts-rest/core';
 import { z } from 'zod';
 import {
+  WinLossReport,
+  WinLossQuery,
   LeadDuplicate,
   DuplicateScanResult,
   DuplicateScanInput,
@@ -687,6 +689,15 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       query: ComplianceCheckQuery,
       responses: { 200: ComplianceCheck, ...errorResponses },
+    },
+  }),
+  /** F-55 analytics (reports-analytics.md): the business's aggregate numbers. */
+  analytics: c.router({
+    winLoss: {
+      method: 'GET',
+      path: '/api/v1/analytics/win-loss',
+      query: WinLossQuery,
+      responses: { 200: WinLossReport, ...errorResponses },
     },
   }),
   /** F-54 duplicates (leads.md §8): pairs, scans, and the two verbs. */

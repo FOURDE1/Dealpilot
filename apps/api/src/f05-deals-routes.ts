@@ -145,6 +145,35 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
         // above had already produced its row, so the in-memory copy is stale.
         if (buyerId) r.rows[0]!['contact_id'] = buyerId;
 
+        // leads.md §12 step 4: a deal born from a lead IS the conversion —
+        // the lead's status says so in the same transaction. A lost lead
+        // getting a deal was won after all; its lost_reason stays as history
+        // (D-055 #1).
+        if (input.lead_id) {
+          // CTE reads the pre-statement row, so the audit event can say what
+          // the lead WAS — a lost→converted flip is exactly the transition
+          // the trail must show (D-055 #1 keeps the loss readable).
+          const converted = await c.query<{ prior_status: string }>(
+            `WITH prior AS (SELECT status FROM leads WHERE id = $1 FOR UPDATE)
+             UPDATE leads SET status = 'converted'
+             WHERE id = $1 AND deleted_at IS NULL AND status <> 'converted'
+             RETURNING (SELECT status FROM prior) AS prior_status`,
+            [input.lead_id],
+          );
+          const prior = converted.rows[0]?.prior_status;
+          if (prior !== undefined) {
+            await recordEvent(c, {
+              organizationId: input.organization_id,
+              storeId: input.store_id,
+              actorUserId: user.id,
+              entityType: 'lead',
+              entityId: input.lead_id,
+              action: 'updated',
+              changes: { status: { from: prior, to: 'converted' }, via: 'deal_created' },
+            });
+          }
+        }
+
         // F-08: take the checklist snapshot NOW, in the same transaction that
         // creates the deal. This is the moment store policy applies to it; a
         // template edited next week must not change what this deal owes.

@@ -33,6 +33,9 @@ const BrandingEditorPage = lazy(() =>
 const LeadsPage = lazy(() =>
   import('../features/leads/leads-page.js').then((m) => ({ default: m.LeadsPage })),
 );
+const WinLossPage = lazy(() =>
+  import('../features/reports/win-loss-page.js').then((m) => ({ default: m.WinLossPage })),
+);
 const DuplicatesPage = lazy(() =>
   import('../features/leads/duplicates-page.js').then((m) => ({ default: m.DuplicatesPage })),
 );
@@ -175,6 +178,7 @@ export const router = createBrowserRouter([
       { path: 'commissions', element: lazyPage(<CommissionsPage />) },
       { path: 'dispatch', element: lazyPage(<DispatchPage />) },
       { path: 'conversations', element: lazyPage(<ConversationsPage />) },
+      { path: 'analytics/win-loss', element: lazyPage(<WinLossPage />) },
       // Placeholder module routes land with their feature slices.
       { path: '*', element: <Navigate to="/" replace /> },
     ],

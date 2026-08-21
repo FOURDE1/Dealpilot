@@ -1,3 +1,21 @@
+## 2026-08-20 (tick 9) — F-55 win/loss analytics; reports module opens
+
+reports-analytics.md §9 + the leads.md §12 gap it exposed: deal-create now
+STAMPS the lead converted in the same transaction (with the real prior
+status in the audit trail — the review caught a hardcoded null erasing
+lost→converted history). GET /api/v1/analytics/win-loss behind the new
+report:view permission (0057; owner/gm/sales_manager/fi_manager), and the
+review's second big catch: the matrix says WHO but the MEMBERSHIP says
+WHERE — store-bound managers now see their store's numbers only (the
+vehicle:read_costs shape). Also fixed pre-push: loss_rate computed as its
+own quotient (never 100−rounded-win-rate), lost-reason buckets grouped by
+ID so a tenant reason literally named 'unknown' cannot collide with the
+no-reason sentinel, zero-org loading trap, ICU plurals, localized
+numbers/months, FR percent spacing. 10 confirmed / 6 refuted. /reports
+nav entry + /analytics/win-loss page (CSS bars, no chart dep). Gate
+29/29. Twilio+Anthropic console access arrived — owner filling .env;
+verification and SMS/AI wiring next.
+
 ## 2026-08-20 (tick 8) — F-54 duplicates, and the review's biggest haul
 
 leads.md §8 complete: detection at every arrival (manual + webhook, same

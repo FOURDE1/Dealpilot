@@ -38,6 +38,11 @@ export const PERMISSIONS = [
   /** Intake webhook credentials — a standing key to the front door. */
   'intake_key:manage',
 
+  // --- reporting ----------------------------------------------------------
+  /** Aggregate business analytics (win/loss, ROI). Numbers about the whole
+      store, not any one record — manager authority by default. */
+  'report:view',
+
   // --- inventory ----------------------------------------------------------
   'vehicle:create',
   'vehicle:update',
@@ -121,7 +126,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
   gm: PERMISSIONS.filter((p) => p !== 'organization:delete'),
 
   sales_manager: [
-    'member:read', 'schedule:manage',
+    'member:read', 'schedule:manage', 'report:view',
     'lead:create', 'lead:update', 'lead:assign', 'lead:delete',
     'vehicle:create', 'vehicle:update',
     'deal:create', 'deal:update', 'deal:change_stage',
@@ -142,6 +147,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
   ],
 
   fi_manager: [
+    'report:view',
     'member:read',
     'deal:update', 'deal:change_funding',
     'checklist:complete', 'checklist:waive',
