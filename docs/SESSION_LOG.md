@@ -1,3 +1,43 @@
+## 2026-08-21 (compaction checkpoint) — F-60 review verdict in; REWORK plan
+
+STATE: F-60 staged (NOT pushed). Review wf_55535aaf-72b: 21/21 agents,
+16 confirmed / 3 refuted. THE decisive finding: packages/core/src/handoff.ts
+already exports evaluateHandoff (priority safety→client_asked→high_intent→
+fields…, CANNOT_ANSWER_TURNS, requiredFieldsCollected) and apps/api/src/
+f20-handoff.ts has handOff() with FOR UPDATE + status recheck + active-
+membership validation (agent_not_assignable) + rowCount discipline — my
+F-60 duplicated both. REWORK, do not patch:
+1. DELETE packages/ai/src/handoff.{ts,test.ts} evaluator duplicate (keep
+   handoffMessage/deriveBotScore ONLY if core lacks them — check first);
+   assistant-turn uses core evaluateHandoff + f20 handOff().
+2. Then fix the genuine rest: (a) extraction payload read must survive
+   'null'::jsonb + invalid snapshots (zod-parse, skip invalid rows);
+   (b) align flags to THIS message via lead_extractions.message_id, treat
+   the extraction race honestly (flags may lag — evaluate with what
+   exists; cannot_answer window = extraction rows by message, not time);
+   (c) map ALL five request_human reasons (complaint→handoff too);
+   (d) turn cap from tenant_comms_config.bot_turn_cap (0033), not 15;
+   (e) arm the D-046 reassign timer after autoAssignLead (worker needs
+   the reassign queue dep — workers/index has reassignQueue);
+   (f) wrap the whole post-reply handoff block in try/catch → a handoff
+   crash NEVER fails the job (reply already delivered; retry would
+   double-text) — log + skipped, next turn re-evaluates;
+   (g) remove the `as` cast smuggling (typed Staged union);
+   (h) summary should quote the last client messages, not restate lead
+   columns; (i) worker tests for safety/client_asked via fakeModel
+   toolCalls + legacy f33 flip removal ([2] refuted=unreachable but
+   REMOVE the dead legacy flip anyway per review);
+   (j) f33 request_human legacy UPDATE: superseded by f20 path — evaluate.
+3. Re-gate 29/29, D-060 entry (handoff decisions incl. duplication
+   lesson), commit F-60, push, pin, gh run view --json conclusion.
+CI: 15 greens through 60086d1; docs head 1812c1f (D-061 budget phasing).
+LIVE: Twilio +18195814440 (store Kia Mont-Laurier, org Groupe Hassan);
+test SMS delivered to +12263505892; Anthropic credits ON; dev .env has
+AI_TRANSPORT=anthropic, SMS_TRANSPORT stays log.
+Commands: gate = pnpm turbo run build typecheck lint test; dev DB migrate
+= DB_ADMIN_URL=postgresql://dealpilot:dealpilot@localhost:5434/dealpilot
+pnpm --filter @dealpilot/db run db:migrate.
+
 ## 2026-08-21 (tick 13) — F-59 first touch, reviewed twice (session limit ate round one)
 
 The 60-second greeting is real: intake commits the lead, enqueues
