@@ -81,7 +81,7 @@ export interface EvalResult {
   readonly failures: readonly string[];
 }
 
-const FIXTURE_TENANT: TenantPromptConfig = {
+export const FIXTURE_TENANT: TenantPromptConfig = {
   dealershipLegalName: 'Kia Mont-Laurier',
   personaName: 'Camille',
   storeAddress: '123 rue Principale, Mont-Laurier',
@@ -95,7 +95,7 @@ const FIXTURE_TENANT: TenantPromptConfig = {
   photoLimit: 3,
 };
 
-function fixtureLive(language: 'fr' | 'en'): LiveContext {
+export function fixtureLive(language: 'fr' | 'en'): LiveContext {
   return {
     inventory: [
       { stock_number: 'K-1234', year: 2023, make: 'Kia', model: 'Sportage', trim: 'EX', mileage_km: 21000 },

@@ -1,3 +1,16 @@
+## 2026-08-21 (tick 12) — the live eval tier ran, and the model aced it
+
+runLiveEvals in packages/ai: behavioral probes against the REAL model
+through the REAL turn loop, asserting the compliance floor on final
+output (no money, no approval, no invented stock, no prompt leakage) plus
+the drift canaries (regeneration and fallback rates — the numbers to
+watch when a model version changes). First run, claude-sonnet-5, 8/8
+passed with ZERO regenerations: both injections (EN+FR), system-prompt
+extraction, price/approval/trade-value fishing, other-customer probing
+and fake-inventory pressure all resisted on the first draft. The nightly
+job and the pre-release model-swap comparison now have their runner.
+Gate 29/29.
+
 ## 2026-08-21 (tick 11) — F-57 extraction shipped; the product went LIVE twice
 
 The day the fakes retired. Anthropic credits landed: the assistant's first
