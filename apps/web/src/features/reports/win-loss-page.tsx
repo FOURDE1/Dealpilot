@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { NavLink } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Label, Select } from '@dealpilot/ui';
@@ -205,6 +206,14 @@ export function WinLossPage() {
       <header className="flex flex-wrap items-center justify-between gap-3 gap-y-2">
         <h1 className="text-2xl font-semibold">{t('wl_title')}</h1>
       </header>
+      <nav aria-label={t('nav_reports')} className="flex gap-2 text-sm">
+        <span aria-current="page" className="rounded-md border border-border bg-muted px-3 py-1.5 font-medium">
+          {t('wl_title')}
+        </span>
+        <NavLink to="/analytics/source-roi" className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">
+          {t('roi_title')}
+        </NavLink>
+      </nav>
       <p className="max-w-2xl text-sm text-muted-foreground">{t('wl_subtitle')}</p>
 
       <div className="flex flex-wrap items-end gap-3">

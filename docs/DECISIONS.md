@@ -36,6 +36,38 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-066 — 2026-08-22 — Source ROI: cents-native, store-honest, enum-tight
+
+F-65 (expenses-accounting.md §10, reports-analytics.md §8). (1) The spend
+ledger is INTEGER CENTS — the legacy stored dollars here and its own gap
+table calls the unit-mixing a hazard; the UI converts at the edge. (2)
+`source` rides the ONE LeadSource enum, which makes the legacy's seeded
+facebook/google_ads-outside-the-CHECK drift impossible by construction.
+(3) One row per (source, month, store) via UNIQUE NULLS NOT DISTINCT —
+PG16 — so an org-wide row is as unique as a store's; POST is the §10
+upsert. (4) The report fixes the legacy's own flagged gap: STORE-scoped,
+and STRICTLY so (a store cut counts that store's spend rows only, never
+org-wide rows — mixing scopes would double-count the moment both exist).
+(5) Revenue is the GROSS sale price (§8's emphasis) of the converted
+lead's EARLIEST live deal; ROI is NULL when spend is zero because 0/0 is
+not a 0% return; every other zero-denominator guards to 0 per §8. (6) The
+page mirrors win/loss (numbers over pictures, band names in text beside
+the badge colors) and both report pages carry tabs to each other under
+the single Reports nav item.
+(7) The review (13 agents, 10 confirmed / 1 refuted) caught two blockers
+the golden numbers missed: `?? '90 days'` silently swallowed period=all's
+NULL interval (all-time was a quarter), and conversion counting used
+status alone where F-55's WON clause is status OR a live deal — the two
+reports disagreed about the same lead the moment a deal was linked late
+or a status drifted. Also fixed: the report now carries F-55's
+membership store-scoping (a store-bound sales manager sees their stores,
+a foreign store_id is a 404), the ledger list is keyset-paginated (the
+legacy's silent-truncation class), re-posting spend without a note keeps
+the note, the editor's month defaults from LOCAL date parts (UTC rolled
+to next month at 20:00 Eastern on month-end) and can target a store, and
+the ROI badge names its band in text beside the color.
+**Decided by:** Claude (implementation), 2026-08-22
+
 ## D-065 — 2026-08-22 — The QA judge observes; it cannot act
 
 F-64 (compliance-and-quality.md §9). (1) The nightly judge scores 100% of

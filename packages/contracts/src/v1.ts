@@ -161,6 +161,11 @@ import {
   ListDripSequencesQuery,
   DripEnrollment,
   ListDripEnrollmentsQuery,
+  SourceCost,
+  UpsertSourceCostInput,
+  ListSourceCostsQuery,
+  SourceRoiReport,
+  SourceRoiQuery,
 } from '@dealpilot/schemas';
 const c = initContract();
 
@@ -812,6 +817,39 @@ export const apiV1 = c.router({
         200: z.object({ items: z.array(DripEnrollment), next_cursor: z.string().nullable() }),
         ...errorResponses,
       },
+    },
+  }),
+  /** F-65 marketing spend + source ROI (expenses-accounting.md §10,
+   * reports-analytics.md §8). POST is an UPSERT: one row per
+   * source/month/store, re-posting overwrites (§10). */
+  sourceCosts: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/source-costs',
+      query: ListSourceCostsQuery,
+      responses: {
+        200: z.object({ items: z.array(SourceCost), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    upsert: {
+      method: 'POST',
+      path: '/api/v1/source-costs',
+      body: UpsertSourceCostInput,
+      responses: { 201: SourceCost, ...errorResponses },
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/v1/source-costs/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: z.undefined(),
+      responses: { 204: z.undefined(), ...errorResponses },
+    },
+    roi: {
+      method: 'GET',
+      path: '/api/v1/analytics/source-roi',
+      query: SourceRoiQuery,
+      responses: { 200: SourceRoiReport, ...errorResponses },
     },
   }),
   /** F-52 be-back queue (leads.md §9): dormant leads worth another call. */

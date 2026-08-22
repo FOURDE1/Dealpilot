@@ -33,6 +33,17 @@ let storeId = '';
 
 const env = loadEnv({ DATABASE_URL: APP_URL, NODE_ENV: 'test' });
 const deferrals: { runAt: Date; body: string }[] = [];
+
+/** Noon-ish Eastern, always in the future — the confirmation's re_engagement
+ * class rides quiet hours (correctly), so a 3 a.m. CI run must not turn a
+ * send assertion into a deferral. */
+function safeNow(): Date {
+  const t = new Date();
+  t.setUTCHours(17, 0, 0, 0);
+  if (t.getTime() <= Date.now()) t.setUTCDate(t.getUTCDate() + 1);
+  return t;
+}
+
 const deps = (carrier = createCarrier(env, { info: () => {}, warn: () => {} })) => ({
   pool: appPool,
   carrier,
@@ -275,7 +286,7 @@ describe('first touch (F-59, §5/§6)', () => {
     // confirmation refused its own thread.
     const keeperId = await makeLead(40);
     const sourceId = await makeLead(41, { phone: '+15145559240' });
-    const out = await runFirstTouch(deps(), {
+    const out = await runFirstTouch({ ...deps(), now: safeNow }, {
       organization_id: orgId, lead_id: sourceId, duplicate_of: keeperId,
     });
     expect(out.kind, JSON.stringify(out)).toBe('sent');
@@ -303,7 +314,7 @@ describe('first touch (F-59, §5/§6)', () => {
     expect(src.rows[0]!.chatbot_engaged_at).not.toBeNull();
 
     // An at-least-once REPLAY is a recorded no-op: one message, ever.
-    const again = await runFirstTouch(deps(), {
+    const again = await runFirstTouch({ ...deps(), now: safeNow }, {
       organization_id: orgId, lead_id: sourceId, duplicate_of: keeperId,
     });
     expect(again.kind).toBe('skipped');
@@ -325,7 +336,7 @@ describe('first touch (F-59, §5/§6)', () => {
        VALUES ($1,$2,$3,'+15145559244')`,
       [orgId, storeId, sourceId],
     );
-    const out = await runFirstTouch(deps(), {
+    const out = await runFirstTouch({ ...deps(), now: safeNow }, {
       organization_id: orgId, lead_id: sourceId, duplicate_of: keeperId,
     });
     expect(out.kind, JSON.stringify(out)).toBe('sent');

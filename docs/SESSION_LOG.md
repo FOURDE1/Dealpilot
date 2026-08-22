@@ -1,3 +1,19 @@
+## 2026-08-22 (tick 19) — F-65 source ROI: what marketing costs, honestly
+
+F-64 CI-green (32540100074, 85efcf3). F-65 (expenses-accounting.md §10 +
+reports-analytics.md §8, D-066): source_costs in INTEGER CENTS (the
+legacy's dollars column is its own flagged hazard), sources locked to the
+ONE LeadSource enum, UNIQUE NULLS NOT DISTINCT upsert per
+source/month/store, the §8 pipeline (gross-sale revenue, zero-guards,
+spend-only sources included, NULL ROI on zero spend), and a report page
+with an in-place spend editor and band-named ROI badges. Review (13
+agents, 10 confirmed): period=all was silently 90 days (?? ate the NULL
+interval), conversion counting disagreed with F-55's WON clause, the
+report lacked membership store-scoping, the ledger truncated at 500 with
+a lying null cursor, UTC month default, note-wiping upsert, color-only
+badges — all fixed with regressions (10/10 suite incl. the 200-day-old
+lead, the status-drifted deal, and the store-bound manager). Gate 29/29.
+
 ## 2026-08-22 (tick 18) — F-64 the nightly QA judge: observation with teeth, not hands
 
 F-63 CI-green (32537428484, 4f085d6). F-64 (compliance-and-quality.md §9,

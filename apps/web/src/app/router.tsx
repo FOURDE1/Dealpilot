@@ -36,6 +36,9 @@ const LeadsPage = lazy(() =>
 const WinLossPage = lazy(() =>
   import('../features/reports/win-loss-page.js').then((m) => ({ default: m.WinLossPage })),
 );
+const SourceRoiPage = lazy(() =>
+  import('../features/reports/source-roi-page.js').then((m) => ({ default: m.SourceRoiPage })),
+);
 const DuplicatesPage = lazy(() =>
   import('../features/leads/duplicates-page.js').then((m) => ({ default: m.DuplicatesPage })),
 );
@@ -179,6 +182,7 @@ export const router = createBrowserRouter([
       { path: 'dispatch', element: lazyPage(<DispatchPage />) },
       { path: 'conversations', element: lazyPage(<ConversationsPage />) },
       { path: 'analytics/win-loss', element: lazyPage(<WinLossPage />) },
+      { path: 'analytics/source-roi', element: lazyPage(<SourceRoiPage />) },
       // Placeholder module routes land with their feature slices.
       { path: '*', element: <Navigate to="/" replace /> },
     ],

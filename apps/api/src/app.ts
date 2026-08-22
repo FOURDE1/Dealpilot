@@ -34,6 +34,7 @@ import { registerF52Routes } from './f52-beback-routes.js';
 import { registerF53Routes } from './f53-lost-reason-routes.js';
 import { registerF54Routes } from './f54-duplicate-routes.js';
 import { registerF61Routes } from './f61-drip-routes.js';
+import { registerF65Routes } from './f65-source-roi-routes.js';
 import { registerF55Routes } from './f55-analytics-routes.js';
 import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
 import { createCarrier, type Carrier } from './carrier.js';
@@ -438,6 +439,7 @@ export async function buildApp(
   registerF54Routes(app, pool);
   registerF55Routes(app, pool);
   registerF61Routes(app, pool);
+  registerF65Routes(app, pool);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN, rateLimiter);
   registerF08Routes(app, pool);

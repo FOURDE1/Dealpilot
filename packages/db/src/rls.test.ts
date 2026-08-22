@@ -331,6 +331,30 @@ describe('row-level security', () => {
     ).rejects.toThrow();
   });
 
+  it('source_costs: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await withTenant(app, org1, async (c) => {
+      await c.query(
+        `INSERT INTO source_costs (organization_id, source, month, spend_cents)
+         VALUES ($1, 'website', date_trunc('month', now())::date, 80000)`,
+        [org1],
+      );
+    });
+    const rival = await withTenant(app, org2, async (c) =>
+      (await c.query(`SELECT * FROM source_costs`)).rows,
+    );
+    expect(rival).toHaveLength(0);
+    await expect(
+      withTenant(app, org2, async (c) => {
+        await c.query(
+          `INSERT INTO source_costs (organization_id, source, month, spend_cents)
+           VALUES ($1, 'website', date_trunc('month', now())::date, 1)`,
+          [org1],
+        );
+      }),
+    ).rejects.toThrow();
+  });
+
   it('lead_duplicates: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const pairIds = await withTenant(app, org1, async (c) => {
