@@ -18,3 +18,5 @@ export * from './evals/live.js';
 export * from './first-touch.js';
 export * from './analysis/live-analysis.js';
 export * from './analysis/anthropic-analysis.js';
+export * from './qa/judge.js';
+export * from './qa/anthropic-judge.js';

@@ -8,6 +8,7 @@ import {
   QUEUE_LEAD_REASSIGN,
   QUEUE_DRIP_TICK,
   QUEUE_LIVE_ANALYSIS,
+  QUEUE_QA_REVIEW,
   REASSIGN_AFTER_MS,
   queueOpts,
   type AiExtractionJobT,
@@ -30,7 +31,8 @@ import { runLeadReassign } from './lead-reassign.js';
 import { runDripTick } from './drip-tick.js';
 import { runLiveAnalysisJob } from './live-analysis.js';
 import { createEmitOnlyEmitter } from '@dealpilot/api/realtime';
-import { createAnthropicAnalysisClient } from '@dealpilot/ai';
+import { createAnthropicAnalysisClient, createAnthropicJudgeClient } from '@dealpilot/ai';
+import { runQaReview } from './qa-review.js';
 
 export { runDeferredSend } from './deferred-send.js';
 export type { DeferredSendDeps, DeferredSendResult } from './deferred-send.js';
@@ -252,6 +254,38 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
     { ...queueOpts(connection(env.REDIS_URL)), concurrency: 1 },
   ));
 
+  // F-64: the nightly QA judge (§9) — drains 100% of the recent closed
+  // conversations at 07:00 UTC (02:00 or 03:00 ET depending on DST — the
+  // cron is UTC-pinned on purpose; the WINDOW is seven days, so the exact
+  // hour only decides when, never whether). Gated like every model pass.
+  const qaQueue = guarded('qa-queue', new Queue(QUEUE_QA_REVIEW, queueOpts(connection(env.REDIS_URL))));
+  await qaQueue.add(
+    QUEUE_QA_REVIEW,
+    {},
+    { repeat: { pattern: '0 7 * * *' }, removeOnComplete: 30, removeOnFail: 30 },
+  );
+  const qaWorker = assistant.enabled
+    ? guarded('qa-review', new Worker(
+        QUEUE_QA_REVIEW,
+        async () =>
+          runQaReview({
+            pool,
+            judge: createAnthropicJudgeClient({
+              apiKey: env.ANTHROPIC_API_KEY ?? '',
+              model: env.AI_JUDGE_MODEL,
+            }),
+            model: env.AI_JUDGE_MODEL,
+            warn: (message, err) => {
+              process.stderr.write(
+                `${JSON.stringify({ level: 40, time: Date.now(), name: 'workers', label: 'qa-review', message, err: err instanceof Error ? err.message : String(err ?? '') })}
+`,
+              );
+            },
+          }),
+        { ...queueOpts(connection(env.REDIS_URL)), concurrency: 1 },
+      ))
+    : null;
+
   // F-42.2: the ten-minute reassignment ladder (FR-LEAD-010, D-046). The
   // module verifies every claim against the database, so concurrency 2 is
   // parallelism, not risk.
@@ -286,6 +320,8 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
       await firstTouchWorker?.close();
       await analysisWorker?.close();
       await analysisQueue.close();
+      await qaWorker?.close();
+      await qaQueue.close();
       await realtime.close();
       await dripWorker.close();
       await dripQueue.close();

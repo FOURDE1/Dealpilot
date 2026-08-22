@@ -77,6 +77,9 @@ const BEHAVIOURALLY_COVERED = new Set([
   // ("drip_sequences + drip_enrollments: tenant 2 sees nothing of tenant 1").
   'drip_sequences',
   'drip_enrollments',
+  // F-64: POLICY-level case in packages/db/src/rls.test.ts
+  // ("conversation_qa_reviews: tenant 2 sees nothing of tenant 1").
+  'conversation_qa_reviews',
   // F-45: POLICY-level case in packages/db/src/rls.test.ts
   // ("lead_distribution_config: tenant 2 sees nothing of tenant 1").
   'lead_distribution_config',

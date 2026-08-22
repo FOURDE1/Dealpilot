@@ -36,6 +36,42 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-065 — 2026-08-22 — The QA judge observes; it cannot act
+
+F-64 (compliance-and-quality.md §9). (1) The nightly judge scores 100% of
+the day's closed conversations against the six-dimension rubric — and the
+ARITHMETIC is code, not model output: weights, the 2dp mean, and the rule
+that a compliance score of 1 caps the overall at 1.00 and forces the
+'compliance' flag all live in qaOverall(), because a rubric a judge can
+charm its way around is not a rubric. (2) Observation only, structurally:
+the worker holds INSERT on conversation_qa_reviews and nothing else — no
+send path, no conversation writes, no lead writes. (3) The scan is the
+0060 cross-tenant SECURITY DEFINER shape (ids only, 36h self-healing
+window, per-conversation idempotency via a partial unique index checked
+BEFORE the model spend, §13 metering on the row). (4) Alerts ride the
+D-045 escalation ladder's first person: HIGH on any compliance flag,
+same-day; MEDIUM when the 7-day tenant average sits under 4.2 with n≥5,
+at most once a day — a floor over three conversations is noise. (5)
+Deferred to the QA console slice: the human 10%+flagged review surface
+(reviewer_type 'human' is ready for it) and the monthly Cohen's-κ
+calibration. The judge model is env-selected (AI_JUDGE_MODEL,
+Opus-class per §9).
+(6) The review (17 agents, 12 confirmed / 3 refuted) rebuilt the judge's
+EYES: qaTranscript keeps head AND tail with an omitted-middle marker —
+reusing F-62's 20-message window had cut the first-turn disclosure out of
+every long conversation, making the compliance dimension wrong in both
+directions — and every line is timestamped in the STORE's timezone so the
+§9 'quiet-hours clean' anchor is judgeable at all. The scan window is
+seven days, ordered oldest-first, and the worker DRAINS it in rounds with
+a per-run attempted-set (an invalid verdict is not re-paid within a run,
+and a stalled run logs its shortfall instead of hiding it); a session
+advisory lock fences overlapping runs from double-paying the judge. The
+grounding anchor is honest about not seeing tool results (specific
+unverifiable claims → 3 + flag; blatant invention → 1), craft carries the
+measurable <160-character bar, language carries the Quebec preference
+question, and the weekly floor considers every org the scan touched.
+**Decided by:** Claude (implementation), 2026-08-22
+
 ## D-064 — 2026-08-22 — Duplicate-as-signal: the resubmission is about the KEEPER
 
 F-63 (leads.md §8.3). (1) The §8.3 auto-reaction fires only on CERTAINTY —

@@ -198,6 +198,8 @@ export const enCA = {
     notif_lead_taken_back: 'A lead was taken back — no contact within {minutes} minutes.',
     notif_lead_escalated: 'Lead escalated to you ({reason}).',
     notif_duplicate_resubmission: '{lead} submitted a new application while on an active deal.',
+    notif_qa_compliance_flag: 'QA compliance flag on a conversation: {flags}.',
+    notif_qa_weekly_low: 'Weekly conversation QA average is {average} — below the 4.2 floor.',
   },
   distribution: {
     title: 'Lead distribution',

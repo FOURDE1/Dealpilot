@@ -294,6 +294,43 @@ describe('row-level security', () => {
     void seqId;
   });
 
+  it('conversation_qa_reviews: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await withTenant(app, org1, async (c) => {
+      const store = await c.query<{ id: string }>(`SELECT id FROM stores LIMIT 1`);
+      const conv = await c.query<{ id: string }>(
+        `INSERT INTO conversations (organization_id, store_id, phone_e164, status, closed_at)
+         VALUES ($1, $2, '+15145550994', 'closed', now()) RETURNING id`,
+        [org1, store.rows[0]!.id],
+      );
+      await c.query(
+        `INSERT INTO conversation_qa_reviews
+           (organization_id, store_id, conversation_id, reviewer_type, scores, overall, notes)
+         VALUES ($1, $2, $3, 'model',
+                 '{"compliance":5,"grounding":5,"data_capture":5,"craft":5,"language":5,"handoff":5}',
+                 5.00, 'probe review')`,
+        [org1, store.rows[0]!.id, conv.rows[0]!.id],
+      );
+    });
+    const rival = await withTenant(app, org2, async (c) =>
+      (await c.query(`SELECT * FROM conversation_qa_reviews`)).rows,
+    );
+    expect(rival).toHaveLength(0);
+    await expect(
+      withTenant(app, org2, async (c) => {
+        const store = await withTenantStore(c);
+        await c.query(
+          `INSERT INTO conversation_qa_reviews
+             (organization_id, store_id, conversation_id, reviewer_type, scores, overall, notes)
+           VALUES ($1, $2, '00000000-0000-4000-8000-000000000009', 'model',
+                   '{"compliance":5,"grounding":5,"data_capture":5,"craft":5,"language":5,"handoff":5}',
+                   5.00, 'smuggled')`,
+          [org1, store],
+        );
+      }),
+    ).rejects.toThrow();
+  });
+
   it('lead_duplicates: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const pairIds = await withTenant(app, org1, async (c) => {

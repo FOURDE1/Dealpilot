@@ -1,3 +1,20 @@
+## 2026-08-22 (tick 18) — F-64 the nightly QA judge: observation with teeth, not hands
+
+F-63 CI-green (32537428484, 4f085d6). F-64 (compliance-and-quality.md §9,
+D-065): conversation_qa_reviews (0062) + the qa_due_conversations
+cross-tenant scan, the six-dimension judge in packages/ai (arithmetic in
+CODE — weights, 2dp, the compliance-1 cap and forced flag), the nightly
+worker (idempotent-before-spend, §13 metered, advisory-lock fenced,
+drain-loop over a 7-day oldest-first window), HIGH-on-compliance-flag and
+MEDIUM-on-weekly-floor alerts riding the D-045 ladder. Review (17 agents,
+12 confirmed): the blocker was borrowed eyes — F-62's 20-message window
+cut the first-turn disclosure from every long conversation, so compliance
+was wrong in both directions; qaTranscript now keeps head AND tail with
+timestamps in store-local time (making quiet-hours judgeable), the scan
+drains instead of sampling, invalid verdicts aren't re-paid, overlapping
+runs can't double-spend, and the anchors carry §9's exact bars. Suites:
+judge 7, worker 4. Gate 29/29. Pushing.
+
 ## 2026-08-22 (tick 17) — F-63 duplicate-as-signal: the resubmission is about the keeper
 
 Drain fix verified green (32533551675, b9b9499). F-63 (leads.md §8.3,

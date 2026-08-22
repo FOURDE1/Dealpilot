@@ -70,6 +70,19 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   'conversation_analysis.input_tokens': 'written by the live-analysis worker',
   'conversation_analysis.output_tokens': 'written by the live-analysis worker',
 
+  // F-64: the nightly QA judge WORKER writes this whole table
+  // (apps/workers/src/qa-review.ts); the API only reads it. Human reviews
+  // arrive with the QA console slice.
+  'conversation_qa_reviews.conversation_id': 'written by the qa-review worker',
+  'conversation_qa_reviews.reviewer_type': 'written by the qa-review worker',
+  'conversation_qa_reviews.scores': 'written by the qa-review worker',
+  'conversation_qa_reviews.overall': 'written by the qa-review worker',
+  'conversation_qa_reviews.flags': 'written by the qa-review worker',
+  // notes + model need no entry: name-only evidence from sibling tables
+  // already counts them (the guard's documented blind spot).
+  'conversation_qa_reviews.input_tokens': 'written by the qa-review worker',
+  'conversation_qa_reviews.output_tokens': 'written by the qa-review worker',
+
   // F-61: the hourly drip-tick WORKER advances rides and stamps sends
   // (apps/workers/src/drip-tick.ts); this guard scans apps/api only. The
   // API's own writes (f18 opt-out, f61 reactivation) are attributed above.

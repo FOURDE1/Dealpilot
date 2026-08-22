@@ -47,6 +47,8 @@ export const QUEUE_FIRST_TOUCH = 'first-touch';
 export const QUEUE_DRIP_TICK = 'drip-tick';
 /** Silent monitoring pass per message on a human-held thread (F-62, §10). */
 export const QUEUE_LIVE_ANALYSIS = 'live-analysis';
+/** Nightly QA judge over the day's closed conversations (F-64, §9) — no payload. */
+export const QUEUE_QA_REVIEW = 'qa-review';
 
 /**
  * Build the options every Queue and Worker must be constructed with.

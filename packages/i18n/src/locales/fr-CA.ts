@@ -198,6 +198,8 @@ export const frCA = {
     notif_lead_taken_back: 'Un prospect vous a été retiré — sans contact en {minutes} minutes.',
     notif_lead_escalated: 'Prospect escaladé vers vous ({reason}).',
     notif_duplicate_resubmission: '{lead} a soumis une nouvelle demande alors qu’un dossier est actif.',
+    notif_qa_compliance_flag: 'Indicateur de conformité QA sur une conversation : {flags}.',
+    notif_qa_weekly_low: 'Moyenne QA hebdomadaire des conversations à {average} — sous le plancher de 4,2.',
   },
   distribution: {
     title: 'Répartition des prospects',
