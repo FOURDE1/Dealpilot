@@ -180,6 +180,19 @@ import {
   BulkReassignTasksInput,
   BulkTasksResult,
   HeatmapQuery,
+  AdminMeResponse,
+  PlanList,
+  AdminTenantListQuery,
+  AdminTenantPage,
+  AdminTenantDetail,
+  AdminTenantEventsQuery,
+  AdminTenantEventsResponse,
+  AdminUpdateTenantInput,
+  TenantStatusChangeInput,
+  TenantStatusChangeResult,
+  PlatformStaffList,
+  GrantPlatformStaffInput,
+  PlatformStaffGranted,
 } from '@dealpilot/schemas';
 const c = initContract();
 
@@ -191,6 +204,8 @@ const c = initContract();
 const errorResponses = {
   400: ErrorEnvelope,
   401: ErrorEnvelope,
+  /** F-69: a read_only tenant's mutations (admin-console.md §4.2). */
+  402: ErrorEnvelope,
   403: ErrorEnvelope,
   404: ErrorEnvelope,
   409: ErrorEnvelope,
@@ -1122,6 +1137,80 @@ export const apiV1 = c.router({
       body: c.noBody(),
       responses: { 200: LeadScoreResult, ...errorResponses },
     },
+  }),
+  /**
+   * F-69 platform admin console, slice 1 (admin-console.md §3/§4/§11).
+   * Everything under /api/v1/admin/ is gated by identity (platform_staff), MFA
+   * and session age BEFORE any handler runs; non-staff get 404, never 403.
+   * Transitions have their own endpoint: the reason, the `restricted` flag,
+   * the slug confirmation and the compare-and-swap are transition-specific.
+   */
+  admin: c.router({
+    me: {
+      method: 'GET',
+      path: '/api/v1/admin/me',
+      responses: { 200: AdminMeResponse, ...errorResponses },
+    },
+    plans: {
+      method: 'GET',
+      path: '/api/v1/admin/plans',
+      responses: { 200: PlanList, ...errorResponses },
+    },
+    tenants: c.router({
+      list: {
+        method: 'GET',
+        path: '/api/v1/admin/tenants',
+        query: AdminTenantListQuery,
+        responses: { 200: AdminTenantPage, ...errorResponses },
+      },
+      get: {
+        method: 'GET',
+        path: '/api/v1/admin/tenants/:id',
+        pathParams: idParams,
+        responses: { 200: AdminTenantDetail, ...errorResponses },
+      },
+      events: {
+        method: 'GET',
+        path: '/api/v1/admin/tenants/:id/events',
+        pathParams: idParams,
+        query: AdminTenantEventsQuery,
+        responses: { 200: AdminTenantEventsResponse, ...errorResponses },
+      },
+      update: {
+        method: 'PATCH',
+        path: '/api/v1/admin/tenants/:id',
+        pathParams: idParams,
+        body: AdminUpdateTenantInput,
+        responses: { 200: AdminTenantDetail, ...errorResponses },
+      },
+      setStatus: {
+        method: 'POST',
+        path: '/api/v1/admin/tenants/:id/status',
+        pathParams: idParams,
+        body: TenantStatusChangeInput,
+        responses: { 200: TenantStatusChangeResult, ...errorResponses },
+      },
+    }),
+    staff: c.router({
+      list: {
+        method: 'GET',
+        path: '/api/v1/admin/staff',
+        responses: { 200: PlatformStaffList, ...errorResponses },
+      },
+      grant: {
+        method: 'POST',
+        path: '/api/v1/admin/staff',
+        body: GrantPlatformStaffInput,
+        responses: { 201: PlatformStaffGranted, ...errorResponses },
+      },
+      revoke: {
+        method: 'DELETE',
+        path: '/api/v1/admin/staff/:userId',
+        pathParams: z.object({ userId: Uuid }),
+        body: c.noBody(),
+        responses: { 204: c.noBody(), ...errorResponses },
+      },
+    }),
   }),
   /**
    * F-68 tasks — the unified follow-up system (appointments-tasks-

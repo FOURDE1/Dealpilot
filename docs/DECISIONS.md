@@ -36,6 +36,87 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-070 — 2026-08-26 — Platform console, slice 1: staff identity, tenant lifecycle, and the platform/tenant boundary
+
+F-69 (admin-console.md §2–§5.1, §11–§12; ADR-006/007/024; designed by a
+three-lens panel + judge, verified against the repo). (1) Platform staff
+are a `platform_staff` row on a Better Auth account — NOT a membership in
+a reserved organization: a membership IS tenant RLS context (0003), which
+§2 forbids for staff, and the roles CHECK admits only the ten tenant
+roles; the platform's own slugs are reserved so no tenant can squat them.
+(2) `organizations` IS the tenant (multi-tenancy.md §3): §4.1's columns
+(`legal_name`, `province`, privacy officer, `plan_id`, `activated_at`,
+`suspended_at`) land there; no 1:1 `tenants` table. `plans` is the §5.1
+catalogue seeded with the reference tiers; `plan_tier` becomes a
+trigger-maintained cache of `plans.code` because ~60 readers use it.
+(3) Authority in routes is a CAPABILITY, never a role name; only the six
+capabilities slice 1 enforces exist, and a drift guard fails on one nothing
+enforces. (4) Platform staff never receive tenant context: every read and
+write is a SECURITY DEFINER function on a bare pool connection that
+re-checks the actor itself; a lockstep test greps the route file for the
+tenant-scoped helpers. The definers rely on the OWNER bypassing FORCE RLS
+(superuser locally; BYPASSRLS on RDS — `definer-owner.test.ts` asserts it);
+`set_config('app.org_id', …, true)` inside a function was rejected because
+it would outlive the function. (5) The gate (identity → MFA enrolment →
+session age) runs before any /api/v1/admin handler; non-staff get 404,
+never 403. "TOTP on every request" is realised as: enrolment read per
+request, sessions minted through the challenge, `trustDevice` refused at
+the auth mount for every account (O-1), and a 12-hour re-auth cap
+(`ADMIN_SESSION_MAX_AGE_HOURS`, O-2) on `"session"."createdAt"`, which
+Better Auth never refreshes. (6) Audit: tenant-scoped platform acts go to
+`activity_events` with `actor_type='platform'` (§12 transparency — the
+tenant sees them, except rows flagged `restricted`); platform-scope acts
+(staff grants) go to an immutable `platform_audit_events`; no new action
+verbs. (7) Lifecycle: ONE matrix in core mirrored by `tenant_transitions()`
+and diffed by a guard; the definer refuses illegal pairs itself, with a
+compare-and-swap on `expected_from`; no `prospect` until provisioning has
+a producer, `churned` = `offboarding` then `purged` (the retention job,
+never a console act — ADR-024); `suspended → active` and `offboarding →
+active` added for wrongful actions; the Stripe-driven pairs are manual
+super-admin transitions until the billing slice. (8) Suspension deletes the
+tenant's members' sessions (O-6, blunt: multi-org staff re-sign-in), intake
+answers 410 AFTER the signature verifies, and a suspended or closing
+tenant is invisible to implicit org resolution. (9) `read_only` turns every
+mutating VERB into 402 `payment_required` — decided by the method through
+an AsyncLocalStorage request context, because five GET routes ask a write
+permission — with an exemption list that names its reasons; enforced in
+both membership gates AND a preHandler for every request that names an
+organization (the F-69 suite showed a suspended owner could still list
+leads through a withUser list route). (10) Outbound automation pauses for
+non-operational tenants: the definer scans filter in SQL, the event-driven
+workers ask `tenantOperational` before spending; `read_only` keeps receiving
+intake leads (O-4) and task reminders. (11) Same-origin `/admin/*` until the
+host split (O-8); the console shell never mounts BrandStyle. (12) Bootstrap:
+`cli.js platform-grant <email>` opens only while no active super admin
+exists (O-9). Owner placeholders: storage GB and enterprise price (O-3).
+**Review amendments (45 agents, 31 confirmed):** (13) the `trustDevice`
+refusal — and the per-email sign-in limiter — match the NORMALISED
+pathname, because Better Auth routes on it and `/two-factor/./verify-totp`
+walked past a raw-url regex (blocker); verify-otp is covered too. (14) The
+last-super-admin rule applies to DEMOTION as well as revocation, with the
+surviving rows locked FOR UPDATE (the F-04 discipline) — demoting yourself
+locked the console and reopened the bootstrap. (15) The realtime subscribe
+authorisation is a membership gate like the HTTP ones: a suspended or
+closing tenant's rooms are closed. (16) live-analysis and ai-extraction
+gate on `tenantOperational` too — an inbound reply must not buy a model
+call for a tenant that is not paying. (17) "Waits" means a retry: a
+non-operational tenant's first touch is re-enqueued hourly, and a deferred
+send sleeps another hour under the same deferral cap as quiet hours,
+instead of being dropped. (18) The directory search is text: `%` and `_`
+are escaped. (19) `activated_at` is stamped for organizations born active;
+a soft-deleted tenant offers no transition; `seq` crosses the wire as a
+number; a malformed staff id is a 404, not a 500; the past_due banner
+exists; product copy no longer promises an export that does not exist yet.
+(20) Console: URL-keyed filter inputs, an honest "shown" count, no
+client-side sorting of a partial page, 409s refetch the tenant, plan
+changes confirm in the same dialog as everything else, journal rows spell
+out every field as from → to in the reader's words, store/staff statuses
+are labelled, self-revocation is explained in text rather than a greyed
+button, focus is parked after a transition or a revoke, the MFA wall is
+page content rather than an alert, transient probe failures show a retry
+instead of ejecting staff, and the re-auth deadline carries its date.
+**Decided by:** Claude (implementation), 2026-08-26
+
 ## D-069 — 2026-08-26 — Tasks: one table, the subject's permission, and reading as acknowledgement
 
 F-68 (appointments-tasks-communications.md §3.3 Target, §2.4, leads.md

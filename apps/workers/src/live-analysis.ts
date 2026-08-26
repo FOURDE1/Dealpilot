@@ -1,3 +1,4 @@
+import { tenantOperational } from './tenant-status.js';
 import { withTenant, type Pool, type PoolClient } from '@dealpilot/db';
 import { LiveAnalysisJob, type LiveAnalysisJobT } from '@dealpilot/contracts';
 import type { Emitter } from '@dealpilot/contracts';
@@ -71,6 +72,12 @@ export async function runLiveAnalysisJob(
     return { kind: 'skipped', reason: 'AI transport is off — no analysis model configured' };
   }
   const analyst = deps.analyst;
+
+  // F-69: no model spend for a tenant that is not operational — an inbound
+  // reply still reaches a suspended tenant's thread through the carrier.
+  if (!(await withTenant(deps.pool, job.organization_id, tenantOperational))) {
+    return { kind: 'skipped', reason: 'tenant_not_operational' };
+  }
 
   const result = await withTenant(deps.pool, job.organization_id, async (c) => {
     const conv = await c.query<{

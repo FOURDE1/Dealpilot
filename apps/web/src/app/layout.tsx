@@ -124,6 +124,11 @@ export function AppLayout() {
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {session?.user.name || session?.user.email}
             </span>
+            {me.data?.platform_role ? (
+              <Link to="/admin" className="hidden text-sm font-medium text-primary underline-offset-4 hover:underline sm:inline">
+                {t('nav:console')}
+              </Link>
+            ) : null}
             <Link
               to="/security"
               // Hidden below sm like the username: the topbar does not wrap,
@@ -157,6 +162,20 @@ export function AppLayout() {
             <Link to="/security" className="underline underline-offset-4">
               {t('security:title')}
             </Link>
+          </p>
+        ) : null}
+        {/* F-69: the tenant's lifecycle, said plainly (admin-console.md §4.2). */}
+        {(orgs.data?.items ?? []).some((o) => o.status === 'suspended') ? (
+          <p role="status" className="border-b border-border bg-danger-bg px-4 py-2 text-sm text-danger-text">
+            {t('common:tenantSuspendedBanner')}
+          </p>
+        ) : (orgs.data?.items ?? []).some((o) => o.status === 'read_only') ? (
+          <p role="status" className="border-b border-border bg-warning-bg px-4 py-2 text-sm text-warning-text">
+            {t('common:tenantReadOnlyBanner')}
+          </p>
+        ) : (orgs.data?.items ?? []).some((o) => o.status === 'past_due') ? (
+          <p role="status" className="border-b border-border bg-warning-bg px-4 py-2 text-sm text-warning-text">
+            {t('common:tenantPastDueBanner')}
           </p>
         ) : null}
         <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[1400px] flex-1 p-4 pb-20 lg:p-6 outline-none max-lg:pb-24">

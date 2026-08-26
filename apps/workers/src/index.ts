@@ -217,6 +217,12 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
   // from an assistant that cannot then reply is worse than a visible queue
   // of waiting jobs. The per-tenant ai_enabled switch arrives with the
   // admin console (D-059).
+  // F-69: the producer side of the first-touch queue, for the hourly retry
+  // while a tenant is not operational (the API has its own producer).
+  const firstTouchQueue = guarded('first-touch-queue', new Queue<FirstTouchJobT>(
+    QUEUE_FIRST_TOUCH,
+    queueOpts(connection(env.REDIS_URL)),
+  ));
   const firstTouchWorker = assistant.enabled
     ? guarded('first-touch', new Worker<FirstTouchJobT>(
         QUEUE_FIRST_TOUCH,
@@ -228,6 +234,14 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
               // the window opening — as a deferred-send job, re-gated on wake.
               defer: async (next, runAt) => {
                 await queue.add(QUEUE_DEFERRED_SEND, next, {
+                  delay: Math.max(0, runAt.getTime() - Date.now()),
+                  removeOnComplete: 1000,
+                  removeOnFail: 5000,
+                });
+              },
+              // F-69: a tenant that is not operational greets the lead LATER.
+              retryLater: async (next, runAt) => {
+                await firstTouchQueue.add(QUEUE_FIRST_TOUCH, next, {
                   delay: Math.max(0, runAt.getTime() - Date.now()),
                   removeOnComplete: 1000,
                   removeOnFail: 5000,
@@ -346,6 +360,7 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
       await turnWorker?.close();
       await extractionWorker?.close();
       await firstTouchWorker?.close();
+      await firstTouchQueue.close();
       await analysisWorker?.close();
       await analysisQueue.close();
       await qaWorker?.close();

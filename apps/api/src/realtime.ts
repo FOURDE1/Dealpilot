@@ -260,6 +260,10 @@ async function authorize(
     const member = await c.query(
       `SELECT 1 FROM memberships m
        JOIN organizations o ON o.id = m.organization_id AND o.deleted_at IS NULL
+         -- F-69 (review): a suspended or closing tenant's rooms are closed too;
+         -- the socket is a membership gate like the HTTP ones. Read-only stays
+         -- readable, so its rooms stay open.
+         AND o.status NOT IN ('suspended','offboarding','purged')
        WHERE m.user_id = $1 AND m.organization_id = $2 AND m.status = 'active'`,
       [userId, req.organization_id],
     );

@@ -8,6 +8,9 @@ import { loadEnv, type Env } from './env.js';
 import { AppError, envelope } from './errors.js';
 import { createMailer, type Mailer } from './email.js';
 import { setMfaEnforcement } from './permissions.js';
+import { platformGate } from './platform.js';
+import { tenantStatusGate } from './tenant-status.js';
+import { requestContext } from './request-context.js';
 import { registerF01Routes } from './f01-routes.js';
 import { registerF02Routes } from './f02-leads-routes.js';
 import { registerIntakeKeyRoutes, registerPublicIntakeRoutes } from './f03-intake-routes.js';
@@ -38,6 +41,7 @@ import { registerF65Routes } from './f65-source-roi-routes.js';
 import { registerF66Routes } from './f66-leaderboard-routes.js';
 import { registerF67Routes } from './f67-heatmap-routes.js';
 import { registerF68Routes } from './f68-task-routes.js';
+import { registerF69Routes } from './f69-admin-routes.js';
 import { registerF55Routes } from './f55-analytics-routes.js';
 import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
 import { createCarrier, type Carrier } from './carrier.js';
@@ -263,7 +267,7 @@ export async function buildApp(
           { code: err.apiCode, method: request.method, url: request.url, userId: request.session?.user.id ?? null },
           'denied',
         );
-      } else if (err.statusCode === 404 || err.statusCode === 422) {
+      } else if (err.statusCode === 402 || err.statusCode === 404 || err.statusCode === 422) {
         request.log.info(
           { code: err.apiCode, method: request.method, url: request.url, userId: request.session?.user.id ?? null },
           'refused',
@@ -295,6 +299,14 @@ export async function buildApp(
       .send(envelope('not_found', 'Route not found', String(request.id)));
   });
 
+  // --- request context (F-69) ---------------------------------------------
+  // Callback style so the AsyncLocalStorage store wraps the rest of the
+  // lifecycle: the membership gates read the VERB from it to decide whether a
+  // read_only tenant's request is a read (allowed) or a write (402).
+  app.addHook('onRequest', (request: FastifyRequest, _reply: FastifyReply, done: () => void) => {
+    requestContext.run({ method: request.method, path: request.routeOptions.url ?? '' }, done);
+  });
+
   // --- deny-by-default session gate --------------------------------------
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     const routedPath = request.routeOptions.url ?? '';
@@ -309,6 +321,14 @@ export async function buildApp(
     request.session = session;
   });
 
+  // --- platform gate (F-69): identity → MFA → session age, before any
+  // /api/v1/admin/* handler. Registered AFTER the session gate on purpose:
+  // hooks run in registration order and this one reads request.session.
+  app.addHook('onRequest', platformGate(pool, env));
+  // --- tenant lifecycle gate (F-69): suspended → 403, read_only writes → 402
+  // for every request that names an organization.
+  app.addHook('preHandler', tenantStatusGate(pool));
+
   // --- Better Auth mount ---------------------------------------------------
   app.route({
     method: ['GET', 'POST'],
@@ -319,7 +339,26 @@ export async function buildApp(
       // still runs into the account's own budget. GETs (session reads) are
       // not gated: they are cheap, constant and carry no secret to guess.
       // TOTP codes have their own server-side counter+lockout (0048).
+      // Better Auth routes on the NORMALISED pathname (better-call resolves
+      // dot-segments and drops fragments), so every rule here must look at
+      // the same thing — matching the raw request target let
+      // `/two-factor/./verify-totp` walk past the refusal (F-69 review).
+      const authPath = new URL(request.url, env.BETTER_AUTH_URL).pathname;
       if (request.method === 'POST') {
+        // F-69 (O-1): `trustDevice` would let a device that once passed TOTP
+        // mint challenge-free sessions for 30 days, and "a session exists ⇒
+        // the challenge passed" is what the platform console relies on. The
+        // web never sends it; refuse it for every account, because the
+        // plugin cannot tell staff from tenants before the session exists.
+        // verify-otp is covered too: latent until an OTP sender is configured.
+        if (
+          /\/two-factor\/verify-(totp|backup-code|otp)$/.test(authPath) &&
+          (request.body as { trustDevice?: unknown } | null)?.trustDevice === true
+        ) {
+          return reply
+            .status(422)
+            .send(envelope('trust_device_disabled', 'Device trust is disabled on this platform', String(request.id)));
+        }
         // 60/min is lethal to password spraying yet invisible to a burst of
         // legitimate sign-ins (four e2e workers signing up at once peak ~10).
         // The per-EMAIL bucket below is the real brute-force wall.
@@ -330,7 +369,7 @@ export async function buildApp(
             .header('retry-after', String(ipGate.retryAfterS))
             .send(envelope('rate_limited', 'Too many requests', String(request.id)));
         }
-        if (request.url.includes('/sign-in/email')) {
+        if (authPath.endsWith('/sign-in/email')) {
           const email = String((request.body as { email?: unknown } | null)?.email ?? '').toLowerCase().trim();
           if (email !== '') {
             const emailGate = await rateLimiter.take(`auth:email:${email}`, { ratePerMinute: 2, burst: 8 });
@@ -390,10 +429,17 @@ export async function buildApp(
         required: required.rows.length > 0,
       };
     });
+    // F-69: the console link and the /admin guard read this; a definer on a
+    // bare pool query, so no tenant context is involved.
+    const staff = await pool.query<{ role: string }>(
+      'SELECT role FROM platform_identity($1::uuid, $2::text)',
+      [user.id, session.id],
+    );
     return {
       user: { id: user.id, email: user.email, name: user.name },
       session: { expires_at: session.expiresAt },
       mfa,
+      platform_role: staff.rows[0]?.role ?? null,
     };
   });
 
@@ -446,6 +492,7 @@ export async function buildApp(
   registerF66Routes(app, pool);
   registerF67Routes(app, pool);
   registerF68Routes(app, pool);
+  registerF69Routes(app, pool, env);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN, rateLimiter);
   registerF08Routes(app, pool);

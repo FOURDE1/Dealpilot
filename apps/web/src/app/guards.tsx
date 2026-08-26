@@ -15,7 +15,7 @@ export function safeReturnTo(search: string): string {
   return value.startsWith('/') && !value.startsWith('//') ? value : '/';
 }
 
-function FullPageSkeleton() {
+export function FullPageSkeleton() {
   return (
     <div className="flex min-h-svh items-center justify-center bg-background" aria-busy="true">
       <div className="h-8 w-40 animate-pulse rounded-md bg-muted motion-reduce:animate-none" />

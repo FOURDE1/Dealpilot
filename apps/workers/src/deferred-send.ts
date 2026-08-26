@@ -1,4 +1,5 @@
 import { withTenant, type Pool } from '@dealpilot/db';
+import { tenantOperational } from './tenant-status.js';
 import {
   DeferredSendJob, MAX_DEFERRALS, QUEUE_DEFERRED_SEND, type DeferredSendJobT,
 } from '@dealpilot/contracts';
@@ -68,6 +69,21 @@ export async function runDeferredSend(
   // payload was written by a version of the code that no longer exists.
   const job = DeferredSendJob.parse(raw);
   const now = deps.now?.() ?? new Date();
+
+  // F-69: a suspended or read-only tenant sends nothing NOW — the message
+  // sleeps another hour and is re-gated on wake, bounded by the same
+  // deferral cap as quiet hours (review: a silent drop was the file's own
+  // named failure mode). The abandonment, when it comes, is the honest
+  // outcome and rides the job result like every other.
+  if (!(await withTenant(deps.pool, job.organization_id, tenantOperational))) {
+    const attempt = job.attempt + 1;
+    if (attempt >= MAX_DEFERRALS) {
+      return { kind: 'abandoned', reason: `tenant not operational for ${attempt} attempts; giving up` };
+    }
+    const runAt = new Date(now.getTime() + 60 * 60_000);
+    await deps.reschedule({ ...job, attempt }, runAt);
+    return { kind: 'deferred_again', runAt, attempt };
+  }
 
   const conversation = await withTenant(deps.pool, job.organization_id, async (c) => {
     const r = await c.query<{

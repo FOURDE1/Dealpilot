@@ -114,6 +114,14 @@ const EnvSchema = z.object({
     .transform((v) => v === 'true'),
 
   /**
+   * F-69: how long a platform-console session is good for after its TOTP
+   * challenge before the staffer must sign in again (admin-console.md §2
+   * "MFA on every request", realised as a bounded re-auth window). Owner
+   * decision O-2; 12 hours = one working day.
+   */
+  ADMIN_SESSION_MAX_AGE_HOURS: z.coerce.number().int().min(1).max(72).default(12),
+
+  /**
    * F-44: 'true' makes Fastify honour X-Forwarded-For, so request.ip is the
    * CLIENT behind the ALB rather than the ALB itself — without it every
    * per-IP rate bucket in production would be one shared bucket. Only set it

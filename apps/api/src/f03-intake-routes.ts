@@ -194,7 +194,17 @@ interface ResolvedKey {
   store_id: string;
   default_source: string;
   secret: string;
+  /** F-69: the tenant's lifecycle status, for the 410 below. */
+  organization_status: string;
 }
+
+/**
+ * F-69 (admin-console.md §4.2): a suspended or closing tenant's intake
+ * answers 410 — AFTER the signature verifies, so a suspended tenant cannot
+ * be enumerated by an unsigned probe. read_only keeps receiving leads (O-4):
+ * the provider is not the tenant, and losing the customer's message is worse.
+ */
+const GONE_STATUSES = new Set(['suspended', 'offboarding', 'purged']);
 
 /**
  * An ADF document, flattened by @dealpilot/core, shaped for IntakeLeadPayload.
@@ -252,6 +262,9 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, rea
       const expected = `v1=${createHmac('sha256', resolved.secret).update(`${ts}.${raw}`).digest('hex')}`;
       if (!signaturesMatch(sig, expected)) {
         return reply.status(401).send(envelopePublic('unauthenticated', 'Invalid or missing signature'));
+      }
+      if (GONE_STATUSES.has(resolved.organization_status)) {
+        return reply.status(410).send(envelopePublic('tenant_gone', 'This intake endpoint is no longer accepting leads'));
       }
 
       // Verified. Validate the payload and place the lead synchronously.

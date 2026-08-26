@@ -29,3 +29,4 @@ export * from './beback.js';
 export * from './lost-reasons.js';
 export * from './lead-duplicates.js';
 export * from './drip.js';
+export * from './tenant-lifecycle.js';

@@ -1,5 +1,6 @@
 import { withTenant, type Pool, type PoolClient } from '@dealpilot/db';
-import { FirstTouchJob, type DeferredSendJobT } from '@dealpilot/contracts';
+import { tenantOperational } from './tenant-status.js';
+import { FirstTouchJob, type DeferredSendJobT, type FirstTouchJobT } from '@dealpilot/contracts';
 import { safeFirstTouchMessage } from '@dealpilot/ai';
 import { sendMessage } from '@dealpilot/api/send';
 import { deliverMessage } from '@dealpilot/api/deliver';
@@ -36,6 +37,12 @@ export interface FirstTouchDeps {
   readonly env: Env;
   /** Re-enqueue a gate-deferred first touch at the window opening (§3). */
   readonly defer: (job: DeferredSendJobT, runAt: Date) => Promise<void>;
+  /**
+   * F-69: put THIS job back on the first-touch queue later — a tenant that
+   * is not operational (read-only, suspended) greets the lead when it is
+   * again, not never. Optional so tests without a queue still run.
+   */
+  readonly retryLater?: (job: FirstTouchJobT, runAt: Date) => Promise<void>;
   readonly now?: () => Date;
 }
 
@@ -236,6 +243,14 @@ async function stageDuplicateConfirm(
 export async function runFirstTouch(deps: FirstTouchDeps, raw: unknown): Promise<FirstTouchResult> {
   const job = FirstTouchJob.parse(raw);
   const now = deps.now?.() ?? new Date();
+
+  // F-69: a suspended or read-only tenant's first touch is not sent NOW —
+  // the lead is recorded by intake; the greeting is retried hourly until the
+  // tenant is operational again (review: "waits" has to mean a retry).
+  if (!(await withTenant(deps.pool, job.organization_id, tenantOperational))) {
+    await deps.retryLater?.(job, new Date(now.getTime() + 60 * 60_000));
+    return { kind: 'skipped', reason: deps.retryLater ? 'tenant_not_operational; retry in 1h' : 'tenant_not_operational' };
+  }
 
   const staged = await withTenant(deps.pool, job.organization_id, async (c): Promise<Staged> => {
     // F-63: a duplicate-confirmation job targets the keeper, not this lead.

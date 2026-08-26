@@ -2,26 +2,9 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePageTitle } from '../../shared/use-page-title.js';
 import { buttonVariants } from '@dealpilot/ui';
-import type { OrganizationT } from '@dealpilot/schemas';
 import { useOrganizations } from './api.js';
-
-/** Status/plan vocabularies are data — users see localized labels. */
-const STATUS_KEYS = {
-  active: 'status_active',
-  trial: 'status_trial',
-  past_due: 'status_past_due',
-  read_only: 'status_read_only',
-  suspended: 'status_suspended',
-  offboarding: 'status_offboarding',
-  purged: 'status_purged',
-} as const satisfies Record<OrganizationT['status'], string>;
-
-const TIER_KEYS = {
-  core: 'tier_core',
-  growth: 'tier_growth',
-  scale: 'tier_scale',
-  enterprise: 'tier_enterprise',
-} as const satisfies Record<OrganizationT['plan_tier'], string>;
+/** Status/plan vocabularies are data — users see localized labels (shared with the F-69 console). */
+import { STATUS_KEYS, TIER_KEYS } from './labels.js';
 
 export function OrganizationsPage() {
   const { t } = useTranslation('orgs');

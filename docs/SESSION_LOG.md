@@ -1,3 +1,59 @@
+## 2026-08-26 (tick 23) — F-69 platform console, slice 1
+
+F-68 CI-green (32995802172, 0c71ee3). F-69 (admin-console.md §2–§5.1,
+§11–§12, D-070) was DESIGNED by a workflow first — three planners
+(security/tenancy, spec fidelity, minimal diff) and a judge that verified
+every contested repo fact and synthesized one plan; the build followed it.
+Landed: 0065 (`plans` seeded with the §5.1 tiers; §4.1 columns on
+`organizations` with a trigger keeping `plan_tier` in step with
+`plan_id`; `platform_staff`; immutable `platform_audit_events`;
+`activity_events.actor_type` + `restricted`; ten SECURITY DEFINER
+functions that re-check the actor and write their own audit rows; the
+drip/task scans and `intake_resolve` learn the lifecycle); the platform
+gate (identity → MFA → 12h session age) as an onRequest hook; `trustDevice`
+refused at the auth mount; a tenant-status gate turning suspended into
+403 and read-only writes into 402 for every request naming an
+organization, plus the same rule inside both membership gates;
+`/api/v1/admin/*` (me, plans, tenant directory/detail/events, profile
+PATCH, status transitions, staff grant/revoke) on a bare pool — no tenant
+context anywhere in the route file; workers skip non-operational tenants;
+the console web surface (`/admin/*`: its own shell without BrandStyle,
+the MFA wall, tenant directory with URL filters and keyset paging, tenant
+detail with facts / profile form / lifecycle buttons the server allowed /
+journal, the transition dialog demanding a reason and the slug, the staff
+page); `nav:console` link and lifecycle banners in the tenant shell; the
+`admin` i18n namespace. Guards added: platform-drift (every admin handler
+asks a capability, every capability is enforced, no tenant context or role
+literal in the file, SQL↔Zod vocabularies), tenant-lifecycle-drift (core
+matrix = `tenant_transitions()`; scans pause exactly the non-operational
+statuses), definer-owner (every SECURITY DEFINER owner can see through
+FORCE RLS). Suites: f69-admin 16/16 (gate, re-auth clock, trustDevice,
+directory/detail/capabilities, the full 7×7 transition matrix against the
+database, suspension → sessions revoked → 403 → intake 410 → restricted
+event hidden from the tenant, read_only 402 vs reads, staff lifecycle
+including the last-super-admin rule), tenant-status 3/3, core 4/4,
+definer-owner 2/2. First-run findings, all fixed: a withUser list route
+let a suspended owner read leads (→ the preHandler gate); the tenant
+activity feed selected an explicit column list without the new columns;
+the suite tripped the per-IP credential limiter (injected open). The
+e2e journey for the console is queued with the e2e-breadth slice.
+
+Review (45 agents after a limit restart; 31 confirmed, 11 refuted; D-070
+13–20). The blocker: the `trustDevice` refusal matched Fastify's raw
+request target while Better Auth routes on the normalised pathname, so
+`/two-factor/./verify-totp` minted a 30-day trust cookie — the console's
+"a session exists ⇒ the challenge passed" premise was defeated; the
+verifier proved it with raw sockets. Majors: demoting the last super admin
+locked the console and reopened bootstrap (unlocked check, no lock on
+survivors); realtime subscribe ignored the lifecycle; live-analysis and
+ai-extraction spent model tokens for suspended tenants; a read-only
+tenant's first touch and deferred sends were dropped, not paused; `seq`
+crossed the wire as a string and broke the journal; the directory form
+was uncontrolled and its count dishonest; a 409 said "reloaded" and
+reloaded nothing. All fixed with regressions (dot-segment trustDevice,
+self-demotion 409, `%`/`_` as text, seq parse, deleted tenant, malformed
+staff id). Suites: f69-admin 17/17.
+
 ## 2026-08-26 (tick 22) — F-68 tasks: one table, the subject's permission
 
 F-67 CI-green (32989111713, 5682f49) after its review. F-68 (appointments-tasks-communications.md

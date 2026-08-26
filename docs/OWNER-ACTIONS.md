@@ -271,3 +271,17 @@ phase pricing: **~35% of build effort, ~30% of the road to a dealership using it
 and 0 environments running.** The deepest third — multi-tenancy with forced RLS,
 RBAC, integer-cents money math, the CASL/CRTC compliance engine, the AI safety
 layer — is done and tested. The broad two-thirds is not.
+
+---
+
+## 2026-08-26 — F-69 platform console: make yourself the first super admin
+
+1. Sign up (or use your existing account) on the web app.
+2. From `main-project`, with the dev database:
+   `DB_ADMIN_URL=postgresql://dealpilot:dealpilot@localhost:5434/dealpilot pnpm --filter @dealpilot/db exec node dist/cli.js platform-grant <your email>`
+   (it prints the target database first — check it is the dev one).
+3. Enrol TOTP on `/security` if you have not (mandatory for the console).
+4. Sign in again (the console needs a session minted through the TOTP
+   challenge) and open **Console** in the topbar → `/admin/tenants`.
+5. On RDS, before the first deploy: `ALTER ROLE <migration role> BYPASSRLS`
+   (docs/SECURITY.md, accepted risk of 2026-08-26).

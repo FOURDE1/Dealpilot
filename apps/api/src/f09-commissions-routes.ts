@@ -289,7 +289,9 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
       await requirePermission(c, user.id, 'activity:read');
       const canSeePay = await hasPermission(c, user.id, 'pay_plan:read');
       const params: unknown[] = [orgId];
-      let where = 'organization_id = $1';
+      // F-69 §12: a restricted (suspended-investigation) platform event is
+      // never shown to the tenant; only the platform's own reader sees it.
+      let where = 'organization_id = $1 AND NOT restricted';
       // Pay-plan history spells out commission rates from/to. The commissions
       // route restricts those to PAY_READ_ROLES because pay is personal; an
       // audit feed that hands the same numbers to the whole floor would be a
@@ -331,7 +333,8 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
       params.push(query.limit + 1);
       const r = await c.query<Record<string, unknown>>(
         `SELECT id, organization_id, store_id, actor_user_id, entity_type, entity_id,
-                action, changes, reason, parent_entity_type, parent_entity_id, created_at, seq
+                action, changes, reason, parent_entity_type, parent_entity_id, created_at, seq,
+                actor_type, restricted
          FROM activity_events WHERE ${where} ORDER BY seq DESC LIMIT $${params.length}`,
         params,
       );

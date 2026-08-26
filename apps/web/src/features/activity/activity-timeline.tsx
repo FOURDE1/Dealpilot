@@ -91,6 +91,9 @@ export function ActivityTimeline({
 
   const actorName = (event: ActivityEventT) => {
     if (event.actor_user_id === null) return t('system');
+    // F-69 §12: a platform act is labelled as such — the staffer is not a
+    // member and must not read as an "unlisted member".
+    if (event.actor_type === 'platform') return t('platform');
     return (
       members.data?.items.find((m) => m.user_id === event.actor_user_id)?.name ??
       removed.data?.items.find((m) => m.user_id === event.actor_user_id)?.name ??

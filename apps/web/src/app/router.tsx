@@ -2,6 +2,8 @@ import { lazy, Suspense } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router';
 import { AppLayout } from './layout.js';
 import { RedirectIfAuthed, RequireAuth } from './guards.js';
+import { AdminLayout } from './admin-layout.js';
+import { RequirePlatform } from '../features/admin/require-platform.js';
 
 const SignInPage = lazy(() =>
   import('../features/auth/sign-in-page.js').then((m) => ({ default: m.SignInPage })),
@@ -47,6 +49,15 @@ const HeatmapPage = lazy(() =>
 );
 const TasksPage = lazy(() =>
   import('../features/tasks/tasks-page.js').then((m) => ({ default: m.TasksPage })),
+);
+const TenantDirectoryPage = lazy(() =>
+  import('../features/admin/tenant-directory-page.js').then((m) => ({ default: m.TenantDirectoryPage })),
+);
+const TenantDetailPage = lazy(() =>
+  import('../features/admin/tenant-detail-page.js').then((m) => ({ default: m.TenantDetailPage })),
+);
+const PlatformStaffPage = lazy(() =>
+  import('../features/admin/platform-staff-page.js').then((m) => ({ default: m.PlatformStaffPage })),
 );
 const DuplicatesPage = lazy(() =>
   import('../features/leads/duplicates-page.js').then((m) => ({ default: m.DuplicatesPage })),
@@ -149,6 +160,25 @@ export const router = createBrowserRouter([
   {
     path: '/signup',
     element: <RedirectIfAuthed>{lazyPage(<SignUpPage />)}</RedirectIfAuthed>,
+  },
+  // F-69: the platform console — same origin until the host split (O-8),
+  // its own shell, its own door (identity → MFA → session age).
+  {
+    path: '/admin',
+    element: (
+      <RequireAuth>
+        <RequirePlatform>
+          <AdminLayout />
+        </RequirePlatform>
+      </RequireAuth>
+    ),
+    children: [
+      { index: true, element: <Navigate to="/admin/tenants" replace /> },
+      { path: 'tenants', element: lazyPage(<TenantDirectoryPage />) },
+      { path: 'tenants/:tenantId', element: lazyPage(<TenantDetailPage />) },
+      { path: 'staff', element: lazyPage(<PlatformStaffPage />) },
+      { path: '*', element: <Navigate to="/admin/tenants" replace /> },
+    ],
   },
   {
     path: '/',

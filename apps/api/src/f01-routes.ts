@@ -13,6 +13,7 @@ import {
 } from '@dealpilot/schemas';
 import { LOST_REASON_DEFAULTS } from '@dealpilot/core';
 import { AppError, notFound, parseOrThrow } from './errors.js';
+import { refuseByStatus } from './tenant-status.js';
 import { ensureTemplate } from './checklist.js';
 import { requirePermission, seedPermissions } from './permissions.js';
 import { diff, recordEvent } from './activity.js';
@@ -78,11 +79,13 @@ export async function requireMember(client: PoolClient, userId: string): Promise
   // Explicitly keyed on the tenant GUC: under DUAL context (org + user) the
   // user-scoped read policy also exposes the caller's OTHER organizations, so
   // an unqualified liveness probe could pass on the wrong row (review 2026-07-25).
-  const alive = await client.query(
-    `SELECT 1 FROM organizations
+  const alive = await client.query<{ status: string }>(
+    `SELECT status FROM organizations
      WHERE id = NULLIF(current_setting('app.org_id', true), '')::uuid AND deleted_at IS NULL`,
   );
   if (alive.rows.length === 0) throw notFound();
+  // F-69: suspended → 403, read_only → 402 on a write (the verb decides).
+  refuseByStatus(alive.rows[0]!.status);
   return roles;
 }
 
@@ -121,11 +124,11 @@ export function conflictFrom(err: unknown): AppError | null {
 const PG_TIMESTAMPTZ = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:\d{2})?|Z)$/;
 const CursorPayload = z.object({ c: z.string().regex(PG_TIMESTAMPTZ), id: Uuid });
 
-function encodeCursor(createdAtText: string, id: string): string {
+export function encodeCursor(createdAtText: string, id: string): string {
   return Buffer.from(JSON.stringify({ c: createdAtText, id }), 'utf8').toString('base64url');
 }
 
-function decodeCursor(raw: string): { c: string; id: string } {
+export function decodeCursor(raw: string): { c: string; id: string } {
   try {
     return CursorPayload.parse(JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')));
   } catch {
@@ -211,6 +214,9 @@ export async function callerOrgIds(client: PoolClient): Promise<string[]> {
   const r = await client.query<{ organization_id: string }>(
     `SELECT DISTINCT m.organization_id FROM memberships m
      JOIN organizations o ON o.id = m.organization_id AND o.deleted_at IS NULL
+       -- F-69: a suspended or closing tenant is not a place its members can
+       -- land in by default (implicit single-org resolution).
+       AND o.status NOT IN ('suspended','offboarding','purged')
      WHERE m.status = 'active'`,
   );
   return r.rows.map((x) => x.organization_id);

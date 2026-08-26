@@ -1,5 +1,5 @@
 import type { PoolClient } from '@dealpilot/db';
-import type { ActivityActionT, ActivityEntityTypeT } from '@dealpilot/schemas';
+import type { ActivityActionT, ActivityActorTypeT, ActivityEntityTypeT } from '@dealpilot/schemas';
 
 /**
  * F-10 activity trail (ADR-009). One helper, called inside the transaction that
@@ -29,14 +29,22 @@ export interface EventInput {
   /** {"field": {"from": x, "to": y}} — what changed, not the whole row. */
   changes?: Record<string, unknown>;
   reason?: string | null;
+  /**
+   * F-69 (admin-console.md §12): who acted. Defaults from the actor —
+   * a NULL actor is the system, anyone else a tenant member. Tenant routes
+   * never pass 'platform'; the 0065 definers write those rows themselves.
+   */
+  actorType?: ActivityActorTypeT;
+  /** §12: hidden from the tenant — only a platform investigation sets it. */
+  restricted?: boolean;
 }
 
 export async function recordEvent(client: PoolClient, e: EventInput): Promise<void> {
   await client.query(
     `INSERT INTO activity_events
        (organization_id, store_id, actor_user_id, entity_type, entity_id, action,
-        changes, reason, parent_entity_type, parent_entity_id)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        changes, reason, parent_entity_type, parent_entity_id, actor_type, restricted)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
     [
       e.organizationId,
       e.storeId ?? null,
@@ -48,6 +56,8 @@ export async function recordEvent(client: PoolClient, e: EventInput): Promise<vo
       e.reason ?? null,
       e.parentEntityType ?? null,
       e.parentEntityId ?? null,
+      e.actorType ?? (e.actorUserId === null ? 'system' : 'tenant'),
+      e.restricted ?? false,
     ],
   );
 }

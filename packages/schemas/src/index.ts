@@ -38,3 +38,4 @@ export * from './analytics.js';
 export * from './drip.js';
 export * from './source-cost.js';
 export * from './task.js';
+export * from './platform.js';

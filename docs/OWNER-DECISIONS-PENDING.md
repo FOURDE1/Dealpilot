@@ -346,3 +346,19 @@ is the version that matters to you.
 - Per-store configurable checklist items (D-020). Built — each store can switch its
   own items on and off, except the safety inspection.
 - Larger batches before each test round (D-032). In effect.
+
+---
+
+## F-69 platform console — nine defaults implemented (2026-08-26)
+
+| # | Decision | Default in place |
+|---|---|---|
+| O-1 | `trustDevice: true` on TOTP verification is refused with 422 for **every** account (the plugin cannot tell staff from tenants before the session exists). The web never sends it. | Refused. Alternative: a short `trustDeviceMaxAge` (affects tenants equally). |
+| O-2 | `ADMIN_SESSION_MAX_AGE_HOURS` — how long a console session lives after its TOTP challenge | 12 |
+| O-3 | Plan seed: `included_storage_gb` (10/50/200/∞) and the enterprise price (NULL = negotiated) are not in the spec's §5.1 table | Placeholders; the plan editor slice makes them data (ADR-024 amendment). |
+| O-4 | `read_only` tenants **keep receiving intake leads** (only suspended/offboarding/purged answer 410) | Kept — the provider is not the tenant; losing the customer's message is worse. |
+| O-5 | `read_only` **pauses** outbound automation (drips, assistant replies, first touch, deferred sends) | Paused (multi-tenancy.md §8). |
+| O-6 | Suspension deletes **all** Better Auth sessions of the tenant's active members, including the ones they use in other organizations | Blunt version; multi-org staff sign in again. |
+| O-7 | `offboarding → active` reversal offered (the spec has no way back) | Offered; slug confirmation + reason required. |
+| O-8 | Same-origin `/admin/*` until the CloudFront host split (`admin.readyloans.app` — infra work, money) | Accepted. |
+| O-9 | Bootstrap: the first super admin is granted by `cli.js platform-grant <email>` against `DB_ADMIN_URL`; the path closes once an active super admin exists. Recovery after a total lockout = owner SQL on `platform_staff`. | As stated. |

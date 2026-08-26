@@ -119,6 +119,34 @@ Per-topic implementation reference: OWASP Cheat Sheet Series
 
 <!-- Entries begin below. -->
 
+### 2026-08-26 — F-69 platform console, slice 1 (the platform/tenant boundary)
+
+**Scope:** `/api/v1/admin/*`, the platform gate, the 0065 SECURITY DEFINER
+surface, the tenant lifecycle hooks (403/402/410), the auth mount.
+
+- **A01 access control** — non-staff receive 404 on every admin path (never
+  403: the console does not exist for them); each handler starts with a
+  capability, each definer re-checks the actor; platform staff never hold
+  tenant context (bare pool + definers; a guard greps the route file). ✔
+- **A07 auth** — MFA enrolment mandatory for staff regardless of REQUIRE_MFA;
+  `trustDevice` refused at the auth mount for every account (O-1); console
+  sessions expire after 12 h from `"session"."createdAt"` (O-2). ✔
+- **A01/A04 tenancy** — suspension deletes the tenant's members' sessions in
+  the transition's transaction; `read_only` refuses mutating verbs with 402;
+  a suspended tenant is invisible to implicit org resolution. Found and
+  fixed while testing: a `withUser` list route let a suspended owner read
+  leads after re-sign-in → a preHandler gate for every request that names an
+  organization. ✔
+- **A09 logging** — every admin request logs actor, role, route; 402s join
+  the refused log; the staff register is append-only by trigger AND grant. ✔
+- **A10** — definers fail closed (PA001 → 404); the bootstrap grant closes
+  itself once a super admin exists. ✔
+
+**Accepted (see below):** definer owner must bypass FORCE RLS on RDS;
+session revocation is per person (multi-org staff re-sign-in); reads of rows
+a suspended tenant's member already holds by id remain possible after
+re-sign-in until a mutation-coverage guard lands.
+
 ### 2026-08-20 — F-41..F-51 surface (presence, rate limits, cost masking, notifications, reactivation, connectors, revocation, business hours)
 
 Scope: everything since the F-38/40 entry — f42 cascade + staff-schedule routes,
@@ -188,6 +216,23 @@ cursor manipulation, score/priority abuse, wrong-org writes, list DoS).
 parameterized values throughout; React escaping holds on all three screens.
 
 ## Accepted risks
+
+- **2026-08-26 (F-69) — SECURITY DEFINER owner must bypass FORCE RLS.** Every
+  definer (has_permission, intake_resolve, invitation_accept, the 0065
+  console surface, the drip/task scans) reads tenant tables as its owner;
+  FORCE RLS applies to owners, so the migration role must be a superuser
+  (local) or hold BYPASSRLS (RDS: `ALTER ROLE <migration role> BYPASSRLS`).
+  `packages/db/src/definer-owner.test.ts` fails the suite otherwise.
+  Rejected alternative: `set_config('app.org_id', …, true)` inside the
+  functions — transaction-scoped, it would hand the API tenant context.
+- **2026-08-26 (F-69) — suspension revokes sessions per PERSON (O-6).** A
+  staffer who spans organizations loses their session everywhere and signs
+  in again; the other organizations keep working. Realtime sockets live
+  until their next session recheck.
+- **2026-08-26 (F-69) — by-id reads under withUser after re-sign-in.** A
+  suspended tenant's member can still GET a record they hold by id (no
+  organization named, no membership gate) until the mutation/membership
+  coverage guard lands; every list and every mutation is closed.
 
 > Risks reviewed and consciously accepted by the user, with rationale and revisit date.
 

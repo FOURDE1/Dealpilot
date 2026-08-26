@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PlatformRole } from './platform.js';
 import { Email, IsoDateTime, Uuid } from './common.js';
 
 /**
@@ -26,6 +27,8 @@ export const MeResponse = z.object({
     enabled: z.boolean(),
     required: z.boolean(),
   }),
+  /** F-69: the caller's platform role, null for everyone who is not staff. */
+  platform_role: PlatformRole.nullable(),
 });
 
 export type MeResponseT = z.infer<typeof MeResponse>;

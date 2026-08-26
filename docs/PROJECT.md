@@ -34,6 +34,7 @@
 | Tests                  | `pnpm test` — or `pnpm turbo run build typecheck lint test` for the full gate |
 | Tests, nothing skipped | `RLS_REQUIRED=1 pnpm test` (fails instead of skipping when Postgres or Redis is unreachable) |
 | Dependency vuln scan   | `pnpm audit` |
+| Bootstrap the first platform super admin | `DB_ADMIN_URL=<dev db> pnpm --filter @dealpilot/db exec node dist/cli.js platform-grant <email>` (the account must exist; closes once a super admin exists — F-69) |
 | Format                 | `pnpm format` / `pnpm format:check` |
 
 **Local services.** `docker compose up -d` starts Postgres and Redis. Host ports

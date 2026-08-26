@@ -30,12 +30,21 @@ export const ActivityAction = z.enum([
   'task_completed',
 ]);
 
+/**
+ * F-69 (admin-console.md §12): who acted — a tenant member, platform staff,
+ * or the system. 'ai' joins when its first producer does (dead-vocabulary rule).
+ */
+export const ActivityActorType = z.enum(['tenant', 'platform', 'system']);
+
 export const ActivityEvent = z.object({
   id: Uuid,
   organization_id: Uuid,
   store_id: Uuid.nullable(),
   /** NULL means the system acted — an intake webhook or a scheduled job. */
   actor_user_id: Uuid.nullable(),
+  actor_type: ActivityActorType,
+  /** §12: a suspended-investigation event the tenant must not see. */
+  restricted: z.boolean(),
   entity_type: ActivityEntityType,
   entity_id: Uuid,
   action: ActivityAction,
@@ -56,5 +65,6 @@ export const ActivityListQuery = CursorQuery.extend({
 });
 
 export type ActivityEventT = z.infer<typeof ActivityEvent>;
+export type ActivityActorTypeT = z.infer<typeof ActivityActorType>;
 export type ActivityActionT = z.infer<typeof ActivityAction>;
 export type ActivityEntityTypeT = z.infer<typeof ActivityEntityType>;

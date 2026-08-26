@@ -1,6 +1,7 @@
 import type { PoolClient } from '@dealpilot/db';
 import { DEFAULT_ROLE_PERMISSIONS, PERMISSIONS, type PermissionT } from '@dealpilot/schemas';
 import { AppError, notFound } from './errors.js';
+import { refuseByStatus } from './tenant-status.js';
 
 /**
  * A-13 / D-033 — enforcement.
@@ -19,8 +20,8 @@ import { AppError, notFound } from './errors.js';
  * and learns nothing about whether the thing exists.
  */
 async function assertLiveMember(client: PoolClient, userId: string): Promise<void> {
-  const r = await client.query(
-    `SELECT 1 FROM memberships m
+  const r = await client.query<{ status: string }>(
+    `SELECT o.status FROM memberships m
      JOIN organizations o ON o.id = m.organization_id AND o.deleted_at IS NULL
      WHERE m.user_id = $1
        AND m.organization_id = NULLIF(current_setting('app.org_id', true), '')::uuid
@@ -28,6 +29,9 @@ async function assertLiveMember(client: PoolClient, userId: string): Promise<voi
     [userId],
   );
   if (r.rows.length === 0) throw notFound();
+  // F-69: the tenant's lifecycle decides before the permission does — a
+  // suspended owner hears "suspended", not "forbidden" or an MFA nag.
+  refuseByStatus(r.rows[0]!.status);
 }
 
 /**

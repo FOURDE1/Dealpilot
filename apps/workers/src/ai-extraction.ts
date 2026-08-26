@@ -1,3 +1,4 @@
+import { tenantOperational } from './tenant-status.js';
 import { withTenant, type Pool, type PoolClient } from '@dealpilot/db';
 import { AiExtractionJob } from '@dealpilot/contracts';
 import {
@@ -59,6 +60,11 @@ export async function runAiExtraction(deps: AiExtractionDeps, raw: unknown): Pro
     return { kind: 'skipped', reason: 'AI transport is off — no extraction model configured' };
   }
   const extractor = deps.extractor;
+
+  // F-69: no model spend, no lead patch, for a tenant that is not operational.
+  if (!(await withTenant(deps.pool, job.organization_id, tenantOperational))) {
+    return { kind: 'skipped', reason: 'tenant_not_operational' };
+  }
 
   return withTenant(deps.pool, job.organization_id, async (c) => {
     const conv = await c.query<{ id: string; store_id: string | null; lead_id: string | null }>(

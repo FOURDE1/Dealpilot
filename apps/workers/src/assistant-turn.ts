@@ -1,4 +1,5 @@
 import { withTenant, type Pool, type PoolClient } from '@dealpilot/db';
+import { tenantOperational } from './tenant-status.js';
 import { AssistantTurnJob, type Emitter } from '@dealpilot/contracts';
 import { LeadExtraction, runTurn, type ModelClient, type ModelMessage } from '@dealpilot/ai';
 import { evaluateHandoff, type ConversationFlags } from '@dealpilot/core';
@@ -88,6 +89,13 @@ export async function runAssistantTurn(
 ): Promise<AssistantTurnResult> {
   const job = AssistantTurnJob.parse(raw);
   const now = deps.now?.() ?? new Date();
+
+  // F-69: an inbound SMS still reaches a suspended tenant's number through
+  // the carrier; the assistant must not answer for a tenant that is not
+  // operational (suspended, read-only, closing).
+  if (!(await withTenant(deps.pool, job.organization_id, tenantOperational))) {
+    return { kind: 'skipped', reason: 'tenant_not_operational' };
+  }
 
   const loaded = await withTenant(deps.pool, job.organization_id, async (c) => {
     const conv = await c.query<{
