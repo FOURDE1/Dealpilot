@@ -1,3 +1,74 @@
+## 2026-08-27 (tick 24) — F-70 tenant provisioning: one birth, the same seeds
+
+F-69 CI-green on attempt 2 (33015737819, a52477a). F-70 (admin-console.md
+§4.2–§4.4, §11–§12, D-071) was designed by the same three-planner + judge
+workflow; the judge settled the contested repo facts before a line was
+written (the drift guard scanned ONE file; `dead-column` never scans
+`organizations`; `getTenant` was a closure; `assertKnownTimezone` already
+exists; `'tenants:create'` does not trip the realtime guard). Landed: 0066
+(`organizations.trial_ends_at`; `admin_list_tenants` / `admin_get_tenant`
+re-created with the clock and the open owner seat; `admin_provision_tenant`
+— organization, stores, role matrix, lost reasons, per-store checklists, the
+owner's F-12 invitation and the audit rows in ONE definer call on the bare
+pool, seeds arriving as jsonb from the canonical TS lists so SQL owns no
+copy; `admin_reissue_owner_invitation`); `invitation-token.ts` (the hash,
+the TTL and the link shape moved out of f12 so both issuers share one
+module); `org-seeds.ts`; `f70-provisioning-routes.ts` (two handlers under
+`tenants:create`, timezone checked by ROW on a bare client before anything
+is written, PA011 → 409 `slug_taken` with the existing id, PA012 → 422 at
+`stores.<i>.code`, PA013 → 409 `owner_exists`, the accept link returned
+only when no mail reaches the owner); `readAdminTenant` hoisted from f69;
+the platform-drift guard now owns `ADMIN_ROUTE_FILES` and fails on an admin
+route file it does not scan; `TRIAL_DAYS` in core; schemas/contract
+(`ProvisionTenantInput` on the self-serve slug/code rules with duplicate
+codes refused by row, `admin.tenants.create` / `inviteOwner`); the console
+(`/admin/tenants/new` — three fieldsets, suggestions from the name and the
+province, every 422 tied to its input plus a linked summary, the result in
+place with the link and a copy button; a capability-gated "New tenant"
+link and a "Trial ends" column; trial and owner-seat facts, the reissue
+dialog and journal rows that show plain facts as themselves). Suites:
+f70-provisioning 17/17 (gate, the birth and its database facts, seeds
+lockstep against an F-01 org + store, no tenant context on the app role +
+PA001/PA009 from the definer, §12 journal, slug idempotency incl. a
+self-serve and a soft-deleted slug, a two-request race, directory/detail +
+trial → active keeping the clock, acceptance end-to-end into a working
+tenant with `wrong_account` first, atomic refusals for timezone / plan /
+duplicate code / empty seeds, the id-smuggling mutation test, reissue with
+revocation + journal + dead old link, the CR-05 accept link, the one-module
+token lockstep), platform-drift 5/5, schemas + core + web unit cases. Two
+first-run findings, both in my fixtures (a minimal checklist seed tripped the
+code CHECK — the real seeds are used now); one type error (province typed
+as string in the draft).
+
+Review (21 agents: four lenses — SQL/tenancy, API + test honesty, console
+a11y/i18n, spec + doc claims — then refute-biased verification, two votes
+for anything above minor; 15 raw, 14 confirmed, 1 refuted, none blocking).
+The two majors were in the console: a blank required field reached the
+server and came back as a raw wire path ("Champ refusé : owner_email"),
+and the journal rendered a revoked owner seat — a row with empty changes —
+as "Système", naming neither the verb nor the entity (so ROUND 17's "the
+journal shows the old invitation revoked" was a promise the screen did not
+keep). Fixed: client-side required check by LABEL, a label map for every
+path the server can send, `ApiError.detailPaths` so a multi-field 422 marks
+every input at once, the journal names verb + entity on every row and the
+revoked row carries the address that lost the seat (0066), roles and
+booleans in the reader's words, the birth row's plan resolved to its name.
+The rest: the 0066 header over-claimed ("every organization_id written
+below comes from RETURNING" — true of the birth, not of the reissue, which
+writes the p_org it verified and locked); "never logged" over-claimed (the
+dev log mail transport writes the body by design — qualified in the route
+and SECURITY.md); the two-POST race test could not tell the pre-check from
+the EXCEPTION branch, so a deterministic case now holds an uncommitted
+winner and forces the loser past the pre-check onto the unique index;
+acceptance ran on an already-activated tenant (reordered: the owner now
+accepts into a trial tenant, asserted); a picked timezone was overwritten
+by a province change; store-row errors did not follow a removed row; a
+refused picked timezone was not tied to its select; the reissue dialog and
+the result panel showed raw tokens. Refuted (1): the drift guard's file
+list being escapable by an unusual file name — contract-coverage walks
+Fastify's real route tree and would fail first. Suites after the fixes:
+f70-provisioning 18/18; gate 29/29.
+
 ## 2026-08-26 (tick 23) — F-69 platform console, slice 1
 
 F-68 CI-green (32995802172, 0c71ee3). F-69 (admin-console.md §2–§5.1,
@@ -52,7 +123,16 @@ crossed the wire as a string and broke the journal; the directory form
 was uncontrolled and its count dishonest; a 409 said "reloaded" and
 reloaded nothing. All fixed with regressions (dot-segment trustDevice,
 self-demotion 409, `%`/`_` as text, seq parse, deleted tenant, malformed
-staff id). Suites: f69-admin 17/17.
+staff id). Suites: f69-admin 17/17. Pushed as a52477a. CI: attempt 1
+red on ONE e2e journey (F-10: the lead's history showed only the creation
+row after a status change, 15 s wait; the unit gate was green). Not
+reproducible locally — the journey passes against the dev database and
+against a fresh, fully migrated database identical to CI's; the API log
+in CI carried no error. Attempt 2 (same commit, re-run of the failed job
+only) green: 33015737819. Recorded as a flake, not explained; if it
+recurs, the e2e job should dump /tmp/api.log on failure so the server
+side is visible. Dev database migrated to 0065 and the dev API restarted
+on the new build so the owner can browse the console.
 
 ## 2026-08-26 (tick 22) — F-68 tasks: one table, the subject's permission
 

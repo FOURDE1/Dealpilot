@@ -4,6 +4,7 @@ import {
   OPERATIONAL_STATUSES,
   TENANT_STATUSES,
   TENANT_TRANSITIONS,
+  TRIAL_DAYS,
   allowedTenantTransitions,
   canTenantTransition,
   isTenantOperational,
@@ -41,6 +42,13 @@ describe('tenant lifecycle (F-69, admin-console.md §4.2)', () => {
     expect([...CONFIRMATION_REQUIRED].sort()).toEqual(['offboarding', 'suspended']);
     expect(tenantRequiresConfirmation('suspended')).toBe(true);
     expect(tenantRequiresConfirmation('active')).toBe(false);
+  });
+
+  it('the trial is 14 days, trial is operational, and no prospect exists until Stripe (F-70, D-071)', () => {
+    expect(TRIAL_DAYS).toBe(14);
+    expect(OPERATIONAL_STATUSES.has('trial')).toBe(true);
+    expect(TENANT_STATUSES).not.toContain('prospect');
+    expect(TENANT_STATUSES).toHaveLength(7);
   });
 
   it('operational = full functionality, including the grace period; read_only is not', () => {

@@ -40,6 +40,8 @@ type DetailRow = TenantRow & {
   stores: AdminTenantDetailT['stores'];
   owner_emails: string[];
   last_activity_at: Date | null;
+  /** F-70: the open owner seat until the owner accepts; never the token. */
+  owner_invitation: AdminTenantDetailT['owner_invitation'];
 };
 
 function tenantOf(row: TenantRow): AdminTenantT {
@@ -49,7 +51,7 @@ function tenantOf(row: TenantRow): AdminTenantT {
 }
 
 /** The definers speak SQLSTATE; the API speaks the error envelope. */
-async function definer<T>(fn: () => Promise<T>): Promise<T> {
+export async function definer<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
@@ -57,21 +59,24 @@ async function definer<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** One tenant as the console sees it (F-70 returns it after provisioning). */
+export async function readAdminTenant(pool: Pool, actorId: string, id: string, capabilities: readonly string[]): Promise<AdminTenantDetailT> {
+  const r = await definer(() => pool.query<DetailRow>('SELECT * FROM admin_get_tenant($1::uuid, $2::uuid)', [actorId, id]));
+  const row = r.rows[0];
+  if (!row) throw notFound();
+  const { created_at_text, ...rest } = row;
+  void created_at_text;
+  // A soft-deleted organization has no lifecycle left to drive (every write
+  // on it is a 404), so the console offers nothing (review).
+  const canTenantTransition = capabilities.includes('tenants:set_status') && row.deleted_at === null;
+  return {
+    ...(rest as unknown as Omit<AdminTenantDetailT, 'allowed_transitions'>),
+    allowed_transitions: canTenantTransition ? allowedTenantTransitions(row.status as TenantStatus) : [],
+  };
+}
+
 export function registerF69Routes(app: FastifyInstance, pool: Pool, env: Env): void {
-  async function getTenant(actorId: string, id: string, capabilities: readonly string[]): Promise<AdminTenantDetailT> {
-    const r = await definer(() => pool.query<DetailRow>('SELECT * FROM admin_get_tenant($1::uuid, $2::uuid)', [actorId, id]));
-    const row = r.rows[0];
-    if (!row) throw notFound();
-    const { created_at_text, ...rest } = row;
-    void created_at_text;
-    // A soft-deleted organization has no lifecycle left to drive (every write
-    // on it is a 404), so the console offers nothing (review).
-    const canTenantTransition = capabilities.includes('tenants:set_status') && row.deleted_at === null;
-    return {
-      ...(rest as unknown as Omit<AdminTenantDetailT, 'allowed_transitions'>),
-      allowed_transitions: canTenantTransition ? allowedTenantTransitions(row.status as TenantStatus) : [],
-    };
-  }
+  const getTenant = (actorId: string, id: string, capabilities: readonly string[]) => readAdminTenant(pool, actorId, id, capabilities);
 
   app.get('/api/v1/admin/me', async (request, reply) => {
     // The gate did the work; this is what the console renders on boot.

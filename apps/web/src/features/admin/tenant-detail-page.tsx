@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, Label, Select } from '@dealpilot/ui';
-import { ProvinceCA, type AdminActivityEventT, type AdminTenantDetailT, type OrganizationStatusT, type PlanTierT } from '@dealpilot/schemas';
+import { ProvinceCA, type AdminActivityEventT, type AdminTenantDetailT, type OrganizationStatusT, type PlanTierT, type RoleT } from '@dealpilot/schemas';
 import { BackLink } from '../../shared/ui/back-link.js';
 import { usePageTitle } from '../../shared/use-page-title.js';
 import { ApiError } from '../../shared/api/client.js';
@@ -11,6 +11,9 @@ import {
   DESTRUCTIVE_TARGETS, STATUS_CLASSES, STATUS_KEYS, STORE_STATUS_KEYS, TIER_KEYS, TRANSITION_KEYS,
 } from './labels.js';
 import { StatusTransitionDialog } from './status-transition-dialog.js';
+import { ReissueOwnerDialog } from './reissue-owner-dialog.js';
+import { ACTION_KEYS } from '../activity/activity-timeline.js';
+import { ENTITY_KEYS } from './labels.js';
 
 /**
  * F-69 — one tenant (admin-console.md §4): the facts, the profile a super
@@ -53,12 +56,18 @@ const FIELD_LABEL = {
   default_locale: 'locale',
   plan_id: 'plan',
   plan_tier: 'plan',
+  slug: 'colSlug',
+  trial_ends_at: 'trialEndsAt',
+  email: 'email',
+  roles: 'rolesLabel',
+  reissued: 'reissuedLabel',
 } as const;
 
 export function TenantDetailPage() {
   const { t, i18n } = useTranslation('admin');
   const { t: tOrgs } = useTranslation('orgs');
   const { t: tActivity } = useTranslation('activity');
+  const { t: tTeam } = useTranslation('team');
   const { tenantId = '' } = useParams();
   const tenant = useAdminTenant(tenantId);
   const events = useAdminTenantEvents(tenantId);
@@ -69,6 +78,10 @@ export function TenantDetailPage() {
   const alive = tenant.data?.deleted_at === null;
   const canEdit = alive && (me.data?.capabilities.includes('tenants:update') ?? false);
   const canPlan = alive && (me.data?.capabilities.includes('tenants:set_plan') ?? false);
+  // F-70: the seat is the console's to re-issue only while nobody holds it.
+  const canReissue = alive && (me.data?.capabilities.includes('tenants:create') ?? false) && (tenant.data?.owner_emails.length ?? 1) === 0;
+  const [reissueOpen, setReissueOpen] = useState(false);
+  const [acceptUrl, setAcceptUrl] = useState<string | null>(null);
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [feedback, setFeedback] = useState<{ kind: 'status' | 'alert'; text: string } | null>(null);
@@ -130,23 +143,37 @@ export function TenantDetailPage() {
 
   const renderChange = (ev: AdminActivityEventT, d: AdminTenantDetailT) => {
     const entries = Object.entries(ev.changes) as [string, { from?: unknown; to?: unknown }][];
-    if (entries.length === 0) return <span>{tActivity('system')}</span>;
+    // The verb and the entity are on the row already; no changes = nothing more to say.
+    if (entries.length === 0) return null;
     const label = (key: string) => (key in FIELD_LABEL ? t(FIELD_LABEL[key as keyof typeof FIELD_LABEL]) : key);
     const value = (key: string, v: unknown): string => {
       if (v === null || v === undefined || v === '') return '—';
       if (key === 'status') return tOrgs(STATUS_KEYS[v as OrganizationStatusT] ?? STATUS_KEYS[d.status]);
       if (key === 'plan_tier') return tOrgs(TIER_KEYS[v as PlanTierT] ?? TIER_KEYS.core);
+      if (key === 'plan_id' && typeof v === 'string') return plans.data?.items.find((p) => p.id === v)?.name ?? v;
+      // Roles in a trail row are the tenant vocabulary (0001 CHECK): the cast names that.
+      if (key === 'roles' && Array.isArray(v)) return v.map((r) => tTeam(`role_${r as RoleT}`)).join(', ');
+      if (typeof v === 'boolean') return t(v ? 'yes' : 'no');
+      if (key.endsWith('_at') && typeof v === 'string') return fmt(v);
+      if (Array.isArray(v)) return v.map(String).join(', ');
       return String(v);
     };
+    // A profile update carries plan_id AND plan_tier (one fact twice); the
+    // birth row carries plan_id alone, resolved to the plan's name above.
+    const twice = 'plan_tier' in ev.changes;
+    // F-70's birth rows mix {from,to} diffs with plain facts (`email`,
+    // `reissued`): a fact is shown as itself, not as "— → —".
+    const isDiff = (c: unknown): c is { from?: unknown; to?: unknown } =>
+      c !== null && typeof c === 'object' && !Array.isArray(c) && ('from' in c || 'to' in c);
     return (
       <ul className="space-y-0.5">
         {entries
-          .filter(([key]) => key !== 'plan_id')
+          .filter(([key]) => key !== 'plan_id' || !twice)
           .map(([key, change]) => (
             <li key={key}>
               <span className="text-muted-foreground">{label(key)}</span>
               {': '}
-              {value(key, change?.from)} → {value(key, change?.to)}
+              {isDiff(change) ? <>{value(key, change.from)} → {value(key, change.to)}</> : value(key, change)}
             </li>
           ))}
       </ul>
@@ -189,11 +216,39 @@ export function TenantDetailPage() {
             <dt className="text-muted-foreground">{t('privacyOfficerEmail')}</dt><dd>{d.privacy_officer_email ?? '—'}</dd>
             <dt className="text-muted-foreground">{t('colCreated')}</dt><dd>{fmt(d.created_at)}</dd>
             <dt className="text-muted-foreground">{t('activatedAt')}</dt><dd>{fmt(d.activated_at)}</dd>
+            <dt className="text-muted-foreground">{t('trialEndsAt')}</dt>
+            <dd>{d.trial_ends_at ? `${fmt(d.trial_ends_at)}${d.status === 'trial' && new Date(d.trial_ends_at).getTime() < Date.now() ? ` ${t('trialEnded')}` : ''}` : '—'}</dd>
             <dt className="text-muted-foreground">{t('suspendedAt')}</dt><dd>{fmt(d.suspended_at)}</dd>
             <dt className="text-muted-foreground">{t('lastActivity')}</dt><dd>{fmt(d.last_activity_at)}</dd>
             <dt className="text-muted-foreground">{t('colMembers')}</dt><dd>{d.member_count}</dd>
             <dt className="text-muted-foreground">{t('owners')}</dt><dd>{d.owner_emails.join(', ') || '—'}</dd>
+            {d.owner_emails.length === 0 && d.owner_invitation ? (
+              <>
+                <dt className="text-muted-foreground">{t('ownerInvited')}</dt>
+                <dd>
+                  {d.owner_invitation.email}
+                  <span className="block text-xs text-muted-foreground">
+                    {d.owner_invitation.expired ? t('invitationExpired') : t('invitationExpires', { date: fmt(d.owner_invitation.expires_at) })}
+                  </span>
+                </dd>
+              </>
+            ) : null}
           </dl>
+          {canReissue ? (
+            <div className="space-y-2 pt-2">
+              <Button type="button" size="sm" variant="outline" onClick={() => setReissueOpen(true)}>{t('reissueInvite')}</Button>
+              {acceptUrl ? (
+                <div className="space-y-1">
+                  <p className="text-sm text-warning-text">{t('acceptUrlHint')}</p>
+                  <Label htmlFor="tenant-accept-url">{t('acceptUrlLabel')}</Label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Input id="tenant-accept-url" readOnly value={acceptUrl} className="min-w-64 flex-1 font-mono text-[12px]" onFocus={(e) => e.target.select()} />
+                    <Button type="button" variant="outline" size="sm" onClick={() => { void navigator.clipboard.writeText(acceptUrl).then(() => setLastChange(t('copied'))); }}>{t('copyLink')}</Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <h3 className="pt-2 text-sm font-semibold">{t('storesTitle')}</h3>
           {d.stores.length === 0 ? (
             <p className="text-sm text-muted-foreground">—</p>
@@ -321,6 +376,12 @@ export function TenantDetailPage() {
                   </span>
                   {ev.restricted ? <span className="rounded-full bg-danger-bg px-2 py-0.5 text-xs text-danger-text">{t('restricted')}</span> : null}
                 </div>
+                {/* The verb and its object first (review): a revoked seat is a fact even with nothing else to spell out. */}
+                <p>
+                  <span className="font-medium">{tActivity(ACTION_KEYS[ev.action])}</span>
+                  {' — '}
+                  {t(ENTITY_KEYS[ev.entity_type])}
+                </p>
                 {renderChange(ev, d)}
                 {ev.reason ? <p className="text-xs text-muted-foreground">{ev.reason}</p> : null}
               </li>
@@ -343,6 +404,26 @@ export function TenantDetailPage() {
             // the announcement instead of letting it fall to <body>.
             requestAnimationFrame(() => lastChangeRef.current?.focus());
           }
+        }}
+      />
+
+      <ReissueOwnerDialog
+        tenant={d}
+        open={reissueOpen}
+        onClose={(result) => {
+          setReissueOpen(false);
+          if (!result) return;
+          if (result === 'owner_exists') {
+            // The seat was taken while the dialog was open: the facts and the
+            // button must catch up before the person acts again (review, F-69).
+            setLastChange(t('ownerAlreadyActive'));
+            void tenant.refetch();
+          } else {
+            setLastChange(t('ownerInviteResent', { email: result.email }));
+            setAcceptUrl(result.accept_url ?? null);
+            void events.refetch();
+          }
+          requestAnimationFrame(() => lastChangeRef.current?.focus());
         }}
       />
 

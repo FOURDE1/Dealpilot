@@ -20,6 +20,9 @@ const CANONICAL = [
   { code: 'registration', label_fr: 'Immatriculation', label_en: 'Registration', overridable: true, sort_order: 10 },
 ] as const;
 
+/** F-70: the same list, for the provisioning seeds (org-seeds.ts) — never a second copy. */
+export { CANONICAL as CHECKLIST_CANONICAL };
+
 /**
  * Give a store its template. Called when a store is CREATED, so reads never
  * have to write. One statement, idempotent, safe to call again.

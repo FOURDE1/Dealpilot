@@ -362,3 +362,15 @@ is the version that matters to you.
 | O-7 | `offboarding → active` reversal offered (the spec has no way back) | Offered; slug confirmation + reason required. |
 | O-8 | Same-origin `/admin/*` until the CloudFront host split (`admin.readyloans.app` — infra work, money) | Accepted. |
 | O-9 | Bootstrap: the first super admin is granted by `cli.js platform-grant <email>` against `DB_ADMIN_URL`; the path closes once an active super admin exists. Recovery after a total lockout = owner SQL on `platform_staff`. | As stated. |
+
+## F-70 tenant provisioning — seven defaults implemented (2026-08-27)
+
+| # | Decision | Default in place |
+|---|---|---|
+| O-10 | Trial length **14 days with no automatic expiry**: the console shows the end date and "(ended)"; `trial → active/suspended` stay manual until the billing slice's worker acts on the clock. | 14 days, manual. |
+| O-11 | The owner's invitation lives **7 days** (F-12's TTL); a slow onboarding is covered by the console's "Resend the owner invitation" rather than a longer owner-specific TTL. | 7 days + reissue. |
+| O-12 | **No `prospect` status** until Stripe makes provisioning two-phase (D-071 1). | None. |
+| O-13 | A **soft-deleted organization keeps its slug**: re-provisioning a churned dealer under the same slug answers 409 pointing at the deleted tenant. Slug reuse is a retention / slug-history policy for later. | Slug stays taken. |
+| O-14 | The owner receives the generic bilingual "join a team" invitation email; a tenant-named owner email is a small follow-up. | Generic now. |
+| O-15 | §4.4 catalogs without a table today (fees, F&I products, lenders, message templates, notification rules, store thresholds, pipeline colours) are **deferred, not invented**; a reviewer reading §4.4 literally will call the slice incomplete. | Deferred (D-071 11). |
+| O-16 | Lost-reason vocabulary: the repo's **ten** bilingual names (incl. "Merged duplicate") ship, not the spec's nine keys. | Repo list. |

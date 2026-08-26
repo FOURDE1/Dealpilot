@@ -491,3 +491,25 @@ and links need one more design-system change on our side (so a brand colour that
 is perfect on a button but unreadable as a link is handled correctly in both
 light and dark themes) — that is the next branding piece, deliberately held
 until it can be done without breaking readability.
+
+## ROUND 17 — Creating a dealer from the platform console (F-70)
+
+> This is YOUR side of the product: the console at `/admin` where you create a
+> dealer group, its stores and the invitation for its owner. It needs a
+> platform super-admin account with two-factor turned on (see PROJECT.md
+> "Bootstrap the first platform super admin", then Security → enable 2FA).
+> In the local setup no email leaves the machine, so the console hands you the
+> owner's link instead — that is expected.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 17.1 | `/admin` → Tenants → "New tenant". Type a display name (e.g. *Groupe Tremblay*) | The identifier fills itself in (`groupe-tremblay`); the province defaults to Québec, the language to French, the first store's time zone to Montréal | ⬜ |
+| 17.2 | Fill the legal name, pick a plan, the owner's name and email; add a second store in Ontario | The second store's time zone switches to Toronto on its own; the store code suggests itself from the store name | ⬜ |
+| 17.3 | Give both stores the same code, submit | Refused before anything is created — the second store's code is flagged and the summary links to it | ⬜ |
+| 17.4 | Fix the code, submit | "Tenant … created." with the trial end date, an **invitation link** (no email is delivered locally) and a Copy button; "Open the tenant" leads to its page | ⬜ |
+| 17.5 | On the tenant page | Status *Trial*, "Trial ends" in 14 days, "Owner invited" with the email and the link's expiry; the journal lists the organization, both stores and the invitation, each signed by you | ⬜ |
+| 17.6 | Go back to "New tenant" and submit the SAME identifier again | Refused with "already provisioned" and a link that opens the existing tenant — nothing duplicated | ⬜ |
+| 17.7 | On the tenant page → "Resend the owner invitation", correct the email address | A new link; the journal shows the old invitation revoked and the new one issued; "Owner invited" shows the corrected address | ⬜ |
+| 17.8 | Open the link in a private window, sign up with the OWNER's address, accept | The owner lands in a working dealer: both stores exist, a lead can be created, the lost-reason list and the delivery checklist are already there | ⬜ |
+| 17.9 | Back on the tenant page | Owners now lists the owner, members = 1, "Owner invited" is gone and "Resend" is no longer offered | ⬜ |
+| 17.10 | As a Support or Billing staffer, look for "New tenant" | Not offered — creating dealers is the super admin's alone | ⬜ |

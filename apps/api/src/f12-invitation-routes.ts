@@ -1,4 +1,3 @@
-import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
@@ -11,6 +10,7 @@ import { recordEvent } from './activity.js';
 import { requirePermission } from './permissions.js';
 import type { Mailer } from './email.js';
 import { invitationMessage } from './email.js';
+import { INVITE_TTL_DAYS, acceptUrl, hashToken, newToken } from './invitation-token.js';
 
 /**
  * F-12 invitations (D-035).
@@ -26,22 +26,11 @@ import { invitationMessage } from './email.js';
  * signed in AS THAT EMAIL, which is what ties the identity to the seat.
  */
 
-const INVITE_TTL_DAYS = 7;
-
-const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
-
-/** 32 bytes: guessing one is not a thing anyone does twice. */
-const newToken = () => randomBytes(32).toString('base64url');
-
 /** The token arrives in the body so it never reaches an access log. */
 function tokenFromBody(body: unknown): string {
   const parsed = z.strictObject({ token: z.string().min(20).max(200) }).safeParse(body);
   if (!parsed.success) throw new AppError(422, 'validation_failed', 'A token is required');
   return parsed.data.token;
-}
-
-function acceptUrl(appUrl: string, token: string): string {
-  return `${appUrl.replace(/\/$/, '')}/invitations/${token}`;
 }
 
 export function registerF12Routes(app: FastifyInstance, pool: Pool, mailer: Mailer, appUrl: string, limiter: RateLimiter): void {

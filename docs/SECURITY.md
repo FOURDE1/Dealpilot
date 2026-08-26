@@ -119,6 +119,41 @@ Per-topic implementation reference: OWASP Cheat Sheet Series
 
 <!-- Entries begin below. -->
 
+### 2026-08-27 — F-70 tenant provisioning (the birth of a tenant from the platform side)
+
+**Scope:** `POST /api/v1/admin/tenants`, `POST /api/v1/admin/tenants/:id/owner-invitation`,
+the 0066 definers `admin_provision_tenant` / `admin_reissue_owner_invitation`,
+the shared invitation-token module.
+
+- **A01 access control** — both endpoints start with `tenants:create` (super
+  admin only); both definers re-check the actor (PA001 → 404, PA009 → 403);
+  the route file holds no tenant helper and no tenant-role literal (guard);
+  the platform-drift guard now owns the list of admin route files and fails
+  on one it does not scan. Every organization_id / store_id the definer
+  writes comes from RETURNING — an id smuggled into the payload is ignored
+  (mutation-tested). ✔
+- **A04 crypto** — the owner-seat token is 32 random bytes, SHA-256 only in
+  the database, ONE hashing module for both issuers (a lockstep test greps
+  it); the route logs ids and the send outcome, never the token. The dev
+  `log` mail transport writes the message BODY — the link included — to pino
+  on purpose (email.ts, so the link is reachable locally); it is never the
+  production transport, and F-12's invitations have the same property. ✔
+- **A05 injection** — jsonb parameters throughout; the seeds are built from
+  constants, never from the request body; the slug/code/email rules are the
+  self-serve Zod rules (reserved names included). ✔
+- **A06 design** — idempotent on slug with the existing id in the envelope;
+  a lost race is converted inside the function; every refusal is atomic
+  (timezone, plan, duplicate code, empty seeds — nothing written). ✔
+- **A10** — `PA014` (empty stores/seeds) is a caller bug deliberately left as
+  a 500; the definer refuses rather than births an organization nobody can
+  enter. ✔
+
+**Accepted (see below):** the send happens after commit — a crash between
+them loses the email, not the tenant (the detail shows the open seat and the
+reissue endpoint is the recovery); the seeds trust the API's constants the
+same way F-01 trusts `seedPermissions` (the lockstep test keeps both births
+equal).
+
 ### 2026-08-26 — F-69 platform console, slice 1 (the platform/tenant boundary)
 
 **Scope:** `/api/v1/admin/*`, the platform gate, the 0065 SECURITY DEFINER
@@ -229,6 +264,14 @@ parameterized values throughout; React escaping holds on all three screens.
   staffer who spans organizations loses their session everywhere and signs
   in again; the other organizations keep working. Realtime sockets live
   until their next session recheck.
+- **2026-08-27 (F-70) — the owner invitation email is sent after commit.** A
+  crash between the definer's commit and the send loses the email, not the
+  tenant: the console's `owner_invitation` fact and the reissue endpoint are
+  the recovery, and the send outcome is logged (F-12 parity), not audited.
+- **2026-08-27 (F-70) — seeds arrive as a jsonb parameter.** The definer
+  trusts the API for catalogue content — the trust F-01 already extends to
+  `seedPermissions`; `f70-provisioning.test.ts` proves the two births equal
+  row for row, so a drift between them fails the suite.
 - **2026-08-26 (F-69) — by-id reads under withUser after re-sign-in.** A
   suspended tenant's member can still GET a record they hold by id (no
   organization named, no membership gate) until the mutation/membership

@@ -56,6 +56,9 @@ const TenantDirectoryPage = lazy(() =>
 const TenantDetailPage = lazy(() =>
   import('../features/admin/tenant-detail-page.js').then((m) => ({ default: m.TenantDetailPage })),
 );
+const TenantNewPage = lazy(() =>
+  import('../features/admin/tenant-new-page.js').then((m) => ({ default: m.TenantNewPage })),
+);
 const PlatformStaffPage = lazy(() =>
   import('../features/admin/platform-staff-page.js').then((m) => ({ default: m.PlatformStaffPage })),
 );
@@ -175,6 +178,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/admin/tenants" replace /> },
       { path: 'tenants', element: lazyPage(<TenantDirectoryPage />) },
+      // Before the id route: `new` is a page, not a tenant (F-70).
+      { path: 'tenants/new', element: lazyPage(<TenantNewPage />) },
       { path: 'tenants/:tenantId', element: lazyPage(<TenantDetailPage />) },
       { path: 'staff', element: lazyPage(<PlatformStaffPage />) },
       { path: '*', element: <Navigate to="/admin/tenants" replace /> },

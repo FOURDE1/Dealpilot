@@ -193,6 +193,10 @@ import {
   PlatformStaffList,
   GrantPlatformStaffInput,
   PlatformStaffGranted,
+  ProvisionTenantInput,
+  AdminTenantProvisioned,
+  ReissueOwnerInvitationInput,
+  OwnerInvitationReissued,
 } from '@dealpilot/schemas';
 const c = initContract();
 
@@ -1163,6 +1167,19 @@ export const apiV1 = c.router({
         query: AdminTenantListQuery,
         responses: { 200: AdminTenantPage, ...errorResponses },
       },
+      /**
+       * F-70 provisioning (§4.3): one transaction births the organization,
+       * its stores and catalogues, and the owner's invitation. Idempotent on
+       * slug: a second call answers 409 `slug_taken` with the existing id in
+       * `details[0].message`. `accept_url` is present only when the mailer
+       * cannot reach the invitee.
+       */
+      create: {
+        method: 'POST',
+        path: '/api/v1/admin/tenants',
+        body: ProvisionTenantInput,
+        responses: { 201: AdminTenantProvisioned, ...errorResponses },
+      },
       get: {
         method: 'GET',
         path: '/api/v1/admin/tenants/:id',
@@ -1189,6 +1206,14 @@ export const apiV1 = c.router({
         pathParams: idParams,
         body: TenantStatusChangeInput,
         responses: { 200: TenantStatusChangeResult, ...errorResponses },
+      },
+      /** F-70: re-send or correct the owner seat; 409 `owner_exists` once an owner is active. */
+      inviteOwner: {
+        method: 'POST',
+        path: '/api/v1/admin/tenants/:id/owner-invitation',
+        pathParams: idParams,
+        body: ReissueOwnerInvitationInput,
+        responses: { 201: OwnerInvitationReissued, ...errorResponses },
       },
     }),
     staff: c.router({

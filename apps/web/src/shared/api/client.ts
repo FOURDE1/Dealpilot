@@ -37,6 +37,12 @@ export class ApiError extends Error {
      * the NAME of an offending item, and showing them is the whole point.
      */
     readonly detailMessages?: string[],
+    /**
+     * Every detail path, in the envelope's order (aligned with `detailCodes`
+     * when the server sets both). A multi-field 422 (F-70's provisioning form)
+     * marks every refused input at once instead of one per round-trip.
+     */
+    readonly detailPaths?: string[],
   ) {
     super(`API ${status}`);
   }
@@ -99,6 +105,7 @@ export function failFromResponse(status: number, body: unknown): never {
     parsed.success ? parsed.data.error.code : undefined,
     details.map((d) => d.code).filter((c): c is string => typeof c === 'string'),
     details.map((d) => d.message).filter((m): m is string => typeof m === 'string'),
+    details.map((d) => d.path ?? ''),
   );
 }
 

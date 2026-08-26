@@ -36,6 +36,103 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-071 — 2026-08-27 — Tenant provisioning: one birth, the self-serve seeds, an F-12 owner seat, no prospect
+
+F-70 (admin-console.md §4.2–§4.4, §11–§12; ADR-006/007/024/026; designed by
+the same three-planner + judge workflow as F-69, every contested repo fact
+verified). (1) **No `prospect`.** Provisioning is ONE transaction, so the
+state §4.3 calls prospect is never observable without Stripe; adding a
+status nothing can hold is the dead-vocabulary bug D-070 (7) named (it
+would touch the 0001 CHECK, the core matrix, `tenant_transitions()`,
+`refuseByStatus`, `callerOrgIds`, both scans, four `satisfies` maps and
+both locales). It arrives when Stripe makes provisioning two-phase; 0066
+rewrites the `organizations.status` comment that promised it. (2) **Trial
+without Stripe** = status `trial` (already operational) + a new
+`organizations.trial_ends_at` stamped `now() + TRIAL_DAYS` (14, in core
+beside `GRACE_PERIOD_DAYS`, passed INTO the definer so there is one number).
+No expiry job: the console shows the date and an "(ended)" marker;
+`trial → active/suspended` stay the manual super-admin transitions;
+`activated_at` stays NULL until the first entry into active. (3) **The birth
+is one SECURITY DEFINER call on the bare pool** (`admin_provision_tenant`,
+0066): organization, stores, role matrix, lost reasons, per-store
+checklists, the owner's invitation and the audit rows commit together or
+not at all; the route file holds no tenant helper and no tenant-role
+literal (`'owner'` lives in SQL). Every organization_id / store_id it writes
+comes from RETURNING, never from the payload (mutation-tested). (4) **Seeds =
+exactly what self-serve seeds**, fed as jsonb from the canonical TS lists
+(`DEFAULT_ROLE_PERMISSIONS`, `LOST_REASON_DEFAULTS`, checklist `CANONICAL`)
+so SQL never carries a second copy (the 0055 frozen-copy lesson); a lockstep
+test proves an F-70 tenant equals an F-01 organization + F-01 store row for
+row. Nothing else: no users/memberships, no `tenant_branding` or
+`tenant_comms_config` row (absence IS the default), no business rows, no
+intake keys, no rules. (5) **The owner seat is an F-12 invitation** (roles
+`{owner}`, org-wide, 7-day TTL, SHA-256 only), sent through the existing
+`invitationMessage` AFTER commit; the token mechanism moved to one module
+(`invitation-token.ts`) that both issuers import (a lockstep test greps it);
+`accept_url` is returned only when the transport cannot reach the invitee
+(the CR-05 rule). Acceptance is untouched F-12: the owner lands in a working
+tenant with the matrix, the pick-lists and the checklists already there.
+(6) **Idempotent on slug** (§4.3): `PA011` with DETAIL = the existing
+organization id → 409 `slug_taken`, `details[0] = {path:'slug',
+code:'slug_taken', message:<id>}`, and the console links to it. A
+soft-deleted organization still holds its slug (UNIQUE regardless of
+`deleted_at`, O-13). A lost race on `organizations_slug_key` is converted to
+the same PA011 inside the function (proved two ways: two concurrent POSTs
+for the outcome, and a held uncommitted row that forces the loser past the
+pre-check into the EXCEPTION branch).
+(7) **Audit** = `activity_events` rows organization/store×N/invitation
+`created` with `actor_type='platform'`, `restricted=false`, `{field:{from,to}}`
+shapes — no new verbs (§12): the tenant's own feed renders them as any
+other row, and the console journal names the verb and the entity on every
+row (review: a revoked seat with empty changes had read as "Système"; it
+now names the address that lost the seat); `platform_audit_events`
+untouched. (8) **Capability**
+`tenants:create` → super admin only (§3 "Create tenants"), enforced by BOTH
+endpoints: the second, `POST /admin/tenants/:id/owner-invitation`, re-issues
+the seat (revokes every open owner seat and any open invitation to that
+address, sends a new link, journals `revoked` + `created{reissued:true}`) and
+is refused with 409 `owner_exists` once an owner is active — without it a
+mistyped or unopened owner email would orphan the tenant, because F-12's
+tenant path needs `member:invite` and a fresh tenant has no members. It is
+the same authority finishing a provisioning, not a second one. (9) **The
+platform-drift guard owns the admin route file list** (`ADMIN_ROUTE_FILES`)
+and asserts that every `f*-routes.ts` serving `/api/v1/admin/` is on it — a
+new admin file that silently escaped the guard would be the worse blind
+spot. (10) **Deviations from §4.3, each deliberate:** `organizations` IS the
+tenant (`display_name` on the wire → `organizations.name`); the 201 returns
+`{ tenant: AdminTenantDetail, invitation }` (the F-69 return-the-detail
+pattern) rather than the flat `{tenant_id, slug, invite_id}`; the owner
+invitation is an F-12 invitation, not a Better Auth org invitation (D-025);
+no default `tenant_branding` row; the repo's ten bilingual lost reasons ship,
+not the spec's nine keys (O-16); store locale inherits the tenant's (§4.3's
+store body has no locale); no Stripe customer/subscription, entitlement
+cache or PostHog group identify (§4.3 steps 4–6, 8). (11) **Deferred, not
+invented** — every §4.4 catalog without a table or producer today: fee
+catalog, F&I product catalog, pipeline colours/aging thresholds, lender
+list, message templates, notification/automation rules, store thresholds
+(`aging_threshold_days` etc. — write-less columns trip the dead-column
+guard); plus Stripe, `prospect`, PostHog, an owner-specific invitation
+email, unifying the F-01 seed helpers with the definer through one SQL seed
+function (the lockstep test guards the two writers meanwhile), bulk data
+onboarding (migrations-operations.md §6.4 — after provisioning, by spec),
+the Playwright console journey (e2e-breadth slice). (12) **Console:** one
+form in three fieldsets (organization / owner / stores, one nested fieldset
+per store, max 20), suggestions the staffer overwrites (slug from the name,
+code from the store name, timezone and locale from the province), the
+server as the validation layer with every 422 tied to its field — the
+timezone check names `stores.<i>.timezone`, the duplicate code names
+`stores.<i>.code`, ALL refused fields at once (`ApiError.detailPaths`) —
+plus a focused summary that links to each input, blank required fields
+refused client-side by their LABEL (never a wire path), a picked timezone
+that survives a province change, errors that follow their store row when
+one is removed; the
+result rendered in place (the accept link exists only in that response);
+a capability-gated "New tenant" link and a "Trial ends" column in the
+directory; trial-end and owner-seat facts, the reissue dialog and the
+accept-link block on the detail page; journal rows show plain facts as
+themselves rather than "— → —".
+**Decided by:** Claude (implementation), 2026-08-27
+
 ## D-070 — 2026-08-26 — Platform console, slice 1: staff identity, tenant lifecycle, and the platform/tenant boundary
 
 F-69 (admin-console.md §2–§5.1, §11–§12; ADR-006/007/024; designed by a

@@ -4,6 +4,8 @@ import {
   AdminTenantDetail,
   AdminTenantEventsResponse,
   AdminTenantPage,
+  AdminTenantProvisioned,
+  OwnerInvitationReissued,
   PlanList,
   PlatformStaffGranted,
   PlatformStaffList,
@@ -12,6 +14,8 @@ import {
   type GrantPlatformStaffInputT,
   type OrganizationStatusT,
   type PlanTierT,
+  type ProvisionTenantInputT,
+  type ReissueOwnerInvitationInputT,
   type TenantStatusChangeInputT,
 } from '@dealpilot/schemas';
 import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
@@ -131,6 +135,36 @@ export function useChangeTenantStatus(id: string) {
     onSuccess: () => invalidateTenant(queryClient, id),
     // A 409 (stale or now-illegal transition) means the tenant moved under
     // us: refetch so the buttons and `expected_from` catch up (review).
+    onError: () => invalidateTenant(queryClient, id),
+  });
+}
+
+/** F-70: the birth of a tenant. 201 carries the detail AND the owner seat (with the link when no mail reaches them). */
+export function useProvisionTenant() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ProvisionTenantInputT) => {
+      const res = await apiRequest(routes.admin.tenants.create, { body: input });
+      if (res.status !== 201) fail(res.status, res.body);
+      return AdminTenantProvisioned.parse(res.body);
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin', 'tenants'] }),
+  });
+}
+
+/** F-70: re-send or correct the owner seat. A 409 means an owner is now active: refetch. */
+export function useReissueOwnerInvitation(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ReissueOwnerInvitationInputT) => {
+      const res = await apiRequest(routes.admin.tenants.inviteOwner, { params: { id }, body: input });
+      if (res.status !== 201) fail(res.status, res.body);
+      return OwnerInvitationReissued.parse(res.body);
+    },
+    onSuccess: () => {
+      invalidateTenant(queryClient, id);
+      void queryClient.invalidateQueries({ queryKey: adminKeys.events(id) });
+    },
     onError: () => invalidateTenant(queryClient, id),
   });
 }

@@ -1,4 +1,4 @@
-import type { OrganizationStatusT, PlatformCapabilityT, PlatformRoleT } from '@dealpilot/schemas';
+import type { ActivityEntityTypeT, OrganizationStatusT, PlatformCapabilityT, PlatformRoleT } from '@dealpilot/schemas';
 
 /**
  * Typed label keys for the console — a map that `satisfies Record<Enum, …>`
@@ -18,6 +18,7 @@ export const CAPABILITY_KEYS = {
   'tenants:set_plan': 'cap_tenant_set_plan',
   'plan:read': 'cap_plan_read',
   'staff:manage': 'cap_staff_manage',
+  'tenants:create': 'cap_tenant_create',
 } as const satisfies Record<PlatformCapabilityT, string>;
 
 /** The verb on the lifecycle button, per target status. */
@@ -64,6 +65,32 @@ export const STAFF_STATUS_KEYS = {
   active: 'staffStatus_active',
   revoked: 'staffStatus_revoked',
 } as const satisfies Record<'active' | 'revoked', string>;
+
+/** What a journal row is about — every entity the trail can name (F-70 review). */
+export const ENTITY_KEYS = {
+  deal: 'entity_deal',
+  lead: 'entity_lead',
+  vehicle: 'entity_vehicle',
+  membership: 'entity_membership',
+  pay_plan: 'entity_pay_plan',
+  checklist_item: 'entity_checklist_item',
+  checklist_template: 'entity_checklist_template',
+  intake_key: 'entity_intake_key',
+  invitation: 'entity_invitation',
+  dispatch_assignment: 'entity_dispatch_assignment',
+  deal_document: 'entity_deal_document',
+  deal_fi_product: 'entity_deal_fi_product',
+  tenant_branding: 'entity_tenant_branding',
+  consent: 'entity_consent',
+  suppression: 'entity_suppression',
+  internal_dnc: 'entity_internal_dnc',
+  conversation: 'entity_conversation',
+  appointment: 'entity_appointment',
+  contact: 'entity_contact',
+  organization: 'entity_organization',
+  store: 'entity_store',
+  task: 'entity_task',
+} as const satisfies Record<ActivityEntityTypeT, string>;
 
 /** Destructive targets get the destructive button. */
 export const DESTRUCTIVE_TARGETS: ReadonlySet<OrganizationStatusT> = new Set<OrganizationStatusT>(['suspended', 'offboarding']);

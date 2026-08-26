@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { CursorQuery, Email, IsoDateTime, Locale, ProvinceCA, Uuid, paginated } from './common.js';
-import { OrganizationStatus, PlanTier } from './organization.js';
+import { OrganizationStatus, PlanTier, orgSlugInput } from './organization.js';
+import { CreateStoreInput } from './store.js';
 import { ActivityEvent } from './activity.js';
 
 /**
@@ -25,6 +26,8 @@ export const PLATFORM_CAPABILITIES = {
   'tenants:set_plan': ['platform_super_admin', 'platform_billing'],
   'plan:read': ['platform_super_admin', 'platform_support', 'platform_billing'],
   'staff:manage': ['platform_super_admin'],
+  /** F-70: provision a tenant and (re)issue its owner seat (§3 "Create tenants"). */
+  'tenants:create': ['platform_super_admin'],
 } as const satisfies Record<string, readonly PlatformRoleT[]>;
 export type PlatformCapabilityT = keyof typeof PLATFORM_CAPABILITIES;
 export const PLATFORM_CAPABILITY_NAMES = Object.keys(PLATFORM_CAPABILITIES) as [PlatformCapabilityT, ...PlatformCapabilityT[]];
@@ -80,6 +83,16 @@ export const AdminTenant = z.object({
   activated_at: IsoDateTime.nullable(),
   suspended_at: IsoDateTime.nullable(),
   deleted_at: IsoDateTime.nullable(),
+  /** F-70: the §4.2 trial clock; NULL for organizations not provisioned through the console. */
+  trial_ends_at: IsoDateTime.nullable(),
+});
+/** The open owner seat of a provisioned tenant (F-70). Never the token. */
+export const AdminOwnerInvitation = z.object({
+  id: Uuid,
+  email: z.string(),
+  name: z.string().nullable(),
+  expires_at: IsoDateTime,
+  expired: z.boolean(),
 });
 export const AdminTenantStore = z.object({
   id: Uuid,
@@ -97,6 +110,8 @@ export const AdminTenantDetail = AdminTenant.extend({
   last_activity_at: IsoDateTime.nullable(),
   /** Server-computed: core matrix ∩ caller capability. The UI renders exactly these. */
   allowed_transitions: z.array(OrganizationStatus),
+  /** F-70: the open owner seat until the owner accepts (null once accepted or never issued). */
+  owner_invitation: AdminOwnerInvitation.nullable(),
 });
 export const AdminTenantListQuery = CursorQuery.extend({
   status: OrganizationStatus.optional(),
@@ -143,6 +158,59 @@ export const TenantStatusChangeInput = z
   });
 export const TenantStatusChangeResult = AdminTenantDetail.extend({ sessions_revoked: z.number().int().nonnegative() });
 
+/**
+ * F-70 — provisioning (admin-console.md §4.3). The §4.3 store body, coded
+ * exactly as CreateStoreInput codes a store (uppercased, format-checked);
+ * the store's locale is the tenant's (the spec's store body has no locale).
+ */
+export const ProvisionStoreInput = CreateStoreInput.pick({ name: true, code: true, province: true, timezone: true })
+  .extend({ city: z.string().trim().min(1).max(100).optional() })
+  .strict();
+
+export const ProvisionTenantInput = z
+  .strictObject({
+    legal_name: z.string().trim().min(1).max(200),
+    /** → organizations.name (0065: name IS §4.1 display_name). */
+    display_name: z.string().trim().min(1).max(200),
+    /** Format + reserved names, the same rule as self-serve (organization.ts). */
+    slug: orgSlugInput,
+    province: ProvinceCA,
+    default_locale: Locale.default('fr-CA'),
+    plan_id: Uuid,
+    owner_email: Email,
+    owner_name: z.string().trim().min(1).max(120),
+    stores: z.array(ProvisionStoreInput).min(1).max(20),
+  })
+  .superRefine((v, ctx) => {
+    // Refused here so the form learns the ROW; the definer refuses it again
+    // (PA012) for a caller that is not this schema.
+    const seen = new Set<string>();
+    v.stores.forEach((s, i) => {
+      if (seen.has(s.code)) {
+        ctx.addIssue({ code: 'custom', path: ['stores', i, 'code'], message: 'duplicate store code', params: { key: 'duplicate_store_code' } });
+      }
+      seen.add(s.code);
+    });
+  });
+
+export const ProvisionedOwnerInvitation = AdminOwnerInvitation.extend({
+  /** Present ONLY when the mailer cannot reach the invitee (the F-12 CR-05 rule). */
+  accept_url: z.string().optional(),
+});
+export const AdminTenantProvisioned = z.object({
+  tenant: AdminTenantDetail,
+  invitation: ProvisionedOwnerInvitation,
+});
+
+/** Re-send or correct the owner seat while the tenant has no owner (F-70). */
+export const ReissueOwnerInvitationInput = z.strictObject({
+  email: Email,
+  name: z.string().trim().min(1).max(120).optional(),
+});
+export const OwnerInvitationReissued = ProvisionedOwnerInvitation.extend({
+  revoked_invitation_ids: z.array(Uuid),
+});
+
 export const PlatformStaffMember = z.object({
   user_id: Uuid,
   email: z.string(),
@@ -172,3 +240,9 @@ export type TenantStatusChangeInputT = z.infer<typeof TenantStatusChangeInput>;
 export type PlatformStaffMemberT = z.infer<typeof PlatformStaffMember>;
 export type GrantPlatformStaffInputT = z.infer<typeof GrantPlatformStaffInput>;
 export type AdminMeResponseT = z.infer<typeof AdminMeResponse>;
+export type AdminOwnerInvitationT = z.infer<typeof AdminOwnerInvitation>;
+export type ProvisionStoreInputT = z.infer<typeof ProvisionStoreInput>;
+export type ProvisionTenantInputT = z.infer<typeof ProvisionTenantInput>;
+export type AdminTenantProvisionedT = z.infer<typeof AdminTenantProvisioned>;
+export type ReissueOwnerInvitationInputT = z.infer<typeof ReissueOwnerInvitationInput>;
+export type OwnerInvitationReissuedT = z.infer<typeof OwnerInvitationReissued>;

@@ -7,7 +7,8 @@ import { LEAD_STATUS_KEYS } from '../leads/labels.js';
 import { DOCUMENT_STATUS_KEYS, DOCUMENT_TYPE_KEYS } from '../documents/labels.js';
 import { useActivity } from './api.js';
 
-const ACTION_KEYS = {
+/** Verb per action — shared with the platform console's journal (F-70). */
+export const ACTION_KEYS = {
   created: 'action_created',
   updated: 'action_updated',
   deleted: 'action_deleted',

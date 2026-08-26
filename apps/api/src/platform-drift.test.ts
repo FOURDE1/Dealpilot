@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createPool, ensureTestDatabase, reset, testAdminUrl, type Pool } from '@dealpilot/db';
@@ -25,7 +25,9 @@ import { apiV1 as contract } from '@dealpilot/contracts';
 const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(here, '..', '..', '..', 'packages', 'db', 'migrations');
 const ADMIN_URL = testAdminUrl();
-const source = readFileSync(join(here, 'f69-admin-routes.ts'), 'utf8');
+/** Every route file that serves /api/v1/admin/ — this guard owns the list (F-70). */
+const ADMIN_ROUTE_FILES = ['f69-admin-routes.ts', 'f70-provisioning-routes.ts'];
+const source = ADMIN_ROUTE_FILES.map((f) => readFileSync(join(here, f), 'utf8')).join('\n');
 
 let admin: Pool;
 let dbUp = false;
@@ -84,6 +86,16 @@ describe('platform drift (F-69)', () => {
     // The contract and the file agree on the surface.
     const declared = [...adminPaths(contract.admin)].length;
     expect(handlers.length).toBe(declared);
+  });
+
+  it('every route file that serves an admin path is on this guard’s list', () => {
+    // A new admin route file that silently escaped the guard would be the
+    // worse blind spot: the list is asserted, not trusted.
+    const escaped = readdirSync(here)
+      .filter((f) => /^f\d+.*routes\.ts$/.test(f) && readFileSync(join(here, f), 'utf8').includes("'/api/v1/admin/"))
+      .filter((f) => !ADMIN_ROUTE_FILES.includes(f));
+    expect(escaped, 'admin route files the drift guard does not scan').toEqual([]);
+    for (const f of ADMIN_ROUTE_FILES) expect(readFileSync(join(here, f), 'utf8')).toContain("'/api/v1/admin/");
   });
 
   it('the route file never opens tenant context and never names a tenant role', () => {

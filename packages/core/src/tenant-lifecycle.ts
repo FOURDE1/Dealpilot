@@ -59,6 +59,13 @@ export const OPERATIONAL_STATUSES: ReadonlySet<TenantStatus> = new Set<TenantSta
 /** §4.2: dunning grace before read_only. Consumed by the billing slice's worker. */
 export const GRACE_PERIOD_DAYS = 14;
 
+/**
+ * §4.2 / ADR-024: the trial length. Stamped as `organizations.trial_ends_at`
+ * by `admin_provision_tenant()` (0066, F-70); nothing expires it yet — the
+ * console shows the date and the billing slice's worker acts on it.
+ */
+export const TRIAL_DAYS = 14;
+
 export function allowedTenantTransitions(from: TenantStatus): TenantStatus[] {
   return TENANT_TRANSITIONS.filter(([f]) => f === from).map(([, to]) => to);
 }

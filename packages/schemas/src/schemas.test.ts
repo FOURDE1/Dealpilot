@@ -17,6 +17,10 @@ import {
   UpdateOrganizationInput,
   UpdateStoreInput,
   UpdateUserInput,
+  ProvisionTenantInput,
+  ReissueOwnerInvitationInput,
+  PLATFORM_CAPABILITY_NAMES,
+  capabilitiesOf,
 } from './index.js';
 
 const UUID_A = '5e6f7a80-1b2c-4d3e-8f90-a1b2c3d4e5f6';
@@ -217,5 +221,69 @@ describe('UpdateOrganizationInput', () => {
     // multi-tenancy.md §7: the slug drives subdomains + intake URLs, never renamed.
     expect(() => UpdateOrganizationInput.parse({ slug: 'new-slug' })).toThrow();
     expect(UpdateOrganizationInput.parse({ name: 'Renamed' })).toEqual({ name: 'Renamed' });
+  });
+});
+
+describe('ProvisionTenantInput (F-70, admin-console.md §4.3)', () => {
+  const keyOf = (r: { success: boolean; error?: unknown }): string | undefined => {
+    const issues = (r.error as { issues?: { params?: { key?: string }; path?: (string | number)[] }[] } | undefined)?.issues;
+    return issues?.[0]?.params?.key;
+  };
+  const pathOf = (r: { success: boolean; error?: unknown }): string | undefined => {
+    const issues = (r.error as { issues?: { path?: (string | number)[] }[] } | undefined)?.issues;
+    return issues?.[0]?.path?.join('.');
+  };
+  const body = (over: Record<string, unknown> = {}) => ({
+    legal_name: 'Groupe Alpha inc.',
+    display_name: 'Groupe Alpha',
+    slug: 'groupe-alpha',
+    province: 'QC',
+    plan_id: UUID_A,
+    owner_email: '  Owner@Alpha.CA ',
+    owner_name: 'Alice',
+    stores: [{ name: 'Alpha Laval', code: 'alpha-lav', province: 'QC' }],
+    ...over,
+  });
+
+  it('applies the self-serve rules: reserved slug, lowercased owner email, uppercased store code, FR-first defaults', () => {
+    const ok = ProvisionTenantInput.parse(body());
+    expect(ok.owner_email).toBe('owner@alpha.ca');
+    expect(ok.default_locale).toBe('fr-CA');
+    expect(ok.stores[0]).toMatchObject({ code: 'ALPHA-LAV', timezone: 'America/Montreal' });
+    expect(keyOf(ProvisionTenantInput.safeParse(body({ slug: 'admin' })))).toBe(MESSAGE_KEYS.org_slug_reserved);
+    expect(keyOf(ProvisionTenantInput.safeParse(body({ slug: 'platform' })))).toBe(MESSAGE_KEYS.org_slug_reserved);
+    expect(keyOf(ProvisionTenantInput.safeParse(body({ slug: 'Bad Slug' })))).toBe(MESSAGE_KEYS.org_slug_format);
+    const badCode = ProvisionTenantInput.safeParse(body({ stores: [{ name: 'S', code: 'a b', province: 'QC' }] }));
+    expect(keyOf(badCode)).toBe(MESSAGE_KEYS.store_code_format);
+    expect(pathOf(badCode)).toBe('stores.0.code');
+  });
+
+  it('needs one to twenty stores, refuses a duplicate code by ROW, and refuses unknown keys', () => {
+    expect(ProvisionTenantInput.safeParse(body({ stores: [] })).success).toBe(false);
+    const many = Array.from({ length: 21 }, (_, i) => ({ name: `S${i}`, code: `S-${i}`, province: 'QC' }));
+    expect(ProvisionTenantInput.safeParse(body({ stores: many })).success).toBe(false);
+    const dup = ProvisionTenantInput.safeParse(body({
+      stores: [
+        { name: 'A', code: 'KIA-ML', province: 'QC' },
+        { name: 'B', code: 'kia-ml', province: 'ON', timezone: 'America/Toronto' },
+      ],
+    }));
+    expect(dup.success).toBe(false);
+    expect(keyOf(dup)).toBe('duplicate_store_code');
+    expect(pathOf(dup)).toBe('stores.1.code');
+    expect(ProvisionTenantInput.safeParse(body({ status: 'active' })).success).toBe(false);
+    expect(ProvisionTenantInput.safeParse(body({ stores: [{ name: 'S', code: 'S-1', province: 'QC', default_locale: 'en-CA' }] })).success).toBe(false);
+  });
+
+  it('the owner-seat reissue takes an email and an optional name, nothing else', () => {
+    expect(ReissueOwnerInvitationInput.parse({ email: 'New@Alpha.CA' })).toEqual({ email: 'new@alpha.ca' });
+    expect(ReissueOwnerInvitationInput.safeParse({ email: 'x@y.z', roles: ['owner'] }).success).toBe(false);
+  });
+
+  it('tenants:create belongs to the super admin alone', () => {
+    expect(PLATFORM_CAPABILITY_NAMES).toContain('tenants:create');
+    expect(capabilitiesOf('platform_super_admin')).toContain('tenants:create');
+    expect(capabilitiesOf('platform_support')).not.toContain('tenants:create');
+    expect(capabilitiesOf('platform_billing')).not.toContain('tenants:create');
   });
 });

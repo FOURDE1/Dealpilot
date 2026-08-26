@@ -79,7 +79,9 @@ export function requirePlatform(request: FastifyRequest, cap: PlatformCapability
 
 /** SQLSTATE → HTTP for the 0065 definer surface (the conflictFrom pattern). */
 export function platformErrorFrom(err: unknown): AppError | null {
-  const e = err as { code?: string; message?: string } | null;
+  // node-postgres exposes DETAIL as `detail` — the 0066 definers carry the
+  // existing organization id (PA011) or the offending store code (PA012) there.
+  const e = err as { code?: string; message?: string; detail?: string } | null;
   switch (e?.code) {
     case 'PA001':
     case 'PA002':
@@ -106,6 +108,17 @@ export function platformErrorFrom(err: unknown): AppError | null {
       ]);
     case 'PA009':
       return new AppError(403, 'forbidden', 'Your platform role does not allow this');
+    case 'PA011':
+      // Idempotent on slug (§4.3): the message IS the existing tenant's id.
+      return new AppError(409, 'slug_taken', 'A tenant with this slug already exists', [
+        { path: 'slug', code: 'slug_taken', message: e?.detail ?? '' },
+      ]);
+    case 'PA012':
+      return new AppError(422, 'validation_failed', 'Duplicate store code', [
+        { path: 'stores', code: 'duplicate_store_code', message: e?.detail ?? '' },
+      ]);
+    case 'PA013':
+      return new AppError(409, 'owner_exists', 'This tenant already has an active owner; invitations are now the tenant’s own (F-12)');
     case '23514':
       return new AppError(422, 'validation_failed', 'Reason required', [
         { path: 'reason', code: 'reason_required', message: 'Say why' },

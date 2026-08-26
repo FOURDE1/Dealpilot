@@ -33,7 +33,8 @@ const orgSlug = z
 /** Slugs a tenant may never take — the platform's own names (F-69, admin-console.md §2). */
 export const PLATFORM_RESERVED_SLUGS = ['platform', 'readyloans-platform', 'dealpilot-platform'] as const;
 const RESERVED_SLUGS = new Set(['www', 'api', 'app', 'admin', 'in', 'status', ...PLATFORM_RESERVED_SLUGS]);
-const orgSlugInput = orgSlug.refine(
+/** Exported for F-70 provisioning: the console's slug field obeys the same format + reserved-name rules. */
+export const orgSlugInput = orgSlug.refine(
   (s) => !RESERVED_SLUGS.has(s),
   withKey(MESSAGE_KEYS.org_slug_reserved),
 );
