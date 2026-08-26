@@ -108,3 +108,44 @@ export const LeaderboardReport = z.object({
 });
 export type LeaderboardReportT = z.infer<typeof LeaderboardReport>;
 export type LeaderboardQueryT = z.infer<typeof LeaderboardQuery>;
+
+/**
+ * F-67 — the activity heatmap (reports-analytics.md §11 Target): store-level,
+ * SQL-side, weekday × hour in the STORE's timezone. Only the channel that
+ * exists rides the filter — SMS both ways; call/email chips arrive with
+ * their modules rather than as dead vocabulary.
+ */
+/** The column's own vocabulary — an 'all' sentinel is what the
+ * enum-vocabulary guard exists to refuse; absent means both directions. */
+export const HeatmapDirection = z.enum(['inbound', 'outbound']);
+
+export const HeatmapQuery = z.object({
+  organization_id: z.uuid().optional(),
+  store_id: z.uuid().optional(),
+  period: z.enum(['30d', '90d', '6m', '1y', 'all']).default('90d'),
+  direction: HeatmapDirection.optional(),
+});
+
+export const HeatmapCell = z.object({
+  /** 0 = Sunday … 6 = Saturday, in the store's local time. */
+  dow: z.number().int().min(0).max(6),
+  hour: z.number().int().min(0).max(23),
+  inbound: z.number().int(),
+  outbound: z.number().int(),
+});
+
+export const HeatmapReport = z.object({
+  period: z.enum(['30d', '90d', '6m', '1y', 'all']),
+  /** Null = both directions. */
+  direction: HeatmapDirection.nullable(),
+  /** The timezone every cell was bucketed in. */
+  timezone: z.string(),
+  /** Only non-empty cells; the grid fills the rest with zero. */
+  cells: z.array(HeatmapCell),
+  /** Top-3 slots by INBOUND volume — when customers actually answer. */
+  best_times: z.array(z.object({ dow: z.number().int(), hour: z.number().int(), inbound: z.number().int() })),
+  totals: z.object({ inbound: z.number().int(), outbound: z.number().int() }),
+  max_count: z.number().int(),
+});
+export type HeatmapReportT = z.infer<typeof HeatmapReport>;
+export type HeatmapQueryT = z.infer<typeof HeatmapQuery>;

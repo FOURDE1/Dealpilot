@@ -191,10 +191,18 @@ export async function keysetPage<Row extends { id: string }>(
  * cascade-assign in the org. Refuse the typo at the door, naming the fix.
  */
 export async function assertKnownTimezone(client: PoolClient, timezone: string): Promise<void> {
-  const r = await client.query(`SELECT 1 FROM pg_timezone_names WHERE name = $1`, [timezone]);
+  // Region/city names only (F-67 review): pg_timezone_names also lists
+  // fixed-offset and pseudo zones — 'EST', 'MST', 'Factory', 'Etc/GMT+5' —
+  // that Postgres accepts and that carry NO daylight rule. A Québec store
+  // saved as 'EST' would bucket every summer message an hour early and
+  // read as a real zone in every report that names it.
+  const r = await client.query(
+    `SELECT 1 FROM pg_timezone_names WHERE name = $1 AND name LIKE '%/%' AND name NOT LIKE 'Etc/%'`,
+    [timezone],
+  );
   if (r.rows.length === 0) {
     throw new AppError(422, 'validation_failed', 'Unknown timezone', [
-      { path: 'timezone', code: 'unknown_timezone', message: `'${timezone}' is not an IANA zone name Postgres recognizes (e.g. America/Montreal)` },
+      { path: 'timezone', code: 'unknown_timezone', message: `'${timezone}' is not a region/city IANA zone name Postgres recognizes (e.g. America/Montreal — fixed-offset names like EST have no daylight rule)` },
     ]);
   }
 }

@@ -36,6 +36,37 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-068 — 2026-08-22 — Heatmap: the store's clock, and only channels that exist
+
+F-67 (reports-analytics.md §11 Target). (1) STORE-level and SQL-side, as
+the Target demands — the legacy drew one lead's timeline in the browser.
+(2) Bucketed in the STORE's timezone (`created_at AT TIME ZONE
+stores.timezone`), because "Tuesday 7pm" is the store's Tuesday; the
+response names the zone it used, and a multi-store cut takes the first
+store in scope. (3) Best contact times rank by INBOUND volume — when
+customers answer is what the outbound-call scheduler (ADR-020/022's
+quiet-hours-aware time picking) will read. (4) The filter is the column's
+own vocabulary — `inbound / outbound`, absent meaning both; the
+enum-vocabulary guard refused an 'all' sentinel on first gate, exactly
+as it did in F-53 — and SMS is the one channel that exists, so the
+legacy's call/email chips would be dead vocabulary here; they arrive
+with the voice and email modules. (5) Cells carry their numbers in an
+accessible label; the five-step intensity is a glance, never the fact.
+(6) Same report:view + membership store-scope discipline as F-55/65/66.
+(7, review) A send the carrier REFUSED (`carrier_error` set) is not
+activity — it reached nobody — and is excluded from every cell; inbound
+rows have no carrier verdict to fail. (8, review) Store timezones are
+region/city IANA names only: `pg_timezone_names` also accepts 'EST',
+'MST', 'Factory' and 'Etc/GMT+5', which carry no daylight rule and
+would bucket every summer message an hour early — `assertKnownTimezone`
+(the F-42 door) now refuses them for every store write. (9, review)
+The grid is a real table — headers name the day and hour, busy cells
+carry their counts as text, empty cells are empty — rather than 168
+`role="img"` sentences; the busiest steps use the `success-foreground`
+ink the contrast test gates, and a cut with no replies says so instead
+of heading an empty best-times list.
+**Decided by:** Claude (implementation), 2026-08-22
+
 ## D-067 — 2026-08-22 — Leaderboard: real keys, canonical stages, one speed scale
 
 F-66 (reports-analytics.md §10). The legacy joined salespeople to deals by

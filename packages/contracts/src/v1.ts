@@ -168,6 +168,8 @@ import {
   SourceRoiQuery,
   LeaderboardReport,
   LeaderboardQuery,
+  HeatmapReport,
+  HeatmapQuery,
 } from '@dealpilot/schemas';
 const c = initContract();
 
@@ -859,6 +861,13 @@ export const apiV1 = c.router({
       path: '/api/v1/analytics/leaderboard',
       query: LeaderboardQuery,
       responses: { 200: LeaderboardReport, ...errorResponses },
+    },
+    /** F-67: the store-level activity heatmap (reports-analytics.md §11 Target). */
+    heatmap: {
+      method: 'GET',
+      path: '/api/v1/analytics/activity-heatmap',
+      query: HeatmapQuery,
+      responses: { 200: HeatmapReport, ...errorResponses },
     },
   }),
   /** F-52 be-back queue (leads.md §9): dormant leads worth another call. */

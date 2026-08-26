@@ -132,6 +132,9 @@ export function LeaderboardPage() {
         <span aria-current="page" className="rounded-md border border-border bg-muted px-3 py-1.5 font-medium">
           {t('lb_title')}
         </span>
+        <NavLink to="/analytics/activity-heatmap" className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">
+          {t('hm_title')}
+        </NavLink>
       </nav>
       <p className="max-w-2xl text-sm text-muted-foreground">{t('lb_subtitle')}</p>
 

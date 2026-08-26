@@ -1,3 +1,30 @@
+## 2026-08-22 (tick 21) — F-67 heatmap: the store's clock
+
+F-66 CI-green (32985352745, aadf779 — gh reported a transient
+startup_failure while the run was still in progress; the pinned verdict
+was success on attempt 1). F-67 (reports-analytics.md §11 Target,
+D-068): the store-level, SQL-side activity heatmap — weekday × hour
+bucketed in the STORE's timezone (the test's oracle is Intl in that
+zone: 02:15Z on a Saturday is Friday 22:15 in Montréal, and the grid
+says Friday), best contact times ranked by inbound volume for the
+outbound-call scheduler to read, the F-55 scope discipline, a fourth
+report tab with numbers in every cell's accessible label. The gate
+refused an 'all' sentinel in the direction enum — the enum-vocabulary
+guard doing in F-67 what it did in F-53 — so the filter is the column's
+own vocabulary, absent meaning both. Review 14/14 agents, 9 confirmed,
+all fixed: refused sends (carrier_error) no longer count as activity;
+`assertKnownTimezone` now refuses fixed-offset/pseudo zones ('EST',
+'Factory', 'Etc/GMT+5') for every store write — a Québec store saved as
+'EST' bucketed every summer message an hour early; the grid is a real
+table (headers name day and hour, busy cells carry text, empty cells
+are empty) instead of 168 role=img sentences; the busiest steps use
+`success-foreground` ink (page foreground was 1.7:1 on solid success in
+dark); a sent-only cut says "no replies" instead of heading an empty
+list; ICU plurals on the slot/cell strings; the conversations join is
+added only when a store constrains the cut; and the suite gained the
+store-bound-manager / foreign-store-404 / period=all / second-timezone
+case the review's mutation test showed was missing. Suite 5/5.
+
 ## 2026-08-22 (tick 20) — F-66 leaderboard: real keys, and a stranger who almost got a medal
 
 F-65 CI-green (32548040916, 7b17d0f). F-66 (reports-analytics.md §10,
