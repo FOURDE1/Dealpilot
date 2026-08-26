@@ -166,6 +166,8 @@ import {
   ListSourceCostsQuery,
   SourceRoiReport,
   SourceRoiQuery,
+  LeaderboardReport,
+  LeaderboardQuery,
 } from '@dealpilot/schemas';
 const c = initContract();
 
@@ -850,6 +852,13 @@ export const apiV1 = c.router({
       path: '/api/v1/analytics/source-roi',
       query: SourceRoiQuery,
       responses: { 200: SourceRoiReport, ...errorResponses },
+    },
+    /** F-66: the salesperson leaderboard (reports-analytics.md §10). */
+    leaderboard: {
+      method: 'GET',
+      path: '/api/v1/analytics/leaderboard',
+      query: LeaderboardQuery,
+      responses: { 200: LeaderboardReport, ...errorResponses },
     },
   }),
   /** F-52 be-back queue (leads.md §9): dormant leads worth another call. */

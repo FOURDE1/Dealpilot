@@ -213,6 +213,9 @@ export function WinLossPage() {
         <NavLink to="/analytics/source-roi" className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">
           {t('roi_title')}
         </NavLink>
+        <NavLink to="/analytics/leaderboard" className="rounded-md border border-border px-3 py-1.5 hover:bg-muted">
+          {t('lb_title')}
+        </NavLink>
       </nav>
       <p className="max-w-2xl text-sm text-muted-foreground">{t('wl_subtitle')}</p>
 

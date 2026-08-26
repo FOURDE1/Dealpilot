@@ -68,3 +68,43 @@ export const WinLossReport = z.object({
 
 export type WinLossQueryT = z.infer<typeof WinLossQuery>;
 export type WinLossReportT = z.infer<typeof WinLossReport>;
+
+/**
+ * F-66 — the salesperson leaderboard (reports-analytics.md §10), rebuilt on
+ * REAL foreign keys (deals.salesperson_id, leads.assigned_to — the legacy's
+ * fuzzy name-matching had nothing to hold on to) and with its documented
+ * defects fixed: closed = the canonical delivered/complete stages, response
+ * time = the F-24 speed-to-lead stamp, bands = the lead module's 5/15/30.
+ */
+export const LeaderboardSort = z.enum(['gross', 'deals', 'conversion', 'response', 'leads']);
+
+export const LeaderboardQuery = z.object({
+  organization_id: z.uuid().optional(),
+  store_id: z.uuid().optional(),
+  period: z.enum(['30d', '90d', '6m', '1y', 'all']).default('90d'),
+  sort: LeaderboardSort.default('gross'),
+});
+
+export const LeaderboardRow = z.object({
+  user_id: z.uuid(),
+  name: z.string(),
+  deals: z.number().int(),
+  closed_deals: z.number().int(),
+  total_sales_cents: z.number().int(),
+  gross_profit_cents: z.number().int(),
+  fi_reserve_cents: z.number().int(),
+  total_leads: z.number().int(),
+  active_leads: z.number().int(),
+  /** closed_deals / leads assigned in the period × 100, 1dp; 0-guarded. */
+  conversion_rate: z.number(),
+  /** Mean of the F-24 stamp; null when nothing was ever responded to. */
+  avg_response_seconds: z.number().nullable(),
+});
+
+export const LeaderboardReport = z.object({
+  period: z.enum(['30d', '90d', '6m', '1y', 'all']),
+  sort: LeaderboardSort,
+  rows: z.array(LeaderboardRow),
+});
+export type LeaderboardReportT = z.infer<typeof LeaderboardReport>;
+export type LeaderboardQueryT = z.infer<typeof LeaderboardQuery>;

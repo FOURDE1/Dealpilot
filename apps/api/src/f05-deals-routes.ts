@@ -95,6 +95,25 @@ async function dealOrg(pool: Pool, userId: string, dealId: string): Promise<stri
   });
 }
 
+
+/**
+ * A salesperson on a deal must be an ACTIVE MEMBER here (F-66 review): the
+ * column is a bare FK to users, which Postgres checks past RLS, so any user
+ * id in the system used to be attachable — and the leaderboard would then
+ * rank, and name, a stranger from another dealer group.
+ */
+async function requireSalespersonMember(c: PoolClient, userId: string): Promise<void> {
+  const r = await c.query(
+    `SELECT 1 FROM memberships WHERE user_id = $1 AND status = 'active' LIMIT 1`,
+    [userId],
+  );
+  if (r.rows.length === 0) {
+    throw new AppError(422, 'validation_failed', 'Salesperson is not an active member here', [
+      { path: 'salesperson_id', code: 'not_a_member', message: userId },
+    ]);
+  }
+}
+
 export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
   app.post('/api/v1/deals/calculate', async (request, reply) => {
     // Pure: no tenant context, no writes — just the engine.
@@ -112,6 +131,7 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
         await requireLiveStore(c, input.store_id);
         if (input.lead_id) await requireLeadInOrg(c, input.lead_id);
         if (input.vehicle_id) await requireVehicleInOrg(c, input.vehicle_id);
+        if (input.salesperson_id) await requireSalespersonMember(c, input.salesperson_id);
         const cols = ['organization_id', 'store_id', 'lead_id', 'vehicle_id', 'salesperson_id',
           'fi_reserve_cents', 'sold_as_is', ...INPUT_COLUMNS, ...OUTPUT_COLUMNS];
         const values: unknown[] = [
@@ -274,6 +294,7 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
       await requirePermission(c, user.id, 'deal:update');
       if (input.lead_id) await requireLeadInOrg(c, input.lead_id);
       if (input.vehicle_id) await requireVehicleInOrg(c, input.vehicle_id);
+      if (input.salesperson_id) await requireSalespersonMember(c, input.salesperson_id);
 
       // FOR UPDATE: the checklist PATCH locks this same row, so a required item
       // cannot be unticked in the window between the readiness check below and

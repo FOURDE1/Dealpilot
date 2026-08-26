@@ -1,3 +1,23 @@
+## 2026-08-22 (tick 20) — F-66 leaderboard: real keys, and a stranger who almost got a medal
+
+F-65 CI-green (32548040916, 7b17d0f). F-66 (reports-analytics.md §10,
+D-067): the salesperson leaderboard on the FK model the legacy lacked —
+deals.salesperson_id and leads.assigned_to, no fuzzy name-scoring — with
+§10's documented defects fixed rather than ported (canonical
+delivered/complete stages, the F-24 response stamp, the lead module's
+5/15/30 bands, closed-over-assigned conversion), five sorts, FR/EN, a
+third report tab. The review ran three times: the first two lost
+agents to a network blip and the usage limit, the third to a machine
+restart that took Docker down (Postgres and Redis brought back; only
+our containers). Final verdict 11/11 agents, 4 confirmed: stable
+rank tiebreaks; delivered money windowed by delivered_at (two verifiers
+split — an August car belongs to August); names from the RLS-scoped
+users table joined to active memberships, because Better Auth's global
+"user" table would have NAMED a member of another dealer group whenever
+a foreign id sat on a deal — and the root cause closed in F-05, which
+now refuses a salesperson_id that is not an active member; a
+store-scoped manager test on this endpoint. Suite 7/7. Gate 29/29.
+
 ## 2026-08-22 (tick 19) — F-65 source ROI: what marketing costs, honestly
 
 F-64 CI-green (32540100074, 85efcf3). F-65 (expenses-accounting.md §10 +

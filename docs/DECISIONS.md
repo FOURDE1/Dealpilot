@@ -36,6 +36,35 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-067 — 2026-08-22 — Leaderboard: real keys, canonical stages, one speed scale
+
+F-66 (reports-analytics.md §10). The legacy joined salespeople to deals by
+case-insensitive NAME and to users by fuzzy scoring ("startsWith + space →
+80") — this rebuild ranks over deals.salesperson_id and leads.assigned_to
+and ports the INTENT while fixing every defect §10 documents about
+itself: closed means the canonical delivered/complete stages; response
+time is the F-24 stamp (mean of response_time_seconds) shown in the lead
+module's 5/15/30-minute bands, not the leaderboard's contradictory
+1h/4h scale; conversion is closed deals over leads assigned in the
+period; the page is FR/EN. Money columns sum over the CLOSED subset only
+(sales, total_gross, F&I reserve), sorting defaults to delivered gross,
+medals are decoration over an explicit rank number, and the report rides
+report:view with the F-55 membership store-scoping.
+(review, 11 agents, 4 confirmed / 5 refuted) Rank ties break on name
+then id — Postgres hash-aggregate order is unspecified and gold/silver
+swapped between refreshes. Delivered money and the closed count are
+windowed by COALESCE(delivered_at, created_at) — a car delivered in
+August is August's, whatever month the paperwork opened — while the
+deal COUNT stays on created_at; the two verifiers split on this and
+product sense settled it. Names come from the RLS-scoped users table
+joined to ACTIVE memberships of this org — reading Better Auth's global
+"user" table named a stranger from another dealer group whenever a
+foreign id sat on a deal — and non-members never rank; the root cause is
+closed too: F-05 now refuses a salesperson_id that is not an active
+member (POST and PATCH, 422 not_a_member). The store-scope block has its
+own test on this endpoint.
+**Decided by:** Claude (implementation), 2026-08-22
+
 ## D-066 — 2026-08-22 — Source ROI: cents-native, store-honest, enum-tight
 
 F-65 (expenses-accounting.md §10, reports-analytics.md §8). (1) The spend
