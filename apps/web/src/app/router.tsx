@@ -45,6 +45,9 @@ const LeaderboardPage = lazy(() =>
 const HeatmapPage = lazy(() =>
   import('../features/reports/heatmap-page.js').then((m) => ({ default: m.HeatmapPage })),
 );
+const TasksPage = lazy(() =>
+  import('../features/tasks/tasks-page.js').then((m) => ({ default: m.TasksPage })),
+);
 const DuplicatesPage = lazy(() =>
   import('../features/leads/duplicates-page.js').then((m) => ({ default: m.DuplicatesPage })),
 );
@@ -191,6 +194,7 @@ export const router = createBrowserRouter([
       { path: 'analytics/source-roi', element: lazyPage(<SourceRoiPage />) },
       { path: 'analytics/leaderboard', element: lazyPage(<LeaderboardPage />) },
       { path: 'analytics/activity-heatmap', element: lazyPage(<HeatmapPage />) },
+      { path: 'tasks', element: lazyPage(<TasksPage />) },
       // Placeholder module routes land with their feature slices.
       { path: '*', element: <Navigate to="/" replace /> },
     ],

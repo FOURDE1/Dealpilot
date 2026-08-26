@@ -12,6 +12,8 @@ export const ActivityEntityType = z.enum([
   'deal_document', 'deal_fi_product', 'tenant_branding', 'consent', 'suppression', 'internal_dnc',
   'conversation', 'appointment', 'contact',
   'organization', 'store',
+  /** F-68: a follow-up; parent = its subject, so a lead's trail shows its tasks. */
+  'task',
 ]);
 
 export const ActivityAction = z.enum([
@@ -24,6 +26,8 @@ export const ActivityAction = z.enum([
   'merged',
   /** A lost lead enrolled in a nurture sequence (automation-notifications.md §11). */
   'drip_enrolled',
+  /** A task closed by a person (the legacy logged this exact name — §3.1). */
+  'task_completed',
 ]);
 
 export const ActivityEvent = z.object({

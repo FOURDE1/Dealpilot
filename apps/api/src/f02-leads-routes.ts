@@ -381,6 +381,15 @@ export function registerF02Routes(app: FastifyInstance, pool: Pool, reassign: Re
       // Only when a row actually moved: a second DELETE deletes nothing and
       // should not claim otherwise.
       if (gone.rows.length > 0) {
+        // F-68: a deleted lead's open follow-ups are cancelled with it — the
+        // overdue sweep must not page managers about a customer record that
+        // no longer exists, behind a deep link that 404s.
+        await c.query(
+          `UPDATE tasks SET status = 'cancelled'
+           WHERE subject_type = 'lead' AND subject_id = $1
+             AND status IN ('pending','in_progress') AND deleted_at IS NULL`,
+          [leadId],
+        );
         // F-54: a deleted lead's pending pairs are unresolvable — retire them
         // now, or the review queue serves a deleted person's details forever.
         await c.query(

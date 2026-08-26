@@ -10,6 +10,7 @@ import { AppError, notFound, parseOrThrow } from './errors.js';
 import { idParam, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
+import { appointmentAutomationTask } from './f68-task-routes.js';
 
 /**
  * F-38 — the appointments console (conversation-engine.md §4).
@@ -222,6 +223,23 @@ export function registerF38Routes(app: FastifyInstance, pool: Pool): void {
         `UPDATE appointments SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
         params,
       );
+
+      // §2.4 (F-68): a no-show owes a be-back task; a visit that produced
+      // no deal owes a follow-up. Made HERE, inside the status change's own
+      // transaction — the legacy's "best-effort, failures logged" was a task
+      // that sometimes did not get made.
+      const from = String(prior.rows[0]!['status']);
+      if (input.status && input.status !== from && (input.status === 'no_show' || input.status === 'completed')) {
+        const row = r.rows[0]!;
+        await appointmentAutomationTask(c, {
+          id,
+          organization_id: orgId,
+          store_id: String(row['store_id']),
+          lead_id: typeof row['lead_id'] === 'string' ? row['lead_id'] : null,
+          assigned_agent_id: typeof row['assigned_agent_id'] === 'string' ? row['assigned_agent_id'] : null,
+          kind: String(row['kind']),
+        }, input.status);
+      }
 
       const wasAssigned = prior.rows[0]!['assigned_agent_id'];
       const nowAssigned = r.rows[0]!['assigned_agent_id'];

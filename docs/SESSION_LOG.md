@@ -1,3 +1,50 @@
+## 2026-08-26 (tick 22) — F-68 tasks: one table, the subject's permission
+
+F-67 CI-green (32989111713, 5682f49) after its review. F-68 (appointments-tasks-communications.md
+§3.3 Target + §2.4, leads.md §10.1, D-069): the unified polymorphic
+`tasks` table (0064) replacing the legacy's two disagreeing systems; the
+permission of the SUBJECT instead of a task:* permission; buckets
+computed per task in the store's timezone; completed_at as the one
+completion fact with `task_completed` in the trail under the lead; the
+§2.4 no-show / showed-no-deal automations inside the appointment's
+transaction, deduped by (appointment, source), titled in the store's
+locale; bulk complete/reassign (cap 50, honest counts); the 15-minute
+overdue sweep (SECURITY DEFINER id scan, one transaction per task) —
+assignee + sales managers, then the GM after ten minutes unless somebody
+read the alert; a tasks board (mine/open/bucket, bulk bar), the lead
+page's follow-up panel with QuickFollowUp defaults (tomorrow 09:00) and
+the "no follow-up scheduled" warning, and the FollowUpAlertBar on the
+leads list. Suites: api 11/11, worker 4/4. Lesson of the day: my
+anchored-edit helper was re-run to restore stripped locale lines and
+re-applied EVERY edit in the file — a duplicate queue constant broke the
+build; the helper now skips an edit whose result is already present and
+can repair a double application. Review: 27 agents, one finder lost to a
+safeguard flag and re-run on the fixed tree; 20 confirmed from the other
+two dimensions, all fixed with regressions (D-069 amendments 10–16): bulk
+endpoints prove membership before any query (a 200/404 difference was a
+task-id and membership oracle for strangers); revoking a member releases
+their open tasks and the sweep's recipients query refuses a non-member
+assignee (a revoked person's bell was about to carry the old org's
+customer names); a record's own task list follows the record's
+visibility while the board keeps the store cut (a store-bound manager was
+minting duplicates behind a false "no follow-up"); the definer scan
+orders by age across tenants and the worker logs failures; PATCH diffs
+through activity.diff() so a re-sent due_at is not a change; nothing for
+a deleted lead; and the board's selection, chunked bulk, error surfacing,
+focus parking, Reopen for closed rows, honest alert bar, and `?task=`
+deep links. Suites: api 17/17, worker 6/6. Two guards bit on the way:
+the i18n parity extractor reads `{Afficher` as an argument name (plural
+branches must start with `#`), and permission-drift reads any
+three-argument `requireMember` as role-carrying — use f01's
+`requireMember(c, userId)` under withTenant. The re-run finder brought
+23 more (D-069 17–23), the important ones: the sweep stamps were
+write-once, so a task rescheduled after its first alert was escalated
+about a due date that no longer existed and never alerted again when
+late again; a lost deal counted as "a deal resulted"; merges and lead
+deletion left tasks pointing at retired records; the automation could
+assign a revoked agent and used the appointment's store, not the lead's.
+All fixed with regressions.
+
 ## 2026-08-22 (tick 21) — F-67 heatmap: the store's clock
 
 F-66 CI-green (32985352745, aadf779 — gh reported a transient

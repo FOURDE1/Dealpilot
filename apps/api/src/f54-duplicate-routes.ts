@@ -290,6 +290,13 @@ export function registerF54Routes(app: FastifyInstance, pool: Pool): void {
       for (const table of ['deals', 'conversations', 'appointments']) {
         await c.query(`UPDATE ${table} SET lead_id = $1 WHERE lead_id = $2`, [keeper, source]);
       }
+      // F-68: the source's follow-ups are the keeper's now — a task on a
+      // lead retired as "merged duplicate" would page managers about a
+      // record nobody works any more.
+      await c.query(
+        `UPDATE tasks SET subject_id = $1 WHERE subject_type = 'lead' AND subject_id = $2 AND deleted_at IS NULL`,
+        [keeper, source],
+      );
 
       // §8.2 #3 — the source's score row goes, and leads.score goes with it
       // (F-39: synced, not duplicated — a score with no breakdown is a lie).

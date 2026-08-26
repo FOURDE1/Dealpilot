@@ -3,6 +3,7 @@ import { withContext, withTenant, withUser, type Pool, type PoolClient } from '@
 import { AddMemberInput, MemberListQuery, UpdateMemberInput } from '@dealpilot/schemas';
 import { AppError, notFound, parseOrThrow } from './errors.js';
 import { recordEvent } from './activity.js';
+import { releaseTasksOf } from './f68-task-routes.js';
 import { requirePermission } from './permissions.js';
 import { callerOrgIds, conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 
@@ -380,6 +381,18 @@ export function registerF04Routes(app: FastifyInstance, pool: Pool): void {
              RETURNING id`,
             [r.rows[0]!['user_id'] as string],
           );
+          // F-68 (review): their open TASKS return to the pool too, or the
+          // overdue sweep would page a stranger about this org's customers.
+          for (const taskId of await releaseTasksOf(c, orgId, r.rows[0]!['user_id'] as string)) {
+            await recordEvent(c, {
+              organizationId: orgId,
+              actorUserId: actor.id,
+              entityType: 'task',
+              entityId: taskId,
+              action: 'unassigned',
+              reason: 'membership revoked',
+            });
+          }
           // Each lead really did change hands. One event per lead, so the trail
           // answers "why did this become unassigned?" at the lead, not only at
           // the membership — capped by however many that person held.

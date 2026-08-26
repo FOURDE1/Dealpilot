@@ -36,6 +36,84 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-069 — 2026-08-26 — Tasks: one table, the subject's permission, and reading as acknowledgement
+
+F-68 (appointments-tasks-communications.md §3.3 Target, §2.4, leads.md
+§10.1). (1) ONE `tasks` table with a polymorphic subject replaces the
+legacy's two disagreeing systems (`lead_tasks` vs `tasks` — audit defect
+#11); the spec's `inventory` subject is spelled `vehicle`, the word every
+other vocabulary here already uses for that row. (2) No `task:*`
+permission: a task carries no authority of its own, so the permission is
+the SUBJECT's — lead/contact work needs lead:update, deal work
+deal:update, vehicle work vehicle:update (F-38's precedent). (3)
+`store_id` is copied from the subject at creation, so the F-55 store-scope
+discipline works on tasks without a join per row; a contact with no store
+must be given one. (4) Buckets (overdue / today / week / later / undated)
+are computed server-side, per task, in that task's STORE timezone —
+"due today" is the store's today, and a Vancouver rooftop in a Montréal
+group keeps its own midnight. (5) `completed_at` IS the completion fact
+and travels with the status under a CHECK; the trail records
+`task_completed` under the subject, so a lead's history shows its
+follow-ups. (6) The §2.4 automations run INSIDE the appointment's
+transaction (the legacy's "best-effort, failures logged" was a task that
+sometimes did not get made), deduped by (appointment, source) rather than
+a title `ilike`; titles are written in the store's `default_locale`; "did
+a deal result" reads the lead's deals because 0037 appointments carry no
+deal; there is no contact auto-promotion because 0037 appointments carry
+no contact either. (7) The 15-minute sweep scans through a SECURITY
+DEFINER id-only function (the drip precedent) and works one small
+transaction per task: overdue → the assignee and the store's sales
+managers; ten minutes later, unless SOMEBODY READ an overdue alert for
+that task, → the GM (owner where a rooftop has none). Reading is the
+acknowledgement — the bell already records it, and a separate button
+would be one more thing to forget. `overdue_notified_at` /
+`escalated_at` make each alert fire once. The rule (who, and after how
+long) is code-seeded until the automation-rules module gives tenants the
+dial — the spec calls it a seeded automation rule. (8) Bulk operations
+cap at 50 ids and report rows ACTUALLY changed. (9) The board is bounded
+(200 + truncated, F-38's precedent), open first, due ascending, undated
+last (§3.1).
+**Review amendments (same day, 20 confirmed findings):** (10) the store
+cut is a BOARD cut — a record's own task list (subject filter) follows the
+record's visibility, because leads are org-wide readable and a store-bound
+manager scoped out of a lead's follow-ups was minting duplicates behind a
+false "no follow-up scheduled"; (11) bulk endpoints prove the caller's
+membership BEFORE any query — a 200/404 difference on a body-supplied
+organization_id was a task-id and membership oracle for strangers; (12)
+revoking a member releases their OPEN tasks in F-04's cascade, and the
+sweep's recipients query refuses a non-member assignee outright — a
+revoked person's bell must never carry the old organization's customer
+names; (13) the definer scan orders by age across tenants, not by
+organization, so one tenant's poison rows cannot starve the rest, and the
+worker logs each failure; (14) PATCH change detection goes through
+activity.diff() (pg returns Dates) so a re-sent due_at is not a change;
+bulk complete records the status it actually left; (15) the automation
+owes nothing for a soft-deleted lead; (16) the board: selection is
+reset/pruned with the list, bulk sends 50-id chunks and adds the counts,
+row actions surface errors and park focus on a status line, closed
+(completed OR cancelled) rows offer Reopen, the panel uses buttons rather
+than a checkbox that snaps back, the alert bar says when it failed, and a
+notification's deep link `?task=<id>` opens the whole team's board.
+**Spec-fidelity pass (the finder re-run, 23 confirmed):** (17) the sweep's
+stamps mark one overdue EPISODE — rescheduling or reopening clears them,
+and the definer scan escalates only a task that is still overdue now; (18)
+"did a deal result" reads the lead's LIVE deals (a deal lost in June is
+not August's visit) and the (appointment, source) dedupe is for ever, not
+only while the first task is open; (19) the automation's task lives in
+the LEAD's store and is assigned only to an active member — the
+appointment's agent, else the lead's owner, else nobody; (20) a lead
+merge (F-54) and a contact merge (F-36) re-point tasks with the record,
+and deleting a lead cancels its open follow-ups; the sweep also stamps
+and skips a task whose subject is gone; (21) the summary CTE is narrowed
+to open rows before bucketing so the alert bar uses the open-by-assignee
+index; (22) every task carries `subject_label` — the customer's name, the
+vehicle, the deal's lead — computed in the read CTE, because a board of
+rows that all read "Lead" names nobody; (23) the board: org-aware alert
+links (`&org=`), a real session-pending guard, an explanation when the
+linked task is not on the cut, meaningful Priority/Due sorts,
+indeterminate select-all, and task mutations refresh the lead's History.
+**Decided by:** Claude (implementation), 2026-08-26
+
 ## D-068 — 2026-08-22 — Heatmap: the store's clock, and only channels that exist
 
 F-67 (reports-analytics.md §11 Target). (1) STORE-level and SQL-side, as

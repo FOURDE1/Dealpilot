@@ -169,6 +169,16 @@ import {
   LeaderboardReport,
   LeaderboardQuery,
   HeatmapReport,
+  Task,
+  TaskListQuery,
+  TaskListPage,
+  TaskSummaryQuery,
+  TaskSummary,
+  CreateTaskInput,
+  UpdateTaskInput,
+  BulkCompleteTasksInput,
+  BulkReassignTasksInput,
+  BulkTasksResult,
   HeatmapQuery,
 } from '@dealpilot/schemas';
 const c = initContract();
@@ -1111,6 +1121,58 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: c.noBody(),
       responses: { 200: LeadScoreResult, ...errorResponses },
+    },
+  }),
+  /**
+   * F-68 tasks — the unified follow-up system (appointments-tasks-
+   * communications.md §3.3). A bounded board (200 + truncated) like the
+   * appointments console; bulk operations cap at 50 ids and report how
+   * many rows actually changed, never how many were asked.
+   */
+  tasks: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/tasks',
+      query: TaskListQuery,
+      responses: { 200: TaskListPage, ...errorResponses },
+    },
+    summary: {
+      method: 'GET',
+      path: '/api/v1/tasks/summary',
+      query: TaskSummaryQuery,
+      responses: { 200: TaskSummary, ...errorResponses },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/tasks',
+      body: CreateTaskInput,
+      responses: { 201: Task, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/tasks/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateTaskInput,
+      responses: { 200: Task, ...errorResponses },
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/v1/tasks/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: c.noBody(),
+      responses: { 204: c.noBody(), ...errorResponses },
+    },
+    bulkComplete: {
+      method: 'POST',
+      path: '/api/v1/tasks/bulk/complete',
+      body: BulkCompleteTasksInput,
+      responses: { 200: BulkTasksResult, ...errorResponses },
+    },
+    bulkReassign: {
+      method: 'POST',
+      path: '/api/v1/tasks/bulk/reassign',
+      body: BulkReassignTasksInput,
+      responses: { 200: BulkTasksResult, ...errorResponses },
     },
   }),
   /**

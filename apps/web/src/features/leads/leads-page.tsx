@@ -9,6 +9,7 @@ import { useOrganizations } from '../organizations/api.js';
 import { useLeads } from './api.js';
 import { useSession } from '../../shared/auth/client.js';
 import { useMembers } from '../team/api.js';
+import { FollowUpAlertBar } from '../tasks/follow-up-alert-bar.js';
 import { scoreBand } from '@dealpilot/core';
 import {
   AGING_CLASSES, AGING_KEYS, LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, SCORE_BAND_CLASSES, SCORE_BAND_KEYS, agingBand, leadDisplayName,
@@ -23,7 +24,7 @@ export function LeadsPage() {
   // Multi-org users MUST scope the list (server 422s otherwise); single-org
   // users are scoped implicitly by their membership.
   const effectiveOrg = multiOrg ? orgFilter || orgs.data?.items[0]?.id : undefined;
-  const { data: session } = useSession();
+  const { data: session, isPending: sessionPending } = useSession();
   const [mineOnly, setMineOnly] = useState(false);
   const leads = useLeads(effectiveOrg, {
     enabled: !orgs.isPending,
@@ -163,6 +164,13 @@ export function LeadsPage() {
           </Link>
         </span>
       </header>
+      {/* Only once there is an organization to count in — an account with
+          none yet has no follow-ups and no reason to see an error (review). */}
+      <FollowUpAlertBar
+        orgId={effectiveOrg}
+        assignedTo={session?.user.id}
+        enabled={orgs.isSuccess && orgs.data.items.length > 0 && !sessionPending && session !== null}
+      />
       {multiOrg ? (
         <div className="max-w-xs space-y-1">
           <Label htmlFor="leads-org-filter">{t('organization')}</Label>

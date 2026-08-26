@@ -39,6 +39,7 @@ const NAV_ITEMS = [
   { to: '/leads', key: 'nav:prospects', shortKey: 'nav:shortProspects' },
   { to: '/contacts', key: 'nav:contacts', shortKey: 'nav:shortContacts', mobileHidden: true },
   { to: '/appointments', key: 'nav:appointments', shortKey: 'nav:shortAppointments', mobileHidden: true },
+  { to: '/tasks', key: 'nav:tasks', shortKey: 'nav:shortTasks', mobileHidden: true },
   { to: '/conversations', key: 'nav:conversations', shortKey: 'nav:shortConversations' },
   { to: '/pipeline', key: 'nav:pipeline', shortKey: 'nav:shortPipeline' },
   { to: '/inventory', key: 'nav:inventory', shortKey: 'nav:shortInventory' },

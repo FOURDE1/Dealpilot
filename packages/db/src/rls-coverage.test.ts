@@ -55,6 +55,8 @@ const BEHAVIOURALLY_COVERED = new Set([
   // F-10: cross-tenant case lives in apps/api/src/f10-activity.test.ts
   // ("another tenant sees none of it").
   'activity_events',
+  // F-68: apps/api/src/f68-tasks.test.ts ("a rival organization sees none of it").
+  'tasks',
   // F-12: cross-tenant case in apps/api/src/f12-invitations.test.ts
   // ("another organization cannot see or revoke these invitations").
   'invitations',

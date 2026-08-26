@@ -20,6 +20,7 @@ import { DEAL_TYPE_KEYS, FUNDING_STATUS_KEYS, PIPELINE_STAGE_KEYS } from '../dea
 import { formatCents } from '../deals/money.js';
 import { LEAD_SOURCE_KEYS, LEAD_STATUS_KEYS, leadDisplayName } from './labels.js';
 import { LostReasonDialog } from './lost-reason-dialog.js';
+import { TaskPanel } from '../tasks/task-panel.js';
 import { useLostReasons } from './lost-reason-api.js';
 import { useDuplicates } from './duplicate-api.js';
 import { lostReasonLabel } from '@dealpilot/core';
@@ -228,6 +229,8 @@ export function LeadDetailPage() {
             </p>
           ) : null}
         </div>
+
+        <TaskPanel lead={lead.data} />
 
         <div className="space-y-2 rounded-lg border border-border bg-card p-4 sm:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-2">

@@ -49,6 +49,8 @@ export const QUEUE_DRIP_TICK = 'drip-tick';
 export const QUEUE_LIVE_ANALYSIS = 'live-analysis';
 /** Nightly QA judge over the day's closed conversations (F-64, §9) — no payload. */
 export const QUEUE_QA_REVIEW = 'qa-review';
+/** 15-minute overdue-task sweep (F-68, appointments-tasks-communications.md §3.3) — no payload. */
+export const QUEUE_TASK_SWEEP = 'task-sweep';
 
 /**
  * Build the options every Queue and Worker must be constructed with.

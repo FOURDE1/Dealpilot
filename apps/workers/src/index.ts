@@ -9,6 +9,7 @@ import {
   QUEUE_DRIP_TICK,
   QUEUE_LIVE_ANALYSIS,
   QUEUE_QA_REVIEW,
+  QUEUE_TASK_SWEEP,
   REASSIGN_AFTER_MS,
   queueOpts,
   type AiExtractionJobT,
@@ -33,6 +34,7 @@ import { runLiveAnalysisJob } from './live-analysis.js';
 import { createEmitOnlyEmitter } from '@dealpilot/api/realtime';
 import { createAnthropicAnalysisClient, createAnthropicJudgeClient } from '@dealpilot/ai';
 import { runQaReview } from './qa-review.js';
+import { runTaskSweep } from './task-sweep.js';
 
 export { runDeferredSend } from './deferred-send.js';
 export type { DeferredSendDeps, DeferredSendResult } from './deferred-send.js';
@@ -312,9 +314,35 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
     { ...queueOpts(connection(env.REDIS_URL)), concurrency: 2 },
   ));
 
+  // F-68: the 15-minute overdue-task sweep (§3.3) — task overdue → its
+  // assignee and the store's sales managers; unacknowledged ten minutes
+  // later → the GM. No model, not gated on assistant.enabled. Repeatable
+  // job: BullMQ upserts by (name, repeat), so re-registration is a no-op.
+  const taskQueue = guarded('task-sweep-queue', new Queue(QUEUE_TASK_SWEEP, queueOpts(connection(env.REDIS_URL))));
+  await taskQueue.add(
+    QUEUE_TASK_SWEEP,
+    {},
+    { repeat: { pattern: '*/15 * * * *' }, removeOnComplete: 100, removeOnFail: 100 },
+  );
+  const taskWorker = guarded('task-sweep', new Worker(
+    QUEUE_TASK_SWEEP,
+    async () =>
+      runTaskSweep({
+        pool,
+        warn: (message, err) => {
+          process.stderr.write(
+            `${JSON.stringify({ level: 40, time: Date.now(), name: 'workers', label: 'task-sweep', message, err: err instanceof Error ? err.message : String(err ?? '') })}\n`,
+          );
+        },
+      }),
+    { ...queueOpts(connection(env.REDIS_URL)), concurrency: 1 },
+  ));
+
   return {
     close: async () => {
       await worker.close();
+      await taskWorker.close();
+      await taskQueue.close();
       await turnWorker?.close();
       await extractionWorker?.close();
       await firstTouchWorker?.close();

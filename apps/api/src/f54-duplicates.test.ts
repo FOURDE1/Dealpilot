@@ -145,10 +145,20 @@ describe('duplicate detection & merge (F-54, leads.md §8)', () => {
     const before = await pairs();
     expect(before.filter((x) => x.lead_id === third)).toHaveLength(2);
 
+    // F-68: a follow-up on the SOURCE must follow the keeper too.
+    const task = await app!.inject({
+      method: 'POST', url: '/api/v1/tasks', headers: { cookie },
+      payload: { organization_id: orgId, subject_type: 'lead', subject_id: newer, title: 'Rappeler Yvon' },
+    });
+    expect(task.statusCode, task.body).toBe(201);
+    const taskId = (JSON.parse(task.body) as { id: string }).id;
+
     const mergePair = before.find((x) => x.lead_id === newer && x.duplicate_of === older)!;
     const merged = await app!.inject({
       method: 'POST', url: `/api/v1/duplicates/${mergePair.id}/merge`, headers: { cookie },
     });
+    const movedTask = await admin.query<{ subject_id: string }>(`SELECT subject_id FROM tasks WHERE id = $1`, [taskId]);
+    expect(movedTask.rows[0]!.subject_id).toBe(older);
     expect(merged.statusCode, merged.body).toBe(200);
     expect((JSON.parse(merged.body) as { status: string }).status).toBe('merged');
 

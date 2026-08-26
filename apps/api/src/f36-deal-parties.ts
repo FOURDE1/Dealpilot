@@ -245,6 +245,11 @@ export async function mergeContacts(
     `UPDATE deals SET contact_id = $2 WHERE contact_id = $1`,
     [args.mergeId, args.keepId],
   );
+  // F-68: the merged contact's tasks follow it to the survivor.
+  await c.query(
+    `UPDATE tasks SET subject_id = $2 WHERE subject_type = 'contact' AND subject_id = $1 AND deleted_at IS NULL`,
+    [args.mergeId, args.keepId],
+  );
 
   const leads = await c.query(
     `UPDATE leads SET contact_id = $2 WHERE contact_id = $1`,
