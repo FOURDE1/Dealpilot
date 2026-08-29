@@ -13,5 +13,10 @@ describe('adminAccess (F-69)', () => {
     expect(adminAccess({ pending: false, error: {} })).toBe('error');
     expect(adminAccess({ pending: false, ok: true })).toBe('ok');
     expect(adminAccess({ pending: false, ok: false })).toBe('denied');
+    // F-71: a live support session closes the console (state, not authority).
+    expect(adminAccess({ pending: false, ok: true, impersonating: true })).toBe('impersonating');
+    expect(adminAccess({ pending: false, ok: false, impersonating: true })).toBe('denied');
+    // …and the one-time "it just ended" 403 is a refetch, not the denied wall.
+    expect(adminAccess({ pending: false, error: { status: 403, errorCode: 'impersonation_ended' } })).toBe('pending');
   });
 });

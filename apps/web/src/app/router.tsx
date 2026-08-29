@@ -62,6 +62,12 @@ const TenantNewPage = lazy(() =>
 const PlatformStaffPage = lazy(() =>
   import('../features/admin/platform-staff-page.js').then((m) => ({ default: m.PlatformStaffPage })),
 );
+const ImpersonationPage = lazy(() =>
+  import('../features/admin/impersonation-page.js').then((m) => ({ default: m.ImpersonationPage })),
+);
+const ImpersonationDetailPage = lazy(() =>
+  import('../features/admin/impersonation-detail-page.js').then((m) => ({ default: m.ImpersonationDetailPage })),
+);
 const DuplicatesPage = lazy(() =>
   import('../features/leads/duplicates-page.js').then((m) => ({ default: m.DuplicatesPage })),
 );
@@ -182,6 +188,9 @@ export const router = createBrowserRouter([
       { path: 'tenants/new', element: lazyPage(<TenantNewPage />) },
       { path: 'tenants/:tenantId', element: lazyPage(<TenantDetailPage />) },
       { path: 'staff', element: lazyPage(<PlatformStaffPage />) },
+      // F-71: the support-session register and one session's trail.
+      { path: 'support-sessions', element: lazyPage(<ImpersonationPage />) },
+      { path: 'support-sessions/:sessionId', element: lazyPage(<ImpersonationDetailPage />) },
       { path: '*', element: <Navigate to="/admin/tenants" replace /> },
     ],
   },

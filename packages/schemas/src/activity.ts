@@ -14,6 +14,12 @@ export const ActivityEntityType = z.enum([
   'organization', 'store',
   /** F-68: a follow-up; parent = its subject, so a lead's trail shows its tasks. */
   'task',
+  /**
+   * F-71 (admin-console.md §7): a support session opened/ended on the tenant.
+   * Written by the 0067 definers only — see SQL_PRODUCED_ENTITIES in
+   * apps/api/src/f10-activity.test.ts.
+   */
+  'impersonation_session',
 ]);
 
 export const ActivityAction = z.enum([
@@ -54,6 +60,8 @@ export const ActivityEvent = z.object({
   /** Set when this happened under something else — a checklist item's deal. */
   parent_entity_type: ActivityEntityType.nullable(),
   parent_entity_id: Uuid.nullable(),
+  /** F-71 §7/§12: the support session this act happened UNDER (actor_user_id is the impersonated user). */
+  impersonation_id: Uuid.nullable(),
   created_at: IsoDateTime,
 });
 

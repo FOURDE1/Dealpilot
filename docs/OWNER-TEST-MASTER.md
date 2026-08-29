@@ -513,3 +513,26 @@ until it can be done without breaking readability.
 | 17.8 | Open the link in a private window, sign up with the OWNER's address, accept | The owner lands in a working dealer: both stores exist, a lead can be created, the lost-reason list and the delivery checklist are already there | ⬜ |
 | 17.9 | Back on the tenant page | Owners now lists the owner, members = 1, "Owner invited" is gone and "Resend" is no longer offered | ⬜ |
 | 17.10 | As a Support or Billing staffer, look for "New tenant" | Not offered — creating dealers is the super admin's alone | ⬜ |
+
+## ROUND 18 — Acting as a dealer's user, with the dealer watching (F-71)
+
+> When a dealer calls support ("the board does not load for my GM"), a
+> platform staffer can act as that user for up to an hour — read-only unless
+> a super admin opens a full session. The dealer's owner is told the moment
+> it starts, sees every session on their Security page, and every request is
+> logged. Two browsers help here: one signed in as support, one as the owner.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 18.1 | As **support**: `/admin` → a tenant → "Session de soutien" → pick a salesperson, keep *Lecture seule*, type a 10-character reason | Refused in place: the counter says 20 characters minimum; nothing is opened | ⬜ |
+| 18.2 | Type a real reason, open the session | You land in the dealer's app with a yellow banner: "Session de soutien — au nom de … — se termine à …", a *Lecture seule* chip and a *Terminer* button; the top-right name is still yours | ⬜ |
+| 18.3 | Browse leads, contacts, the dashboard; then try to edit a lead or create one | Reads work; every change is refused, and the yellow banner adds "Session de soutien en lecture seule — modification refusée" | ⬜ |
+| 18.4 | Go to `/admin` | A wall: the console is closed while you act as someone — only *Terminer* and "Ouvrir l'application du locataire" | ⬜ |
+| 18.5 | As the **owner** (other browser): the bell and the inbox (log mailer) | A notification and an email say support opened a read-only session acting as that salesperson, with the reason | ⬜ |
+| 18.6 | Owner → Sécurité du compte → "Accès du soutien" | The session is listed: who, acting as whom, mode, reason, start and end; marked *En cours* | ⬜ |
+| 18.7 | As support: press *Terminer* on the banner | Back in the console on the session's page: ended manually, by you; the request trail lists everything you did (the refused edits included) | ⬜ |
+| 18.8 | As a **super admin**: open a *Complet* session acting as the owner; create a lead | It works. The lead's history says "Création — {owner} · via une session de soutien"; the tenant journal in `/admin` says "{you} (soutien) au nom de {owner}" | ⬜ |
+| 18.9 | Still in full mode: try to remove a colleague, invite someone, or change the organization's name | Refused, and the banner adds "Action non permise pendant une session de soutien"; the colleague is untouched | ⬜ |
+| 18.10 | From another super-admin browser, suspend that dealer | The session ends at once (*Révoquée*, by the suspending admin); the first browser is plain support again | ⬜ |
+| 18.11 | Open a session, then sign out without ending it | The register shows it *Révoquée* — a session never outlives the sign-in it was bound to | ⬜ |
+| 18.12 | As **billing**, look for "Sessions de soutien" | Not offered — billing opens and manages no session | ⬜ |

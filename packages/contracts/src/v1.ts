@@ -197,6 +197,14 @@ import {
   AdminTenantProvisioned,
   ReissueOwnerInvitationInput,
   OwnerInvitationReissued,
+  StartImpersonationInput,
+  ImpersonationSession,
+  ImpersonationSessionDetail,
+  ImpersonationList,
+  ImpersonationListQuery,
+  AdminTenantMembers,
+  SupportAccessList,
+  SupportAccessQuery,
 } from '@dealpilot/schemas';
 const c = initContract();
 
@@ -1215,6 +1223,13 @@ export const apiV1 = c.router({
         body: ReissueOwnerInvitationInput,
         responses: { 201: OwnerInvitationReissued, ...errorResponses },
       },
+      /** F-71: the target picker — a tenant's active members with a sign-in identity. */
+      members: {
+        method: 'GET',
+        path: '/api/v1/admin/tenants/:id/members',
+        pathParams: idParams,
+        responses: { 200: AdminTenantMembers, ...errorResponses },
+      },
     }),
     staff: c.router({
       list: {
@@ -1236,6 +1251,49 @@ export const apiV1 = c.router({
         responses: { 204: c.noBody(), ...errorResponses },
       },
     }),
+    /**
+     * F-71 impersonation with audit (admin-console.md §7, D-072). A session is
+     * a register row bound to the staffer's own console session: `start`
+     * answers 201 with the row; from then on the same cookie acts as the
+     * target in the tenant app until `end`, the 60-minute TTL, or a loss of
+     * standing. `end` answers 200 + the closed row (ended_at / end_reason).
+     */
+    impersonation: c.router({
+      start: {
+        method: 'POST',
+        path: '/api/v1/admin/impersonation-sessions',
+        body: StartImpersonationInput,
+        responses: { 201: ImpersonationSession, ...errorResponses },
+      },
+      list: {
+        method: 'GET',
+        path: '/api/v1/admin/impersonation-sessions',
+        query: ImpersonationListQuery,
+        responses: { 200: ImpersonationList, ...errorResponses },
+      },
+      get: {
+        method: 'GET',
+        path: '/api/v1/admin/impersonation-sessions/:id',
+        pathParams: idParams,
+        responses: { 200: ImpersonationSessionDetail, ...errorResponses },
+      },
+      end: {
+        method: 'DELETE',
+        path: '/api/v1/admin/impersonation-sessions/:id',
+        pathParams: idParams,
+        body: c.noBody(),
+        responses: { 200: ImpersonationSession, ...errorResponses },
+      },
+    }),
+  }),
+  /** F-71 §7/§12: the tenant's own view of every support session on it (permission activity:read). */
+  supportAccess: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/support-access',
+      query: SupportAccessQuery,
+      responses: { 200: SupportAccessList, ...errorResponses },
+    },
   }),
   /**
    * F-68 tasks — the unified follow-up system (appointments-tasks-

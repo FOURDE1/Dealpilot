@@ -1,4 +1,11 @@
-import type { ActivityEntityTypeT, OrganizationStatusT, PlatformCapabilityT, PlatformRoleT } from '@dealpilot/schemas';
+import type {
+  ActivityEntityTypeT,
+  ImpersonationEndReasonT,
+  ImpersonationModeT,
+  OrganizationStatusT,
+  PlatformCapabilityT,
+  PlatformRoleT,
+} from '@dealpilot/schemas';
 
 /**
  * Typed label keys for the console — a map that `satisfies Record<Enum, …>`
@@ -19,7 +26,22 @@ export const CAPABILITY_KEYS = {
   'plan:read': 'cap_plan_read',
   'staff:manage': 'cap_staff_manage',
   'tenants:create': 'cap_tenant_create',
+  'impersonation:start_read_only': 'cap_impersonation_start_read_only',
+  'impersonation:start_full': 'cap_impersonation_start_full',
+  'impersonation:manage': 'cap_impersonation_manage',
 } as const satisfies Record<PlatformCapabilityT, string>;
+
+/** F-71 §7: the two session modes and the three ways one ends — labels, never raw tokens. */
+export const MODE_KEYS = {
+  read_only: 'mode_read_only',
+  full: 'mode_full',
+} as const satisfies Record<ImpersonationModeT, string>;
+
+export const END_REASON_KEYS = {
+  manual: 'endReason_manual',
+  ttl: 'endReason_ttl',
+  revoked: 'endReason_revoked',
+} as const satisfies Record<ImpersonationEndReasonT, string>;
 
 /** The verb on the lifecycle button, per target status. */
 export const TRANSITION_KEYS = {
@@ -90,6 +112,7 @@ export const ENTITY_KEYS = {
   organization: 'entity_organization',
   store: 'entity_store',
   task: 'entity_task',
+  impersonation_session: 'entity_impersonation_session',
 } as const satisfies Record<ActivityEntityTypeT, string>;
 
 /** Destructive targets get the destructive button. */

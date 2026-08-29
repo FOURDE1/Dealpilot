@@ -1,3 +1,62 @@
+## 2026-08-27 (tick 25) — F-71 impersonation: a register row, not a second session
+
+F-70 CI-green first try (33021906021, 74648f6). F-71 (admin-console.md §3,
+§7, §11–§12, D-072) was designed by the three-planner + judge panel — the
+first run died on the session limit with nothing cached and was resumed
+from the saved script. The judge settled the mechanism against the
+installed Better Auth 1.6.25: the `admin` plugin's impersonation mints a
+real target session on a `user.role` authority and hands the staffer's own
+token to the browser, so the home-grown design won on every lens (O-17).
+Landed: 0067 (`impersonation_sessions` — tenant-readable, close-once
+immutable; `impersonation_requests` — one row per request served under a
+session, refusals included, no app grant; `activity_events.impersonation_id`
+with a CHECK that it rides only on platform/system rows;
+`impersonation_scope_ok()` inside the four user-keyed policies AND
+`has_permission`; the definers `impersonation_start` / `_identity` /
+`_end` / `_close` / `_log_request`, the register readers and the member
+picker; a SECURITY DEFINER `AFTER DELETE ON "session"` trigger;
+`platform_staff_revoke` and `admin_set_tenant_status` closing sessions
+BEFORE their session deletes; `admin_tenant_events` naming the staffer);
+`packages/db` `connectionScope` → the `app.impersonation_org` GUC in
+`withContext`; the gate `impersonation.ts` (after the session gate,
+before the platform gate: one `impersonation_identity` read per request,
+the refusals — console 409 but for the probe and the End, two blocked
+routes, read-only verbs, scope mismatch — then the swap of
+`request.session.user` to the target while `.session` stays the
+staffer's); `recordEvent` flipping a person's act to `platform` +
+`impersonation_id`; `requirePermission`/`hasPermission` refusing the
+blocked list after the membership gate; five admin handlers under three
+capabilities + the tenant-side `GET /api/v1/support-access`; the owner's
+email after commit; `/api/v1/me` answering as the target with the banner
+facts; the console (register with URL filters, a session's trail, the
+start dialog on the tenant page, the wall) and the tenant app (the §7
+banner from `useMe`, "Accès du soutien" on /security, the timeline
+suffix, the journal's "{staff} (soutien) au nom de {user}", the leads /
+tasks "mine" filters moved from the raw auth session to `useMe`). Guards:
+platform-drift scans f71; rls-coverage strips the scope call before
+classifying and asserts the registry both ways; dead-column registers the
+definer-written columns; f10's dead-vocabulary guard learned
+`SQL_PRODUCED_ENTITIES`. Suites: f71-impersonation 20/20 (gate, start
+refusals, the birth + journal + bell + inbox, acting as the target with
+the auth mount still the staffer's, read-only refusals + the trail with
+refusals, scope by list / by id / organizations / notifications / the
+raw predicates as the app role, full-mode attribution to both + every
+blocked power and route, read_only tenant 402, who may end, TTL, sign-out
+trigger, staff revoke, membership revoked, tenant deleted, suspension
+signed by the actor, transparency incl. a role without activity:read,
+immutability + grants, definers' actor checks, core↔schemas lockstep),
+platform-drift, f10, dead-column, contract/route-coverage, db 40/40, web
+17/17 tasks. First-run findings, all in my fixtures or one ordering
+choice: refused requests were NOT in the trail (the facts were attached
+after the refusals — §7 says every request, fixed), the suspended-stamp
+CHECK in `forceStatus`, the TTL fixture against `expires_at > started_at`
+(the register refuses rewrites — the test lifts the trigger to move the
+clock), a stale dead-column entry (`reason` is written elsewhere by
+name), and a read through a closed console. Then two label gaps caught
+by eye: session rows in the journal showed raw `mode` / `target_user_id`
+keys and a session's `active → ended` would have gone through the
+tenant-status map.
+
 ## 2026-08-27 (tick 24) — F-70 tenant provisioning: one birth, the same seeds
 
 F-69 CI-green on attempt 2 (33015737819, a52477a). F-70 (admin-console.md
@@ -67,7 +126,9 @@ refused picked timezone was not tied to its select; the reissue dialog and
 the result panel showed raw tokens. Refuted (1): the drift guard's file
 list being escapable by an unusual file name — contract-coverage walks
 Fastify's real route tree and would fail first. Suites after the fixes:
-f70-provisioning 18/18; gate 29/29.
+f70-provisioning 18/18; gate 29/29. Pushed as 74648f6; CI-green first try
+(33021906021) — 29 of 30 pushes green on the first attempt. Dev database
+migrated to 0066, dev API restarted on the new build.
 
 ## 2026-08-26 (tick 23) — F-69 platform console, slice 1
 

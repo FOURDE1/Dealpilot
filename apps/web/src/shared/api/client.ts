@@ -98,11 +98,21 @@ export async function apiRequest(
 export function failFromResponse(status: number, body: unknown): never {
   const parsed = ErrorEnvelope.safeParse(body);
   const details = parsed.success ? (parsed.data.error.details ?? []) : [];
+  const errorCode = parsed.success ? parsed.data.error.code : undefined;
+  // F-71: the shell reacts to impersonation answers globally — the banner
+  // speaks the refusal and an ended session clears itself — without every
+  // form learning the vocabulary. Guarded: tests import this file in Node.
+  if (
+    typeof window !== 'undefined' &&
+    (errorCode === 'impersonation_ended' || errorCode === 'impersonation_read_only' || errorCode === 'impersonation_forbidden')
+  ) {
+    window.dispatchEvent(new CustomEvent('dealpilot:impersonation', { detail: { code: errorCode } }));
+  }
   throw new ApiError(
     status,
     details[0]?.path,
     details[0]?.code,
-    parsed.success ? parsed.data.error.code : undefined,
+    errorCode,
     details.map((d) => d.code).filter((c): c is string => typeof c === 'string'),
     details.map((d) => d.message).filter((m): m is string => typeof m === 'string'),
     details.map((d) => d.path ?? ''),

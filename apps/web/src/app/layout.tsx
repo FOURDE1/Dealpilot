@@ -11,6 +11,7 @@ import { useOrganizations } from '../features/organizations/api.js';
 import { NotificationsBell } from '../features/notifications/bell.js';
 import { notificationKeys } from '../features/notifications/api.js';
 import { useRealtime } from '../shared/realtime.js';
+import { SupportBanner } from '../shared/support-banner.js';
 
 /**
  * F-43 (D-047 #1): holding the app open IS being online. The shell keeps one
@@ -65,6 +66,8 @@ export function AppLayout() {
   // where the fix lives.
   const me = useMe();
   const mfaNag =
+    // F-71: never nag the staffer about the TARGET's second factor.
+    me.data?.impersonation == null &&
     me.data?.mfa.required === true &&
     me.data.mfa.enabled === false &&
     location.pathname !== '/security';
@@ -152,6 +155,8 @@ export function AppLayout() {
             </Button>
           </div>
         </header>
+        {/* F-71: the §7 support-session banner — /api/v1/me answers as the target while one is live. */}
+        <SupportBanner />
         {mfaNag ? (
           // role=status, NOT alert: this is a standing policy reminder, not an
           // interruption — and an assertive live region on every page would

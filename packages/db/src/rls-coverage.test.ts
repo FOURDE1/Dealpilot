@@ -66,6 +66,9 @@ const BEHAVIOURALLY_COVERED = new Set([
   // F-47: POLICY-level case in packages/db/src/rls.test.ts ("notifications:
   // addressed to a person").
   'notifications',
+  // F-71: POLICY-level case in packages/db/src/rls.test.ts
+  // ("impersonation_sessions: tenant 2 sees nothing of tenant 1").
+  'impersonation_sessions',
   // F-53: POLICY-level case in packages/db/src/rls.test.ts
   // ("lost_reasons: tenant 2 sees nothing of tenant 1").
   'lost_reasons',
@@ -210,8 +213,17 @@ const isOrgKeyed = (e: string | null) => !!e && /app\.org_id/.test(e);
  * dangerous is `user_id = app.user_id` with no organization anywhere in the
  * expression — that ignores which tenant the request is scoped to.
  */
-const isBareUserKeyed = (e: string | null) =>
-  !!e && /app\.user_id/.test(e) && !/organization_id/.test(e);
+/**
+ * F-71: `impersonation_scope_ok(organization_id)` narrows a user-keyed policy
+ * to ONE organization only while a support session is live — it is not an
+ * organization predicate. Classify the policy as if the call were TRUE, or
+ * the scoped `membership_self_read` silently drops out of the registry.
+ */
+const stripScope = (e: string | null) => e?.replace(/impersonation_scope_ok\([^)]*\)/g, 'true') ?? e;
+const isBareUserKeyed = (e: string | null) => {
+  const s = stripScope(e);
+  return !!s && /app\.user_id/.test(s) && !/organization_id/.test(s);
+};
 
 describe('RLS coverage (catalog-driven — covers tables that do not exist yet)', () => {
   it('found the tenant tables to check', async (ctx) => {
@@ -259,6 +271,10 @@ describe('RLS coverage (catalog-driven — covers tables that do not exist yet)'
     const found = policies
       .filter((p) => p.permissive && isBareUserKeyed(p.using_expr))
       .map((p) => `${p.table_name}.${p.policy}`);
+    // Both directions: a registered policy that no longer classifies as
+    // user-keyed (dropped, or rewritten so the scan misfiles it) is loud too.
+    const vanished = Object.keys(USER_KEYED_POLICIES).filter((k) => !found.includes(k));
+    expect(vanished, `registered user-keyed policies the scan no longer finds: ${vanished.join(', ')}`).toEqual([]);
     const unregistered = found.filter((k) => !(k in USER_KEYED_POLICIES));
     expect(
       unregistered,

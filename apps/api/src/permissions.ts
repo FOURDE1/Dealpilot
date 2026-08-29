@@ -1,7 +1,18 @@
 import type { PoolClient } from '@dealpilot/db';
-import { DEFAULT_ROLE_PERMISSIONS, PERMISSIONS, type PermissionT } from '@dealpilot/schemas';
+import { DEFAULT_ROLE_PERMISSIONS, IMPERSONATION_BLOCKED_PERMISSIONS, PERMISSIONS, type PermissionT } from '@dealpilot/schemas';
 import { AppError, notFound } from './errors.js';
+import { requestContext } from './request-context.js';
 import { refuseByStatus } from './tenant-status.js';
+
+/**
+ * F-71 (admin-console.md §7): powers a support session never holds, in either
+ * mode — even when the impersonated user holds them. Asked AFTER the
+ * membership gate so a stranger still gets 404 first.
+ */
+function blockedUnderImpersonation(permission: PermissionT): boolean {
+  const imp = requestContext.getStore()?.impersonation;
+  return imp !== undefined && (IMPERSONATION_BLOCKED_PERMISSIONS as readonly string[]).includes(permission);
+}
 
 /**
  * A-13 / D-033 — enforcement.
@@ -81,6 +92,11 @@ export async function requirePermission(
   permission: PermissionT,
 ): Promise<void> {
   await assertLiveMember(client, userId);
+  if (blockedUnderImpersonation(permission)) {
+    throw new AppError(403, 'impersonation_forbidden', 'Not available during a support session', [
+      { path: 'permission', code: 'impersonation_forbidden', message: permission },
+    ]);
+  }
   const r = await client.query<{ ok: boolean }>(
     `SELECT has_permission(
        NULLIF(current_setting('app.org_id', true), '')::uuid, $1, $2) AS ok`,
@@ -119,6 +135,7 @@ export async function hasPermission(
   userId: string,
   permission: PermissionT,
 ): Promise<boolean> {
+  if (blockedUnderImpersonation(permission)) return false;
   const r = await client.query<{ ok: boolean }>(
     `SELECT has_permission(
        NULLIF(current_setting('app.org_id', true), '')::uuid, $1, $2) AS ok`,

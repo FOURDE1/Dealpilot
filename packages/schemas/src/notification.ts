@@ -44,6 +44,9 @@ export const NOTIFICATION_TITLE_KEYS = [
   'notif_task_overdue',
   /** …and, ten minutes unacknowledged, the GM. */
   'notif_task_escalated',
+  /** F-71 §7: every active owner, when platform support opens a session on a member. */
+  'notif_support_access_started_read_only',
+  'notif_support_access_started_full',
 ] as const;
 
 export type NotificationT = z.infer<typeof Notification>;

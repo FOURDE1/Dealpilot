@@ -19,7 +19,7 @@ import { requestContext } from './request-context.js';
  * which every business route passes through — so the rule lives in one place.
  */
 
-const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+export const READ_METHODS: ReadonlySet<string> = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /**
  * `${METHOD} ${routedPath}` a read_only tenant may still hit. Each entry says
@@ -59,7 +59,8 @@ export function refuseByStatus(status: string): void {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function organizationIdOf(request: FastifyRequest): string | null {
+/** The organization a request NAMES (query or body `organization_id`), if any. Shared with the F-71 scope check. */
+export function organizationIdOf(request: FastifyRequest): string | null {
   const q = request.query as Record<string, unknown> | undefined;
   const b = request.body as Record<string, unknown> | null | undefined;
   const candidate = q?.['organization_id'] ?? (b && typeof b === 'object' ? b['organization_id'] : undefined);

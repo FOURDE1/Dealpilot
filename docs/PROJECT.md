@@ -36,6 +36,7 @@
 | Dependency vuln scan   | `pnpm audit` |
 | Bootstrap the first platform super admin | `DB_ADMIN_URL=<dev db> pnpm --filter @dealpilot/db exec node dist/cli.js platform-grant <email>` (the account must exist; closes once a super admin exists — F-69) |
 | Provision a tenant | As a super admin (MFA enrolled): `/admin/tenants/new` in the web app, or `POST /api/v1/admin/tenants` (F-70). With the dev `log` mailer the owner's invitation link comes back in the response — hand it to the owner; "Resend the owner invitation" on the tenant page re-issues it |
+| Open a support session (act as a tenant member) | As support or a super admin: tenant page → "Session de soutien" → pick the member, mode, a reason of 20+ characters → the tenant app opens with the banner; End from the banner, the console wall, or `/admin/support-sessions/:id` (F-71). 60-minute hard TTL; the owner is notified; every request is in the session's trail |
 | Format                 | `pnpm format` / `pnpm format:check` |
 
 **Local services.** `docker compose up -d` starts Postgres and Redis. Host ports

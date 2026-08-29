@@ -149,6 +149,46 @@ export function invitationMessage(to: string, url: string): EmailMessage {
   };
 }
 
+/**
+ * F-71 (admin-console.md §7): the tenant owner is told, at the moment it
+ * starts, that platform support is acting as one of their members — who,
+ * in which mode, why, until when. FR first (Bill 96), same shape as the
+ * others. Sent AFTER the register row commits (F-70 parity).
+ */
+export function supportAccessMessage(
+  to: string,
+  f: { orgName: string; targetName: string; mode: 'read_only' | 'full'; reason: string; ticketRef: string | null; expiresAt: Date },
+): EmailMessage {
+  const when = f.expiresAt.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+  const modeFr = f.mode === 'full' ? 'complète (modifications permises, sauf les pouvoirs bloqués)' : 'en lecture seule';
+  const modeEn = f.mode === 'full' ? 'full (changes allowed, except the blocked powers)' : 'read-only';
+  const ticketFr = f.ticketRef ? `Billet : ${f.ticketRef}` : 'Aucun billet indiqué';
+  const ticketEn = f.ticketRef ? `Ticket: ${f.ticketRef}` : 'No ticket given';
+  return {
+    to,
+    subject: `Accès du soutien à ${f.orgName} / Support access to ${f.orgName} — 1Dealer`,
+    text: [
+      'Bonjour,',
+      '',
+      `Le soutien 1Dealer a ouvert une session ${modeFr} au nom de ${f.targetName} chez ${f.orgName}.`,
+      `Raison : ${f.reason}`,
+      ticketFr,
+      `La session se termine au plus tard le ${when}.`,
+      'Chaque session est inscrite au registre de votre organisation (Sécurité du compte → Accès du soutien).',
+      '',
+      '— — —',
+      '',
+      'Hello,',
+      '',
+      `1Dealer support opened a ${modeEn} session acting as ${f.targetName} at ${f.orgName}.`,
+      `Reason: ${f.reason}`,
+      ticketEn,
+      `The session ends no later than ${when}.`,
+      'Every session is listed in your organization’s register (Account security → Support access).',
+    ].join('\n'),
+  };
+}
+
 /** Everything a driver needs before they get in the car (dispatch §9/§10). */
 export interface DispatchRequest {
   to: string;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle, Input, Label, Select } from '@dealpilot/ui';
 import { ProvinceCA, type AdminActivityEventT, type AdminTenantDetailT, type OrganizationStatusT, type PlanTierT, type RoleT } from '@dealpilot/schemas';
@@ -8,10 +8,11 @@ import { usePageTitle } from '../../shared/use-page-title.js';
 import { ApiError } from '../../shared/api/client.js';
 import { useAdminMe, useAdminPlans, useAdminTenant, useAdminTenantEvents, useUpdateAdminTenant } from './api.js';
 import {
-  DESTRUCTIVE_TARGETS, STATUS_CLASSES, STATUS_KEYS, STORE_STATUS_KEYS, TIER_KEYS, TRANSITION_KEYS,
+  DESTRUCTIVE_TARGETS, END_REASON_KEYS, MODE_KEYS, STATUS_CLASSES, STATUS_KEYS, STORE_STATUS_KEYS, TIER_KEYS, TRANSITION_KEYS,
 } from './labels.js';
 import { StatusTransitionDialog } from './status-transition-dialog.js';
 import { ReissueOwnerDialog } from './reissue-owner-dialog.js';
+import { StartImpersonationDialog } from './start-impersonation-dialog.js';
 import { ACTION_KEYS } from '../activity/activity-timeline.js';
 import { ENTITY_KEYS } from './labels.js';
 
@@ -61,6 +62,12 @@ const FIELD_LABEL = {
   email: 'email',
   roles: 'rolesLabel',
   reissued: 'reissuedLabel',
+  // F-71 session rows.
+  mode: 'colMode',
+  target_email: 'colActingAs',
+  expires_at: 'colEnds',
+  ticket_ref: 'impersonateTicket',
+  end_reason: 'colEndReason',
 } as const;
 
 export function TenantDetailPage() {
@@ -82,6 +89,13 @@ export function TenantDetailPage() {
   const canReissue = alive && (me.data?.capabilities.includes('tenants:create') ?? false) && (tenant.data?.owner_emails.length ?? 1) === 0;
   const [reissueOpen, setReissueOpen] = useState(false);
   const [acceptUrl, setAcceptUrl] = useState<string | null>(null);
+  // F-71: a support session can be opened on a tenant that has standing (the
+  // server refuses the rest); the picker and the dialog are the door.
+  const canImpersonate =
+    alive &&
+    (me.data?.capabilities.includes('impersonation:start_read_only') ?? false) &&
+    ['active', 'trial', 'past_due', 'read_only'].includes(tenant.data?.status ?? '');
+  const [impersonateOpen, setImpersonateOpen] = useState(false);
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [feedback, setFeedback] = useState<{ kind: 'status' | 'alert'; text: string } | null>(null);
@@ -148,7 +162,12 @@ export function TenantDetailPage() {
     const label = (key: string) => (key in FIELD_LABEL ? t(FIELD_LABEL[key as keyof typeof FIELD_LABEL]) : key);
     const value = (key: string, v: unknown): string => {
       if (v === null || v === undefined || v === '') return '—';
-      if (key === 'status') return tOrgs(STATUS_KEYS[v as OrganizationStatusT] ?? STATUS_KEYS[d.status]);
+      // `status` is the tenant lifecycle on an organization row; on a support
+      // session row it is active → ended (F-71) — never the tenant's label.
+      if (key === 'status' && ev.entity_type === 'organization') return tOrgs(STATUS_KEYS[v as OrganizationStatusT] ?? STATUS_KEYS[d.status]);
+      if (key === 'status' && ev.entity_type === 'impersonation_session') return t(v === 'ended' ? 'sessionEnded' : 'activeNow');
+      if (key === 'mode' && typeof v === 'string' && v in MODE_KEYS) return t(MODE_KEYS[v as keyof typeof MODE_KEYS]);
+      if (key === 'end_reason' && typeof v === 'string' && v in END_REASON_KEYS) return t(END_REASON_KEYS[v as keyof typeof END_REASON_KEYS]);
       if (key === 'plan_tier') return tOrgs(TIER_KEYS[v as PlanTierT] ?? TIER_KEYS.core);
       if (key === 'plan_id' && typeof v === 'string') return plans.data?.items.find((p) => p.id === v)?.name ?? v;
       // Roles in a trail row are the tenant vocabulary (0001 CHECK): the cast names that.
@@ -284,6 +303,17 @@ export function TenantDetailPage() {
             </div>
           )}
         </section>
+
+        {canImpersonate ? (
+          <section aria-labelledby="support" className="space-y-3 rounded-lg border border-border bg-card p-4">
+            <h2 id="support" className="text-[15px] font-semibold">{t('impersonateSection')}</h2>
+            <p className="text-sm text-muted-foreground">{t('impersonateSectionBody')}</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="button" size="sm" variant="outline" onClick={() => setImpersonateOpen(true)}>{t('impersonateOpen')}</Button>
+              <Link to={`/admin/support-sessions?tenant=${d.id}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">{t('sessionsOfTenant')}</Link>
+            </div>
+          </section>
+        ) : null}
       </div>
 
       {(canEdit || canPlan) && draft ? (
@@ -369,7 +399,11 @@ export function TenantDetailPage() {
                   <span className="text-xs text-muted-foreground">{fmt(ev.created_at)}</span>
                   <span className="font-medium">
                     {ev.actor_type === 'platform'
-                      ? (ev.actor_email ?? tActivity('platform'))
+                      // The session's OWN rows already name the staffer as the
+                      // actor — "X acting as X" was a lie (review).
+                      ? ev.impersonator_email && ev.entity_type !== 'impersonation_session'
+                        ? t('viaSupport', { staff: ev.impersonator_email, user: ev.actor_email ?? '' })
+                        : (ev.actor_email ?? tActivity('platform'))
                       : ev.actor_type === 'system'
                         ? tActivity('system')
                         : (ev.actor_email ?? tActivity('unlistedMember'))}
@@ -406,6 +440,8 @@ export function TenantDetailPage() {
           }
         }}
       />
+
+      <StartImpersonationDialog tenant={d} open={impersonateOpen} onClose={() => setImpersonateOpen(false)} />
 
       <ReissueOwnerDialog
         tenant={d}

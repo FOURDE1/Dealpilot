@@ -119,6 +119,42 @@ Per-topic implementation reference: OWASP Cheat Sheet Series
 
 <!-- Entries begin below. -->
 
+### 2026-08-27 — F-71 impersonation with audit (support sessions)
+
+**Scope:** `POST/GET/DELETE /api/v1/admin/impersonation-sessions[/:id]`,
+`GET /api/v1/admin/tenants/:id/members`, `GET /api/v1/support-access`, the
+impersonation gate (`apps/api/src/impersonation.ts`), the 0067 definers,
+policies and trigger, the scope GUC in `packages/db`, `recordEvent`,
+`requirePermission`.
+
+- **A01 access control** — a session is a register row on the STAFFER's own
+  Better Auth session (no target session, no cookie change); the gate
+  re-proves standing on every request (staff active IN A ROLE THAT COULD
+  OPEN THIS MODE — a demotion ends a full session — tenant with standing,
+  target still a member, TTL) and closes a row that lost it; the console
+  is closed during a session but for the probe and the End; two routes and
+  ten permissions are refused in every mode; read-only refuses every
+  mutating verb. The tenancy boundary is the DATABASE's: the scope GUC
+  narrows the user-keyed policies and `has_permission` to one
+  organization (proved with the raw predicates as the app role). ✔
+- **A07 auth** — the auth mount is public and never impersonates: the
+  staffer's credentials act on the staffer (asserted); the target's
+  password / 2FA / sessions are unreachable by construction. Sign-out,
+  staff revocation, suspension and membership loss all end the session
+  (trigger + explicit closes + per-request re-proof). ✔
+- **A09 logging** — every request under a session writes an immutable
+  trail row (method, route, URL, status), refusals included; every mutation
+  carries `impersonation_id` with `actor_type='platform'` and the
+  impersonated user as actor — attributed to both; pino carries ids and
+  the routed URL, never the reason. ✔
+- **A10** — `impersonation_identity` fails closed (unknown session → nobody;
+  a closed row → 403 once); the trail write failing is logged, never hidden
+  behind the response. ✔
+
+**Accepted (see below):** the request trail stores URLs with their query;
+the owner email is sent after commit; no realtime for the impersonator;
+full-mode writes fire automations.
+
 ### 2026-08-27 — F-70 tenant provisioning (the birth of a tenant from the platform side)
 
 **Scope:** `POST /api/v1/admin/tenants`, `POST /api/v1/admin/tenants/:id/owner-invitation`,
@@ -264,6 +300,22 @@ parameterized values throughout; React escaping holds on all three screens.
   staffer who spans organizations loses their session everywhere and signs
   in again; the other organizations keep working. Realtime sockets live
   until their next session recheck.
+- **2026-08-27 (F-71) — platform staff hold tenant context ONLY inside a
+  support session.** The F-69 sentence "platform staff never receive tenant
+  RLS context" now reads: never outside a live, audited, time-boxed
+  impersonation bound to their own session, scoped by the database to one
+  organization, with every request logged and every mutation attributed to
+  both people. The admin route files still never open tenant context (the
+  drift guard); the swap happens in one gate.
+- **2026-08-27 (F-71) — the request trail stores the URL with its query
+  string** (`impersonation_requests`, platform-only, no app grant,
+  immutable). A query can carry a search term; the trail exists to show
+  exactly what support looked at (§7 "every request"), and the table is
+  retained with the audit trail.
+- **2026-08-27 (F-71) — full-mode writes fire the tenant's automations** (a
+  lead created by support is assigned, first-touched, notified as any
+  other). Mitigations: read-only by default, full mode is a super admin's
+  alone, the blocked-permission list, the trail. Suppression is deferred.
 - **2026-08-27 (F-70) — the owner invitation email is sent after commit.** A
   crash between the definer's commit and the send loses the email, not the
   tenant: the console's `owner_invitation` fact and the reissue endpoint are

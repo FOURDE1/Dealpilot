@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PlatformRole } from './platform.js';
+import { ImpersonationBanner, PlatformRole } from './platform.js';
 import { Email, IsoDateTime, Uuid } from './common.js';
 
 /**
@@ -17,6 +17,8 @@ export const MeResponse = z.object({
   session: z.object({
     expires_at: IsoDateTime,
   }),
+  /** F-71 §7: set while platform support acts as this user — the shell's banner. */
+  impersonation: ImpersonationBanner.nullable(),
   /**
    * F-41 (FR-AUTH-006): whether this account HAS TOTP, and whether any of its
    * memberships' roles REQUIRE it (owner/gm/admin_office). The shell reads the

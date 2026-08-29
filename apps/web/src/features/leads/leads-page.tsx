@@ -7,7 +7,7 @@ import type { LeadT } from '@dealpilot/schemas';
 import { Label, Select } from '@dealpilot/ui';
 import { useOrganizations } from '../organizations/api.js';
 import { useLeads } from './api.js';
-import { useSession } from '../../shared/auth/client.js';
+import { useMe } from '../../shared/api/use-me.js';
 import { useMembers } from '../team/api.js';
 import { FollowUpAlertBar } from '../tasks/follow-up-alert-bar.js';
 import { scoreBand } from '@dealpilot/core';
@@ -24,11 +24,13 @@ export function LeadsPage() {
   // Multi-org users MUST scope the list (server 422s otherwise); single-org
   // users are scoped implicitly by their membership.
   const effectiveOrg = multiOrg ? orgFilter || orgs.data?.items[0]?.id : undefined;
-  const { data: session, isPending: sessionPending } = useSession();
+  // F-71: "mine" is who the SERVER says I am — under a support session that
+  // is the impersonated member, while the raw auth session stays the staffer.
+  const me = useMe();
   const [mineOnly, setMineOnly] = useState(false);
   const leads = useLeads(effectiveOrg, {
     enabled: !orgs.isPending,
-    assignedTo: mineOnly ? session?.user.id : undefined,
+    assignedTo: mineOnly ? me.data?.user.id : undefined,
   });
   const members = useMembers(effectiveOrg ?? orgs.data?.items[0]?.id, { enabled: !orgs.isPending });
   const memberName = useMemo(() => {
@@ -168,8 +170,8 @@ export function LeadsPage() {
           none yet has no follow-ups and no reason to see an error (review). */}
       <FollowUpAlertBar
         orgId={effectiveOrg}
-        assignedTo={session?.user.id}
-        enabled={orgs.isSuccess && orgs.data.items.length > 0 && !sessionPending && session !== null}
+        assignedTo={me.data?.user.id}
+        enabled={orgs.isSuccess && orgs.data.items.length > 0 && me.isSuccess}
       />
       {multiOrg ? (
         <div className="max-w-xs space-y-1">

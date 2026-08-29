@@ -256,9 +256,22 @@ describe('F-10 activity trail', () => {
       await Promise.all(sources.map((f) => readFile(join(dir, f), 'utf8')))
     ).join('\n');
 
-    const unusedEntities = ActivityEntityType.options.filter(
-      (v) => !new RegExp(`entityType:\\s*'${v}'`).test(code),
-    );
+    // F-71: an entity whose ONLY producer is SQL is vouched for by the named
+    // migration — an `INSERT INTO activity_events` naming it — not by API
+    // code. The map is the promise; pointing it at the wrong file fails.
+    const SQL_PRODUCED_ENTITIES: Record<string, string> = {
+      impersonation_session: '20260827000067_impersonation.sql',
+    };
+    const migrationsDir = join(dir, '..', '..', '..', 'packages', 'db', 'migrations');
+    const producedBySql = async (entity: string): Promise<boolean> => {
+      const sql = await readFile(join(migrationsDir, SQL_PRODUCED_ENTITIES[entity]!), 'utf8');
+      return new RegExp(String.raw`INSERT INTO activity_events[\s\S]{0,1200}?'` + entity + `'`).test(sql);
+    };
+    const unusedEntities: string[] = [];
+    for (const v of ActivityEntityType.options) {
+      const used = v in SQL_PRODUCED_ENTITIES ? await producedBySql(v) : new RegExp(`entityType:\\s*'${v}'`).test(code);
+      if (!used) unusedEntities.push(v);
+    }
     expect(unusedEntities, `entity types no code path ever writes: ${unusedEntities.join(', ')}`).toEqual([]);
 
     // Must match a CALL SITE, not any quoted occurrence: 'delivered' also

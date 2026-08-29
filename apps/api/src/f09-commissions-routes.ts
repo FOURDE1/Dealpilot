@@ -334,7 +334,7 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
       const r = await c.query<Record<string, unknown>>(
         `SELECT id, organization_id, store_id, actor_user_id, entity_type, entity_id,
                 action, changes, reason, parent_entity_type, parent_entity_id, created_at, seq,
-                actor_type, restricted
+                actor_type, restricted, impersonation_id
          FROM activity_events WHERE ${where} ORDER BY seq DESC LIMIT $${params.length}`,
         params,
       );

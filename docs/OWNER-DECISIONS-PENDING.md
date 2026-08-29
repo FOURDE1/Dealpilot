@@ -374,3 +374,19 @@ is the version that matters to you.
 | O-14 | The owner receives the generic bilingual "join a team" invitation email; a tenant-named owner email is a small follow-up. | Generic now. |
 | O-15 | §4.4 catalogs without a table today (fees, F&I products, lenders, message templates, notification rules, store thresholds, pipeline colours) are **deferred, not invented**; a reviewer reading §4.4 literally will call the slice incomplete. | Deferred (D-071 11). |
 | O-16 | Lost-reason vocabulary: the repo's **ten** bilingual names (incl. "Merged duplicate") ship, not the spec's nine keys. | Repo list. |
+
+## F-71 support sessions (impersonation) — eleven defaults implemented (2026-08-27)
+
+| # | Decision | Default in place |
+|---|---|---|
+| O-17 | **Home-grown** session-bound impersonation, not the Better Auth `admin` plugin: the plugin's authority is a second role column, it mints a real session for the target and hands the staffer's own token to the browser, ships fifteen endpoints we must not expose, and carries none of §7's controls. | Home-grown. |
+| O-18 | Owners get an **email AND an in-app notification** for EVERY session start, read-only included. | Both, always. |
+| O-19 | Powers refused even in full mode: organization update/delete, invite / roles / revoke, intake keys, pay plans, document signing, safety sign-off, customer replies. Wider than the spec's four because those (PII decrypt, billing, export without DSAR) have no producer yet. | As listed; one constant. |
+| O-20 | The tenant sees the **staffer's email** in its register. | Shown. |
+| O-21 | Two staffers may impersonate the same person at once (each session audited on its own). | Allowed. |
+| O-22 | A member of several dealer groups is impersonated in **one** of them; the others do not exist for the session (enforced by the database, not the screen). | Enforced. |
+| O-23 | Every request in a session is logged with its address (query included) in an immutable, platform-only table, kept with the audit trail (≥ 24 months). | Logged. |
+| O-24 | Owners can be impersonated **without consent** — notification, not consent (§7). | Allowed. |
+| O-25 | No live rooms / presence for the impersonator (no lead-routing side effects); the tenant view refetches. | None. |
+| O-26 | Full-mode writes fire the tenant's normal automations (outbound included), mitigated by the read-only default, super-only full mode, the blocked list and the trail. | Fire normally. |
+| O-27 | Hard TTL **60 minutes, no refresh**; the console is closed while a session is live, except the End. | 60 min; closed. |

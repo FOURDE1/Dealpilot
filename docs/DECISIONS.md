@@ -36,6 +36,142 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-072 — 2026-08-27 — Impersonation with audit: a register row on the staffer's own session, scoped by the database
+
+F-71 (admin-console.md §3, §7, §11, §12; authentication-authorization.md
+§3/§12; multi-tenancy.md §6; ADR-006/007/009; designed by the same
+three-planner + judge workflow as F-69/F-70, every contested repo fact
+verified). (1) **What a session IS:** a row in `impersonation_sessions`
+(0067) bound to the staffer's own Better Auth `"session".id`. No session is
+minted for the target, no cookie changes hands. An onRequest gate
+(`impersonation.ts`, between the session gate and the platform gate) asks
+`impersonation_identity(session id)` once per authenticated request; when
+a live row exists it applies the refusals, records the session on the
+request, then swaps `request.session.user` to the target for every
+non-admin route — `sessionUser`, `withUser`, `withTenant`, the membership
+gates, `has_permission`, `/api/v1/me` and `recordEvent` all see the target;
+`request.session.session` stays the staffer's (the platform gate's identity
+and 12-hour clock). (2) **Not the Better Auth `admin` plugin** (O-17),
+read from the installed 1.6.25: its authority is a `user.role` column
+beside `platform_staff` (D-070 (1)/(3) keep staff identity in one table
+and authority in capabilities); it mints a REAL target session and hands
+the staffer's own token to the browser in a second cookie, so the target's
+`/api/auth/*` (password, 2FA, session revocation) would become reachable
+by the staffer and the staffer's socket would mark the target online; it
+ships fifteen endpoints this product must not expose; it carries none of
+§7 (scope, mode, reason, ticket, TTL, register, owner notification) and
+hides impersonated sessions from the target — the inverse of §12.
+(3) **Not a signed token:** a client-held claim to forge, expire and
+revoke; the row is revoked by one UPDATE. The spec's "session cookie
+carries impersonation_id" (§7) is a named deviation: the server-side row
+is the claim. (4) **Who:** `impersonation:start_read_only` → super admin +
+support; `impersonation:start_full` → super admin (§3, §7); `impersonation:
+manage` (register, End, member picker) → super admin + support; billing
+none. The route asks two capability literals (no ternary — the drift guard
+reads them as written) and the definer re-checks the role per mode.
+Reason ≥ 20 characters (Zod AND a column CHECK), ticket ≤ 60, mode default
+`read_only`; target must hold an active membership in the named tenant
+(else 404 — no oracle), must not be active platform staff (403), tenant
+must be `active|trial|past_due|read_only` and undeleted (409); one live
+session per staffer session (partial UNIQUE → 409); two staffers may
+impersonate the same person at once, separately audited (O-21). Owners
+are notified, not asked (O-24): an in-app bell row per active owner inside
+the start transaction and an email after commit (O-18). (5) **The
+tenancy boundary is decided by the database** (O-22): a new GUC
+`app.impersonation_org`, set by `withContext` from a per-request
+`connectionScope` (AsyncLocalStorage in `packages/db`), read by
+`impersonation_scope_ok()` inside `membership_self_read`,
+`membership_isolation`, `notifications_self_read/_update` and
+`has_permission` (SECURITY DEFINER bypasses policies, so it carries the
+predicate itself). A multi-organization target is impersonated in ONE
+organization; `callerOrgIds`, `GET /organizations`, by-id reads,
+notifications and `has_permission(otherOrg, …)` all answer "not a member"
+for the rest. Belt and braces in the gate: a request naming another
+`organization_id` is 403 `impersonation_scope`. Workers open no scope
+store and stay unfiltered. (6) **Refusals, and where:** the console is
+closed during a session (409 `impersonation_active`) except `GET
+/admin/me` and the End (O-27); `POST /organizations` and `POST
+/invitations/accept` are refused in both modes (they would move authority
+into the target's account); read-only mode refuses every verb outside
+GET/HEAD/OPTIONS except the read-only-exempt routes (403
+`impersonation_read_only` — the spec's `IMPERSONATION_READ_ONLY` in this
+API's envelope vocabulary); `IMPERSONATION_BLOCKED_PERMISSIONS` (O-19:
+organization update/delete, invite/roles/revoke, intake keys, pay plans,
+document signing, safety sign-off, customer replies) are refused in
+EVERY mode by `requirePermission`/`hasPermission` after the membership
+gate — wider than §7's four because §7's "PII decrypt / billing / export
+without DSAR" have no producer yet (deferred, hook named); a `read_only`
+tenant still answers 402 to full-mode writes; the auth mount is public and
+never impersonates, so the staffer's credentials stay the staffer's.
+(7) **Ends:** 60-minute hard TTL, no refresh (`IMPERSONATION_TTL_MINUTES`
+in core, passed INTO the definer; the gate closes an expired row lazily
+and answers 403 `impersonation_ended` once); `DELETE …/:id` by the owning
+staffer or any super admin (`manual`, `ended_by`); an `AFTER DELETE ON
+"session"` SECURITY DEFINER trigger (sign-out, expiry cleanup → `revoked`,
+unsigned); `platform_staff_revoke` and `admin_set_tenant_status
+(suspended|offboarding)` close explicitly BEFORE their session deletes
+(`revoked`, signed); the gate re-proves standing on every request — staff
+revoked, tenant deleted or out of status, target's membership gone →
+`revoked`. `active` is always computed (`ended_at IS NULL AND expires_at >
+now()`). (8) **Audit:** `impersonation_sessions` (tenant-readable through
+the org-keyed policy, SELECT grant only, UPDATE may only close a row
+once, DELETE refused — trigger); `impersonation_requests` (one row per
+request served under a session, refusals included, written from an
+onResponse hook, no app grant, immutable — O-23: the URL with its query
+is stored, platform-internal); `activity_events.impersonation_id` (+ a
+CHECK that it rides only on platform/system rows): `recordEvent` flips a
+person's act to `actor_type='platform'` with `actor_user_id` = the
+impersonated user and `impersonation_id` = the session — attributed to
+BOTH, one register; start/end are `impersonation_session created/updated`
+rows (no new verb — the D-071 (7) precedent; the `f10` dead-vocabulary
+guard learned `SQL_PRODUCED_ENTITIES` for an entity only SQL writes);
+`admin_tenant_events` names the staffer (`impersonator_email`);
+`platform_audit_events` untouched. (9) **Realtime and workers:** the
+staffer's socket is the staffer's (no membership → `not_a_member`), so no
+rooms, no presence, no cascade side effects (O-25); full-mode writes fire
+the tenant's normal automations (O-26). (10) **Console and tenant app:**
+nav "Sessions de soutien" (register with URL filters, one session's
+trail), a "Session de soutien" section on the tenant page (member picker
+marking platform staff, mode with its effect spelled out — `full` only
+with the capability —, a reason with a live count, ticket), the console
+as a wall with the End while a session is live, the §7 banner in the
+tenant shell from `/api/v1/me` (which answers as the target), the
+register on `/security` ("Accès du soutien" — the spec's
+`/settings/security/support-access`, no `/settings` router exists), the
+timeline suffix "via une session de soutien" and the journal's
+"{staff} (soutien) au nom de {user}"; the "mine" filters on leads and
+tasks now read `useMe` (the server's identity) instead of the raw auth
+session. (11) **Guards:** platform-drift scans `f71-impersonation-routes.ts`;
+rls-coverage classifies user-keyed policies with the scope call stripped
+and asserts the registry in BOTH directions (a scoped `membership_self_read`
+would otherwise have dropped out silently); dead-column registers the
+definer-written register columns; the f71 suite (20 cases, incl. the
+body-addressed scope refusal and a mid-session re-role) proves the
+gate, the birth and its notifications, acting as the target, read-only
+and scope refusals with the raw predicates, full-mode attribution and
+blocks, TTL and every revocation path, transparency, immutability, the
+definers' actor checks and the core↔schemas lockstep. **Deviations from
+§7/§12, each deliberate:** no admin plugin; no cookie claim; `tenant_id`
+on the wire → `organization_id`; "every request writes activity_events" →
+every MUTATION stamps `activity_events` and every REQUEST writes
+`impersonation_requests`; `DELETE` answers 200 + the closed row; the
+console is closed during a session; no realtime rooms; a wider blocked
+list; in-app notification as well as email; only tenants with standing;
+no platform-staff targets; the auth spec's `entity_type='auth'` rows have
+no producer; the owner email is bilingual FR-then-EN (the
+invitationMessage / Bill 96 precedent), not ordered per tenant locale. (12)
+**Amends D-070 (4):** a support session is the ONE place platform staff
+hold tenant context, and only through this gate. (13) **The scope belt is a
+preHandler** (a request body does not exist in onRequest, so the
+body-addressed check lives where the body is parsed); the database scope
+(`impersonation_scope_ok` in the policies and `has_permission`) is the
+boundary the belt merely names earlier. **Deferred, not invented:** PII decrypt / billing / export
+blocks (no producer), `platform_audit_events` impersonation events, the
+`'ai'` actor, a purge/retention job for the trail, a tenant-side End, a
+rate limit on session starts, a Sentry alert on start, the cookie hint
+optimisation, the Playwright journey (e2e-breadth).
+**Decided by:** Claude (implementation), 2026-08-27
+
 ## D-071 — 2026-08-27 — Tenant provisioning: one birth, the self-serve seeds, an F-12 owner seat, no prospect
 
 F-70 (admin-console.md §4.2–§4.4, §11–§12; ADR-006/007/024/026; designed by
@@ -148,10 +284,13 @@ catalogue seeded with the reference tiers; `plan_tier` becomes a
 trigger-maintained cache of `plans.code` because ~60 readers use it.
 (3) Authority in routes is a CAPABILITY, never a role name; only the six
 capabilities slice 1 enforces exist, and a drift guard fails on one nothing
-enforces. (4) Platform staff never receive tenant context: every read and
-write is a SECURITY DEFINER function on a bare pool connection that
-re-checks the actor itself; a lockstep test greps the route file for the
-tenant-scoped helpers. The definers rely on the OWNER bypassing FORCE RLS
+enforces. (4) Platform staff never receive tenant context OUTSIDE an
+impersonation (amended by D-072: inside a live, audited support session the
+staffer's request runs AS the target under tenant context, scoped to one
+organization by `app.impersonation_org`): every read and write is a
+SECURITY DEFINER function on a bare pool connection that re-checks the
+actor itself; a lockstep test greps the route file for the tenant-scoped
+helpers. The definers rely on the OWNER bypassing FORCE RLS
 (superuser locally; BYPASSRLS on RDS — `definer-owner.test.ts` asserts it);
 `set_config('app.org_id', …, true)` inside a function was rejected because
 it would outlive the function. (5) The gate (identity → MFA enrolment →

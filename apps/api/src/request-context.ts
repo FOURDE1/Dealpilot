@@ -14,9 +14,20 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * first onRequest hook in callback style so the store wraps the whole
  * lifecycle (the @fastify/request-context technique).
  */
+/** F-71: the live support session this request runs under (set by the impersonation gate). */
+export interface ImpersonationContext {
+  id: string;
+  organizationId: string;
+  mode: 'read_only' | 'full';
+  platformUserId: string;
+  targetUserId: string;
+  expiresAt: Date;
+}
+
 export interface RequestContext {
   method: string;
   path: string;
+  impersonation?: ImpersonationContext;
 }
 
 export const requestContext = new AsyncLocalStorage<RequestContext>();

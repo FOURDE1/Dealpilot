@@ -3,6 +3,8 @@ import { CursorQuery, Email, IsoDateTime, Locale, ProvinceCA, Uuid, paginated } 
 import { OrganizationStatus, PlanTier, orgSlugInput } from './organization.js';
 import { CreateStoreInput } from './store.js';
 import { ActivityEvent } from './activity.js';
+import { Role } from './roles.js';
+import type { PermissionT } from './permissions.js';
 
 /**
  * F-69 — platform staff and the tenant directory (admin-console.md §3/§4).
@@ -28,6 +30,12 @@ export const PLATFORM_CAPABILITIES = {
   'staff:manage': ['platform_super_admin'],
   /** F-70: provision a tenant and (re)issue its owner seat (§3 "Create tenants"). */
   'tenants:create': ['platform_super_admin'],
+  /** F-71 §3/§7: read-only support sessions. */
+  'impersonation:start_read_only': ['platform_super_admin', 'platform_support'],
+  /** F-71 §7: full mode — a super admin's alone. */
+  'impersonation:start_full': ['platform_super_admin'],
+  /** F-71: the register, ending a session, the member picker. Billing: none. */
+  'impersonation:manage': ['platform_super_admin', 'platform_support'],
 } as const satisfies Record<string, readonly PlatformRoleT[]>;
 export type PlatformCapabilityT = keyof typeof PLATFORM_CAPABILITIES;
 export const PLATFORM_CAPABILITY_NAMES = Object.keys(PLATFORM_CAPABILITIES) as [PlatformCapabilityT, ...PlatformCapabilityT[]];
@@ -37,6 +45,104 @@ export function capabilitiesOf(role: PlatformRoleT): PlatformCapabilityT[] {
   return PLATFORM_CAPABILITY_NAMES.filter((c) => (PLATFORM_CAPABILITIES[c] as readonly string[]).includes(role));
 }
 
+/**
+ * F-71 — impersonation with audit (admin-console.md §7; D-072). The literals
+ * mirror packages/core/src/impersonation.ts (schemas carries no dependency on
+ * core — the TENANT_STATUSES precedent); schemas.test.ts asserts equality.
+ */
+export const ImpersonationMode = z.enum(['read_only', 'full']);
+export const ImpersonationEndReason = z.enum(['manual', 'ttl', 'revoked']);
+export const IMPERSONATION_REASON_MIN_CHARS = 20;
+
+/**
+ * Refused in EVERY mode (§7 "blocked even in full mode", widened to the
+ * powers that change who holds authority, mint credentials, move pay, sign
+ * legal attestations or answer customers — O-19). Typed against the
+ * catalogue: a typo is a compile error, not a permission that gates nothing.
+ */
+export const IMPERSONATION_BLOCKED_PERMISSIONS: readonly PermissionT[] = [
+  'organization:update',
+  'organization:delete',
+  'member:invite',
+  'member:update_roles',
+  'member:revoke',
+  'intake_key:manage',
+  'pay_plan:write',
+  'document:sign',
+  'checklist:sign_safety',
+  'conversation:reply',
+];
+
+export const StartImpersonationInput = z.strictObject({
+  /** §7 wire name; = organizations.id (D-070 2). */
+  tenant_id: Uuid,
+  target_user_id: Uuid,
+  mode: ImpersonationMode.default('read_only'),
+  reason: z.string().trim().min(IMPERSONATION_REASON_MIN_CHARS).max(500),
+  ticket_ref: z.string().trim().min(1).max(60).optional(),
+});
+const Person = z.object({ id: Uuid, email: z.string(), name: z.string() });
+export const ImpersonationSession = z.object({
+  id: Uuid,
+  tenant: z.object({ id: Uuid, name: z.string(), slug: z.string() }),
+  platform_user: Person,
+  target_user: Person,
+  mode: ImpersonationMode,
+  reason: z.string(),
+  ticket_ref: z.string().nullable(),
+  started_at: IsoDateTime,
+  expires_at: IsoDateTime,
+  ended_at: IsoDateTime.nullable(),
+  end_reason: ImpersonationEndReason.nullable(),
+  ended_by: Uuid.nullable(),
+  /** ended_at IS NULL AND expires_at > now(), computed by the database. */
+  active: z.boolean(),
+  request_count: z.number().int().nonnegative(),
+});
+export const ImpersonationRequest = z.object({
+  seq: z.number().int(),
+  method: z.string(),
+  route: z.string(),
+  url: z.string(),
+  status_code: z.number().int(),
+  at: IsoDateTime,
+});
+export const ImpersonationSessionDetail = ImpersonationSession.extend({ requests: z.array(ImpersonationRequest) });
+export const ImpersonationList = z.object({ items: z.array(ImpersonationSession) });
+export const ImpersonationListQuery = z.object({
+  tenant_id: Uuid.optional(),
+  /** 'true' | 'false' | absent — a plain string on purpose: enum-vocabulary binds z.enum by field name and `plans.active` exists. */
+  active: z
+    .string()
+    .optional()
+    .transform((v) => (v === undefined ? null : v === 'true')),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+export const AdminTenantMember = z.object({
+  user_id: Uuid,
+  email: z.string(),
+  name: z.string(),
+  roles: z.array(Role),
+  store_codes: z.array(z.string()),
+  is_platform_staff: z.boolean(),
+});
+export const AdminTenantMembers = z.object({ items: z.array(AdminTenantMember) });
+/** What the tenant shell needs for the §7 banner — nothing more. */
+export const ImpersonationBanner = z.object({
+  id: Uuid,
+  mode: ImpersonationMode,
+  expires_at: IsoDateTime,
+  tenant: z.object({ id: Uuid, name: z.string(), slug: z.string() }),
+  acting_as: Person,
+});
+/** Tenant-side register (§7 "every session visible to the tenant"). */
+export const SupportAccessEntry = ImpersonationSession.omit({ request_count: true, ended_by: true });
+export const SupportAccessList = z.object({ items: z.array(SupportAccessEntry) });
+export const SupportAccessQuery = z.object({
+  organization_id: Uuid,
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+});
+
 export const AdminMeResponse = z.object({
   user: z.object({ id: Uuid, email: Email, name: z.string() }),
   role: PlatformRole,
@@ -44,6 +150,8 @@ export const AdminMeResponse = z.object({
   /** The gate refuses an unenrolled staffer, so a 200 always carries `true`. */
   mfa_enabled: z.literal(true),
   session: z.object({ created_at: IsoDateTime, reauth_by: IsoDateTime }),
+  /** F-71: the live support session bound to this console session, if any. */
+  impersonation: ImpersonationSession.nullable(),
 });
 
 export const PlanOverage = z.enum(['hard_stop', 'metered']);
@@ -123,6 +231,8 @@ export const AdminTenantPage = paginated(AdminTenant);
 export const AdminActivityEvent = ActivityEvent.extend({
   actor_email: z.string().nullable(),
   seq: z.number().int(),
+  /** F-71: the staffer behind an impersonated act (actor_email is the impersonated user). */
+  impersonator_email: z.string().nullable(),
 });
 export const AdminTenantEventsQuery = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(100),
@@ -246,3 +356,13 @@ export type ProvisionTenantInputT = z.infer<typeof ProvisionTenantInput>;
 export type AdminTenantProvisionedT = z.infer<typeof AdminTenantProvisioned>;
 export type ReissueOwnerInvitationInputT = z.infer<typeof ReissueOwnerInvitationInput>;
 export type OwnerInvitationReissuedT = z.infer<typeof OwnerInvitationReissued>;
+export type ImpersonationModeT = z.infer<typeof ImpersonationMode>;
+export type ImpersonationEndReasonT = z.infer<typeof ImpersonationEndReason>;
+export type StartImpersonationInputT = z.infer<typeof StartImpersonationInput>;
+export type ImpersonationSessionT = z.infer<typeof ImpersonationSession>;
+export type ImpersonationRequestT = z.infer<typeof ImpersonationRequest>;
+export type ImpersonationSessionDetailT = z.infer<typeof ImpersonationSessionDetail>;
+export type ImpersonationListQueryT = z.infer<typeof ImpersonationListQuery>;
+export type AdminTenantMemberT = z.infer<typeof AdminTenantMember>;
+export type ImpersonationBannerT = z.infer<typeof ImpersonationBanner>;
+export type SupportAccessEntryT = z.infer<typeof SupportAccessEntry>;

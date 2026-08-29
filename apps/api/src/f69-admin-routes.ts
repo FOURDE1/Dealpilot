@@ -19,6 +19,7 @@ import { AppError, notFound, parseOrThrow } from './errors.js';
 import { decodeCursor, encodeCursor, idParam, sessionUser } from './f01-routes.js';
 import type { Env } from './env.js';
 import { platformErrorFrom, requirePlatform } from './platform.js';
+import { readImpersonation } from './impersonation.js';
 
 /**
  * F-69 — the platform admin console, slice 1 (admin-console.md §3/§4/§11).
@@ -92,6 +93,9 @@ export function registerF69Routes(app: FastifyInstance, pool: Pool, env: Env): v
         created_at: actor.sessionCreatedAt.toISOString(),
         reauth_by: new Date(actor.sessionCreatedAt.getTime() + env.ADMIN_SESSION_MAX_AGE_HOURS * 3_600_000).toISOString(),
       },
+      // F-71: the probe is the one admin read allowed DURING a session — it
+      // is how the console knows to show the wall and the End.
+      impersonation: request.impersonation ? await readImpersonation(pool, actor.userId, request.impersonation.id) : null,
     };
     return reply.send(body);
   });

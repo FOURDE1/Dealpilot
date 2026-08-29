@@ -247,6 +247,38 @@ describe('row-level security', () => {
     ).rejects.toThrow();
   });
 
+  it('impersonation_sessions: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The register is definer-written (0067); the app role holds SELECT only,
+    // so the probe row goes in as the owner and the smuggle is refused twice
+    // over (grant AND policy).
+    const people = await admin.query<{ id: string }>(
+      `INSERT INTO users (email, name) VALUES ('staffer-rls@dealpilot.test', 'Staffer'), ('target-rls@dealpilot.test', 'Target') RETURNING id`,
+    );
+    const staffer = people.rows[0]!.id;
+    const target = people.rows[1]!.id;
+    await admin.query(
+      `INSERT INTO impersonation_sessions
+         (organization_id, platform_user_id, platform_user_email, platform_session_id, target_user_id, mode, reason, expires_at)
+       VALUES ($1, $2, 'staffer-rls@dealpilot.test', 'rls-probe-session', $3, 'read_only', 'RLS probe: a reason of twenty characters', now() + interval '1 hour')`,
+      [org1, staffer, target],
+    );
+    const own = await withTenant(app, org1, async (c) => (await c.query(`SELECT id FROM impersonation_sessions`)).rows);
+    expect(own).toHaveLength(1);
+    const rival = await withTenant(app, org2, async (c) => (await c.query(`SELECT id FROM impersonation_sessions`)).rows);
+    expect(rival).toHaveLength(0);
+    await expect(
+      withTenant(app, org2, async (c) => {
+        await c.query(
+          `INSERT INTO impersonation_sessions
+             (organization_id, platform_user_id, platform_user_email, platform_session_id, target_user_id, mode, reason, expires_at)
+           VALUES ($1, $2, 'x@y.z', 'smuggled-session', $3, 'read_only', 'Smuggled: a reason of twenty characters', now() + interval '1 hour')`,
+          [org1, staffer, target],
+        );
+      }),
+    ).rejects.toThrow();
+  });
+
   it('drip_sequences + drip_enrollments: tenant 2 sees nothing of tenant 1, and cannot write into it', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const seqId = await withTenant(app, org1, async (c) => {

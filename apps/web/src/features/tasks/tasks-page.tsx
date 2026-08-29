@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Label, Select, type ColumnDef } from '@dealpilot/ui';
 import { BULK_TASK_LIMIT, type TaskBucketT, type TaskPriorityT, type TaskT } from '@dealpilot/schemas';
 import { usePageTitle } from '../../shared/use-page-title.js';
-import { useSession } from '../../shared/auth/client.js';
+import { useMe } from '../../shared/api/use-me.js';
 import { useOrganizations } from '../organizations/api.js';
 import { activeMembers, useMembers } from '../team/api.js';
 import { useBulkCompleteTasks, useBulkReassignTasks, useTasks, useUpdateTask } from './api.js';
@@ -48,7 +48,8 @@ export function TasksPage() {
   const [params, setParams] = useSearchParams();
   const orgs = useOrganizations();
   // better-auth's data is null while pending, never undefined (review).
-  const { data: session, isPending: sessionPending } = useSession();
+  // F-71: who I am comes from the server (a support session acts as the member).
+  const me = useMe();
   const multiOrg = (orgs.data?.items.length ?? 0) > 1;
   // The alert bar's links carry the organization their counts were made for.
   const [orgFilter, setOrgFilter] = useState(params.get('org') ?? '');
@@ -57,7 +58,7 @@ export function TasksPage() {
   const [mineOnly, setMineOnly] = useState(focusTask === null);
   const [showCompleted, setShowCompleted] = useState(false);
   const bucket = isBucket(params.get('bucket')) ? (params.get('bucket') as TaskBucketT) : undefined;
-  const assignedTo = mineOnly ? session?.user.id : undefined;
+  const assignedTo = mineOnly ? me.data?.user.id : undefined;
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [reassignTo, setReassignTo] = useState('');
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
@@ -66,7 +67,7 @@ export function TasksPage() {
 
   // "Mine" needs to know who I am: until the session resolves, ask for nothing
   // rather than briefly showing everybody's board (review).
-  const ready = orgId !== undefined && (!mineOnly || (!sessionPending && session !== null));
+  const ready = orgId !== undefined && (!mineOnly || me.isSuccess);
   const tasks = useTasks(orgId, { assignedTo, open: !showCompleted, bucket }, { enabled: ready });
   const members = useMembers(orgId, { enabled: orgId !== undefined });
   const update = useUpdateTask();

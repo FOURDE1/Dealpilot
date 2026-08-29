@@ -26,7 +26,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const migrationsDir = join(here, '..', '..', '..', 'packages', 'db', 'migrations');
 const ADMIN_URL = testAdminUrl();
 /** Every route file that serves /api/v1/admin/ — this guard owns the list (F-70). */
-const ADMIN_ROUTE_FILES = ['f69-admin-routes.ts', 'f70-provisioning-routes.ts'];
+const ADMIN_ROUTE_FILES = ['f69-admin-routes.ts', 'f70-provisioning-routes.ts', 'f71-impersonation-routes.ts'];
 const source = ADMIN_ROUTE_FILES.map((f) => readFileSync(join(here, f), 'utf8')).join('\n');
 
 let admin: Pool;

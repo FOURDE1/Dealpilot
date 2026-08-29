@@ -63,6 +63,24 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // this guard scans apps/api only.
   'leads.chatbot_engaged_at': 'written by the first-touch worker',
 
+  // F-71: the support-access register is written ONLY by the 0067 definers
+  // (impersonation_start / impersonation_close); the app role holds SELECT
+  // alone. activity_events.impersonation_id is written by recordEvent.
+  'impersonation_sessions.platform_user_id': 'written by impersonation_start() (0067)',
+  'impersonation_sessions.platform_user_email': 'written by impersonation_start() (0067)',
+  'impersonation_sessions.platform_session_id': 'written by impersonation_start() (0067)',
+  'impersonation_sessions.target_user_id': 'written by impersonation_start() (0067)',
+  'impersonation_sessions.mode': 'written by impersonation_start() (0067)',
+  // (`reason` needs no entry: the name is written elsewhere in the API and the
+  // guard matches by name — the blind spot it documents above.)
+  'impersonation_sessions.ticket_ref': 'written by impersonation_start() (0067)',
+  'impersonation_sessions.ip_address': 'written by impersonation_start() (0067)',
+  'impersonation_sessions.started_at': 'written by impersonation_start() (0067)',
+  'impersonation_sessions.expires_at': 'written by impersonation_start() (0067)',
+  'impersonation_sessions.ended_at': 'written by impersonation_close() (0067)',
+  'impersonation_sessions.end_reason': 'written by impersonation_close() (0067)',
+  'impersonation_sessions.ended_by': 'written by impersonation_close() (0067)',
+
   // F-62: the live-analysis WORKER writes these (apps/workers/src/
   // live-analysis.ts) — idempotency anchor and §13 metering (0061); this
   // guard scans apps/api only.

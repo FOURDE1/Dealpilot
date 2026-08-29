@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import Fastify, { type FastifyError, type FastifyReply, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
-import { createPool, withUser } from '@dealpilot/db';
+import { connectionScope, createPool, withUser } from '@dealpilot/db';
 import { NO_EMITTER, type Emitter } from '@dealpilot/contracts';
 import { createAuth, type Auth } from './auth.js';
 import { loadEnv, type Env } from './env.js';
@@ -43,6 +43,9 @@ import { registerF67Routes } from './f67-heatmap-routes.js';
 import { registerF68Routes } from './f68-task-routes.js';
 import { registerF69Routes } from './f69-admin-routes.js';
 import { registerF70Routes } from './f70-provisioning-routes.js';
+import { registerF71Routes } from './f71-impersonation-routes.js';
+import { registerF71SupportAccessRoutes } from './f71-support-access-routes.js';
+import { impersonationGate, impersonationRequestLog, impersonationScopeGate } from './impersonation.js';
 import { registerF55Routes } from './f55-analytics-routes.js';
 import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
 import { createCarrier, type Carrier } from './carrier.js';
@@ -265,12 +268,12 @@ export async function buildApp(
       // Structured, no PII: the actor id, route and code — never the body.
       if (err.statusCode === 401 || err.statusCode === 403) {
         request.log.warn(
-          { code: err.apiCode, method: request.method, url: request.url, userId: request.session?.user.id ?? null },
+          { code: err.apiCode, method: request.method, url: request.url, userId: request.session?.user.id ?? null, impersonationId: request.impersonation?.id ?? null },
           'denied',
         );
       } else if (err.statusCode === 402 || err.statusCode === 404 || err.statusCode === 422) {
         request.log.info(
-          { code: err.apiCode, method: request.method, url: request.url, userId: request.session?.user.id ?? null },
+          { code: err.apiCode, method: request.method, url: request.url, userId: request.session?.user.id ?? null, impersonationId: request.impersonation?.id ?? null },
           'refused',
         );
       }
@@ -305,7 +308,12 @@ export async function buildApp(
   // lifecycle: the membership gates read the VERB from it to decide whether a
   // read_only tenant's request is a read (allowed) or a write (402).
   app.addHook('onRequest', (request: FastifyRequest, _reply: FastifyReply, done: () => void) => {
-    requestContext.run({ method: request.method, path: request.routeOptions.url ?? '' }, done);
+    // F-71: the connection scope wraps the request context so every
+    // transaction opened below carries app.impersonation_org when a support
+    // session is live (set by the impersonation gate; null otherwise).
+    connectionScope.run({ impersonationOrgId: null }, () => {
+      requestContext.run({ method: request.method, path: request.routeOptions.url ?? '' }, done);
+    });
   });
 
   // --- deny-by-default session gate --------------------------------------
@@ -325,10 +333,19 @@ export async function buildApp(
   // --- platform gate (F-69): identity → MFA → session age, before any
   // /api/v1/admin/* handler. Registered AFTER the session gate on purpose:
   // hooks run in registration order and this one reads request.session.
+  // --- impersonation gate (F-71): is this session acting as someone? Runs
+  // AFTER the session gate (reads request.session) and BEFORE the platform
+  // gate (which must see the staffer's session row, never a swapped user).
+  app.addHook('onRequest', impersonationGate(pool));
   app.addHook('onRequest', platformGate(pool, env));
+  // --- impersonation scope (F-71): a request naming another organization is
+  // refused. preHandler, not onRequest: the body exists only here (review).
+  app.addHook('preHandler', impersonationScopeGate());
   // --- tenant lifecycle gate (F-69): suspended → 403, read_only writes → 402
   // for every request that names an organization.
   app.addHook('preHandler', tenantStatusGate(pool));
+  // --- the §7 request trail: one immutable row per request served under a session.
+  app.addHook('onResponse', impersonationRequestLog(pool));
 
   // --- Better Auth mount ---------------------------------------------------
   app.route({
@@ -413,17 +430,22 @@ export async function buildApp(
     // role the policy names. Computed here, per request, from the domain
     // tables — a role granted five minutes ago obliges immediately, because a
     // policy that waits for the next sign-in is a policy with a hole in it.
-    const mfa = await withUser(pool, user.id, async (c) => {
+    // F-71: the second factor shown here must belong to the account the
+    // /security forms act on — the STAFFER's own, because /api/auth/* is
+    // public and never impersonates. Showing the TARGET's state would nag
+    // the staffer into rotating their own secret (review).
+    const mfaUser = request.impersonation ? request.session!.session.userId : user.id;
+    const mfa = await withUser(pool, mfaUser, async (c) => {
       const enabled = await c.query<{ enabled: boolean | null }>(
         `SELECT "twoFactorEnabled" AS enabled FROM "user" WHERE id = $1`,
-        [user.id],
+        [mfaUser],
       );
       const required = await c.query(
         `SELECT 1 FROM memberships
           WHERE user_id = $1 AND status = 'active'
             AND roles && ARRAY['owner','gm','admin_office']::text[]
           LIMIT 1`,
-        [user.id],
+        [mfaUser],
       );
       return {
         enabled: enabled.rows[0]?.enabled === true,
@@ -436,11 +458,18 @@ export async function buildApp(
       'SELECT role FROM platform_identity($1::uuid, $2::text)',
       [user.id, session.id],
     );
+    // F-71: under a support session `user` is the TARGET (the gate swapped
+    // it) and platform_identity() finds no staff row for them — so the
+    // console link disappears and the banner appears, both from this one read.
+    const imp = request.impersonation;
     return {
       user: { id: user.id, email: user.email, name: user.name },
       session: { expires_at: session.expiresAt },
       mfa,
       platform_role: staff.rows[0]?.role ?? null,
+      impersonation: imp
+        ? { id: imp.id, mode: imp.mode, expires_at: imp.expiresAt.toISOString(), tenant: imp.tenant, acting_as: imp.actingAs }
+        : null,
     };
   });
 
@@ -495,6 +524,8 @@ export async function buildApp(
   registerF68Routes(app, pool);
   registerF69Routes(app, pool, env);
   registerF70Routes(app, pool, mailer, env);
+  registerF71Routes(app, pool, mailer);
+  registerF71SupportAccessRoutes(app, pool);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN, rateLimiter);
   registerF08Routes(app, pool);

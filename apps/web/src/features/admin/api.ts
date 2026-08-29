@@ -3,8 +3,12 @@ import {
   AdminMeResponse,
   AdminTenantDetail,
   AdminTenantEventsResponse,
+  AdminTenantMembers,
   AdminTenantPage,
   AdminTenantProvisioned,
+  ImpersonationList,
+  ImpersonationSession,
+  ImpersonationSessionDetail,
   OwnerInvitationReissued,
   PlanList,
   PlatformStaffGranted,
@@ -16,9 +20,11 @@ import {
   type PlanTierT,
   type ProvisionTenantInputT,
   type ReissueOwnerInvitationInputT,
+  type StartImpersonationInputT,
   type TenantStatusChangeInputT,
 } from '@dealpilot/schemas';
 import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
+import { ME_KEY } from '../../shared/api/use-me.js';
 
 /** F-69 — the platform console's client side (admin-console.md §3/§4/§11). */
 
@@ -36,6 +42,9 @@ export const adminKeys = {
   tenant: (id: string) => ['admin', 'tenant', id] as const,
   events: (id: string) => ['admin', 'tenant', id, 'events'] as const,
   staff: ['admin', 'staff'] as const,
+  impersonations: ['admin', 'impersonations'] as const,
+  impersonation: (id: string) => ['admin', 'impersonation', id] as const,
+  members: (id: string) => ['admin', 'tenant', id, 'members'] as const,
 };
 
 function compact<T extends Record<string, string | undefined>>(q: T): Record<string, string> {
@@ -166,6 +175,89 @@ export function useReissueOwnerInvitation(id: string) {
       void queryClient.invalidateQueries({ queryKey: adminKeys.events(id) });
     },
     onError: () => invalidateTenant(queryClient, id),
+  });
+}
+
+/** F-71 — the support-session register (admin-console.md §7). */
+export function useImpersonations(filters: { tenantId?: string; active?: 'true' | 'false' }) {
+  return useQuery({
+    queryKey: [...adminKeys.impersonations, filters] as const,
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.admin.impersonation.list, {
+        query: compact({ tenant_id: filters.tenantId, active: filters.active, limit: '200' }),
+        signal,
+      });
+      if (res.status !== 200) fail(res.status, res.body);
+      return ImpersonationList.parse(res.body);
+    },
+  });
+}
+
+export function useImpersonation(id: string) {
+  return useQuery({
+    queryKey: adminKeys.impersonation(id),
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.admin.impersonation.get, { params: { id }, signal });
+      if (res.status !== 200) fail(res.status, res.body);
+      return ImpersonationSessionDetail.parse(res.body);
+    },
+  });
+}
+
+/** The target picker — a tenant's active members with a sign-in identity. */
+export function useAdminTenantMembers(id: string, enabled = true) {
+  return useQuery({
+    queryKey: adminKeys.members(id),
+    enabled,
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.admin.tenants.members, { params: { id }, signal });
+      if (res.status !== 200) fail(res.status, res.body);
+      return AdminTenantMembers.parse(res.body);
+    },
+  });
+}
+
+/** From the 201 on, the same cookie acts as the target: the caller clears the cache and leaves the console. */
+export function useStartImpersonation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: StartImpersonationInputT) => {
+      const res = await apiRequest(routes.admin.impersonation.start, { body: input });
+      if (res.status !== 201) fail(res.status, res.body);
+      return ImpersonationSession.parse(res.body);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: adminKeys.me });
+      void queryClient.invalidateQueries({ queryKey: adminKeys.impersonations });
+      void queryClient.invalidateQueries({ queryKey: ME_KEY });
+    },
+    // A 409 means a session is already live on this console session: the probe must catch up.
+    onError: () => void queryClient.invalidateQueries({ queryKey: adminKeys.me }),
+  });
+}
+
+/** 200 + the closed row. The register, the probe and the tenant-side /me all move. */
+export function useEndImpersonation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest(routes.admin.impersonation.end, { params: { id } });
+      if (res.status !== 200) fail(res.status, res.body);
+      return ImpersonationSession.parse(res.body);
+    },
+    onSuccess: (session) => {
+      void queryClient.invalidateQueries({ queryKey: adminKeys.me });
+      void queryClient.invalidateQueries({ queryKey: adminKeys.impersonations });
+      void queryClient.invalidateQueries({ queryKey: adminKeys.impersonation(session.id) });
+      void queryClient.invalidateQueries({ queryKey: adminKeys.events(session.tenant.id) });
+      void queryClient.invalidateQueries({ queryKey: ME_KEY });
+    },
+    onError: () => {
+      // A 409 impersonation_ended means it was already over: both identities
+      // must catch up or the banner keeps showing a dead session (review).
+      void queryClient.invalidateQueries({ queryKey: adminKeys.me });
+      void queryClient.invalidateQueries({ queryKey: ME_KEY });
+    },
   });
 }
 

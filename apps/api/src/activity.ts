@@ -1,5 +1,6 @@
 import type { PoolClient } from '@dealpilot/db';
 import type { ActivityActionT, ActivityActorTypeT, ActivityEntityTypeT } from '@dealpilot/schemas';
+import { requestContext } from './request-context.js';
 
 /**
  * F-10 activity trail (ADR-009). One helper, called inside the transaction that
@@ -40,11 +41,18 @@ export interface EventInput {
 }
 
 export async function recordEvent(client: PoolClient, e: EventInput): Promise<void> {
+  // F-71 (admin-console.md §7): under a support session, a PERSON's act is a
+  // platform act attributed to both — actor_user_id stays the impersonated
+  // user, actor_type flips to 'platform', impersonation_id names the staffer's
+  // session. A system row inside the request keeps 'system' and carries the id.
+  const imp = requestContext.getStore()?.impersonation;
+  const actorType: ActivityActorTypeT =
+    imp && e.actorUserId !== null ? 'platform' : (e.actorType ?? (e.actorUserId === null ? 'system' : 'tenant'));
   await client.query(
     `INSERT INTO activity_events
        (organization_id, store_id, actor_user_id, entity_type, entity_id, action,
-        changes, reason, parent_entity_type, parent_entity_id, actor_type, restricted)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        changes, reason, parent_entity_type, parent_entity_id, actor_type, restricted, impersonation_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
     [
       e.organizationId,
       e.storeId ?? null,
@@ -56,8 +64,9 @@ export async function recordEvent(client: PoolClient, e: EventInput): Promise<vo
       e.reason ?? null,
       e.parentEntityType ?? null,
       e.parentEntityId ?? null,
-      e.actorType ?? (e.actorUserId === null ? 'system' : 'tenant'),
+      actorType,
       e.restricted ?? false,
+      imp?.id ?? null,
     ],
   );
 }

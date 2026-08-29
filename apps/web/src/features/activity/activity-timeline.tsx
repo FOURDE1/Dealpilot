@@ -166,7 +166,12 @@ export function ActivityTimeline({
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
               <span>
                 <span className="font-medium">{t(ACTION_KEYS[event.action])}</span>
-                <span className="text-muted-foreground"> — {actorName(event)}</span>
+                <span className="text-muted-foreground">
+                  {' — '}
+                  {actorName(event)}
+                  {/* F-71 §7: an act made under a support session says so, next to the member it was made as. */}
+                  {event.impersonation_id ? ` · ${t('viaSupport')}` : ''}
+                </span>
               </span>
               <time dateTime={event.created_at} className="text-xs text-muted-foreground">
                 {fmt.format(new Date(event.created_at))}

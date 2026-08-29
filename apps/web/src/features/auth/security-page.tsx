@@ -5,6 +5,7 @@ import { Button, Input, Label } from '@dealpilot/ui';
 import { usePageTitle } from '../../shared/use-page-title.js';
 import { ME_KEY, useMe } from '../../shared/api/use-me.js';
 import { twoFactor } from '../../shared/auth/client.js';
+import { SupportAccessSection } from './support-access-section.js';
 
 /**
  * F-41 — your account's second factor (FR-AUTH-006).
@@ -77,6 +78,20 @@ export function SecurityPage() {
     setPassword('');
     setEnrolled(false);
     void queryClient.invalidateQueries({ queryKey: ME_KEY });
+  }
+
+  // F-71: while a support session is live, /api/v1/me answers as the target
+  // but the forms below hit /api/auth/* — the STAFFER's own account. Showing
+  // the target's state next to them would rotate the wrong secret (review):
+  // the page keeps only the register during a session.
+  if (me.data?.impersonation) {
+    return (
+      <div className="mx-auto max-w-lg space-y-4">
+        <h1 className="text-2xl font-semibold">{t('title')}</h1>
+        <p role="status" className="rounded-md bg-warning-bg px-3 py-2 text-sm text-warning-text">{t('supportSessionNote')}</p>
+        <SupportAccessSection />
+      </div>
+    );
   }
 
   const mfaOn = me.data?.mfa.enabled === true || enrolled;
@@ -159,6 +174,8 @@ export function SecurityPage() {
           <Button type="submit" disabled={busy || code.trim().length < 6}>{t('verify')}</Button>
         </form>
       )}
+      {/* F-71 §7: every support session on your organizations, visible to you. */}
+      <SupportAccessSection />
     </div>
   );
 }

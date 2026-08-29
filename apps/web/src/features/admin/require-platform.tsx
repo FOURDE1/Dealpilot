@@ -6,9 +6,11 @@ import { signOut } from '../../shared/auth/client.js';
 import { queryClient } from '../../shared/api/queryClient.js';
 import { ApiError } from '../../shared/api/client.js';
 import { FullPageSkeleton, loginRedirect } from '../../app/guards.js';
-import { useAdminMe } from './api.js';
+import { ME_KEY } from '../../shared/api/use-me.js';
+import { adminKeys, useAdminMe } from './api.js';
 import { adminAccess } from './access.js';
 import { MfaWall } from './mfa-wall.js';
+import { ImpersonationWall } from './impersonation-wall.js';
 
 /**
  * F-69 — the console's door. Reads the identity probe and does exactly one
@@ -22,7 +24,16 @@ export function RequirePlatform({ children }: { children: ReactNode }) {
   const me = useAdminMe();
   const location = useLocation();
   const err = me.error instanceof ApiError ? { status: me.error.status, errorCode: me.error.code } : me.error ? {} : null;
-  const access = adminAccess({ pending: me.isPending, error: err, ok: me.isSuccess });
+  const access = adminAccess({ pending: me.isPending, error: err, ok: me.isSuccess, impersonating: me.data?.impersonation != null });
+
+  useEffect(() => {
+    // F-71: the gate says "the support session has ended" exactly once; the
+    // next probe is the plain staffer — refetch instead of showing a wall.
+    if (me.error instanceof ApiError && me.error.errorCode === 'impersonation_ended') {
+      void queryClient.invalidateQueries({ queryKey: adminKeys.me });
+      void queryClient.invalidateQueries({ queryKey: ME_KEY });
+    }
+  }, [me.error]);
 
   useEffect(() => {
     if (access !== 'reauth') return;
@@ -49,6 +60,9 @@ export function RequirePlatform({ children }: { children: ReactNode }) {
           </div>
         </main>
       );
+    case 'impersonating':
+      // F-71: the console is closed while the staffer acts as someone; the wall carries the End.
+      return me.data?.impersonation ? <ImpersonationWall session={me.data.impersonation} /> : children;
     case 'ok':
       return children;
   }

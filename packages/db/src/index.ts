@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import pg from 'pg';
 
 /**
@@ -43,6 +44,18 @@ export function resolveDatabaseUrl(explicit?: string): string {
   );
 }
 
+/**
+ * F-71 (admin-console.md §7): the organization a live support session is
+ * scoped to. The API's first request hook opens a store per request; the
+ * impersonation gate fills it; `withContext` turns it into the transaction-
+ * local GUC `app.impersonation_org`, which the 0067 policies and
+ * `has_permission` read. Workers never open a store — unscoped, as today.
+ */
+export interface ConnectionScope {
+  impersonationOrgId: string | null;
+}
+export const connectionScope = new AsyncLocalStorage<ConnectionScope>();
+
 /** Transaction-local RLS context. At least one of the two must be set. */
 export interface TxnContext {
   /** Tenant key for the 0001 isolation policies (`app.org_id`). */
@@ -69,6 +82,10 @@ export async function withContext<T>(
     await client.query('BEGIN');
     if (ctx.orgId) await client.query("SELECT set_config('app.org_id', $1, true)", [ctx.orgId]);
     if (ctx.userId) await client.query("SELECT set_config('app.user_id', $1, true)", [ctx.userId]);
+    const scope = connectionScope.getStore();
+    if (scope?.impersonationOrgId) {
+      await client.query("SELECT set_config('app.impersonation_org', $1, true)", [scope.impersonationOrgId]);
+    }
     const result = await fn(client);
     await client.query('COMMIT');
     client.release();

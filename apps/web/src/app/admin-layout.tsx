@@ -21,6 +21,7 @@ export function AdminLayout() {
   const navigate = useNavigate();
   const me = useAdminMe();
   const canManageStaff = me.data?.capabilities.includes('staff:manage') ?? false;
+  const canManageSupport = me.data?.capabilities.includes('impersonation:manage') ?? false;
   // The deadline carries its day when it is not today: a 12h window that
   // ends tomorrow morning must not read as a time already past (review).
   const reauthAt = me.data
@@ -39,6 +40,7 @@ export function AdminLayout() {
 
   const items = [
     { to: '/admin/tenants', label: t('navTenants') },
+    ...(canManageSupport ? [{ to: '/admin/support-sessions', label: t('navSupport') }] : []),
     ...(canManageStaff ? [{ to: '/admin/staff', label: t('navStaff') }] : []),
   ];
   const linkClass = ({ isActive }: { isActive: boolean }) =>

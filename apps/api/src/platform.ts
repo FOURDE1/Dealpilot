@@ -119,6 +119,21 @@ export function platformErrorFrom(err: unknown): AppError | null {
       ]);
     case 'PA013':
       return new AppError(409, 'owner_exists', 'This tenant already has an active owner; invitations are now the tenant’s own (F-12)');
+    case 'PA015':
+      // No active membership in that tenant: indistinguishable from an unknown id (no oracle).
+      return notFound();
+    case 'PA016':
+      return new AppError(403, 'cannot_impersonate_staff', 'Platform staff cannot be impersonated');
+    case 'PA017':
+      return new AppError(409, 'tenant_not_impersonable', 'This tenant is not in a status that allows a support session', [
+        { path: 'tenant_id', code: 'tenant_not_impersonable', message: e?.message ?? '' },
+      ]);
+    case 'PA018':
+      return new AppError(409, 'impersonation_active', 'This console session already has a support session open');
+    case 'PA019':
+      return new AppError(409, 'impersonation_ended', 'The support session has already ended');
+    case 'PA020':
+      return new AppError(403, 'forbidden', 'Only the staffer who opened the session, or a super admin, may end it');
     case '23514':
       return new AppError(422, 'validation_failed', 'Reason required', [
         { path: 'reason', code: 'reason_required', message: 'Say why' },
