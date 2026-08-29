@@ -57,6 +57,38 @@ by eye: session rows in the journal showed raw `mode` / `target_user_id`
 keys and a session's `active → ended` would have gone through the
 tenant-status map.
 
+**Review (2026-08-29):** a 43-agent adversarial pass (four lenses —
+attacker, correctness/tests, console a11y/i18n, spec/doc honesty — then
+refute-biased verification; the first run died on the usage limit and was
+resumed from the saved script, replaying finished agents from cache). 24
+confirmed, 3 refuted; all fixed. The real ones: the scope "belt" read the
+request body in an onRequest hook, where the body is not parsed yet — moved
+to a preHandler `impersonationScopeGate` (the DB scope had always held with
+a 404; the belt now gives the designed 403 and a body-addressed test
+proves it); `impersonation_identity` re-proved the staffer active but not
+their ROLE, so a super admin demoted to support kept full mode until the
+TTL — the check is now role-aware and `platform_staff_grant` closes the
+old role's sessions (signed); `admin_tenant_events` joined the staffer's
+email onto the session's OWN rows, so the journal read "staffer acting as
+staffer" — now NULL there; `/api/v1/me` computed MFA for the impersonated
+user, nagging the staffer to rotate their own secret — it now reads the
+staffer, and `/security` hides 2FA and shows only the register during a
+session; the End after a lapsed session looped on a generic error — the
+banner now speaks the API's impersonation refusals (via a window event
+from `failFromResponse`) and clears itself, and a 403 `impersonation_ended`
+maps to a refetch, not the "denied" wall. Plus the ROUND 18 refusal
+strings, several honest-comment and doc corrections (D-070 (4) amended to
+name the one place staff hold tenant context; the case count set to the
+true 20; the bilingual-email deviation recorded). Suites after the fixes:
+f71-impersonation 20/20, db 40/40, gate 29/29. Pushed as 0d52249 (56
+files). CI: run 33279396768 pinned at push time — VERIFY the conclusion
+with `gh run view 33279396768 --json conclusion` before calling it green.
+Dev DB migrated to 0067 (the file was edited after an earlier local apply,
+so the migrator said "already up to date"; the changed platform functions
+were refreshed by hand — scratchpad `f71_devdb_delta.sql` via `docker exec
+-i dealpilot-db psql`, no tenant data touched). Dev API restarted on the
+new build (:3001), web :5173.
+
 ## 2026-08-27 (tick 24) — F-70 tenant provisioning: one birth, the same seeds
 
 F-69 CI-green on attempt 2 (33015737819, a52477a). F-70 (admin-console.md
