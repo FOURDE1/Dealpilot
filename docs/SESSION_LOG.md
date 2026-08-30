@@ -176,6 +176,32 @@ The fix is `ebee4b9`, and **CI run 33292743236 is GREEN on both jobs**
 (verified with `gh run view 33292743236 --json conclusion`). develop is
 clean at `ebee4b9`.
 
+**A second, deeper cause, and the honest state of it.** After `ebee4b9`
+went green the docs-only `3b19860` went red again with the identical
+signature, so the abandoned enqueue was a real latent bug but not this
+one. Across five runs of near-identical trees the pattern is green, red,
+red, green, red — a teardown race at roughly even odds, and it predates
+F-72: `createEmitOnlyEmitter`'s close already carried a comment about run
+32531141801, where the same class bit the SIGTERM drain and `disconnect()`
+was swapped for `quit()`.
+
+The remaining hole is that QUIT waits for commands ioredis has already
+WRITTEN, while the Socket.IO Redis adapter's `psubscribe` can still be in
+the offline queue — and every queued command is rejected with "Connection
+is closed." when the socket goes. Those promises belong to the adapter,
+so the pub/sub `error` listeners never see them. `167b036` drains with a
+PING round trip (one of the few commands allowed a client in subscriber
+mode) so QUIT finds nothing pending behind it.
+
+**Do not over-read the green.** `167b036` passed, but at ~50% base odds one
+green run is weak evidence, and the race does not reproduce locally — six
+consecutive runs of `f28c-emit-only.test.ts` under the CI env produced
+nothing. The fix is reasoned from the mechanism, not from a red-to-green
+repro. If this signature returns, the next place to look is the two other
+`createEmitOnlyEmitter` consumers and the BullMQ queue close chain in
+`deferred-queue.ts`, whose `await`s abandon the remaining closes if an
+early one rejects.
+
 Also worth keeping: `19a5c58` and `43901b6` differ by one markdown file,
 so the same latent defect was present in the green run and simply did not
 fire. A green CI is not evidence that an unobserved promise is safe.
