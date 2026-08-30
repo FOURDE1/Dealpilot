@@ -424,3 +424,34 @@ is the version that matters to you.
 | O-49 | **The tenant snapshot carries no "deployed version".** There is no build identifier, no image tag and no deploy pipeline in this product; the migration version is a database-wide number and putting it on one dealer's card would invite "this dealer is on…". F-72 cut Sentry rather than substitute a lookalike; the same call is made here. | Cut, no substitute. |
 | O-50 | **All five F-73 screens are closed while a support session is live.** F-72 opened the kill switches during a session because an incident may need them in the same minute; reading a usage card and requeueing a job are not that, and a retry filed inside a support session would carry two identities for one act. | Refused during impersonation. |
 | O-51 | **The tenant snapshot ships as an API only.** The database function, the contract entry and `GET /api/v1/admin/tenants/:id/snapshot` are built and tested, but no console page reads it yet, so a reviewer reading §9 will call the slice incomplete. The usage card and the job inspector both have screens. | API now; screen is a follow-up. |
+
+## ⚠ NEEDS YOUR DECISION — the console's e2e cannot be written without it (2026-08-30)
+
+The platform console (`/admin/*`) has thirteen routes and **no browser test at
+all**. Writing one needs a `platform_staff` row, and there is exactly one
+producer for the first staffer: `node packages/db/dist/cli.js platform-grant
+<email>`, whose no-actor path is legal **only while no active super admin
+exists** — a one-shot per database (`0065:571-574`, SQLSTATE PA010). Every
+other grant goes through the console, which needs a staffer already.
+
+**Your dev database's shot is unspent: `platform_staff` is empty.** So a test
+that takes it would work once, with a TOTP secret the test discards, and the
+second grant would need the first super admin's console session. The console on
+your machine would become permanently unreachable. That is the same shape as
+the `db:reset` incident (HO-07), so it is being left to you rather than taken.
+
+Three ways out, in the order I would pick them:
+
+| | Option | Cost | What it also fixes |
+|---|---|---|---|
+| **A** | **Give e2e its own database** (`dealpilot_e2e`, reset from zero per run, its own bootstrap) | One slice of plumbing | The 867-organization / 62 MB accumulation `PROJECT.md` already names, and the local-vs-CI divergence that cost the whole of F-72's local gate |
+| **B** | Spend the dev one-shot deliberately, on an account **you** control, and keep the TOTP secret | Free, now | Nothing — and it is irreversible |
+| **C** | Leave the console untested for now | Free | Nothing; the D-070/D-071 e2e debt stays open |
+
+I recommend **A**: it is the only one that is not a workaround, and it pays out
+across all 37 existing specs rather than one new file. It is a slice in itself,
+so say the word and it becomes the next one.
+
+Until then the console e2e is not written, and F-67 tasks / heatmap coverage
+shipped instead (`06c2eb3`) — real coverage of two screens in your own sidebar,
+with the console debt untouched and named.
