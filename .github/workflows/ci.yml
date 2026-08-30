@@ -109,7 +109,7 @@ jobs:
     timeout-minutes: 20
     env:
       DO_NOT_TRACK: '1'
-    # A separate job from `checks`, deliberately. These 29 specs drive a real
+    # A separate job from `checks`, deliberately. These specs drive a real
     # Chrome against a real API and a real database, so they fail for a
     # different class of reason than a unit test does — and mixing the two
     # verdicts into one job makes "CI is red" stop meaning anything specific.
@@ -225,7 +225,7 @@ jobs:
         # in an earlier step means trusting that it outlives that step's shell —
         # true today, invisible when it stops being true. Here its death is
         # caught by the `kill -0` check with its log attached, instead of
-        # surfacing as 29 specs that cannot reach the server.
+        # surfacing as every spec failing to reach the server.
         env:
           DATABASE_URL: postgresql://dealpilot_app:dealpilot_app_dev@localhost:5434/dealpilot
           DB_ADMIN_URL: postgresql://dealpilot:dealpilot@localhost:5434/dealpilot
