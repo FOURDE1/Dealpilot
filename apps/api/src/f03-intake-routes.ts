@@ -62,6 +62,13 @@ function signaturesMatch(a: string, b: string): boolean {
 
 // -- management routes (session-authed) ---------------------------------------
 
+/**
+ * How long the intake ACK waits for the first-touch enqueue before answering
+ * anyway. ioredis buffers commands while Redis is unreachable, so the add does
+ * not reject — it hangs, and NFR-PERF holds this ACK to p99 < 1s (D-059).
+ */
+const ENQUEUE_WAIT_MS = 1500;
+
 export function registerIntakeKeyRoutes(app: FastifyInstance, pool: Pool, apiBaseUrl: string): void {
   app.post('/api/v1/intake-keys', async (request, reply) => {
     const input = parseOrThrow(CreateIntakeKeyInput, request.body);
@@ -554,24 +561,39 @@ export function registerPublicIntakeRoutes(app: FastifyInstance, pool: Pool, rea
       // spool's job when the Flow pipeline lands. And the ACK never waits on
       // a sick Redis: p99 < 1s is a promise to the provider, so a lost
       // enqueue is a loud log, not a hung webhook (D-059).
-      await Promise.race([
-        leadId.touch.kind === 'none'
-          ? Promise.resolve()
-          : deferred.enqueueFirstTouch({
-              organization_id: resolved.organization_id,
-              lead_id: leadId.id,
-              // F-63 (§8.3): a high-confidence resubmission sends the
-              // confirming re-engagement to the KEEPER's thread instead of
-              // greeting the new record — one person, one message.
-              ...(leadId.touch.kind === 'dup_confirm' ? { duplicate_of: leadId.touch.keeperId } : {}),
-            }),
-        new Promise<void>((resolve) => setTimeout(resolve, 1500)),
-      ]).catch((err: unknown) => {
+      //
+      // The catch belongs to the ENQUEUE, not to the race. A race abandons its
+      // loser: when the timeout wins, the enqueue is still pending with nobody
+      // watching, and an abandoned ioredis command rejects with "Connection is
+      // closed." the moment the pool shuts down. That is an unhandled
+      // rejection, and it fails a whole vitest run even when every test passes
+      // (the F-72 sibling of this bug did exactly that in CI 33291543933).
+      const enqueued = (leadId.touch.kind === 'none'
+        ? Promise.resolve()
+        : deferred.enqueueFirstTouch({
+            organization_id: resolved.organization_id,
+            lead_id: leadId.id,
+            // F-63 (§8.3): a high-confidence resubmission sends the
+            // confirming re-engagement to the KEEPER's thread instead of
+            // greeting the new record — one person, one message.
+            ...(leadId.touch.kind === 'dup_confirm' ? { duplicate_of: leadId.touch.keeperId } : {}),
+          })
+      ).catch((err: unknown) => {
         request.log.warn(
           { lead_id: leadId.id, err: err instanceof Error ? err.message : String(err) },
           'first-touch enqueue failed — the lead is committed but ungreeted',
         );
       });
+      let touchTimer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        enqueued,
+        new Promise<void>((resolve) => {
+          touchTimer = setTimeout(resolve, ENQUEUE_WAIT_MS);
+        }),
+      ]);
+      // An uncleared timer holds the event loop open for its full delay after
+      // every ACK — on the hottest path in the product.
+      clearTimeout(touchTimer);
 
       return reply.status(202).send({ received: true, lead_id: leadId.id });
     },
