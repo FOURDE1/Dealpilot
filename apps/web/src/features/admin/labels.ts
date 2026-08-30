@@ -1,3 +1,4 @@
+import type { QueueNameT } from '@dealpilot/contracts';
 import type {
   ActivityEntityTypeT,
   ImpersonationEndReasonT,
@@ -6,6 +7,9 @@ import type {
   PlatformCapabilityT,
   PlatformRoleT,
   PlatformSettingKeyT,
+  QueueStateT,
+  RetryOutcomeT,
+  UsageMetricT,
 } from '@dealpilot/schemas';
 
 /**
@@ -35,6 +39,8 @@ export const CAPABILITY_KEYS = {
   'announcements:publish_elevated': 'cap_announcements_publish_elevated',
   'settings:read': 'cap_settings_read',
   'settings:write': 'cap_settings_write',
+  'queues:read': 'cap_queues_read',
+  'queues:retry': 'cap_queues_retry',
 } as const satisfies Record<PlatformCapabilityT, string>;
 
 /** F-71 §7: the two session modes and the three ways one ends — labels, never raw tokens. */
@@ -131,6 +137,84 @@ export const SETTING_KEYS = {
   ai_outbound_killswitch: { label: 'ai_outbound_killswitch', scope: 'scope_ai_outbound_killswitch' },
   sms_send_killswitch: { label: 'sms_send_killswitch', scope: 'scope_sms_send_killswitch' },
 } as const satisfies Record<PlatformSettingKeyT, { label: string; scope: string }>;
+
+/**
+ * F-73 §6 — every usage number carries its own caption, and the pairing is a
+ * TYPE rather than a convention.
+ *
+ * The captions are the feature. Seven of §6's names were cut because no row
+ * answers them, and four of the survivors were renamed because the obvious
+ * name would have been a lie; a reader who sees only `members_who_acted`
+ * beside a figure will read DAU. Pairing label and caption in one entry means
+ * a metric cannot reach the screen bare — the compiler refuses the map, not a
+ * reviewer catching a missing line — and `usage-card.test.tsx` proves the page
+ * really renders both halves.
+ */
+export const USAGE_METRIC_KEYS = {
+  members_who_acted: { label: 'metric_members_who_acted', caption: 'caption_members_who_acted' },
+  leads_created: { label: 'metric_leads_created', caption: 'caption_leads_created' },
+  deals_created: { label: 'metric_deals_created', caption: 'caption_deals_created' },
+  deals_delivered: { label: 'metric_deals_delivered', caption: 'caption_deals_delivered' },
+  ai_conversations_engaged: { label: 'metric_ai_conversations_engaged', caption: 'caption_ai_conversations_engaged' },
+  sms_segments: { label: 'metric_sms_segments', caption: 'caption_sms_segments' },
+  sms_messages_unsegmented: { label: 'metric_sms_messages_unsegmented', caption: 'caption_sms_messages_unsegmented' },
+  ai_first_touch_p95_seconds: { label: 'metric_ai_first_touch_p95_seconds', caption: 'caption_ai_first_touch_p95_seconds' },
+  ai_first_touch_sample_count: { label: 'metric_ai_first_touch_sample_count', caption: 'caption_ai_first_touch_sample_count' },
+  seats_provisioned: { label: 'metric_seats_provisioned', caption: 'caption_seats_provisioned' },
+  member_count: { label: 'metric_member_count', caption: 'caption_member_count' },
+  store_count: { label: 'metric_store_count', caption: 'caption_store_count' },
+  document_bytes: { label: 'metric_document_bytes', caption: 'caption_document_bytes' },
+} as const satisfies Record<UsageMetricT, { label: string; caption: string }>;
+
+/**
+ * F-73 §9 — the ten job queues by name, and whether the console could ask.
+ *
+ * A queue name is an operator-facing word here, not a Redis key: `drip-tick`
+ * says nothing to the person deciding whether a dealer's texts are stuck.
+ * `QueueNameT` comes from the catalogue in @dealpilot/contracts, so a
+ * queue added there fails this map to compile.
+ */
+export const QUEUE_KEYS = {
+  'deferred-send': 'queue_deferred-send',
+  'assistant-turn': 'queue_assistant-turn',
+  'lead-reassign': 'queue_lead-reassign',
+  'ai-extraction': 'queue_ai-extraction',
+  'first-touch': 'queue_first-touch',
+  'live-analysis': 'queue_live-analysis',
+  'announcement-fanout': 'queue_announcement-fanout',
+  'drip-tick': 'queue_drip-tick',
+  'qa-review': 'queue_qa-review',
+  'task-sweep': 'queue_task-sweep',
+} as const satisfies Record<QueueNameT, string>;
+
+/**
+ * "We could not ask" and "nothing has failed" are different facts, and the
+ * console has to say which one it is holding — a zero on an unreachable queue
+ * is the answer an operator would act on wrongly.
+ */
+export const QUEUE_STATE_KEYS = {
+  ok: 'state_ok',
+  not_configured: 'state_not_configured',
+  unreachable: 'state_unreachable',
+} as const satisfies Record<QueueStateT, string>;
+
+/**
+ * F-73 §9 — what one requested retry did, in words.
+ *
+ * Five, and no `locked`: `reprocessJob-8.lua` returns 1 / -1 / -3 and has no
+ * lock check, so a job a worker is holding comes back `not_failed` and a sixth
+ * label would name a state nothing can produce. The two an operator is most
+ * likely to misread are captioned rather than left to the word alone —
+ * `not_attempted` means untouched, not failed, and `not_failed` usually means
+ * somebody else got there first.
+ */
+export const RETRY_OUTCOME_KEYS = {
+  retried: 'outcome_retried',
+  gone: 'outcome_gone',
+  not_failed: 'outcome_not_failed',
+  not_attempted: 'outcome_not_attempted',
+  error: 'outcome_error',
+} as const satisfies Record<RetryOutcomeT, string>;
 
 /** Destructive targets get the destructive button. */
 export const DESTRUCTIVE_TARGETS: ReadonlySet<OrganizationStatusT> = new Set<OrganizationStatusT>(['suspended', 'offboarding']);

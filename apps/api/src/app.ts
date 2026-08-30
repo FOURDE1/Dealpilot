@@ -48,6 +48,9 @@ import { registerF71SupportAccessRoutes } from './f71-support-access-routes.js';
 import { registerF72AnnouncementRoutes } from './f72-announcement-routes.js';
 import { registerF72KillSwitchRoutes } from './f72-killswitch-routes.js';
 import { registerF72BannerRoutes } from './f72-banner-routes.js';
+import { registerF73UsageRoutes } from './f73-usage-routes.js';
+import { registerF73QueueRoutes } from './f73-queue-routes.js';
+import { createQueueInspector, type QueueInspector } from './queue-inspector.js';
 import { impersonationGate, impersonationRequestLog, impersonationScopeGate } from './impersonation.js';
 import { registerF55Routes } from './f55-analytics-routes.js';
 import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
@@ -143,6 +146,8 @@ export interface AppDeps {
   presence?: PresenceStore;
   /** Injectable so limit tests spin the clock instead of sending 30 requests. */
   rateLimiter?: RateLimiter;
+  /** Injectable so console tests assert what an operator would see without a Redis. */
+  queueInspector?: QueueInspector;
 }
 
 export async function buildApp(
@@ -532,6 +537,13 @@ export async function buildApp(
   registerF72AnnouncementRoutes(app, pool, deferredQueue);
   registerF72KillSwitchRoutes(app, pool);
   registerF72BannerRoutes(app, pool);
+  const queueInspector =
+    deps.queueInspector ?? createQueueInspector(env, (obj, msg) => app.log.warn(obj, msg));
+  // Guarded, like presence and the limiter above: closing an INJECTED fake is
+  // how a double shared by a test file dies between its own cases.
+  if (!deps.queueInspector) app.addHook('onClose', async () => queueInspector.close());
+  registerF73UsageRoutes(app, pool, env);
+  registerF73QueueRoutes(app, pool, queueInspector);
   registerF24Routes(app, pool);
   registerF12Routes(app, pool, mailer, env.WEB_ORIGIN, rateLimiter);
   registerF08Routes(app, pool);

@@ -1,3 +1,207 @@
+## 2026-08-30 (tick 27) — F-73 usage, snapshot and the job inspector: numbers that name a row, and a retry that admits it can text twice
+
+**Where tick 26's CI story ended.** F-72 shipped as `19a5c58` and CI run
+33291117664 was green on both jobs. Then two DOCS-ONLY pushes went RED —
+`43901b6` and `3b19860` — with the same signature both times: all 153
+files and 1603 tests passing, vitest exiting 1 on `Error: Connection is
+closed.` out of ioredis's close handler. Both were ours. A
+`Promise.race([enqueue, timeout])` attaches its `.catch` to the RACE, so
+when the timeout wins the enqueue promise is abandoned still pending, and
+an abandoned ioredis command rejects unowned when the pool shuts down.
+`ebee4b9` fixed the announcement fan-out site and `167b036` drained the
+emit-only Redis clients with a PING before QUIT so the adapter's queued
+`psubscribe` could not be the one left rejecting. Then an audit for the
+same shape found a SECOND enqueue site nobody had looked at:
+`apps/api/src/f03-intake-routes.ts`, F-59 code, on the intake ACK path
+that exists to answer in under a second — the same abandoned-loser race,
+fixed in `06f3e17` by observing the first-touch enqueue rather than the
+race that throws it away. **Three consecutive green runs since**, and
+develop is clean at `06f3e17` — tick 26's closing line ("develop is clean
+at `ebee4b9`") is stale twice over.
+
+**Say the cause plainly, because it invalidated every local gate in the
+previous slice.** `REDIS_URL` is unset in this machine's `.env` and SET
+in CI. Without it `createDeferredSendQueue` and its siblings return the
+loud no-op, so the real BullMQ path — the only path that can abandon a
+command — never executes locally. The local gate had therefore been
+running a **different code path from CI** for the whole of F-72, and a
+green local run was evidence about a program CI does not build. The gate
+is now, and stays:
+
+```
+RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run
+```
+
+(`docker compose up -d db redis` first. Never `db:reset` locally — it
+resolves to the owner's dev database.) `docs/PROJECT.md`'s "Tests,
+nothing skipped" row now carries both variables for the same reason.
+
+**F-73** (admin-console.md §6 + §9, D-074) was designed by the
+three-planner + judge panel — winner `honest-metrics`, on the argument
+that this repo's dominant defect is vocabulary declared everywhere and
+reachable nowhere — and then hardened by an adversarial critique into a
+binding build document: 16 rulings, 30 amendments, four refutations, a
+fixed build order and an 87-case manifest, with every contested repo fact
+re-verified live before a line was written. Several of the amendments
+overturned the ruling that produced them, and two are worth keeping: the
+`locked` retry outcome was CUT after reading `reprocessJob-8.lua` at the
+pin (it documents its return set as 1 / -1 / -3, contains no lock check
+and can never return -2, so `locked` would have been a state with no
+producer — minted by the very design meant to prevent that), and
+`skipWaitingForReady: true` was cut after two critics reproduced it live
+against `dealpilot-redis`: `initializing` is assigned once, so skipping
+the ready wait makes a cached handle report `unreachable` FOREVER against
+a healthy Redis.
+
+Landed: **0069** — a migration that creates **no table and no column**.
+Six indexes, each commented with the single metric it serves (two of them
+non-partial on `(organization_id, created_at)` bought deliberately, so
+that `leads_created` and `deals_created` can count soft-deleted rows and
+stop moving backwards; the `deal_documents` one an `INCLUDE (size_bytes)`
+index-only scan, because `idx_deal_documents_org_status` merely prefixes
+the sum); `admin_tenant_usage` (thirteen figures and three plan
+inclusions in one STABLE definer, stable unique aliases per table so the
+drift guard can prove the read, `percentile_disc` with three stated
+restrictions on the first-touch sample, `AND m.channel IN ('sms','mms')`
+on both SMS numbers); `admin_tenant_snapshot` (only what
+`admin_get_tenant` does not answer — `store_health` and never `stores`,
+`traffic_30d` attributed through `conversations` because `messages`
+carries no `store_id`, intake keys with `last_lead_accepted_at` and
+without `token` or `secret`); `admin_record_queue_retry(p_actor, p_queue,
+p_requested, p_organization_ids, p_reason)` with no `p_retried`, because
+the row is filed before Redis is touched and no outcome exists yet; and
+`platform_audit_events.event` restated whole at eight values. **No new
+SQLSTATE**: PA002/PA009/23514 are reused, the three caller-bug belts reuse
+PA014, PA027 is left free, and `apps/api/src/platform.ts` is not edited —
+the 0069 header's error-contract block says "none, and why", with the
+caveat that 23514 is a blanket map, which is why `PLATFORM_AUDIT_EVENTS`
+and the CHECK ship in one commit.
+
+`packages/schemas` takes the **queue names** (F-73 puts them on the wire:
+one is a URL segment, one is a response field) plus the F-73 block —
+`USAGE_PERIODS`, `USAGE_WINDOW_METRICS` (nine), `USAGE_GAUGES` (four),
+`AdminUsageAllowances`, `AdminTenantUsage`, `AdminTenantSnapshot`,
+`QueueState`, `RetryOutcome` (five values, no `locked`), `RetryJobsInput`,
+`AdminQueueDepth(List)`, `AdminDlqQuery/Item/Page`, `AdminRetryResult`,
+`RETRY_MAX_JOBS = 20`, and two capabilities. `packages/contracts` derives
+`JOB_QUEUES` from that single name list — `QUEUE_PAYLOAD`,
+`QUEUE_WORKER_FILE`, `QUEUES_WITHOUT_PAYLOAD`, `dlq_fields`, `replay`,
+and `org_scoped` computed by `queueIsOrgScoped()` rather than typed — and
+adds five contract entries, taking the admin surface from 23 to **28**.
+`apps/api`: `queue-inspector.ts` (its own connection —
+`maxRetriesPerRequest: 2`, `enableOfflineQueue: false`,
+`connectTimeout: 1500`, `skipMetasUpdate: true`, `skipWaitingForReady`
+deliberately absent — a bounded race as the sole hang control with the
+`.catch` on the READ, an `'error'` listener before any command, lazily
+cached handles, `close()` with a `disconnect()` fallback,
+`redactFailedReason` for phones and e-mails, and the BullMQ numeric
+`.code` mapping); `f73-usage-routes.ts` (usage + snapshot, both
+`tenants:read`, `allowances` null outside `mtd`); `f73-queue-routes.ts`
+(the ten-row list, the position-paged DLQ with its own `DlqCursor` codec,
+and the retry whose ORDER is the control — capability, 404, body, confirm
+gate, unconfigured short-circuit, `organizationsOf`, register row, loop,
+`platform_queue_retry_result` WARN, 200). The console gains the usage
+card at `/admin/tenants/:id/usage` (reached from the tenant page, since it
+answers a question about a tenant already open), `/admin/queues` and
+`/admin/queues/:queueName` in the nav (a stuck queue belongs to no
+tenant), and the retry dialog; the `usage` and `jobs` namespaces land in
+both locales, every metric carrying a caption that is part of the number
+rather than a footnote.
+
+**Guards.** Three new: `usage-metric-drift.test.ts` (every metric's
+claimed `{table, alias, column}` exists AND its `alias.column` appears in
+`pg_get_functiondef('admin_tenant_usage')`, with `FROM table alias`
+proved per table; the REVERSE check that a `plans.included_*` column is
+either read or exempt; and a channel classification held against the live
+`messages_channel_check`), `queue-catalogue.test.ts` (every payload
+claimed exactly once, every payload-less queue excused by name with a
+reason, `org_scoped` derived, no `dlq_fields` entry a bare string,
+`'body'` and `tenant_id` refused by name) and `queue-replay.test.ts`
+(the `at_least_once` partition DERIVED from which worker files reach
+`deliverMessage(`/`sendMessage(`, every worker file accounted for, every
+`idempotent` claim held to a literal still in the file it cites).
+`platform-drift.test.ts` gains the two F-73 route files, an explicit
+`ADMIN_HANDLER_COUNT = 28`, and the missing half of its grant lockstep —
+three positive `has_function_privilege(…, 'EXECUTE') = true` assertions
+by exact signature, because the file previously asserted only what is NOT
+callable, so a definer shipped without its GRANT would have failed at the
+first support click instead of by name.
+
+**Two things this slice did NOT do, deliberately.** It did not ride the
+`reassignQueue.close()` leak into `app.ts`'s `onClose` — that is the exact
+hook that produced the tick-26 teardown flake, and it belongs in its own
+commit with its own test (it is named in D-074's deferred list so it is
+not lost). And it did not touch `ADMIN_ALLOWED_DURING`: all five F-73
+routes answer 409 during a live support session.
+
+**Known gap, recorded rather than papered over:** the tenant snapshot
+ships as an API only. `admin_tenant_snapshot`, the contract entry and
+`GET /api/v1/admin/tenants/:id/snapshot` are built and tested, and
+`adminKeys.snapshot` exists in the web client, but **no console page
+reads it yet** — a reviewer reading §9 will call the slice incomplete
+there. Filed as O-51 and in D-074's deferred list.
+
+**Review (2026-08-30):** a 59-agent adversarial pass — seven finders
+(metric honesty, live SQL, queue safety, dead vocabulary, guards/tests,
+web a11y/i18n, spec fidelity/seam) then a refute-biased verifier per
+finding. **52 raw, 36 confirmed, 14 refuted**; two verifiers died on an
+API safeguard, so their findings were read by hand rather than counted as
+refuted. All fixed.
+
+**The blocker was ours, and it was the shape this project keeps finding.**
+`ai_first_touch_p95_seconds` and its sample were structurally EMPTY. The
+EXISTS carried `AND m.created_at <= l.chatbot_engaged_at`, and the
+producer writes those two in the opposite order: `first-touch.ts:246`
+captures `now` in JS BEFORE staging, the message row takes `DEFAULT now()`
+at INSERT (0031:89, later), and only after the carrier returns does `:425`
+stamp `chatbot_engaged_at` with that earlier value. Measured end to end
+through the real greeting path: stamp 11:24:08.914Z, message
+11:24:08.929Z. So the two numbers §6 names as the SLA read "Not measured /
+0 leads" for every tenant whose first touch WORKS. The clause came from
+the design panel's own amendment, on a justification that does not
+survive — both deviant stamp paths it named are already excluded by
+`c.lead_id = l.id`. Removed, with the mechanism written into 0069 so it
+cannot be re-added innocently.
+
+**Why a green suite hid it:** the only p95 case provisioned a tenant that
+was never greeted and asserted null/0 — the test confirmed the broken
+behaviour. There is now a positive case that greets a lead through the
+real first-touch worker, and re-adding the clause turns it red.
+
+The second blocker was the retry dialog: it stayed mounted, so its
+`useRetryDlqJobs` observer survived every close (`useMutation` holds one
+observer for the component's life and only resets on a changed
+`mutationKey`, which it has none). A second open rendered the FIRST
+batch's outcomes with no way to submit, or a standing "nothing was put
+back on the queue" describing a request nobody made — on the one screen
+where "was a customer texted?" is the question. Now mounted conditionally.
+
+Other confirmed classes: the DLQ tenant filter discarded matches beyond
+the page limit while advancing the cursor past them, so a filtered job
+became permanently unreachable; `member_count`'s caption claimed one
+membership per store when `memberships.store_id` is nullable and every
+self-serve founding owner is org-wide (`f01-routes.ts:268-271`);
+`members_who_acted` used an inner join where a semi-join was meant
+(measured 22.6ms → 8.2ms, a 6× row fan-out matching the rooftop count);
+the 0069 index comment miscounted `activity_events`' existing indexes as
+two when it has six; `usage-metric-drift`'s alias proof was satisfied by a
+DIFFERENT metric's read for 6 of 13 metrics, and its comment-stripping is
+now proven load-bearing in both directions — a claim in a comment can no
+longer satisfy a proof about the code. `organizationsOf` claimed a bound
+of "one 1500 ms belt, not twenty" that held only for an unreachable
+Redis; it now has its own `ATTRIBUTION_BUDGET_MS` wall clock.
+
+**Gate after the fixes:** `RLS_REQUIRED=1 turbo run build typecheck lint`
+25/25 (one pre-existing eslint warning in `apps/web/src/shared/realtime.ts:94`,
+untouched here); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx
+vitest run` → **162 files / 1732 tests, exit 0**, no unhandled errors.
+Dev database migrated to 0069 — 71 migrations, 941 users / 867
+organizations intact (migrate, never `db:reset`).
+
+**Push and CI:** recorded with the push below; the run id is pinned at
+push time and its conclusion must be read with
+`gh run view <id> --json conclusion` before anyone calls it green.
+
 ## 2026-08-30 (tick 26) — F-72 announcements and kill switches: fail closed, and name no tenant
 
 F-71's CI is genuinely green: `gh run view 33279396768` answers

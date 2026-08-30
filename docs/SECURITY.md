@@ -119,6 +119,118 @@ Per-topic implementation reference: OWASP Cheat Sheet Series
 
 <!-- Entries begin below. -->
 
+### 2026-08-30 — F-73 per-tenant usage, tenant snapshot, job inspector / DLQ (§6, §9)
+
+**Scope:** `GET /api/v1/admin/tenants/:id/usage`, `GET
+/api/v1/admin/tenants/:id/snapshot`, `GET /api/v1/admin/queues`, `GET
+/api/v1/admin/queues/:name/dlq`, `POST
+/api/v1/admin/queues/:name/dlq/retry`, migration 0069's three definers
+(`admin_tenant_usage`, `admin_tenant_snapshot`,
+`admin_record_queue_retry`) and its widened
+`platform_audit_events_event_check`, the Redis reader
+(`apps/api/src/queue-inspector.ts`), the two route files
+(`apps/api/src/f73-usage-routes.ts`, `apps/api/src/f73-queue-routes.ts`),
+the queue catalogue in `packages/contracts/src/queues.ts`, the queue-name
+vocabulary and the F-73 block in `packages/schemas/src/platform.ts`, and
+the console pages (`tenant-usage-page.tsx`, `queues-page.tsx`,
+`retry-jobs-dialog.tsx`).
+
+- **A01 access control** — two new capabilities, `queues:read` and
+  `queues:retry`, both `[platform_super_admin, platform_support]`, each
+  spent by a literal `requirePlatform(request, '…')` the drift guard
+  reads as written; usage and snapshot reuse `tenants:read` rather than
+  minting a capability with no refusal of its own. All three definers
+  re-assert the actor's role themselves through `platform_assert_actor`,
+  so a route mistake cannot widen what the database allows, and all
+  three run on the bare pool — a platform staffer never holds tenant RLS
+  context. `platform-drift.test.ts` now also asserts the POSITIVE
+  direction, that `dealpilot_app` may EXECUTE each of the three by exact
+  signature: a definer shipped with its REVOKE and without its GRANT
+  previously passed every guard and failed at the first support click.
+  F-73 adds no RLS policy, no table and no column. All five routes are
+  refused with 409 during a live support session —
+  `ADMIN_ALLOWED_DURING` is unchanged ✔
+- **A02 cryptographic failures / A01 data exposure** — the snapshot's
+  intake-key projection excludes `token` and `secret` BY NAME in the
+  definer, mutation-tested (adding either back turns the guard red), and
+  a second assertion proves the serialized response body contains
+  neither the created key's token nor its secret ✔
+- **A03 injection** — `p_period` is parsed by Zod before the database is
+  asked and is never interpolated into SQL; the queue name is validated
+  against `QueueName` and answers 404 for anything else, so the definer's
+  own shape belt (`^[a-z][a-z0-9-]{2,40}$`) is only ever reached by a
+  code bug; the DLQ cursor is base64url JSON parsed through a Zod schema
+  whose position field is BOUNDED in the codec, so a forged offset is a
+  400 before any Redis command is issued, and a cursor minted on another
+  queue or under another tenant filter is a 400 rather than a page of
+  rows nobody asked for ✔
+- **A04 insecure design — the one place this slice can hurt someone.**
+  Retrying a failed job on `deferred-send`, `assistant-turn`,
+  `first-touch` or `drip-tick` re-enters the send path and can put a
+  SECOND SMS in front of a real dealer customer; `provider_ref` is
+  written only after the carrier answers, so a carrier timeout leaves a
+  message delivered and unmarked. That is not mitigated by a comment: the
+  `replay` classification is DERIVED by
+  `apps/workers/src/queue-replay.test.ts` from which worker files reach
+  `deliverMessage(`/`sendMessage(`, every `idempotent` claim cites a
+  literal that must still exist in the file it names, the route demands
+  the queue name typed back for ANY retry on an `at_least_once` queue
+  (n ≥ 1, not n > 1), `job_ids` is capped at 20, the reason is ten
+  characters after trimming, and `Queue.retryJobs()` — no id list, no
+  filter, every tenant's failures at once — is never called. Accepted as
+  a named risk below, not claimed as safe ✔
+- **A01 excessive data exposure (the DLQ's payloads)** — a failed job is
+  projected through a per-queue ALLOW-list, never a payload viewer and
+  never a redaction denylist: `packages/contracts/src/queue-catalogue.test.ts`
+  requires every listed key to exist in that queue's own Zod shape and to
+  unwrap to a uuid, a number or an enum, refuses `'body'` by name, and
+  refuses any scoping field called `tenant_id`. `DeferredSendJob.body` is
+  up to 1600 characters of a real customer's SMS and never leaves the
+  worker. At runtime the projection additionally drops any value that is
+  not a string or a number, so a payload written by an older deploy
+  cannot render an object into the console. `failed_reason` and
+  `first_stack_line` are the one surface an allow-list structurally
+  cannot cover — free text from whatever threw, routinely quoting a
+  person — so both pass through `redactFailedReason`, which strips `+1`
+  E.164 numbers and e-mail addresses BEFORE truncation (500 / 300
+  characters; allow-listed values 120) ✔
+- **A09 logging** — the one mutation writes an immutable
+  `platform_audit_events` row (`queue.retry_requested`, the actor, the
+  reason, and in `changes` the queue, the full requested id list and the
+  distinct organizations those ids named) BEFORE any job is touched,
+  because Redis and Postgres cannot commit together and §9 forbids an
+  unaudited act; the event is named for the request rather than the
+  result precisely because no outcome is known at that moment. Both
+  orderings are mutation-tested. No row is written when no queue is
+  configured — nothing was attempted. A WARN line with the stable token
+  `platform_queue_retry_result` carries the same fields whatever
+  happened, so a drain does not have to know which shape the line took.
+  The three read routes write no audit event: §12 audits mutations and
+  every admin request already writes the `platform_access` line ✔
+- **A05 security misconfiguration / availability** — the inspector opens
+  its OWN Redis connection (`maxRetriesPerRequest: 2`,
+  `enableOfflineQueue: false`, `connectTimeout: 1500`, plus
+  `skipMetasUpdate: true` so a console page that only looks cannot write
+  to every queue it looked at), attaches an `'error'` listener to every
+  handle before issuing any command, bounds every read at 1500 ms with
+  the `.catch` on the READ rather than on the race, and closes each
+  cached handle in its own try/catch with a `disconnect()` fallback. An
+  absent or unreachable Redis is reported as `queue_state` with `counts:
+  null` inside a 200 — never zeros, never a bare empty list, never a 503
+  widening the shared `errorResponses` ✔
+- **Tenant isolation** — a queue whose payload carries no
+  `organization_id` REFUSES an `?organization_id=` filter with 422
+  `queue_not_org_scoped` rather than answering an empty page that would
+  read as "this tenant has no failures"; four of the ten queues are in
+  that position and `org_scoped` is derived from the payload shape, not
+  hand-typed ✔
+
+**Accepted (see below):** a retry on an `at_least_once` queue can send a
+real customer a second SMS; and that retry is invisible to the dealer
+whose customer received it, because F-73's only mutation writes
+`platform_audit_events` alone. Both bullets are already recorded in
+*Accepted risks*.
+
 ### 2026-08-30 — F-72 announcements and platform kill switches (§5.3, §8)
 
 **Scope:** `GET /api/v1/admin/platform-settings`, `POST
@@ -333,6 +445,32 @@ parameterized values throughout; React escaping holds on all three screens.
 
 ## Accepted risks
 
+- **2026-08-30 (F-73) — retrying a failed job on an `at_least_once` queue
+  sends a second SMS to a real customer.** `deferred-send`, `assistant-turn`,
+  `first-touch` and `drip-tick` all stamp `provider_ref` only AFTER the carrier
+  answers, so a carrier timeout leaves a message DELIVERED with a null ref —
+  one of the likeliest reasons the job is in the dead-letter queue at all — and
+  `runDeferredSend` re-runs the whole compliance gate and calls `sendMessage`
+  again with no `provider_ref`, `send_decision_id` or job-level dedupe anywhere
+  on the path. What is proven is that the gate is not bypassed; what is NOT
+  true is that no duplicate is sent. Controls: the `replay` classification with
+  `apps/workers/src/queue-replay.test.ts`'s evidence registry holding every
+  `idempotent` claim to a literal in its worker file, the queue name typed back
+  before ANY retry (n >= 1, not n > 1 — under CASL one duplicated text is the
+  harm), the 20-id cap, a reason of ten characters, and one immutable
+  `platform_audit_events` row per request filed BEFORE the first job is
+  touched. *Un-cut: the day those workers carry a per-job dedupe key.*
+- **2026-08-30 (F-73) — a DLQ retry is invisible to the dealer whose customer
+  received the message twice.** §12 makes platform-actor events visible to the
+  tenant, and F-73's only mutation writes `platform_audit_events` alone: no
+  `activity_events` row, because a retry names a queue and a list of job ids
+  rather than one owning organization, and four of the ten queues carry no
+  organization at all. So the dealer has no surface on which the second SMS
+  appears as a platform act. Controls: the confirm gate, the 20-id cap, and the
+  immutable platform register — which does record the distinct organizations
+  the requested ids named, read from the payloads before the row is written.
+  *Un-cut: the day a DLQ retry can name one owning tenant — the same absence
+  that made it write no `activity_events` row.*
 - **2026-08-26 (F-69) — SECURITY DEFINER owner must bypass FORCE RLS.** Every
   definer (has_permission, intake_resolve, invitation_accept, the 0065
   console surface, the drip/task scans) reads tenant tables as its owner;

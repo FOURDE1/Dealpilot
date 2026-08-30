@@ -212,6 +212,11 @@ export function TenantDetailPage() {
         <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_CLASSES[d.status]}`}>{tOrgs(STATUS_KEYS[d.status])}</span>
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{tOrgs(TIER_KEYS[d.plan_code])}</span>
         {d.deleted_at ? <span className="rounded-full bg-danger-bg px-2 py-0.5 text-xs text-danger-text">{t('deletedTenant')}</span> : null}
+        {/* F-73 §6: usage answers a question about a tenant already open, so
+            it hangs off this page rather than taking a console nav slot. */}
+        <Link to={`/admin/tenants/${d.id}/usage`} className="ms-auto inline-flex min-h-11 items-center text-sm underline underline-offset-4">
+          {t('navUsage')}
+        </Link>
       </header>
       <p
         ref={lastChangeRef}

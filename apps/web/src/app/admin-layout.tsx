@@ -25,6 +25,7 @@ export function AdminLayout() {
   const canManageSupport = me.data?.capabilities.includes('impersonation:manage') ?? false;
   const canReadAnnouncements = me.data?.capabilities.includes('announcements:read') ?? false;
   const canReadSwitches = me.data?.capabilities.includes('settings:read') ?? false;
+  const canReadQueues = me.data?.capabilities.includes('queues:read') ?? false;
   // The deadline carries its day when it is not today: a 12h window that
   // ends tomorrow morning must not read as a time already past (review).
   const reauthAt = me.data
@@ -46,6 +47,7 @@ export function AdminLayout() {
     ...(canManageSupport ? [{ to: '/admin/support-sessions', label: t('navSupport') }] : []),
     ...(canReadAnnouncements ? [{ to: '/admin/announcements', label: t('navAnnouncements') }] : []),
     ...(canReadSwitches ? [{ to: '/admin/platform-settings', label: t('navSwitches') }] : []),
+    ...(canReadQueues ? [{ to: '/admin/queues', label: t('navQueues') }] : []),
     ...(canManageStaff ? [{ to: '/admin/staff', label: t('navStaff') }] : []),
   ];
   const linkClass = ({ isActive }: { isActive: boolean }) =>

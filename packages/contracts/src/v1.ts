@@ -214,7 +214,23 @@ import {
   PlatformSettingList,
   PublishAnnouncementInput,
   SetPlatformSettingInput,
+  AdminUsageQuery,
+  AdminTenantUsage,
+  AdminTenantSnapshot,
+  AdminQueueDepthList,
+  AdminDlqQuery,
+  AdminDlqPage,
+  RetryJobsInput,
+  AdminRetryResult,
 } from '@dealpilot/schemas';
+// The queue vocabulary is `@dealpilot/schemas`' — F-73 put the names on the
+// wire, one as a path segment (`/admin/queues/:name/dlq`) and one as a response
+// field, which makes them API vocabulary before they are worker plumbing. It is
+// imported HERE through `./queues.js`, which re-exports it beside the payload
+// catalogue so worker code keeps taking every queue fact from one place, and
+// that way round because schemas cannot import contracts. Either way the ten
+// names are not repeated here.
+import { QueueName } from './queues.js';
 const c = initContract();
 
 /**
@@ -1239,6 +1255,31 @@ export const apiV1 = c.router({
         pathParams: idParams,
         responses: { 200: AdminTenantMembers, ...errorResponses },
       },
+      /**
+       * F-73 §6. `period` chooses more than the window: `allowances` comes back
+       * null for anything but `mtd`, because a monthly plan number printed
+       * beside a 90-day count is a comparison no caption repairs — so the server
+       * withholds the two numbers rather than trusting the client not to divide
+       * them.
+       */
+      usage: {
+        method: 'GET',
+        path: '/api/v1/admin/tenants/:id/usage',
+        pathParams: idParams,
+        query: AdminUsageQuery,
+        responses: { 200: AdminTenantUsage, ...errorResponses },
+      },
+      /**
+       * F-73 §9: what a support call needs open in a second tab — everything
+       * `get` already answers, plus the per-store operating detail. It takes no
+       * `period`; its one dated block carries its window in its own name.
+       */
+      snapshot: {
+        method: 'GET',
+        path: '/api/v1/admin/tenants/:id/snapshot',
+        pathParams: idParams,
+        responses: { 200: AdminTenantSnapshot, ...errorResponses },
+      },
     }),
     staff: c.router({
       list: {
@@ -1344,6 +1385,63 @@ export const apiV1 = c.router({
         pathParams: z.object({ setting_key: PlatformSettingKey }),
         body: SetPlatformSettingInput,
         responses: { 200: PlatformSetting, ...errorResponses },
+      },
+    }),
+    /**
+     * F-73 §9, the job inspector's READ half.
+     *
+     * Both answer 200 whatever Redis is doing, carrying an explicit
+     * `queue_state` instead: "we could not ask" and "nothing has failed" are
+     * different facts, and the operator staring at a stuck queue is the one
+     * person who must be able to tell them apart. That is why neither declares
+     * a 503 — the state is data, not a transport failure.
+     *
+     * `list` is beyond §11's endpoint table on purpose: a fixed enumeration,
+     * unpaginated, the shape `plans` and `platform-settings` already have. A
+     * DLQ browser that could not list its own queues would make the client
+     * issue one call per queue to draw one page.
+     */
+    queues: c.router({
+      list: {
+        method: 'GET',
+        path: '/api/v1/admin/queues',
+        responses: { 200: AdminQueueDepthList, ...errorResponses },
+      },
+      /**
+       * The name is a `QueueName` so a typed client cannot invent one; the
+       * server answers an unknown name with 404 rather than a 422 that
+       * enumerates the queues, the way `:setting_key` already does.
+       */
+      dlq: {
+        method: 'GET',
+        path: '/api/v1/admin/queues/:name/dlq',
+        pathParams: z.object({ name: QueueName }),
+        query: AdminDlqQuery,
+        responses: { 200: AdminDlqPage, ...errorResponses },
+      },
+      /**
+       * The one mutation in F-73, and the most dangerous call in the console.
+       *
+       * A retry on `deferred-send`, `assistant-turn`, `first-touch` or
+       * `drip-tick` can put a SECOND SMS in front of a real dealer customer:
+       * those workers write `provider_ref` only AFTER the carrier answers, so a
+       * timeout leaves a message delivered with a null ref — which is one of
+       * the likeliest reasons the job is in the dead-letter queue at all — and
+       * nothing on the replay path dedupes it. Hence `RetryJobsInput`'s three
+       * fields rather than a bare id list: at most twenty ids, a reason of ten
+       * characters, and the queue name typed back on those four queues.
+       *
+       * 200 whatever happened, like its two siblings: per-id outcomes are the
+       * answer, and `queue_state` says whether the queue could be asked. POST
+       * rather than PUT — `platform-drift.test.ts:163` matches
+       * `app.(get|post|patch|delete)` and would not see a `put`.
+       */
+      retry: {
+        method: 'POST',
+        path: '/api/v1/admin/queues/:name/dlq/retry',
+        pathParams: z.object({ name: QueueName }),
+        body: RetryJobsInput,
+        responses: { 200: AdminRetryResult, ...errorResponses },
       },
     }),
   }),

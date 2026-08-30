@@ -39,6 +39,12 @@ import { apiV1 as contract } from '@dealpilot/contracts';
  * `LIMIT`; and a core-vs-schemas one, which has to live here because neither
  * package may import the other and §8's both-languages rule is written out in
  * both.
+ *
+ * F-73 adds the missing direction of the grant lockstep. Every definer the
+ * console reaches was pinned here only by what it must NOT be able to call, so
+ * a new one that shipped without its GRANT was invisible to this file and
+ * visible to the first operator who clicked. The three F-73 definers are now
+ * asserted callable by their exact signature.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -51,7 +57,20 @@ const ADMIN_ROUTE_FILES = [
   'f71-impersonation-routes.ts',
   'f72-announcement-routes.ts',
   'f72-killswitch-routes.ts',
+  'f73-usage-routes.ts',
+  'f73-queue-routes.ts',
 ];
+/**
+ * The size of the admin surface, written down.
+ *
+ * The equality below already catches one side moving without the other, but it
+ * cannot catch both moving together, and "both together" is exactly what adding
+ * an endpoint looks like. Spelling the number here makes the console's surface
+ * something a slice has to edit — and therefore something a reviewer sees grow —
+ * for the same reason ADMIN_ROUTE_FILES is a hand-written list asserted against
+ * the directory rather than read from it.
+ */
+const ADMIN_HANDLER_COUNT = 28;
 /**
  * F-72's third route file serves the TENANT banner feed, so it is deliberately
  * absent above. The escape check below conscripts any `f<NN>…routes.ts` that
@@ -106,6 +125,22 @@ async function checkValues(table: string, column: string): Promise<string[]> {
   return [...defs[0]!.matchAll(/'((?:[^']|'')*)'/g)].map((m) => m[1]!).sort();
 }
 
+/**
+ * Whether `dealpilot_app` may EXECUTE a function, named by its exact signature.
+ *
+ * The signature is spelled out at every call site because
+ * `has_function_privilege` resolves overloads: a definer whose argument list
+ * changed is a different function, and asking for the old one raises rather
+ * than answering false — which is the report we want.
+ */
+async function callable(signature: string): Promise<boolean> {
+  const r = await admin.query<{ ok: boolean }>(
+    `SELECT has_function_privilege('dealpilot_app', $1, 'EXECUTE') AS ok`,
+    [signature],
+  );
+  return r.rows[0]!.ok;
+}
+
 beforeAll(async () => {
   await ensureTestDatabase();
   admin = createPool({ connectionString: ADMIN_URL, max: 2 });
@@ -130,14 +165,21 @@ describe('platform drift (F-69)', () => {
     // /me reads what the gate already established; every other handler checks.
     expect(checks.length).toBeGreaterThanOrEqual(handlers.length - 1);
     for (const cap of PLATFORM_CAPABILITY_NAMES) {
-      expect(checks, `capability nothing enforces: ${cap}`).toContain(cap);
+      expect(
+        checks,
+        `capability nothing enforces: '${cap}' is declared in PLATFORM_CAPABILITIES but no literal requirePlatform(request, '${cap}') appears in ${ADMIN_ROUTE_FILES.join(', ')}. Either the route that spends it is missing, or the capability is dead vocabulary and belongs out of the schema.`,
+      ).toContain(cap);
     }
     for (const cap of new Set(checks)) {
       expect(PLATFORM_CAPABILITY_NAMES as readonly string[], `asked for but undeclared: ${cap}`).toContain(cap);
     }
-    // The contract and the file agree on the surface.
+    // The contract and the file agree on the surface, and the surface is the
+    // size this guard says it is.
     const declared = [...adminPaths(contract.admin)].length;
     expect(handlers.length).toBe(declared);
+    expect(declared, 'the admin surface changed size — update ADMIN_HANDLER_COUNT deliberately').toBe(
+      ADMIN_HANDLER_COUNT,
+    );
   });
 
   it('every route file that serves an admin path is on this guard’s list', () => {
@@ -275,15 +317,23 @@ describe('platform drift (F-69)', () => {
     // The actor check is internal: the app role cannot even call it. F-72's two
     // audience helpers are the same kind of thing — REVOKEd from PUBLIC with no
     // GRANT — and 'internal' is a claim, so it is checked.
-    const callable = async (signature: string) =>
-      (
-        await admin.query<{ ok: boolean }>(
-          `SELECT has_function_privilege('dealpilot_app', $1, 'EXECUTE') AS ok`,
-          [signature],
-        )
-      ).rows[0]!.ok;
     expect(await callable('platform_assert_actor(uuid, text[])')).toBe(false);
     expect(await callable('announcement_matches(jsonb, text, uuid, text, text)')).toBe(false);
     expect(await callable('announcement_visible(uuid)')).toBe(false);
+  });
+
+  it('the app role can execute every definer the F-73 routes reach', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The block above asserts only what is NOT callable, so a definer that
+    // shipped with its REVOKE and without its GRANT passed every guard in this
+    // file and failed at the first support click instead. These three are the
+    // other direction, by name and by argument list.
+    for (const signature of [
+      'admin_tenant_usage(uuid, uuid, text)',
+      'admin_tenant_snapshot(uuid, uuid)',
+      'admin_record_queue_retry(uuid, text, text[], uuid[], text)',
+    ]) {
+      expect(await callable(signature), `dealpilot_app cannot EXECUTE ${signature}`).toBe(true);
+    }
   });
 });

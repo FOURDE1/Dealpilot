@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { enCA, frCA } from '@dealpilot/i18n';
-import { PLATFORM_CAPABILITY_NAMES, PLATFORM_SETTING_KEYS } from '@dealpilot/schemas';
-import { CAPABILITY_KEYS, SETTING_KEYS } from './labels.js';
+import { JOB_QUEUE_NAMES } from '@dealpilot/contracts';
+import { PLATFORM_CAPABILITY_NAMES, PLATFORM_SETTING_KEYS, QueueState, RetryOutcome, USAGE_GAUGES, USAGE_WINDOW_METRICS } from '@dealpilot/schemas';
+import { CAPABILITY_KEYS, QUEUE_KEYS, QUEUE_STATE_KEYS, RETRY_OUTCOME_KEYS, SETTING_KEYS, USAGE_METRIC_KEYS } from './labels.js';
 
 /**
  * The console prints a staffer's capabilities and the name of every kill
@@ -16,6 +17,16 @@ import { CAPABILITY_KEYS, SETTING_KEYS } from './labels.js';
 
 const admin = { en: enCA.admin as Record<string, string>, fr: frCA.admin as Record<string, string> };
 const switches = { en: enCA.switches as Record<string, string>, fr: frCA.switches as Record<string, string> };
+// F-73's two namespaces. Read defensively: until the bundles carry them, this
+// file's job is to say so by name rather than to throw on a property access.
+const usage = {
+  en: ((enCA as Record<string, unknown>)['usage'] ?? {}) as Record<string, string>,
+  fr: ((frCA as Record<string, unknown>)['usage'] ?? {}) as Record<string, string>,
+};
+const jobs = {
+  en: ((enCA as Record<string, unknown>)['jobs'] ?? {}) as Record<string, string>,
+  fr: ((frCA as Record<string, unknown>)['jobs'] ?? {}) as Record<string, string>,
+};
 
 function missing(bundle: { en: Record<string, string>; fr: Record<string, string> }, keys: readonly string[]): string[] {
   const gaps: string[] = [];
@@ -39,5 +50,48 @@ describe('the console can name what it grants and what it stops', () => {
     expect(Object.keys(SETTING_KEYS).sort()).toEqual([...PLATFORM_SETTING_KEYS].sort());
     const keys = Object.values(SETTING_KEYS).flatMap((s) => [s.label, s.scope]);
     expect(missing(switches, keys)).toEqual([]);
+  });
+});
+
+/**
+ * F-73 — the usage card and the job inspector, same standard.
+ *
+ * The compiler already refuses a map that misses a metric, a queue or a queue
+ * state; what it cannot see is the other direction (a map entry for a name the
+ * vocabulary dropped) or an empty bundle string. Both are how a French
+ * operator ends up reading `metric_sms_segments` on a page about what a dealer
+ * owes — so both are asserted here, by name, in both locales.
+ */
+describe('the console can name every usage number and every queue', () => {
+  it('labels and captions exactly the metrics that ship — no more, no fewer', () => {
+    expect(Object.keys(USAGE_METRIC_KEYS).sort()).toEqual([...USAGE_WINDOW_METRICS, ...USAGE_GAUGES].sort());
+  });
+
+  it('gives every metric a label AND a caption in both languages', () => {
+    // The caption is not decoration: `members_who_acted` is a floor and
+    // `document_bytes` counts documents alone. A metric whose caption is
+    // missing renders the raw key beside a number an operator will quote.
+    const keys = Object.values(USAGE_METRIC_KEYS).flatMap((m) => [m.label, m.caption]);
+    expect(missing(usage, keys)).toEqual([]);
+  });
+
+  it('names all ten queues, and only those ten', () => {
+    expect(Object.keys(QUEUE_KEYS).sort()).toEqual([...JOB_QUEUE_NAMES].sort());
+    expect(missing(jobs, Object.values(QUEUE_KEYS))).toEqual([]);
+  });
+
+  it('names each queue state, so "could not ask" never reads as "nothing failed"', () => {
+    expect(Object.keys(QUEUE_STATE_KEYS).sort()).toEqual([...QueueState.options].sort());
+    expect(missing(jobs, Object.values(QUEUE_STATE_KEYS))).toEqual([]);
+  });
+
+  it('names all five retry outcomes, and does not name a sixth', () => {
+    expect(Object.keys(RETRY_OUTCOME_KEYS).sort()).toEqual([...RetryOutcome.options].sort());
+    // The label map is where a `locked` outcome would first become visible to
+    // an operator, so it is also where the absence is asserted: BullMQ's
+    // reprocess script has no lock check and can never return -2.
+    expect(Object.keys(RETRY_OUTCOME_KEYS)).toHaveLength(5);
+    expect(Object.keys(RETRY_OUTCOME_KEYS)).not.toContain('locked');
+    expect(missing(jobs, Object.values(RETRY_OUTCOME_KEYS))).toEqual([]);
   });
 });

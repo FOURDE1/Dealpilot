@@ -59,6 +59,15 @@ const TenantDetailPage = lazy(() =>
 const TenantNewPage = lazy(() =>
   import('../features/admin/tenant-new-page.js').then((m) => ({ default: m.TenantNewPage })),
 );
+const TenantUsagePage = lazy(() =>
+  import('../features/admin/tenant-usage-page.js').then((m) => ({ default: m.TenantUsagePage })),
+);
+const QueuesPage = lazy(() =>
+  import('../features/admin/queues-page.js').then((m) => ({ default: m.QueuesPage })),
+);
+const QueueDlqPage = lazy(() =>
+  import('../features/admin/queues-page.js').then((m) => ({ default: m.QueueDlqPage })),
+);
 const PlatformStaffPage = lazy(() =>
   import('../features/admin/platform-staff-page.js').then((m) => ({ default: m.PlatformStaffPage })),
 );
@@ -199,6 +208,9 @@ export const router = createBrowserRouter([
       // Before the id route: `new` is a page, not a tenant (F-70).
       { path: 'tenants/new', element: lazyPage(<TenantNewPage />) },
       { path: 'tenants/:tenantId', element: lazyPage(<TenantDetailPage />) },
+      // F-73: what one tenant used, per window (§6). Reached from the tenant
+      // page, not the nav — it answers a question about a tenant already open.
+      { path: 'tenants/:tenantId/usage', element: lazyPage(<TenantUsagePage />) },
       { path: 'staff', element: lazyPage(<PlatformStaffPage />) },
       // F-71: the support-session register and one session's trail.
       { path: 'support-sessions', element: lazyPage(<ImpersonationPage />) },
@@ -209,6 +221,10 @@ export const router = createBrowserRouter([
       { path: 'announcements/new', element: lazyPage(<AnnouncementComposePage />) },
       { path: 'announcements/:announcementId', element: lazyPage(<AnnouncementDetailPage />) },
       { path: 'platform-settings', element: lazyPage(<PlatformSettingsPage />) },
+      // F-73: the ten queues, and one queue's failed set. Platform-wide, so
+      // this one IS a nav item — a stuck queue belongs to no tenant.
+      { path: 'queues', element: lazyPage(<QueuesPage />) },
+      { path: 'queues/:queueName', element: lazyPage(<QueueDlqPage />) },
       { path: '*', element: <Navigate to="/admin/tenants" replace /> },
     ],
   },

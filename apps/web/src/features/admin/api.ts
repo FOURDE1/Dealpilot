@@ -1,13 +1,18 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueueNameT } from '@dealpilot/contracts';
 import {
   AdminAnnouncement,
   AdminAnnouncementList,
+  AdminDlqPage,
   AdminMeResponse,
+  AdminQueueDepthList,
+  AdminRetryResult,
   AdminTenantDetail,
   AdminTenantEventsResponse,
   AdminTenantMembers,
   AdminTenantPage,
   AdminTenantProvisioned,
+  AdminTenantUsage,
   ImpersonationList,
   ImpersonationSession,
   ImpersonationSessionDetail,
@@ -29,7 +34,9 @@ import {
   type ReissueOwnerInvitationInputT,
   type SetPlatformSettingInputT,
   type StartImpersonationInputT,
+  type RetryJobsInputT,
   type TenantStatusChangeInputT,
+  type UsagePeriodT,
 } from '@dealpilot/schemas';
 import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
 import { ME_KEY } from '../../shared/api/use-me.js';
@@ -56,6 +63,18 @@ export const adminKeys = {
   announcements: (severity: AnnouncementSeverityT | undefined) => ['admin', 'announcements', severity ?? 'all'] as const,
   announcement: (id: string) => ['admin', 'announcement', id] as const,
   settings: ['admin', 'settings'] as const,
+  // F-73: the period is part of the identity, not a filter over one cache
+  // entry — 'mtd' and '90d' are different windows of different numbers.
+  usage: (id: string, period: UsagePeriodT) => ['admin', 'tenant', id, 'usage', period] as const,
+  // No `snapshot` key here on purpose: the snapshot console screen is a
+  // recorded cut (D-074 / O-51), so nothing reads or invalidates one. A cache
+  // key naming an entry nothing writes is the dead-vocabulary failure one
+  // layer up from the event bus — it comes back with the hook that needs it.
+  queues: ['admin', 'queues'] as const,
+  // The tenant filter is part of the identity for the same reason the period
+  // is: the server pages by POSITION inside the filtered result, so a cursor
+  // taken under one filter is refused under another.
+  dlq: (name: QueueNameT, organizationId: string | undefined) => ['admin', 'queues', name, 'dlq', organizationId ?? 'all'] as const,
 };
 
 function compact<T extends Record<string, string | undefined>>(q: T): Record<string, string> {
@@ -123,6 +142,26 @@ export function useAdminTenantEvents(id: string) {
       const res = await apiRequest(routes.admin.tenants.events, { params: { id }, query: { limit: '100' }, signal });
       if (res.status !== 200) fail(res.status, res.body);
       return AdminTenantEventsResponse.parse(res.body);
+    },
+  });
+}
+
+/**
+ * F-73 §6 — one tenant's usage for one window (admin-console.md §6).
+ *
+ * The period rides the query key rather than a `select`, so switching windows
+ * refetches instead of re-slicing: `allowances` is null for anything but
+ * `mtd`, and a cached `mtd` body re-read as `90d` would put a monthly plan
+ * number beside a ninety-day count — the exact comparison the server refuses
+ * to enable.
+ */
+export function useAdminTenantUsage(id: string, period: UsagePeriodT) {
+  return useQuery({
+    queryKey: adminKeys.usage(id, period),
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.admin.tenants.usage, { params: { id }, query: { period }, signal });
+      if (res.status !== 200) fail(res.status, res.body);
+      return AdminTenantUsage.parse(res.body);
     },
   });
 }
@@ -389,6 +428,84 @@ export function usePlatformSettings(enabled = true) {
       const res = await apiRequest(routes.admin.settings.list, { signal });
       if (res.status !== 200) fail(res.status, res.body);
       return PlatformSettingList.parse(res.body);
+    },
+  });
+}
+
+/**
+ * F-73 §9 — the ten queues and what each one is holding (admin-console.md §9).
+ *
+ * Polled, and deliberately: a stuck queue is a live incident, the console is
+ * the only surface that shows one, and there is no invalidation channel
+ * between a worker and this browser. `queue_state` is why the counts are
+ * nullable rather than zero — "we could not reach Redis" and "nothing has
+ * failed" are different answers and only one of them means walk away.
+ */
+export function useAdminQueues(enabled = true) {
+  return useQuery({
+    queryKey: adminKeys.queues,
+    enabled,
+    refetchInterval: 30_000,
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.admin.queues.list, { signal });
+      if (res.status !== 200) fail(res.status, res.body);
+      return AdminQueueDepthList.parse(res.body);
+    },
+  });
+}
+
+/**
+ * One queue's failed set, a page at a time.
+ *
+ * The page is addressed by POSITION in a live capped zset, not by a keyset:
+ * BullMQ offers no stable sort key over the failed set, so entries genuinely
+ * move between pages as jobs are retried or evicted. The response carries
+ * `paging_basis` and the screen carries the caption — the client does not get
+ * to present a shifting list as a stable one.
+ */
+export function useAdminDlq(name: QueueNameT, organizationId: string | undefined, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: adminKeys.dlq(name, organizationId),
+    enabled,
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last: { next_cursor: string | null }) => last.next_cursor ?? undefined,
+    queryFn: async ({ pageParam, signal }) => {
+      const res = await apiRequest(routes.admin.queues.dlq, {
+        params: { name },
+        query: compact({ organization_id: organizationId, cursor: pageParam, limit: '25' }),
+        signal,
+      });
+      if (res.status !== 200) fail(res.status, res.body);
+      return AdminDlqPage.parse(res.body);
+    },
+  });
+}
+
+/**
+ * F-73 §9 — the one mutation, and the most dangerous call this client makes.
+ *
+ * On `deferred-send`, `assistant-turn`, `first-touch` or `drip-tick` this can
+ * put a SECOND text message in front of a real dealer customer, which is why
+ * the dialog above it makes the operator type the queue name back. There is no
+ * optimistic update and no retry-on-error: a request whose outcome is unknown
+ * must be re-decided by a person, never re-sent by a query client.
+ *
+ * Both the failed page and the depths are invalidated on success, because a
+ * requeued job leaves the failed set — a screen still showing it is an
+ * invitation to send the customer a third message.
+ */
+export function useRetryDlqJobs(name: QueueNameT, organizationId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    retry: false,
+    mutationFn: async (input: RetryJobsInputT) => {
+      const res = await apiRequest(routes.admin.queues.retry, { params: { name }, body: input });
+      if (res.status !== 200) fail(res.status, res.body);
+      return AdminRetryResult.parse(res.body);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: adminKeys.dlq(name, organizationId) });
+      void queryClient.invalidateQueries({ queryKey: adminKeys.queues });
     },
   });
 }

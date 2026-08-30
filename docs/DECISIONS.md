@@ -36,6 +36,432 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-074 — 2026-08-30 — Every usage number names a row that exists, and a retry says out loud that it can text a customer twice
+
+F-73 (admin-console.md §3, §5.1, §6, §9, §11, §12;
+analytics-and-adoption.md §5.3, §6, §7; ADR-009/011/012/016; designed by
+the same three-planner + judge workflow as F-69…F-72 and then hardened by
+an adversarial critique into a binding build document — 16 rulings, 30
+amendments, a fixed build order and an 87-case manifest, with every
+contested repo fact re-verified live before it was written).
+(1) **No `usage_counters`, and the refusal is written into the
+migration:** `packages/db/migrations/20260830000069_usage-snapshot-jobs.sql`
+creates **no table and no column** — six indexes and three definers,
+nothing else. §6 sources every figure from a rollup fed by an hourly
+Valkey flush; a counter is a SECOND source of truth, the spec itself
+budgets a nightly reconciler because of it, that reconciler is not in
+this slice, and the write path is keyed on `REDIS_URL`, which is
+`z.string().optional()` (`apps/api/src/env.ts:56`) and unset on every
+developer machine and in CI's `checks` job — so a counter reading zero
+because Redis was absent is indistinguishable from a tenant that did
+nothing. Every number that has a producer is aggregated at READ time from
+`leads`, `deals`, `messages`, `memberships`, `activity_events`,
+`deal_documents`, `stores` and `plans` inside one STABLE SECURITY
+DEFINER over a window capped at 90 days. The un-cut condition is in the
+0069 header verbatim (O-38): a rollup table lands WITH its `usage-flush`
+job AND its `usage-reconcile` job — never one without the other two.
+(2) **Which of §6's names survived, one by one.** SHIP as named:
+`deals_created`, `deals_delivered`, `sms_segments` (with its companion
+`sms_messages_unsegmented`), `ai_first_touch_p95_seconds` (with
+`ai_first_touch_sample_count`). RENAME-AND-SHIP (O-41), because the obvious name
+claims more than the row can support: `seats_active` →
+`seats_provisioned` (`count(DISTINCT mb.user_id)`, since `memberships` is
+UNIQUE on `(user_id, organization_id, store_id)` and the members route
+writes one row per rooftop, so a GM at three rooftops is three rows and
+ONE seat), `leads_ingested` → `leads_created` (`apps/intake` is a
+five-line stub and intake runs synchronously inside `apps/api`; there is
+no discriminator between webhook-ingested and hand-keyed),
+`ai_conversations` → `ai_conversations_engaged`, `storage_bytes` →
+`document_bytes` (`deal_documents.size_bytes` is the ONLY byte column in
+this schema — `tenant_branding` stores keys with no size). SUBSTITUTE for
+`dau`/`wau`/`mau`: one number, `members_who_acted`. Eleven figures in all
+answer a §6 name; `member_count` and `store_count` ride beside them as
+context and are `admin_get_tenant`'s own SQL repeated rather than renamed
+(0066:114-115), so the usage card and the tenant page cannot print two
+different numbers for one fact — thirteen on the card, plus three plan
+allowances. CUT by name, each with an un-cut condition in the list below
+(O-39): `dau`, `wau`, `mau`, `ai_voice_minutes`, `api_calls_mtd`,
+`rate_limit_429s`, `intake_ack_p99_ms`, the health card's Sentry-sourced
+error count, and per-tenant DLQ depth.
+(3) **`members_who_acted` is a FLOOR and is named for what it counts**
+(O-40): `activity_events` is a mutation log, so a manager who reads the
+kanban all day writes no row. It counts people who WROTE an
+`activity_events` row in the window and who hold an active membership
+today — the membership join is deliberate, because a salesperson revoked
+on day 20 of a 30-day window would otherwise be counted here and not in
+`seats_provisioned`, and two adjacent figures would be drawn from
+different populations. It is never labelled "active users": both captions
+say that reading writes no row and that the number is a floor. The dead
+alternative is genuinely dead — the Better Auth `"session"` table is
+hard-deleted on sign-out and expiry (`20260724000002:14-19`) and
+wholesale by four platform definers (`0065:523`, `0065:658`, `0067:528`,
+`0067:568`), so any retroactive DAU is arithmetic on deleted rows.
+(4) **`ai_first_touch_p95_seconds` carries three restrictions, and the
+caption states all three.** `percentile_disc`, not `percentile_cont` — a
+latency some lead really experienced, never an interpolated one nobody
+did. The sample is leads whose `chatbot_engaged_at` is in the window,
+whose `created_at` is ALSO in the window (a lead created in March and
+re-engaged in August would otherwise inflate August), and for which an
+outbound `sender_type = 'bot'` message exists on that lead's own
+conversation at or before the stamp. That EXISTS is what makes the name
+true: `apps/workers/src/first-touch.ts` stamps `chatbot_engaged_at` on
+two paths that send THIS lead nothing — the 24-hour dedupe path
+(`:165-171`) sends no message at all, and the duplicate-as-signal path
+(`:238-243`) stamps this lead while messaging the keeper's thread. An
+empty sample is `null`, never 0 (`GREATEST` ignores nulls, so clamping
+first would report instant service for a tenant the assistant never
+greeted), and `ai_first_touch_sample_count` ships beside it because a p95
+over three leads is noise.
+(5) **`plans.included_*` gets three readers of five, and only for the
+month to date** (O-42): `included_seats`, `included_sms_segments`,
+`included_ai_conversations`. `allowances` comes back **null** for `30d`
+and `90d` — the API refuses to hand the client the two numbers with which
+to compare a monthly allowance to a ninety-day count, rather than
+trusting a caption to repair it. `included_ai_minutes` and
+`included_storage_gb` are NOT on the wire and sit in
+`DEAD_PLAN_ALLOWANCES` with un-cut conditions; `plans.overage` and
+`plans.features` are not rendered at all, because Core is seeded
+`'hard_stop'` and nothing stops. The copy is « Compris dans le forfait »,
+never « limite » and never « restant », and there are **no 80%/100%
+threshold markers** — a threshold marker implies an action at the
+threshold that does not exist. `included_seats` NULL means unlimited and
+renders `allowanceUnlimited`, never a zero bar and never a bar at 100%;
+an allowance of 0 is legal and gets no ratio at all. **`plan_code` sanity
+line** (O-43): the allowance is read PER TENANT from the plan row and is
+NOT multiplied by `store_count`, even though §5.1 prices per rooftop —
+§5.1 annotates only `included_ai_minutes` as per-rooftop and that one is
+cut, so multiplying would invent a rule. `store_count` rides the response
+so the number is never read without its context, and the ambiguity is
+raised as an owner decision rather than resolved by arithmetic.
+(6) **Two metering decisions that stop numbers moving backwards** (O-44):
+`leads_created` and `deals_created` count rows INCLUDING those
+soft-deleted later — deleting a lead does not un-ingest it, and a usage
+figure that moves retroactively is not a usage figure. Every existing
+keyset index on those tables is PARTIAL on `deleted_at IS NULL`, so that
+choice is exactly why `idx_leads_org_created` and `idx_deals_org_created`
+exist: two extra indexes on two hot tables, bought to stop a number
+changing after the fact, and the header says so. `document_bytes` goes
+the OTHER way and filters `deleted_at IS NULL`, because a deleted
+document frees storage where a deleted lead was still ingested. Six
+indexes in all, each commented with the single metric it serves; the
+`deal_documents` one is an `INCLUDE (size_bytes)` index-only scan, since
+`idx_deal_documents_org_status` merely PREFIXES the sum rather than
+serving it.
+(7) **The tenant snapshot restates nothing** (§9): the route calls
+`readAdminTenant()` and spreads it, then merges one
+`admin_tenant_snapshot` returning only what `admin_get_tenant` does not.
+The rooftop array is `store_health` and never `stores`, because
+`AdminTenantDetail.stores` already exists with different members
+(0066:118-122) and a second array under the same name is how two screens
+start disagreeing in public. Per rooftop: `timezone`, the dealer's own
+`sms_number` (shown, not reduced to a boolean — it is what a support
+person checks against the Twilio console), `business_hours_set`, and a
+`traffic_30d` block computed in one CTE joining `messages` through
+`conversations`, since `messages` carries no `store_id`; the window is in
+the block's own name so `last_message_at` cannot be read as "ever".
+Intake keys carry `{id, store_id, label, provider, active, revoked_at,
+last_lead_accepted_at}` and **never `token`, never `secret`** — excluded
+by name in the definer, mutation-tested, and the serialized body is
+asserted to contain neither value. `last_lead_accepted_at` is the honest
+name for `intake_keys.last_used_at`: `f03-intake-routes.ts:542` stamps it
+INSIDE the accepted-lead transaction, so a bad signature, a
+suspended-tenant 410 or a dedupe rejection all leave it untouched, and
+"last seen" would be false. `sms_transport`, `email_transport` and
+`ai_transport` are grouped into one `platform: {…}` object under a
+heading that says platform-wide, so nobody mistakes deployment
+configuration for a per-tenant switch. **"Recent deploy version" is CUT**
+(O-49) and `schema_migrations` is deliberately NOT substituted: it is a
+schema version, it is global, it is created ad hoc by
+`packages/db/src/migrate.ts:22-29` with no GRANT, and there is no deploy
+pipeline for it to describe — F-72 cut Sentry rather than substitute a
+lookalike (O-33) and the same discipline applies here.
+(8) **A DLQ retry can send a real customer a SECOND SMS, and the design
+says so rather than implying otherwise** (O-45).
+`JOB_QUEUES[name].replay` is `'idempotent' | 'at_least_once'`, and **four
+of the ten are `at_least_once`: `deferred-send`, `assistant-turn`,
+`first-touch` and `drip-tick`.** The reason is mechanical, not cautious:
+those workers reach `sendMessage(`/`deliverMessage(`, and `provider_ref`
+is written only AFTER the carrier call returns — so a carrier timeout
+leaves a message DELIVERED with a null ref, which is one of the likeliest
+reasons the job is in the failed set at all, and re-running it
+re-delivers the staged row. `runDeferredSend` re-runs the whole
+compliance gate and calls `sendMessage` again with no `provider_ref`,
+`send_decision_id` or job-level dedupe anywhere on the path. What is
+proven is that the gate is not bypassed; "no duplicate is sent" is NOT
+true and is not claimed. The controls: `queues:retry`, the queue name
+**typed back at n ≥ 1 and not n > 1** (under CASL one duplicated text is
+the harm, not two), `job_ids` capped at `RETRY_MAX_JOBS = 20`, a reason
+of ten characters after trimming, and the register row filed first.
+`Queue.retryJobs()` — which takes no id list and no filter, and would
+requeue every tenant's failures at once — is never called.
+(9) **`RetryOutcome` has five values and deliberately no `locked`:**
+`retried | gone | not_failed | not_attempted | error`. Read from the
+pinned bullmq 5.81.3: `job.retry('failed')` runs `reprocessJob-8.lua`,
+whose own header documents its complete return set as 1 / -1 / -3, whose
+body contains no lock check of any kind, and which never returns -2;
+`finishedErrors` then assigns that number onto `err.code`
+(`classes/scripts.js:1301`), so only -1 (`gone`) and -3 (`not_failed`)
+can ever arrive and everything else is `error`. A job a worker is holding
+sits in `active`, the ZREM on the failed set finds nothing, and the
+script returns -3 — `not_failed`, inside a 200. The JSDoc at
+`classes/scripts.js:1017-1021` that names -1 "locked" contradicts its own
+Lua and is stale. Shipping `locked` would have minted a state with no
+producer — this repo's dominant bug class, in the very enum that
+describes a safety control. Mapping is by numeric `.code`, never by
+message text. `not_attempted` is a NORMAL outcome, not an error: twenty
+ids × two round-trips × the 1500 ms per-read belt is up to 60s of work
+under `RETRY_TOTAL_BUDGET_MS = 10_000`, the budget is checked BEFORE each
+`getJob`/`retry` pair so the loop never abandons a call in flight, and it
+is answerable precisely because the register row was filed with the full
+requested list.
+(10) **The register is written BEFORE Redis is touched, and the event is
+named for what can honestly be recorded at that moment** (O-48). Order:
+capability → queue name (404) → body → confirm gate →
+`if (!inspector.configured)` short-circuit → `organizationsOf` →
+`admin_record_queue_retry(...)` → the loop → the
+`platform_queue_retry_result` WARN line → 200. Redis and Postgres cannot
+commit together, so one of two windows must exist — a retry no row
+records, or a row recording a retry that did not happen — and §9's
+"actions audited" forbids the first, so the fail-closed direction is
+over-recording, which is what D-073 already chose for the kill switches.
+The event is therefore **`queue.retry_requested`**, not `jobs_retried`:
+at call time no outcome is known. The definer takes `(p_actor, p_queue,
+p_requested, p_organization_ids, p_reason)` — there is no `p_retried` and
+no outcome coherence check, because neither can exist yet.
+`p_organization_ids` is the distinct set the inspector read out of the
+payloads BEFORE the row was filed, and it is what lets the register
+answer "whose customer got the second SMS"; it is empty on the four
+queues whose jobs name no tenant and empty again when Redis is
+unreachable, never a guess and never taken from the client. **No row at
+all** is written when the inspector is unconfigured — nothing was
+attempted, and an event there would be an audit trail of a button press.
+Both directions are mutation-tested. `platform_audit_events.event` is
+restated whole in the 0068 shape and now carries eight values, in
+lockstep with `PLATFORM_AUDIT_EVENTS` in the same commit; the three READ
+routes write no audit event, because §12 audits mutations and every admin
+request already writes the `platform_access` log line.
+(11) **A DLQ row shows an allow-list of scalars, never a payload**
+(O-46). `JOB_QUEUES[name].dlq_fields` is an ALLOW-list, checked against
+each queue's own Zod shape by
+`packages/contracts/src/queue-catalogue.test.ts`: every listed key must
+exist in the schema and unwrap to a uuid, a number or an enum — never a
+bare `ZodString` — `'body'` is refused by name, and so is any scoping
+field called `tenant_id`. `packages/contracts/src/queues.ts`' own header
+claims a payload never carries a message body and `DeferredSendJob.body`
+is exactly that: up to 1600 characters of a real dealer customer's SMS,
+carried because it cannot be re-derived. A generic viewer would render
+customer text into the platform console, and a DENYlist would fail open
+on the next queue somebody adds. At runtime the projection also drops
+anything that is not a string or a number — no worker calls
+`Schema.parse(job.data)`, so an older deploy's payload can hold anything
+anywhere, `String(v)` on an object would render `[object Object]`, and
+`JSON.stringify` would leak the object the allow-list exists to keep out.
+`failed_reason` and `first_stack_line` are the one surface an allow-list
+structurally cannot cover — free text written by whatever threw,
+routinely quoting a real person ("The 'To' number +1514… is not valid") —
+so both go through the exported, directly tested `redactFailedReason`,
+which removes `+1` E.164 numbers AND email addresses, redacting BEFORE
+truncating at 500 and 300 characters respectively; allow-listed values
+are capped at 120.
+(12) **A queue that cannot be tenant-scoped REFUSES the filter rather
+than answering an empty page** (O-47). `?organization_id=` on
+`drip-tick`, `qa-review`, `task-sweep` or `announcement-fanout` is a 422
+`validation_failed` with `details[0].code = 'queue_not_org_scoped'`.
+**FOUR of the ten queues carry no `organization_id` at all** — the first
+three have no payload schema whatsoever and `announcement-fanout`
+deliberately has none, because an announcement belongs to no tenant
+(`queues.ts:210-213`); the other SIX carry one. An empty page on those
+four reads as "this tenant has no failures", which is a lie by
+construction. `org_scoped` is DERIVED from the payload shape by
+`queueIsOrgScoped()` and never hand-typed, so a queue that gains or loses
+`organization_id` moves the catalogue with it. The field is
+`organization_id` everywhere and never `tenant_id`, whatever §9 calls it
+— this schema has never had that column.
+(13) **The queue NAMES moved to `packages/schemas`,** because F-73 puts
+them on the wire: one is a URL segment (`/admin/queues/:name/dlq`) and
+one is a response field, so they are API vocabulary before they are
+worker plumbing. `packages/contracts` imports `QUEUE_NAMES` and keys
+`JOB_QUEUES`, `QUEUE_PAYLOAD` and `QUEUE_WORKER_FILE` off it, so a name
+present in only one of the two files is a compile error rather than a
+queue nobody can inspect. It could not go the other way: contracts
+already depends on schemas, and declaring the list in contracts would
+have left two lists with nothing between them. The catalogue is
+`JOB_QUEUES` and its name array `JOB_QUEUE_NAMES` — NOT `QUEUE_`-prefixed,
+because `apps/workers/src/queue-naming.test.ts:55` filters
+`k.startsWith('QUEUE_') && typeof v === 'string'`, so a prefixed object is
+silently skipped while a prefixed string is counted as a queue name.
+(14) **Reads answer 200 whatever Redis is doing.** Every queue response
+carries `queue_state: 'ok' | 'not_configured' | 'unreachable'` and
+`counts: null` under anything but `ok` — never zeros, never an empty list
+without a state, and **never a 503**: "we could not ask" and "nothing has
+failed" are different facts, and the operator staring at a stuck queue at
+3am is the person who must tell them apart. `503: ErrorEnvelope` is NOT
+added to the shared `errorResponses`, which would widen every route in
+the API for one route with no guard covering it. The inspector builds its
+OWN connection — `{ maxRetriesPerRequest: 2, enableOfflineQueue: false,
+connectTimeout: 1500 }`, deliberately not the producers'
+`maxRetriesPerRequest: null` (BullMQ does not force it: `Queue` passes
+`hasBlockingConnection = false` at `queue-base.js:20` and
+`redis-connection.js:49-51` overrides only when blocking) — plus
+`skipMetasUpdate: true`, which is what makes it an INSPECTOR rather than
+a writer, since the `Queue` constructor otherwise fires
+`client.hset(this.keys.meta, …)` on connect. `skipWaitingForReady` is
+deliberately ABSENT: `initializing` is assigned exactly once
+(`redis-connection.js:83`), so skipping the ready wait issues an `INFO`
+on a socket still in `connecting`, `enableOfflineQueue: false` refuses
+it, and the cached handle then reports `unreachable` FOREVER against a
+healthy Redis — reproduced live, both ways. The bounded race is therefore
+the SOLE hang control and its doc comment says so, with the `.catch` on
+the READ and never on the race (CI 33291543933: 1603/1603 green, exit 1,
+on one abandoned ioredis command). An `'error'` listener is attached to
+every handle before any command is issued, handles are cached in a `Map`,
+and `close()` awaits each in its own try/catch and falls back to
+`disconnect()` on any rejection.
+(15) **The DLQ pages by POSITION and says so, with its own cursor codec.**
+The failed set is a live capped zset with no stable sort key a client can
+carry, so the response declares `paging_basis: 'position'` and reports
+`scanned`, and the caption states that entries can shift or repeat
+between pages. The shared `encodeCursor`/`decodeCursor` could not be
+reused — `f01-routes.ts:125` parses `{ c: PG_TIMESTAMPTZ, id: Uuid }`
+BEFORE the caller sees anything, and a BullMQ job id is not a uuid
+(`lead:{uuid}:first-touch`, or plain `"42"`) — so the DLQ carries
+`DlqCursor = { n: QueueName, o: 0…DLQ_POSITION_MAX, f: uuid|null }` in
+the same base64url-JSON envelope, under the same law that a tampered
+cursor is a 400 and never a 500. `n` and `f` are carried so a cursor
+cannot be replayed against another queue or another tenant filter, and
+`o` is bounded in the codec so a forged position is refused before any
+Redis command is issued. `DLQ_SCAN_MAX = 500` bounds the tenant filter,
+which necessarily runs in TypeScript because a queue is not indexed by
+organization.
+(16) **Capabilities and error contract:** exactly two new capabilities,
+`queues:read` and `queues:retry`, both `[platform_super_admin,
+platform_support]` — §3's matrix withholds DLQ retry from billing, and §3
+distinguishes looking at a stuck queue from acting on one, so it is a
+pair and not one `queues:manage`. Usage and snapshot reuse the existing
+`tenants:read` (§11 gives them to any platform role and `tenants:read` is
+already exactly that set); a `usage:read` beside it would be a capability
+with no refusal of its own to make, which `platform-drift.test.ts`'s
+“capability nothing enforces” assertion exists to catch. **No new
+SQLSTATE is minted and `apps/api/src/platform.ts` is not edited:**
+tenant-not-found reuses
+`PA002` → 404, a role refusal `PA009` → 403, a missing reason the generic
+`23514` → 422 on path `reason`, and all three caller-bug belts (an
+unknown period, a name that is not queue-shaped, an empty id list) reuse
+**`PA014`**, already this schema's caller-bug code and deliberately
+unmapped ⇒ 500. `PA027` is left free for a refusal that actually needs an
+HTTP mapping. The 0069 header carries an error-contract block whose
+content is "none, and why", plus the caveat that `23514` is a BLANKET map
+(`platform.ts:160-163`), so a CHECK violation from a half-applied event
+rename would tell the operator "Reason required" — which is why
+`PLATFORM_AUDIT_EVENTS` and the widened CHECK ship in one commit.
+(17) **Three new drift guards, and the missing half of an old one.**
+`apps/api/src/usage-metric-drift.test.ts` is the slice's best artefact:
+every declared metric's claimed `{table, alias, column}` must exist in
+`information_schema.columns` AND the literal `alias.column` must appear
+in `pg_get_functiondef('admin_tenant_usage')`, with `FROM table alias`
+proved once per table and one alias per table asserted — so the guard
+means "the definer really reads what the card claims" rather than "a
+column of that name exists somewhere". It also runs the REVERSE check:
+every `plans.included_*` column read live from the catalog is either read
+by the card or carries a `DEAD_PLAN_ALLOWANCES` exemption, so an
+exemption the definer starts reading must be deleted. And a channel
+check: the union of `MESSAGE_CHANNELS_COUNTED` and
+`MESSAGE_CHANNELS_NOT_COUNTED` must equal the LIVE `messages_channel_check`
+values and the definer must contain the literal `IN ('sms','mms')`, so a
+fifth channel added and classified nowhere is red — counting a web-chat
+reply as "SMS the carrier never segmented" would be a fake undercount on
+the card. `packages/contracts/src/queue-catalogue.test.ts` asserts the
+catalogue covers every `QUEUE_*` name constant, that every exported
+`*Job` schema is claimed by exactly one queue with no orphan and no
+double-booking, that a payload-less queue is excused BY NAME with a
+reason, that `org_scoped` matches what the payloads say, and the
+allow-list rules above. `apps/workers/src/queue-replay.test.ts` DERIVES
+the `at_least_once` partition from which worker files reach
+`deliverMessage(`/`sendMessage(` — so adding a send to a worker and
+forgetting the catalogue is red, and so is reclassifying a send queue to
+slip past the confirm gate — accounts for every file in the workers
+directory as either a queue or a named exemption, and holds each
+`idempotent` claim to a literal still present in the file it cites.
+`platform-drift.test.ts` gains the two F-73 route files, an explicit
+`ADMIN_HANDLER_COUNT = 28` (the handler↔contract equality already caught
+one side moving; it could not catch both moving together, which is what
+adding an endpoint looks like), and **three positive
+`has_function_privilege(…, 'EXECUTE') = true` assertions** by exact
+signature for the three new definers — the block above it asserted only
+what is NOT callable, so a definer that shipped with its REVOKE and
+without its GRANT passed every guard in that file and failed at the first
+support click instead.
+(18) **F-73 adds nothing to `ADMIN_ALLOWED_DURING`** (O-50):
+`apps/api/src/impersonation.ts:76-81` is unchanged, so all five F-73
+routes answer 409 `impersonation_active` during a live support session.
+F-72 set that bar at "an emergency stop the incident itself may require";
+reading a usage card and requeueing a job are not that, and a retry filed
+inside an impersonated session would carry two audit contexts for one
+act.
+**Deviations from §6/§9/§11/§12, each deliberate:** no `usage_counters`
+and no rollup of any kind; seven §6 metric names cut and four renamed;
+`dau`/`wau`/`mau` replaced by one floor; §6's quota bars → three of five
+`included_*`, and only for `mtd`; §6's 80%/100% threshold markers
+(`admin-console.md:210`) are NOT rendered, because a threshold marker
+implies an action at the threshold and `plans.overage` enforces nothing
+(*un-cut: ADR-011 layer 3*); §5.1 prices per rooftop but the allowance is
+read per tenant, with `store_count` beside it; §9's `tenant_id` →
+`organization_id` throughout, since this schema has never had that
+column; §9's "bulk requeue scoped by tenant_id" → an explicit list of at
+most twenty ids, because `Queue.retryJobs()` takes no id list and no
+filter; §9's "recent deploy version" cut with no substitute; §11's four
+F-73 endpoints → five, `GET /api/v1/admin/queues` added deliberately as a
+fixed unpaginated enumeration on the `GET /admin/plans` precedent, since
+a DLQ browser that cannot list its own queues forces ten calls to draw
+one page; the repo law "every list endpoint paginates (keyset)" is
+honoured for the DLQ with a POSITION cursor and its own codec, declared
+in the response as `paging_basis`; §12's "every mutation writes
+`activity_events`" → the retry writes `platform_audit_events` alone,
+because four of ten queues carry no organization, one call can span
+several tenants, and a tenant-scoped row would have to invent an owner;
+and the audit event is `queue.retry_requested`, which records the request
+rather than the result.
+**Deferred, not invented:** `usage_counters`, `usage_monthly`,
+`incrementUsage()` and the two jobs that must land with them;
+`dau`/`wau`/`mau` and `seats_active` as §6 defines them (un-cut the day a
+sign-in record survives sign-out); `ai_voice_minutes` and
+`plans.included_ai_minutes` (un-cut the day a call has a duration);
+`api_calls_mtd` and `rate_limit_429s` (un-cut with ADR-011 layer 3 —
+today the limiter covers four call sites, stores a token LEVEL under a
+PEXPIREd key, and fails open); `intake_ack_p99_ms` (un-cut the day the
+intake ACK is timed and the timing recorded); `storage_bytes` as total
+storage and `plans.included_storage_gb` (un-cut the day every stored
+object records its size); the health card's error count and §9's Sentry
+deep link (un-cut the day any error sink is wired — F-72 cut the same
+claim as O-33); §9's deploy version and release health; §9's Twilio
+number status and Resend DKIM status; §9's webhook delivery log and
+manual redelivery; §9's comms log with idempotent resend (a resend is a
+send and belongs behind the compliance gate, not behind a support
+button); §9's DSAR export trigger and register; `admin_reassign_deal_owner`
+and any other named data-correction function; per-tenant DLQ depth and
+tenant scoping for the four unscoped queues (un-cut the day every payload
+carries `organization_id`); `plans.overage` and `plans.features`
+rendering; the analytics doc's tenant health score, adoption matrix and
+activation funnel; its tenant-facing `/settings/usage` page; closing
+`reassignQueue` in `app.ts`'s `onClose` — a pre-existing leak F-73
+neither repeats nor fixes, deliberately not ridden into the exact hook
+that produced the tick-26 teardown flake; **a console screen for the
+tenant snapshot** — the definer, the contract entry and `GET
+/api/v1/admin/tenants/:id/snapshot` ship and are tested, but no page
+reads them yet (O-51); and §2's `admin.readyloans.app` host split, still
+O-8.
+**The scope contingency, recorded because it was decided before the
+pressure and not under it:** the retry endpoint was built LAST and was
+the first and only thing that would have been cut if
+`f73-queue-inspector.test.ts` could not be made deterministic on the
+first CI run. The DLQ read does not depend on it, and dropping it would
+have cost one contract entry, one capability (`queues:retry`), one audit
+value (`queue.retry_requested`, which then comes out of
+`PLATFORM_AUDIT_EVENTS` and the 0069 CHECK in the same commit — leaving a
+declared event with no producer is the dead-vocabulary failure in
+miniature), one definer and one migration block — not the slice.
+**Decided by:** Claude (implementation), 2026-08-30
+
 ## D-073 — 2026-08-30 — Two kill switches that fail closed, and announcements that name no tenant
 
 F-72 (admin-console.md §3, §5.3, §8, §11, §12;
