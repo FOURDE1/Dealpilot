@@ -198,9 +198,10 @@ vitest run` → **162 files / 1732 tests, exit 0**, no unhandled errors.
 Dev database migrated to 0069 — 71 migrations, 941 users / 867
 organizations intact (migrate, never `db:reset`).
 
-**Push and CI:** recorded with the push below; the run id is pinned at
-push time and its conclusion must be read with
-`gh run view <id> --json conclusion` before anyone calls it green.
+**Pushed** as `e754022` (35 files, +8854/-12). **CI GREEN first try — run
+33311281418, both jobs** (lint/typecheck/test/build and the real-browser
+e2e), verified with `gh run view 33311281418 --json conclusion`. That is
+four consecutive greens since the abandoned-promise fixes.
 
 ## 2026-08-30 (tick 26) — F-72 announcements and kill switches: fail closed, and name no tenant
 
