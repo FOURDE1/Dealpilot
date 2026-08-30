@@ -149,9 +149,10 @@ migration hunks; the final file was re-verified hunk by hunk. Both are
 arguments for targeted edits over whole-file rewrites when agents share a
 tree.
 
-**CI:** the run id pinned at push time is recorded with the push, and its
-conclusion must be read with `gh run view <id> --json conclusion` before
-anyone calls it green.
+**Pushed** as `19a5c58` (70 files, +7490/-40). **CI GREEN first try —
+run 33291117664, conclusion `success`, both jobs** (lint/typecheck/test/build
+and the real-browser e2e), verified with
+`gh run view 33291117664 --json conclusion`. 32 of 33 pushes green first try.
 
 ## 2026-08-27 (tick 25) — F-71 impersonation: a register row, not a second session
 
