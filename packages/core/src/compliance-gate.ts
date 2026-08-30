@@ -71,8 +71,21 @@ export interface ComplianceFacts {
   readonly phoneOnDnclList: boolean;
   readonly aiInitiatedSoFarToday: number;
   readonly aiDailyContactCap: number;
-  /** A human has taken over, or the tenant switched the AI off. */
+  /**
+   * A human has taken over this conversation. (The "tenant switched the AI
+   * off" half is not built: nothing writes a per-tenant `ai_enabled`, and
+   * `senderType: 'drip'` can never set this flag — which is exactly why the
+   * platform kill switch below is a SEPARATE fact rather than a reuse.)
+   */
   readonly aiSendsSuspended: boolean;
+  /**
+   * F-72 §5.3: the platform-wide `sms_send_killswitch` is ON. Read from
+   * `platform_settings` on the send's own connection, so a database that
+   * cannot answer "is sending paused?" cannot record a send either.
+   */
+  readonly platformSmsPaused: boolean;
+  /** F-72 §5.3: the platform-wide `ai_outbound_killswitch` is ON. */
+  readonly platformAiPaused: boolean;
 }
 
 /**
@@ -95,9 +108,34 @@ export const BLOCKED_REASONS = [
   'dncl_listed',
   'adad_no_express_consent',
   'frequency_cap',
+  /** F-72 §5.3: a platform operator stopped all outbound SMS. */
+  'platform_sms_paused',
+  /** F-72 §5.3: a platform operator stopped all AI-originated outbound. */
+  'platform_ai_paused',
 ] as const;
 
 export type BlockedReason = (typeof BLOCKED_REASONS)[number];
+
+/**
+ * The refusals that a platform operator can lift, and only they can.
+ *
+ * This lives beside the vocabulary rather than inside one worker because it is
+ * a property of the REASON, not of any caller: a message refused by a kill
+ * switch was not rejected, it was postponed, and every queue consumer has to
+ * agree about that or the ones that do not will silently destroy what they
+ * were holding. F-72 shipped with only the drip ride taught, and a twenty-
+ * minute incident would have abandoned every deferred follow-up and every
+ * first-touch greeting that woke inside it.
+ */
+export const PLATFORM_PAUSE_REASONS: ReadonlySet<BlockedReason> = new Set([
+  'platform_sms_paused',
+  'platform_ai_paused',
+]);
+
+/** True when the refusal clears the moment an operator lifts a kill switch. */
+export function isPlatformPause(reason: string): boolean {
+  return PLATFORM_PAUSE_REASONS.has(reason as BlockedReason);
+}
 
 export interface DecisionContext {
   readonly tz: string;
@@ -180,6 +218,29 @@ export function evaluateSend(req: SendRequest, facts: ComplianceFacts): SendDeci
   };
   const block = (reason: BlockedReason, remedy: string, detail: string, alert: 'HIGH' | null = null) =>
     ({ status: 'blocked' as const, reason, remedy, detail, alert, ...ctx });
+
+  // F-72 §5.3 — the platform kill switches, FIRST in the chain. A platform
+  // operator has stopped sending for everyone; nothing below this line is
+  // worth evaluating, and the operator who flipped it is the only fix.
+  //
+  // The SMS switch gates on `channel`, not on every send: it is labelled
+  // "outbound SMS" in the console, so it must not also refuse a voice call.
+  if (req.channel === 'sms' && facts.platformSmsPaused) {
+    return block(
+      'platform_sms_paused',
+      'a platform operator has paused all outbound SMS',
+      'sms_send_killswitch',
+    );
+  }
+  // The AI switch gates on ORIGINATOR, so it catches the assistant, the first
+  // touch and the drips alike — every send `originatorOf` calls 'ai'.
+  if (req.originator === 'ai' && facts.platformAiPaused) {
+    return block(
+      'platform_ai_paused',
+      'a platform operator has paused all AI-originated messages',
+      'ai_outbound_killswitch',
+    );
+  }
 
   // A silenced assistant must not even evaluate. If a human has taken the
   // conversation, the machine is done with it.

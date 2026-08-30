@@ -3,7 +3,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { Queue } from 'bullmq';
-import { QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND, QUEUE_PREFIX, queueOpts } from '@dealpilot/contracts';
+import * as contracts from '@dealpilot/contracts';
+import { QUEUE_PREFIX, queueOpts } from '@dealpilot/contracts';
 
 /**
  * The queue names have to be names BullMQ accepts, and both sides have to
@@ -44,10 +45,24 @@ describe('the names BullMQ will accept', () => {
     ).toThrow(/cannot contain :/);
   });
 
-  it.each([
-    ['deferred send', QUEUE_DEFERRED_SEND],
-    ['assistant turn', QUEUE_ASSISTANT_TURN],
-  ])('%s satisfies it', (_label, name) => {
+  /**
+   * The catalogue, not a hand-kept pair. This used to name two queues by hand
+   * and there were nine — so seven names had never been asserted colon-free,
+   * and adding a tenth was silent rather than red. Every `QUEUE_*` export is
+   * a queue name except the prefix, which is the thing colons belong in.
+   */
+  const queueNames = Object.entries(contracts)
+    .filter(([k, v]) => k.startsWith('QUEUE_') && k !== 'QUEUE_PREFIX' && typeof v === 'string')
+    .map(([k, v]) => [k, v as string] as const)
+    .sort();
+
+  it('finds every queue name declared in the contracts', () => {
+    // A rename of the export prefix would empty the catalogue and quietly
+    // stop checking anything.
+    expect(queueNames.length, 'the QUEUE_* catalogue came back near-empty').toBeGreaterThan(8);
+  });
+
+  it.each(queueNames)('%s satisfies it', (_label, name) => {
     expect(
       name,
       `"${name}" contains a colon. BullMQ uses ':' as its Redis key separator and refuses the name outright — the API and the workers will both fail to boot. Namespacing goes in QUEUE_PREFIX, not the name.`,

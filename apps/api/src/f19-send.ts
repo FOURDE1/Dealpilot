@@ -9,6 +9,7 @@ import {
   type SendRequest,
 } from '@dealpilot/core';
 import { isSendable, outboundGuard, type Violation } from '@dealpilot/ai';
+import { killSwitches } from './platform-settings.js';
 
 /**
  * The send layer (compliance-and-quality.md §1, conversation-engine.md §10).
@@ -68,6 +69,8 @@ export type SendOutcome =
 
 /** Gather everything the pure gate needs, for this organisation, right now. */
 async function facts(c: PoolClient, req: OutboundRequest): Promise<ComplianceFacts> {
+  // F-72: first, because a platform pause makes every other fact moot.
+  const switches = await killSwitches(c);
   const rows = await c.query<{
     id: string; channel: string; scope: string; consent_type: string;
     granted_at: Date; expires_at: Date | null; revoked_at: Date | null;
@@ -146,6 +149,10 @@ async function facts(c: PoolClient, req: OutboundRequest): Promise<ComplianceFac
     aiInitiatedSoFarToday: Number(capUsed.rows[0]?.n ?? '0'),
     aiDailyContactCap: conf?.ai_daily_contact_cap ?? 3,
     aiSendsSuspended: req.senderType === 'bot' && takenOver,
+    // F-72 §5.3 — the platform kill switches, on the caller's own client so a
+    // cache miss is read inside the transaction that writes the decision row.
+    platformSmsPaused: switches.sms_send_killswitch,
+    platformAiPaused: switches.ai_outbound_killswitch,
   };
 }
 

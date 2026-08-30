@@ -51,6 +51,8 @@ export const QUEUE_LIVE_ANALYSIS = 'live-analysis';
 export const QUEUE_QA_REVIEW = 'qa-review';
 /** 15-minute overdue-task sweep (F-68, appointments-tasks-communications.md §3.3) — no payload. */
 export const QUEUE_TASK_SWEEP = 'task-sweep';
+/** One notifications row per recipient of a published announcement (F-72, §8). */
+export const QUEUE_ANNOUNCEMENT_FANOUT = 'announcement-fanout';
 
 /**
  * Build the options every Queue and Worker must be constructed with.
@@ -200,3 +202,21 @@ export const REASSIGN_MAX_ATTEMPTS = 3;
  * rather than admit something is wrong.
  */
 export const MAX_DEFERRALS = 5;
+
+/**
+ * F-72 §8 — the announcement fan-out job.
+ *
+ * No `organization_id`: an announcement belongs to no tenant, and this job
+ * deliberately never opens `withTenant`. `announcement_fanout_batch` does the
+ * recipient scan and the insert in one statement as its own owner, so the
+ * worker holds no tenant context at any point.
+ */
+export const AnnouncementFanoutJob = z.object({
+  announcement_id: z.uuid(),
+  /** Keyset cursor into the recipient scan; the job re-enqueues itself. */
+  after_user_id: z.uuid().optional(),
+});
+export type AnnouncementFanoutJobT = z.infer<typeof AnnouncementFanoutJob>;
+
+/** Recipients per pass. A poison batch costs 500 rows, not the whole platform. */
+export const ANNOUNCEMENT_FANOUT_BATCH = 500;

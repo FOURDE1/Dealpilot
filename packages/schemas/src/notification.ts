@@ -47,6 +47,21 @@ export const NOTIFICATION_TITLE_KEYS = [
   /** F-71 §7: every active owner, when platform support opens a session on a member. */
   'notif_support_access_started_read_only',
   'notif_support_access_started_full',
+  /**
+   * F-72 §8: a published announcement, one row per matched person, written by
+   * `announcement_fanout_batch` (0068). Its `params` carry BOTH titles —
+   * `title_en` and `title_fr` — because 0051's contract is that the language
+   * is chosen at DISPLAY time by the recipient's own locale, and
+   * `users.language_pref` is written by nothing in this product.
+   */
+  'notif_announcement_published',
+  /**
+   * Produced today and never registered until F-72 closed the hole: the input
+   * type was `string`, so nothing compared these against the locale bundles.
+   */
+  'notif_duplicate_resubmission',
+  'notif_qa_compliance_flag',
+  'notif_qa_weekly_low',
 ] as const;
 
 export type NotificationT = z.infer<typeof Notification>;

@@ -56,7 +56,10 @@ export const primitives = {
     warningTint: '#FEF3C7',
     warningTintDark: '#451A03',
     /** F-52 (D-054): the be-back urgency ramp needs a YELLOW distinct from
-     * warning's amber. AA-gated pairs: 8.0:1 light, 10.9:1 dark. */
+     * warning's amber. Gated pair `caution-text` on `caution-bg`: 6.38:1
+     * light, 9.52:1 dark (measured; the 8.0:1 light figure this comment used
+     * to claim was never reachable — the best any caution pairing manages in
+     * light is 6.85:1, on card). */
     caution: '#EAB308',
     cautionText: '#854D0E',
     cautionTextDark: '#FACC15',

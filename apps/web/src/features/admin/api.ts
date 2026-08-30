@@ -1,5 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  AdminAnnouncement,
+  AdminAnnouncementList,
   AdminMeResponse,
   AdminTenantDetail,
   AdminTenantEventsResponse,
@@ -11,15 +13,21 @@ import {
   ImpersonationSessionDetail,
   OwnerInvitationReissued,
   PlanList,
+  PlatformSetting,
+  PlatformSettingList,
   PlatformStaffGranted,
   PlatformStaffList,
   TenantStatusChangeResult,
   type AdminUpdateTenantInputT,
+  type AnnouncementSeverityT,
   type GrantPlatformStaffInputT,
   type OrganizationStatusT,
   type PlanTierT,
+  type PlatformSettingKeyT,
   type ProvisionTenantInputT,
+  type PublishAnnouncementInputT,
   type ReissueOwnerInvitationInputT,
+  type SetPlatformSettingInputT,
   type StartImpersonationInputT,
   type TenantStatusChangeInputT,
 } from '@dealpilot/schemas';
@@ -45,6 +53,9 @@ export const adminKeys = {
   impersonations: ['admin', 'impersonations'] as const,
   impersonation: (id: string) => ['admin', 'impersonation', id] as const,
   members: (id: string) => ['admin', 'tenant', id, 'members'] as const,
+  announcements: (severity: AnnouncementSeverityT | undefined) => ['admin', 'announcements', severity ?? 'all'] as const,
+  announcement: (id: string) => ['admin', 'announcement', id] as const,
+  settings: ['admin', 'settings'] as const,
 };
 
 function compact<T extends Record<string, string | undefined>>(q: T): Record<string, string> {
@@ -292,5 +303,104 @@ export function useRevokeStaff() {
       if (res.status !== 204) fail(res.status, res.body);
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: adminKeys.staff }),
+  });
+}
+
+/** F-72 — announcements and the kill switches (admin-console.md §8, §5.3). */
+
+export function useAdminAnnouncements(severity: AnnouncementSeverityT | undefined) {
+  return useInfiniteQuery({
+    queryKey: adminKeys.announcements(severity),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last: { next_cursor: string | null }) => last.next_cursor ?? undefined,
+    queryFn: async ({ pageParam, signal }) => {
+      const res = await apiRequest(routes.admin.announcements.list, {
+        query: compact({ severity, cursor: pageParam, limit: '25' }),
+        signal,
+      });
+      if (res.status !== 200) fail(res.status, res.body);
+      return AdminAnnouncementList.parse(res.body);
+    },
+  });
+}
+
+export function useAdminAnnouncement(id: string) {
+  return useQuery({
+    queryKey: adminKeys.announcement(id),
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.admin.announcements.get, { params: { id }, signal });
+      if (res.status !== 200) fail(res.status, res.body);
+      return AdminAnnouncement.parse(res.body);
+    },
+  });
+}
+
+/**
+ * Publishing IS creating (§12): there is no draft, no PATCH and no delete,
+ * so this mutation runs exactly once per announcement and the 201 it returns
+ * is the whole history of the row.
+ */
+export function usePublishAnnouncement() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: PublishAnnouncementInputT) => {
+      const res = await apiRequest(routes.admin.announcements.publish, { body: input });
+      if (res.status !== 201) fail(res.status, res.body);
+      return AdminAnnouncement.parse(res.body);
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin', 'announcements'] }),
+  });
+}
+
+/** The one legal mutation: move the display window earlier, never later. */
+export function useEndAnnouncement(id: string) {
+  const queryClient = useQueryClient();
+  const settle = () => {
+    void queryClient.invalidateQueries({ queryKey: adminKeys.announcement(id) });
+    void queryClient.invalidateQueries({ queryKey: ['admin', 'announcements'] });
+  };
+  return useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest(routes.admin.announcements.end, { params: { id } });
+      if (res.status !== 200) fail(res.status, res.body);
+      return AdminAnnouncement.parse(res.body);
+    },
+    onSuccess: settle,
+    // A 409 means it ended under us — from another console, or because its
+    // own window closed. The page must catch up or it keeps offering End.
+    onError: settle,
+  });
+}
+
+/**
+ * The switches, read UNCACHED by the server on purpose: a staffer who has
+ * just flipped one must see the truth, not the five-second TTL's picture of
+ * it. `enabled` is the caller's `settings:read` — the console shell asks for
+ * every staffer, and platform billing holds no such capability.
+ */
+export function usePlatformSettings(enabled = true) {
+  return useQuery({
+    queryKey: adminKeys.settings,
+    enabled,
+    // Someone else's flip must not stay invisible on this screen; there is no
+    // invalidation channel between processes, only this poll and the TTL.
+    refetchInterval: 60_000,
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.admin.settings.list, { signal });
+      if (res.status !== 200) fail(res.status, res.body);
+      return PlatformSettingList.parse(res.body);
+    },
+  });
+}
+
+export function useSetPlatformSetting(settingKey: PlatformSettingKeyT) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: SetPlatformSettingInputT) => {
+      const res = await apiRequest(routes.admin.settings.set, { params: { setting_key: settingKey }, body: input });
+      if (res.status !== 200) fail(res.status, res.body);
+      return PlatformSetting.parse(res.body);
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: adminKeys.settings }),
   });
 }

@@ -12,6 +12,7 @@ import { NotificationsBell } from '../features/notifications/bell.js';
 import { notificationKeys } from '../features/notifications/api.js';
 import { useRealtime } from '../shared/realtime.js';
 import { SupportBanner } from '../shared/support-banner.js';
+import { AnnouncementBanner, AnnouncementNotices } from '../features/announcements/banner.js';
 
 /**
  * F-43 (D-047 #1): holding the app open IS being online. The shell keeps one
@@ -157,6 +158,11 @@ export function AppLayout() {
         </header>
         {/* F-71: the §7 support-session banner — /api/v1/me answers as the target while one is live. */}
         <SupportBanner />
+        {/* F-72: the §8 platform banner. Below SupportBanner, which answers
+            "who am I acting as" and must never be pushed down, and above the
+            MFA nag and the lifecycle chain: "is the platform working" outranks
+            a standing policy reminder and a billing notice. */}
+        <AnnouncementBanner />
         {mfaNag ? (
           // role=status, NOT alert: this is a standing policy reminder, not an
           // interruption — and an assertive live region on every page would
@@ -183,6 +189,10 @@ export function AppLayout() {
             {t('common:tenantPastDueBanner')}
           </p>
         ) : null}
+        {/* F-72: what can wait. Below the lifecycle chain on purpose — a
+            promotion must never sit on top of "this organization is
+            suspended" — and above the page, so it is still seen. */}
+        <AnnouncementNotices />
         <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[1400px] flex-1 p-4 pb-20 lg:p-6 outline-none max-lg:pb-24">
           <Outlet />
         </main>

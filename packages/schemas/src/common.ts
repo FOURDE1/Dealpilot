@@ -29,6 +29,21 @@ export const MESSAGE_KEYS = {
   org_slug_reserved: 'org_slug_reserved',
   store_code_format: 'store_code_format',
   vin_format: 'vin_format',
+  /** F-72 §8 / Bill 96: an announcement needs BOTH languages to publish. */
+  missing_translation: 'missing_translation',
+  /** F-72 §8: an `incident` must link its status-page incident, and only it may. */
+  status_incident_required: 'status_incident_required',
+  status_incident_forbidden: 'status_incident_forbidden',
+  /**
+   * F-72 §8: the status-page link was SUPPLIED but is not https. Its own key,
+   * because `status_incident_required` tells a client the link is missing and
+   * would send the publisher to add one that is already there.
+   */
+  status_incident_scheme: 'status_incident_scheme',
+  /** F-72 §8: the display window must end after it starts. */
+  invalid_window: 'invalid_window',
+  /** F-72 §5.3: resuming a kill switch is typed-to-confirm. */
+  confirm_required: 'confirm_required',
 } as const;
 
 export type MessageKey = (typeof MESSAGE_KEYS)[keyof typeof MESSAGE_KEYS];

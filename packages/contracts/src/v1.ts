@@ -205,6 +205,15 @@ import {
   AdminTenantMembers,
   SupportAccessList,
   SupportAccessQuery,
+  ActiveAnnouncements,
+  AdminAnnouncement,
+  AdminAnnouncementList,
+  AnnouncementListQuery,
+  PlatformSetting,
+  PlatformSettingKey,
+  PlatformSettingList,
+  PublishAnnouncementInput,
+  SetPlatformSettingInput,
 } from '@dealpilot/schemas';
 const c = initContract();
 
@@ -1285,6 +1294,77 @@ export const apiV1 = c.router({
         responses: { 200: ImpersonationSession, ...errorResponses },
       },
     }),
+    /**
+     * F-72 announcements (admin-console.md §8, §12; D-073). History is
+     * IMMUTABLE: publishing creates, `end` may only move the display window
+     * earlier, and there is no PATCH and no delete. Support publishes `info`;
+     * anything louder is a super admin's.
+     */
+    announcements: c.router({
+      publish: {
+        method: 'POST',
+        path: '/api/v1/admin/announcements',
+        body: PublishAnnouncementInput,
+        responses: { 201: AdminAnnouncement, ...errorResponses },
+      },
+      list: {
+        method: 'GET',
+        path: '/api/v1/admin/announcements',
+        query: AnnouncementListQuery,
+        responses: { 200: AdminAnnouncementList, ...errorResponses },
+      },
+      get: {
+        method: 'GET',
+        path: '/api/v1/admin/announcements/:id',
+        pathParams: idParams,
+        responses: { 200: AdminAnnouncement, ...errorResponses },
+      },
+      end: {
+        method: 'POST',
+        path: '/api/v1/admin/announcements/:id/end',
+        pathParams: idParams,
+        body: c.noBody(),
+        responses: { 200: AdminAnnouncement, ...errorResponses },
+      },
+    }),
+    /**
+     * F-72 kill switches (§5.3). The read is UNCACHED on purpose — the console
+     * must never show a staffer a five-second-old picture of a switch they
+     * just flipped.
+     */
+    settings: c.router({
+      list: {
+        method: 'GET',
+        path: '/api/v1/admin/platform-settings',
+        responses: { 200: PlatformSettingList, ...errorResponses },
+      },
+      set: {
+        method: 'POST',
+        path: '/api/v1/admin/platform-settings/:setting_key',
+        pathParams: z.object({ setting_key: PlatformSettingKey }),
+        body: SetPlatformSettingInput,
+        responses: { 200: PlatformSetting, ...errorResponses },
+      },
+    }),
+  }),
+  /**
+   * F-72 §8: the shell banner. Self-scoped like the bell — there is no
+   * organization parameter to ask with, the recipient comes from the session,
+   * and the payload names no tenant.
+   */
+  announcements: c.router({
+    active: {
+      method: 'GET',
+      path: '/api/v1/announcements',
+      responses: { 200: ActiveAnnouncements, ...errorResponses },
+    },
+    dismiss: {
+      method: 'POST',
+      path: '/api/v1/announcements/:id/dismiss',
+      pathParams: idParams,
+      body: c.noBody(),
+      responses: { 204: c.noBody(), ...errorResponses },
+    },
   }),
   /** F-71 §7/§12: the tenant's own view of every support session on it (permission activity:read). */
   supportAccess: c.router({

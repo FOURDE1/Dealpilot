@@ -1,3 +1,158 @@
+## 2026-08-30 (tick 26) — F-72 announcements and kill switches: fail closed, and name no tenant
+
+F-71's CI is genuinely green: `gh run view 33279396768` answers
+conclusion `success`, status `completed`, headSha `0d52249` — tick 25's
+PENDING-VERIFY is closed by the check, not by the pinned id. The docs
+commit on top of it is green too: run 33279516679 = `success` on
+`d1bcf1d`; it sat for more than a day as an `in_progress` zombie and
+reconciled itself, so a stale `in_progress` on this repo is worth
+re-reading before it is worth worrying about. F-72 (admin-console.md
+§5.3 + §8, D-073) was designed by the three-planner + judge panel and
+then hardened by an adversarial critique into a binding build document:
+20 rulings, 48 amendments, a 16-step order and a 91-case manifest, with
+every contested repo fact re-verified live before it was written.
+Landed: 0068 (`platform_settings` — the two switches as rows, seeded
+OFF, `SELECT` to the app role and nothing else, reason ≥ 10 characters
+kept only while the switch is ON; `platform_announcements` —
+deliberately no `organization_id`, `dismissible` derived by CHECK from
+severity, the biconditional `status_incident_url`, and an immutability
+trigger that refuses DELETE and freezes every column but `ends_at`;
+`announcement_dismissals` with no grant and no RLS; `platform_audit_events`
+widened to seven events with the subject in `changes`;
+`idx_notifications_announcement_once`; twelve functions — the single
+`announcement_matches` predicate that the feed, the dismissal and the
+fan-out all share, `announcement_visible` (where `impersonation_scope_ok`
+rides), the no-argument `announcements_for_user()` whose whole WHERE
+clause is that helper, `announcement_dismiss`, `announcement_fanout_state` /
+`announcement_fanout_batch`, and the six admin definers);
+`packages/schemas` (the F-72 block, `KILL_SWITCH_TTL_MS`, five
+capabilities, five message keys, four notification title keys —
+three of which had producers and no registration);
+`packages/core` (two `BLOCKED_REASONS` → twelve, two `ComplianceFacts`
+fields, both checks first in `evaluateSend` with the mandatory
+`req.channel === 'sms'` predicate, and `announcements.ts`);
+`packages/contracts` (six admin paths, two tenant paths, the fan-out
+queue); the switch reader `apps/api/src/platform-settings.ts` (a
+per-process 5-second snapshot with a coalesced `inFlight` cleared in a
+`finally`, no try/catch, a missing row reading as ON); the belt in
+`f30-deliver.ts`; six SQLSTATE cases (PA021–PA026) in `platform.ts`;
+two `ADMIN_ALLOWED_DURING` entries and the dismiss route in
+`IMPERSONATION_BLOCKED_ROUTES`; the three route files
+(`f72-killswitch-routes.ts`, `f72-announcement-routes.ts` and the
+tenant-side `f72-banner-routes.ts`); the fan-out worker with its
+`announcement_fanout_state` pre-check; `drip-tick.ts`'s four exported
+reason sets, the explicit platform-pause branch and the `warn`
+fall-through finally wired in production; the `announcements` and
+`switches` i18n namespaces in both locales; and the console (four
+routes — Interrupteurs at `/admin/platform-settings`, Annonces at
+`/admin/announcements`, the compose page at `announcements/new` and an
+announcement's own page at `announcements/:announcementId`, where
+*Terminer maintenant* lives — plus the standing `<KillSwitchBanner />`
+in the admin shell) and the tenant shell (`<AnnouncementBanner />` for
+incident/maintenance, `<AnnouncementNotices />` for info/marketing,
+`bell.tsx` picking the title's language at display time). Guards:
+platform-drift scans both F-72 admin route files, pins the new grants,
+puts three CHECK vocabularies in lockstep with the schemas — including
+`PLATFORM_AUDIT_EVENTS` against the widened `platform_audit_events.event`
+— and asserts `f72-banner-routes.ts` never names an admin path;
+`platform-event-vocabulary.test.ts` (every value that CHECK declares has
+a real `INSERT` producer), `outbound-chokepoint.test.ts` and
+`drip-reasons.test.ts` are new; `tenant-lifecycle-drift.test.ts` now
+also regexes `announcement_matches`; and `contrast.test.ts` gained two
+pairs that ship ungated — `['caution-text','caution-bg']`, whose
+`tokens.ts:59` figures measured 6.38:1 / 9.52:1 rather than the claimed
+8.0:1 / 10.9:1 (the comment is corrected here), and
+`['foreground','muted']`, the neutral status row `tokens.ts` had never
+said anything about at all. F-72 adds no RLS policy and no entry to any
+pre-existing exemption registry — the crash-recovery exemptions it does
+declare sit in `EXEMPT_SITES` in its own new chokepoint guard, each with
+its reason and the source literal that retires it. Probed live before any
+TypeScript was written: a scratch database took 0068 and every definer
+was exercised by hand inside a rolled-back transaction — publish,
+targeted publish, the incident-without-a-URL refusal, the feed under a
+foreign `app.user_id`, dismissal and `PA023`, marketing suppressed for
+`past_due` but NOT for `trial`, ending a SCHEDULED announcement (the
+23514 trap) and `PA025` on the second end, the keyset walk with a
+two-org member getting exactly one row, and UPDATE/DELETE refused as
+the owner. `RLS_REQUIRED=1 npx vitest run packages/db` → 42/42: the
+suite's 40 plus this slice's two new `rls.test.ts` probes — the app pool
+reads `platform_settings` and can never write one, and it cannot even
+read `platform_announcements` or `announcement_dismissals`. Both ran;
+neither hit the `if (!dbUp) return ctx.skip()` arm.
+
+**Review (2026-08-30):** a 57-agent adversarial pass — eight finders
+(attacker x2, dead-vocabulary, correctness/SQL, test quality, a11y/i18n,
+spec fidelity, operability) then a refute-biased verifier per finding.
+49 raw, **40 confirmed, 8 refuted**, one verifier lost to an API
+safeguard. All fixed.
+
+The blocker was mine and it was the shape this project keeps finding: the
+slice added two TRANSIENT blocked reasons and taught exactly one of the
+three queue consumers. `deferred-send` and `first-touch` treated a
+platform pause like "the customer texted STOP" — the job completed
+successfully and the message was gone. A twenty-minute incident would
+have destroyed every quiet-hours follow-up and every first-touch greeting
+that woke inside it, with no operator signal, and `enqueueFirstTouch`'s
+deterministic job id would have silently dropped a manual retry. Both
+files already had the right shape from F-69 (tenant not operational ->
+retry in 1h) and simply were not wired to it. `PLATFORM_PAUSE_REASONS`
+and `isPlatformPause()` now live in `compliance-gate.ts` beside
+`BLOCKED_REASONS` — the classification is a property of the REASON, not
+of one worker — and `drip-tick` re-exports rather than re-declaring, so
+a third pause reason cannot reach one consumer and not another.
+
+The rest, by class. **Correctness:** `announcement_dismiss()` 404'd on a
+second dismiss because the visibility gate ran before the insert and a
+dismissal is precisely what makes an announcement invisible — which also
+left its own `ON CONFLICT DO NOTHING` unreachable; the list cursor was
+plaintext `at|id` handed to `::timestamptz`, so a tampered or stale
+cursor was a 500 where every other paginated endpoint answers 400, and
+its millisecond `toISOString()` could drop a row against a microsecond
+column (both fixed by moving to F-69's `encodeCursor`/`decodeCursor` plus
+a `published_at_text` column); an `ends_at` in the past with a blank
+`starts_at` skipped Zod entirely and surfaced as "Reason required" on a
+field the form does not have; an upper-case UUID in an `organizations`
+audience published successfully and reached nobody; `resetKillSwitchCache()`
+could not cancel an in-flight read, so a pre-flip SELECT could install its
+stale OFF answer after the flip and serve it for a whole TTL (a generation
+counter now gates the install). **Performance:** the tenant feed called a
+SECURITY DEFINER per announcement ever published, on a query the shell
+polls every 60s per user — 110ms and 9,076 buffers at 3,000 rows; a window
+pre-filter and a `(ends_at, starts_at)` index make it 1.3ms and 30, with
+the returned set proved identical by an `EXCEPT` both ways. **Honesty:**
+`core/announcements.ts` claimed three "named second consumers" and two did
+not exist — the severity-rank lockstep was written and the compose page now
+derives its suppression copy from `MARKETING_SUPPRESSED_STATUSES`, so the
+claims became true rather than deleted; the End page showed F-71
+support-session copy for an announcement 403/409; `mailer.send` credential
+paths were counted as six in four places and are five; `platform_audit_events`
+was described as having four INSERT sites when this slice made it seven.
+
+Guards found their own bugs, as they always do: `checkValues` was already
+non-deterministic before F-72 (two CHECKs on `activity_events` mention
+`actor_type`), and `tokens.ts` claimed a caution contrast of 8.0:1 light
+that was never reachable — measured 6.38:1.
+
+**Gate after the fixes:** `RLS_REQUIRED=1 turbo run build typecheck lint`
+25/25 (one pre-existing eslint warning in a file F-72 does not touch);
+`RLS_REQUIRED=1 turbo run test` **153 files / 1603 tests, exit 0**; db
+42/42; f72-announcements 33/33, f72-killswitch 23/23, announcement-fanout
+and drip-tick 23/23. Dev DB migrated to 0068 (both switches seeded OFF;
+941 users / 867 organizations intact — migrate, never `db:reset`).
+
+**Two process notes worth keeping.** A parallel agent ran `git stash` in
+the shared worktree mid-build and reverted 37 files of in-flight work; it
+restored them, and the tree was verified against the stash rather than
+taken on trust — the only difference was a transient mutation-test
+artifact. And two agents doing whole-file writes clobbered each other's
+migration hunks; the final file was re-verified hunk by hunk. Both are
+arguments for targeted edits over whole-file rewrites when agents share a
+tree.
+
+**CI:** the run id pinned at push time is recorded with the push, and its
+conclusion must be read with `gh run view <id> --json conclusion` before
+anyone calls it green.
+
 ## 2026-08-27 (tick 25) — F-71 impersonation: a register row, not a second session
 
 F-70 CI-green first try (33021906021, 74648f6). F-71 (admin-console.md §3,

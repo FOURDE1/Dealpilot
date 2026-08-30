@@ -63,6 +63,17 @@ const textPairs: [SemanticToken, SemanticToken][] = [
   ['danger-text', 'card'],
   ['info-text', 'background'],
   ['info-text', 'card'],
+  /**
+   * Two pairings that ship and were never gated. `caution-text` on
+   * `caution-bg` is the be-back urgency ramp (D-054), rendered by three
+   * pages; `foreground` on `muted` is the neutral status row, rendered by
+   * five, and is what F-72 gives `info` and `marketing` announcements. Both
+   * measure well clear of AA in both themes — they were simply missing from
+   * the list, which is the kind of gap that stops being harmless the first
+   * time somebody adjusts the yellow.
+   */
+  ['caution-text', 'caution-bg'],
+  ['foreground', 'muted'],
 ];
 
 /**

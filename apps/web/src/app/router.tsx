@@ -68,6 +68,18 @@ const ImpersonationPage = lazy(() =>
 const ImpersonationDetailPage = lazy(() =>
   import('../features/admin/impersonation-detail-page.js').then((m) => ({ default: m.ImpersonationDetailPage })),
 );
+const AnnouncementsPage = lazy(() =>
+  import('../features/admin/announcements-page.js').then((m) => ({ default: m.AnnouncementsPage })),
+);
+const AnnouncementComposePage = lazy(() =>
+  import('../features/admin/announcement-compose-page.js').then((m) => ({ default: m.AnnouncementComposePage })),
+);
+const AnnouncementDetailPage = lazy(() =>
+  import('../features/admin/announcement-detail-page.js').then((m) => ({ default: m.AnnouncementDetailPage })),
+);
+const PlatformSettingsPage = lazy(() =>
+  import('../features/admin/platform-settings-page.js').then((m) => ({ default: m.PlatformSettingsPage })),
+);
 const DuplicatesPage = lazy(() =>
   import('../features/leads/duplicates-page.js').then((m) => ({ default: m.DuplicatesPage })),
 );
@@ -191,6 +203,12 @@ export const router = createBrowserRouter([
       // F-71: the support-session register and one session's trail.
       { path: 'support-sessions', element: lazyPage(<ImpersonationPage />) },
       { path: 'support-sessions/:sessionId', element: lazyPage(<ImpersonationDetailPage />) },
+      // F-72: the announcement register, and §5.3's kill switches.
+      { path: 'announcements', element: lazyPage(<AnnouncementsPage />) },
+      // Before the id route: `new` is a page, not an announcement.
+      { path: 'announcements/new', element: lazyPage(<AnnouncementComposePage />) },
+      { path: 'announcements/:announcementId', element: lazyPage(<AnnouncementDetailPage />) },
+      { path: 'platform-settings', element: lazyPage(<PlatformSettingsPage />) },
       { path: '*', element: <Navigate to="/admin/tenants" replace /> },
     ],
   },

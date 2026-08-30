@@ -322,6 +322,8 @@ describe('the gate refuses in the right order', () => {
     aiInitiatedSoFarToday: 0,
     aiDailyContactCap: 3,
     aiSendsSuspended: false,
+    platformSmsPaused: false,
+    platformAiPaused: false,
   };
 
   it('allows a lawful message and names the row that made it lawful', () => {
@@ -395,6 +397,7 @@ describe('RT-16 · getting an automated call out without consent', () => {
     newestDnclDownloadedAt: new Date('2026-08-10T00:00:00Z'),
     phoneOnDnclList: false,
     aiInitiatedSoFarToday: 0, aiDailyContactCap: 3, aiSendsSuspended: false,
+    platformSmsPaused: false, platformAiPaused: false,
   };
 
   it('allows the call only with EXPRESS call consent', () => {

@@ -3,6 +3,7 @@ import { tenantOperational } from './tenant-status.js';
 import {
   DeferredSendJob, MAX_DEFERRALS, QUEUE_DEFERRED_SEND, type DeferredSendJobT,
 } from '@dealpilot/contracts';
+import { isPlatformPause } from '@dealpilot/core';
 import { sendMessage } from '@dealpilot/api/send';
 import { deliverMessage } from '@dealpilot/api/deliver';
 import type { Carrier } from '@dealpilot/api/carrier';
@@ -169,6 +170,20 @@ export async function runDeferredSend(
   }
 
   if (outcome.kind === 'blocked') {
+    // F-72: a platform kill switch is not a refusal, it is a pause an operator
+    // will lift. Abandoning here would destroy every quiet-hours follow-up
+    // that happened to wake during an incident, silently and successfully.
+    // Same shape as the tenant-not-operational branch above, and bounded by
+    // the same deferral cap so a switch left on forever still ends honestly.
+    if (isPlatformPause(outcome.reason)) {
+      const paused = job.attempt + 1;
+      if (paused >= MAX_DEFERRALS) {
+        return { kind: 'abandoned', reason: `outbound paused platform-wide for ${paused} attempts; giving up` };
+      }
+      const runAt = new Date(now.getTime() + 60 * 60_000);
+      await deps.reschedule({ ...job, attempt: paused }, runAt);
+      return { kind: 'deferred_again', runAt, attempt: paused };
+    }
     // The common and correct case: they texted STOP while this slept. The gate
     // refused, a `send_decisions` row records why, and nothing was sent.
     return { kind: 'blocked', reason: outcome.reason };

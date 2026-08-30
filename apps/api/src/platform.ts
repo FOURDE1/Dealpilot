@@ -134,6 +134,29 @@ export function platformErrorFrom(err: unknown): AppError | null {
       return new AppError(409, 'impersonation_ended', 'The support session has already ended');
     case 'PA020':
       return new AppError(403, 'forbidden', 'Only the staffer who opened the session, or a super admin, may end it');
+    // F-72 (0068). One SQLSTATE, one response: PA009 already carries the
+    // announcement severity/role refusal, so nothing here is double-booked.
+    case 'PA021':
+      // Not found and not visible to this person are the same refusal: no oracle.
+      return notFound();
+    case 'PA022':
+      return new AppError(409, 'invalid_window', 'A published announcement’s window may only be shortened', [
+        { path: 'ends_at', code: 'invalid_window', message: e?.message ?? '' },
+      ]);
+    case 'PA023':
+      return new AppError(422, 'not_dismissible', 'This announcement cannot be dismissed', [
+        { path: 'id', code: 'not_dismissible', message: 'maintenance and incident notices stay up while active' },
+      ]);
+    case 'PA024':
+      return notFound();
+    case 'PA025':
+      return new AppError(409, 'already_ended', 'This announcement has already ended', [
+        { path: 'id', code: 'already_ended', message: e?.message ?? '' },
+      ]);
+    case 'PA026':
+      return new AppError(422, 'validation_failed', 'Unknown organization in the audience', [
+        { path: 'audience', code: 'unknown_organization', message: e?.detail ?? e?.message ?? '' },
+      ]);
     case '23514':
       return new AppError(422, 'validation_failed', 'Reason required', [
         { path: 'reason', code: 'reason_required', message: 'Say why' },

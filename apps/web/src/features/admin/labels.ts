@@ -5,6 +5,7 @@ import type {
   OrganizationStatusT,
   PlatformCapabilityT,
   PlatformRoleT,
+  PlatformSettingKeyT,
 } from '@dealpilot/schemas';
 
 /**
@@ -29,6 +30,11 @@ export const CAPABILITY_KEYS = {
   'impersonation:start_read_only': 'cap_impersonation_start_read_only',
   'impersonation:start_full': 'cap_impersonation_start_full',
   'impersonation:manage': 'cap_impersonation_manage',
+  'announcements:read': 'cap_announcements_read',
+  'announcements:publish': 'cap_announcements_publish',
+  'announcements:publish_elevated': 'cap_announcements_publish_elevated',
+  'settings:read': 'cap_settings_read',
+  'settings:write': 'cap_settings_write',
 } as const satisfies Record<PlatformCapabilityT, string>;
 
 /** F-71 §7: the two session modes and the three ways one ends — labels, never raw tokens. */
@@ -114,6 +120,17 @@ export const ENTITY_KEYS = {
   task: 'entity_task',
   impersonation_session: 'entity_impersonation_session',
 } as const satisfies Record<ActivityEntityTypeT, string>;
+
+/**
+ * F-72 §5.3 — each kill switch says what it IS and what it STOPS. The scope
+ * sentence is not decoration: the SMS switch also silences a human advisor's
+ * replies, and the AI switch does not, and an operator deciding at 3am has to
+ * read that rather than infer it from the name.
+ */
+export const SETTING_KEYS = {
+  ai_outbound_killswitch: { label: 'ai_outbound_killswitch', scope: 'scope_ai_outbound_killswitch' },
+  sms_send_killswitch: { label: 'sms_send_killswitch', scope: 'scope_sms_send_killswitch' },
+} as const satisfies Record<PlatformSettingKeyT, { label: string; scope: string }>;
 
 /** Destructive targets get the destructive button. */
 export const DESTRUCTIVE_TARGETS: ReadonlySet<OrganizationStatusT> = new Set<OrganizationStatusT>(['suspended', 'offboarding']);

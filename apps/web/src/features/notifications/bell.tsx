@@ -4,6 +4,19 @@ import { Button } from '@dealpilot/ui';
 import { useMarkAllRead, useMarkRead, useNotifications } from './api.js';
 
 /**
+ * F-72: an announcement is authored in BOTH languages, and migration 0051
+ * decides the language at DISPLAY time — so the fan-out writes `title_en` and
+ * `title_fr` into `params` and the reader's own UI locale picks between them
+ * here. Both bundles therefore carry the identical single ICU argument
+ * `{title}`, which is what keeps `check:parity` honest. Every other producer's
+ * params are locale-free and pass through untouched.
+ */
+function notificationArgs(params: Record<string, string>, language: string): Record<string, string> {
+  if (!('title_en' in params && 'title_fr' in params)) return params;
+  return { ...params, title: language.startsWith('en') ? params['title_en']! : params['title_fr']! };
+}
+
+/**
  * F-47 — the bell (automation-notifications.md §5).
  *
  * A <details> dropdown, because summary/details carries keyboard and
@@ -13,7 +26,7 @@ import { useMarkAllRead, useMarkRead, useNotifications } from './api.js';
  * Titles are i18n KEYS rendered here, in the viewer's own locale.
  */
 export function NotificationsBell() {
-  const { t } = useTranslation('notif');
+  const { t, i18n } = useTranslation('notif');
   const navigate = useNavigate();
   const list = useNotifications();
   const markRead = useMarkRead();
@@ -62,7 +75,7 @@ export function NotificationsBell() {
                   {n.read_at === null ? (
                     <span aria-hidden="true" className="me-1 inline-block size-2 rounded-full bg-danger-text align-middle" />
                   ) : null}
-                  {t(n.title_key as never, n.params as Record<string, string>)}
+                  {t(n.title_key as never, notificationArgs(n.params as Record<string, string>, i18n.language))}
                   <span className="mt-0.5 block text-xs text-muted-foreground">
                     {new Date(n.created_at).toLocaleString()}
                   </span>

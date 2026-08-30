@@ -92,6 +92,10 @@
       "types": "./dist/assistant.d.ts",
       "default": "./dist/assistant.js"
     },
+    "./platform-settings": {
+      "types": "./dist/platform-settings.d.ts",
+      "default": "./dist/platform-settings.js"
+    },
     "./deferred-queue": {
       "types": "./dist/deferred-queue.d.ts",
       "default": "./dist/deferred-queue.js"

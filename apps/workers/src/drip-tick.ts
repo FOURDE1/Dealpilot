@@ -1,6 +1,6 @@
 import { withTenant, type Pool } from '@dealpilot/db';
 import { DripSteps } from '@dealpilot/schemas';
-import { dripTickDecision, renderDripBody, type DripStep } from '@dealpilot/core';
+import { dripTickDecision, isPlatformPause, renderDripBody, type DripStep } from '@dealpilot/core';
 import { sendMessage } from '@dealpilot/api/send';
 import { deliverMessage } from '@dealpilot/api/deliver';
 import { findOrCreateConversation } from '@dealpilot/api/inbound-router';
@@ -42,14 +42,36 @@ export interface DripTickSummary {
   skipped: number;
 }
 
+/**
+ * How every gate refusal is classified. Exported and asserted to PARTITION
+ * `BLOCKED_REASONS` exactly (drip-reasons.test.ts): union equal, pairwise
+ * disjoint. A new reason added upstream without a decision here fails that
+ * guard instead of silently inheriting whatever the fall-through happens to
+ * do — which is how F-72's two kill-switch reasons would otherwise have
+ * quietly become permanent expiries or permanent waits.
+ */
+
 /** Gate refusals that can never clear on their own — the ride ends now. */
-const OPTED_OUT_REASONS = new Set(['suppressed', 'internal_dnc', 'dncl_listed']);
-const BASIS_GONE_REASONS = new Set([
+export const OPTED_OUT_REASONS = new Set(['suppressed', 'internal_dnc', 'dncl_listed']);
+export const BASIS_GONE_REASONS = new Set([
   'consent_absent',
   'consent_expired',
   'consent_revoked',
   'adad_no_express_consent',
 ]);
+/** Conditions that clear by themselves — tomorrow is another day. */
+export const WAITING_REASONS = new Set(['frequency_cap', 'ai_suspended', 'dncl_list_stale']);
+/**
+ * F-72 §5.3: a platform operator stopped sending. The ride WAITS — the
+ * enrollment is untouched and resumes on the first tick after the switch
+ * lifts. Ending it would punish a dealer for an outage on our side.
+ *
+ * Re-exported, never re-declared: `deferred-send` and `first-touch` reach the
+ * same set through `isPlatformPause`, and a second copy here would be two
+ * lists of the same two reasons with nothing between them — in the one
+ * vocabulary whose entire purpose is that every queue consumer agrees.
+ */
+export { PLATFORM_PAUSE_REASONS } from '@dealpilot/core';
 
 export async function runDripTick(deps: DripTickDeps): Promise<DripTickSummary> {
   const now = deps.now?.() ?? new Date();
@@ -397,7 +419,17 @@ async function processEnrollment(
           ]);
           return { outcome: 'ended' };
         }
-        // frequency_cap, ai_suspended, dncl_list_stale: tomorrow is another day.
+        if (isPlatformPause(sendOutcome.reason)) {
+          // Untouched on purpose: the next tick after the switch lifts sends it.
+          return { outcome: 'waiting' };
+        }
+        if (WAITING_REASONS.has(sendOutcome.reason)) {
+          return { outcome: 'waiting' };
+        }
+        // Unclassified. Waiting is the safe default, but a silent default is
+        // how a new refusal reason stops a whole campaign without anyone
+        // noticing, so say so where production can see it.
+        deps.warn?.(`unclassified blocked reason: ${sendOutcome.reason}`, sendOutcome);
         return { outcome: 'waiting' };
       }
 
@@ -432,6 +464,10 @@ async function processEnrollment(
       from: result.delivery.from,
       body: result.delivery.body,
     });
+    // F-72: the belt refused this at the wire. Nothing left, so the tick must
+    // not count it in `sent`. The row keeps provider_ref NULL, so the next
+    // tick's stale-message check redelivers it once the switch lifts.
+    if (delivered.kind === 'rejected' && delivered.code === 'platform_paused') return 'waiting';
     if (delivered.kind === 'rejected' && !delivered.retryable) {
       const rideId = result.delivery.enrollmentId;
       await withTenant(deps.pool, organizationId, async (c) => {

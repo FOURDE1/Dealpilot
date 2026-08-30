@@ -119,6 +119,51 @@ Per-topic implementation reference: OWASP Cheat Sheet Series
 
 <!-- Entries begin below. -->
 
+### 2026-08-30 — F-72 announcements and platform kill switches (§5.3, §8)
+
+**Scope:** `GET /api/v1/admin/platform-settings`, `POST
+/api/v1/admin/platform-settings/:setting_key`, `POST|GET
+/api/v1/admin/announcements[/:id][/end]`, the tenant-side `GET
+/api/v1/announcements` and `POST /api/v1/announcements/:id/dismiss`, the
+0068 tables, definers and triggers, the switch reader
+(`apps/api/src/platform-settings.ts`), the gate additions in
+`packages/core/src/compliance-gate.ts`, the wire belt in
+`apps/api/src/f30-deliver.ts`, the fan-out worker
+(`apps/workers/src/announcement-fanout.ts`) and the two
+`ADMIN_ALLOWED_DURING` entries in `apps/api/src/impersonation.ts`.
+
+- **A01 access control** — the app role may only SELECT
+  `platform_settings` and holds NO grant at all on `platform_announcements`
+  or `announcement_dismissals`, so every path runs through a definer;
+  `admin_set_platform_setting` asserts `platform_super_admin` and
+  `admin_publish_announcement` re-checks the severity/role rule the route
+  already asked for, so a route mistake cannot widen what the database
+  allows; the tenant feed and the dismissal take NO user argument (the
+  person is the `app.user_id` GUC) and carry `impersonation_scope_ok`, and
+  the dismissal route is refused in BOTH impersonation modes so a staffer
+  can never silence a dealer's notice in the dealer's name ✔
+- **A04 insecure design** — the kill switch fails CLOSED by construction:
+  no `try`/`catch` around the read, no default-false, and a key with no
+  row reads as ON, so a database that cannot answer "is sending paused?"
+  refuses the send instead of guessing; both checks run FIRST in
+  `evaluateSend`, and a second belt at the carrier handoff refuses at the
+  wire with `platform_paused` for any future path that reaches it ✔
+- **A09 logging** — a flip writes an immutable `platform_audit_events` row
+  (`settings.flipped`, actor, reason, `{from,to}`) and a WARN line with
+  the stable token `platform_killswitch_flipped`; publishing and ending
+  write `announcement.published` / `announcement.ended`. The register is
+  forensic: seven INSERT sites across the migrations (0065 ×2, 0067 ×2 and
+  this slice's three; 0067 replaces both 0065 bodies, so five write on the
+  live schema) and no product reader, so the console banner and the log
+  line — not the table — are what an operator sees ✔
+- **A10 SSRF** — `status_incident_url` is typed by a publisher, stored
+  behind `CHECK (... LIKE 'https://%' ...)`, never fetched by the server,
+  and rendered only as an anchor with `target="_blank" rel="noreferrer"` ✔
+
+**Accepted (see below):** email is ungated; propagation is a five-second
+TTL rather than an invalidation channel; an AI kill stops the send, not
+the model spend; `webhook_delivery_pause` stays undeclared.
+
 ### 2026-08-27 — F-71 impersonation with audit (support sessions)
 
 **Scope:** `POST/GET/DELETE /api/v1/admin/impersonation-sessions[/:id]`,
@@ -328,6 +373,46 @@ parameterized values throughout; React escaping holds on all three screens.
   suspended tenant's member can still GET a record they hold by id (no
   organization named, no membership gate) until the mutation/membership
   coverage guard lands; every list and every mutation is closed.
+- **2026-08-30 (F-72) — email (SES) is a fourth outbound surface that no
+  kill switch covers.** `mailer.send(` has EIGHT call sites: `auth.ts:63`,
+  `f11-dispatch-routes.ts:257`, `:456`, `:683`,
+  `f12-invitation-routes.ts:83`, `f70-provisioning-routes.ts:124`, `:159`,
+  `f71-impersonation-routes.ts:69`. Five are credential paths — sign-up
+  verification (`auth.ts:63`), member and owner invitations (`f12:83`,
+  `f70:124`, `:159`) and the support-access notice (`f71:69`) — that a
+  locked-out operator needs during the very incident a switch is for.
+  `f11:257` and `:456` are the driver-company dispatch request, an
+  operational notice to a third-party vendor that is neither; only
+  `f11-dispatch-routes.ts:683` (`customerEtaMessage`) is customer-facing,
+  and it is the named next step. `Mailer.send` returns a
+  bare boolean today with no decision row and no refusal vocabulary, so a
+  gate would be indistinguishable from an SES failure: giving email a
+  switch is a slice, not a line.
+- **2026-08-30 (F-72) — a flipped switch reaches other processes within
+  five seconds, not instantly.** The guarantee is a per-process TTL
+  (`KILL_SWITCH_TTL_MS = 5000`), not an invalidation channel, because
+  `REDIS_URL` is optional in `apps/api/src/env.ts` and a pub/sub broadcast
+  would be a guarantee that is silently not one on a machine without
+  Redis. The flipping process obeys immediately
+  (`resetKillSwitchCache()`), the console reads uncached through
+  `admin_list_platform_settings()`, and the screen prints the number
+  rather than implying the flip is instantaneous. The failure direction is
+  bounded: a stale snapshot can only be up to five seconds old, and it can
+  never be stale in the OFF direction on error — an unreadable switch
+  refuses the send.
+- **2026-08-30 (F-72) — the AI kill switch stops the SEND, not the model
+  spend.** `ai_outbound_killswitch` refuses at `evaluateSend` when
+  `originator === 'ai'`; `runTurn` still calls the model and still spends
+  tokens. The deployment-level `AI_TRANSPORT=off` remains the spend
+  switch, and the two are deliberately separate: an incident that requires
+  silence does not require abandoning drafts in progress.
+- **2026-08-30 (F-72) — `webhook_delivery_pause` is not declared.** §5.3
+  names it, and there is no outbound webhook deliverer in this codebase to
+  stop (`apps/api/src/carrier.ts:198` is the only `fetch(` in server
+  source; the F-49 connectors are inbound mappings). A switch that gates
+  nothing is a promise the console cannot keep. Un-cut condition, recorded
+  in 0068: one forward CHECK swap on `platform_settings.setting_key` plus
+  one gate line, the day a deliverer lands.
 
 > Risks reviewed and consciously accepted by the user, with rationale and revisit date.
 

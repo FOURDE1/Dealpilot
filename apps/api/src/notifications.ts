@@ -1,5 +1,5 @@
 import type { PoolClient } from '@dealpilot/db';
-import type { NotificationUrgencyT } from '@dealpilot/schemas';
+import type { NOTIFICATION_TITLE_KEYS, NotificationUrgencyT } from '@dealpilot/schemas';
 
 /**
  * F-47 — writing a staff notification (D-050).
@@ -19,7 +19,12 @@ export interface NotifyInput {
   /** The RECIPIENT. */
   userId: string;
   urgency: NotificationUrgencyT;
-  titleKey: string;
+  /**
+   * Typed against the registry, not `string`: until F-72 this was a bare
+   * string, so three producers wrote keys nothing had ever compared against
+   * the locale bundles.
+   */
+  titleKey: (typeof NOTIFICATION_TITLE_KEYS)[number];
   params?: Record<string, unknown>;
   link?: string;
   entityType?: string;

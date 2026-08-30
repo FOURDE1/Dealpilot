@@ -447,6 +447,44 @@ describe('row-level security', () => {
     ).rejects.toThrow();
   });
 
+  it('platform_settings: the app pool reads the kill switches and can never write one', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // F-72 (0068): SELECT and nothing else, the `plans` shape. killSwitches()
+    // reads this on the BARE pool with no tenant context, so the read has to
+    // work exactly as it is probed here; every write belongs to
+    // admin_set_platform_setting, which runs as the owner and asserts the
+    // actor. There is no policy involved — the grant is the whole boundary.
+    const seen = await app.query<{ setting_key: string }>(
+      `SELECT setting_key FROM platform_settings ORDER BY setting_key`,
+    );
+    expect(seen.rows.map((r) => r.setting_key)).toEqual([
+      'ai_outbound_killswitch',
+      'sms_send_killswitch',
+    ]);
+    await expect(
+      app.query(
+        `INSERT INTO platform_settings (setting_key, enabled) VALUES ('sms_send_killswitch', true)`,
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      app.query(`UPDATE platform_settings SET enabled = true WHERE setting_key = 'sms_send_killswitch'`),
+    ).rejects.toThrow(/permission denied/);
+    await expect(app.query(`DELETE FROM platform_settings`)).rejects.toThrow(/permission denied/);
+  });
+
+  it('platform_announcements and announcement_dismissals: the app pool cannot even read them', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // F-72 (0068): both are definer-only — no grant, no RLS, no policy. The
+    // tenant feed reaches them through announcements_for_user(), which runs as
+    // the owner and carries the audience predicate itself, and a dismissal is
+    // written only by announcement_dismiss(). A missing grant is the reason
+    // neither table needed a per-tenant policy for a row that belongs to the
+    // platform (announcements) or to a person (dismissals).
+    for (const table of ['platform_announcements', 'announcement_dismissals']) {
+      await expect(app.query(`SELECT 1 FROM ${table}`)).rejects.toThrow(/permission denied/);
+    }
+  });
+
   it('reset refuses non-local database hosts', async () => {
     await expect(
       reset(admin, migrationsDir, 'postgresql://u:p@prod-rds.ca-central-1.example.com:5432/x'),

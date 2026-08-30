@@ -55,6 +55,7 @@ const recordingQueue = {
     enqueued.analyses.push(job);
     return Promise.resolve();
   },
+  enqueueAnnouncementFanout: () => Promise.resolve(),
   enqueueFirstTouch: () => Promise.resolve(),
   close: () => Promise.resolve(),
 };

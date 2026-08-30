@@ -10,6 +10,7 @@ import {
   QUEUE_LIVE_ANALYSIS,
   QUEUE_QA_REVIEW,
   QUEUE_TASK_SWEEP,
+  QUEUE_ANNOUNCEMENT_FANOUT,
   REASSIGN_AFTER_MS,
   queueOpts,
   type AiExtractionJobT,
@@ -18,6 +19,7 @@ import {
   type DeferredSendJobT,
   type LeadReassignJobT,
   type LiveAnalysisJobT,
+  type AnnouncementFanoutJobT,
 } from '@dealpilot/contracts';
 import { createCarrier } from '@dealpilot/api/carrier';
 import { redisPresenceStore } from '@dealpilot/api/presence';
@@ -35,6 +37,7 @@ import { createEmitOnlyEmitter } from '@dealpilot/api/realtime';
 import { createAnthropicAnalysisClient, createAnthropicJudgeClient } from '@dealpilot/ai';
 import { runQaReview } from './qa-review.js';
 import { runTaskSweep } from './task-sweep.js';
+import { runAnnouncementFanout } from './announcement-fanout.js';
 
 export { runDeferredSend } from './deferred-send.js';
 export type { DeferredSendDeps, DeferredSendResult } from './deferred-send.js';
@@ -266,7 +269,21 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
   );
   const dripWorker = guarded('drip-tick', new Worker(
     QUEUE_DRIP_TICK,
-    async () => runDripTick({ pool, carrier, env }),
+    async () =>
+      runDripTick({
+        pool,
+        carrier,
+        env,
+        // F-72: without this the "unclassified blocked reason" fall-through is
+        // silent in production — an optional callback only tests pass is the
+        // dead-vocabulary bug in miniature.
+        warn: (message, err) => {
+          process.stderr.write(
+            `${JSON.stringify({ level: 40, time: Date.now(), name: 'workers', label: 'drip-tick', message, err: err instanceof Error ? err.message : String(err ?? '') })}
+`,
+          );
+        },
+      }),
     { ...queueOpts(connection(env.REDIS_URL)), concurrency: 1 },
   ));
 
@@ -352,11 +369,38 @@ export async function start(): Promise<{ close: () => Promise<void> }> {
     { ...queueOpts(connection(env.REDIS_URL)), concurrency: 1 },
   ));
 
+  // F-72: the announcement fan-out (§8). Not repeatable and not gated on
+  // assistant.enabled — it is enqueued by the publish route and re-enqueues
+  // itself with the next keyset cursor until the walk is done. Concurrency 1
+  // so the links of one walk cannot race each other.
+  const fanoutQueue = guarded('announcement-fanout-queue', new Queue(QUEUE_ANNOUNCEMENT_FANOUT, queueOpts(connection(env.REDIS_URL))));
+  const fanoutWorker = guarded('announcement-fanout', new Worker<AnnouncementFanoutJobT>(
+    QUEUE_ANNOUNCEMENT_FANOUT,
+    async (job) =>
+      runAnnouncementFanout(job.data, {
+        pool,
+        next: async (nextJob, opts) => {
+          await fanoutQueue.add(QUEUE_ANNOUNCEMENT_FANOUT, nextJob, {
+            // No jobId: every link of the walk is a distinct job, and a
+            // deterministic id would make BullMQ drop all but the first.
+            ...(opts?.delayMs !== undefined ? { delay: Math.max(0, opts.delayMs) } : {}),
+            removeOnComplete: true,
+            removeOnFail: 5000,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 2000 },
+          });
+        },
+      }),
+    { ...queueOpts(connection(env.REDIS_URL)), concurrency: 1 },
+  ));
+
   return {
     close: async () => {
       await worker.close();
       await taskWorker.close();
       await taskQueue.close();
+      await fanoutWorker.close();
+      await fanoutQueue.close();
       await turnWorker?.close();
       await extractionWorker?.close();
       await firstTouchWorker?.close();

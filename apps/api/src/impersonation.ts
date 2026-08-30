@@ -62,16 +62,29 @@ interface IdentityRow {
   end_reason: string | null;
 }
 
-/** The console stays closed during a session — except the probe and the End. */
+/**
+ * The console stays closed during a session — except the probe, the End, and
+ * the F-72 kill switches. The switches are exempt because the incident that
+ * makes a super admin open a support session is exactly the incident in which
+ * they may need to stop all outbound, and making them end the session first
+ * costs minutes. Publishing an announcement is NOT exempt: it is an
+ * announcement to customers, not an emergency stop.
+ *
+ * These strings must match `request.routeOptions.url` character for
+ * character, parameter names included — a mismatch silently never exempts.
+ */
 const ADMIN_ALLOWED_DURING: ReadonlySet<string> = new Set([
   'GET /api/v1/admin/me',
   'DELETE /api/v1/admin/impersonation-sessions/:id',
+  'GET /api/v1/admin/platform-settings',
+  'POST /api/v1/admin/platform-settings/:setting_key',
 ]);
 
 /** Refused in BOTH modes, with why (the READ_ONLY_EXEMPT_ROUTES shape). */
 export const IMPERSONATION_BLOCKED_ROUTES: ReadonlyMap<string, string> = new Map([
   ['POST /api/v1/organizations', 'would make the target the owner of a NEW tenant outside the session’s scope'],
   ['POST /api/v1/invitations/accept', 'would transfer authority into the target’s account'],
+  ['POST /api/v1/announcements/:id/dismiss', 'would silence a platform notice on the dealer’s behalf, permanently and in their name'],
 ]);
 
 function factsOf(row: IdentityRow): ImpersonationFacts {

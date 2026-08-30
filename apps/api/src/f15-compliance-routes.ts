@@ -21,6 +21,7 @@ import { AppError, notFound, parseOrThrow } from './errors.js';
 import { idParam, requireMember, sessionUser } from './f01-routes.js';
 import { requirePermission } from './permissions.js';
 import { recordEvent } from './activity.js';
+import { killSwitches } from './platform-settings.js';
 
 /**
  * F-15 compliance (compliance-and-quality.md).
@@ -412,6 +413,10 @@ export function registerF15Routes(app: FastifyInstance, pool: Pool): void {
       // No config row yet means the platform defaults, which are the strictest
       // thing a tenant is allowed to have.
       const conf = cfg.rows[0];
+      // F-72: the preview reads the SAME switches as the real send. Left
+      // hardcoded, this screen would tell a dealer a message is allowed that
+      // sendMessage refuses — exactly what `aiSendsSuspended: false` does.
+      const switches = await killSwitches(c);
       const facts: ComplianceFacts = {
         suppressed: suppressed.rows[0] ?? null,
         consentRows: rows,
@@ -430,6 +435,8 @@ export function registerF15Routes(app: FastifyInstance, pool: Pool): void {
         aiInitiatedSoFarToday: Number(capUsed.rows[0]?.n ?? '0'),
         aiDailyContactCap: conf?.ai_daily_contact_cap ?? 3,
         aiSendsSuspended: false,
+        platformSmsPaused: switches.sms_send_killswitch,
+        platformAiPaused: switches.ai_outbound_killswitch,
       };
 
       const req: SendRequest = {

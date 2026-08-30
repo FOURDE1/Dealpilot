@@ -536,3 +536,32 @@ until it can be done without breaking readability.
 | 18.10 | From another super-admin browser, suspend that dealer | The session ends at once (*Révoquée*, by the suspending admin); the first browser is plain support again | ⬜ |
 | 18.11 | Open a session, then sign out without ending it | The register shows it *Révoquée* — a session never outlives the sign-in it was bound to | ⬜ |
 | 18.12 | As **billing**, look for "Sessions de soutien" | Not offered — billing opens and manages no session | ⬜ |
+
+## ROUND 19 — Stopping all outbound messaging, and telling every dealer why (F-72)
+
+> Two things live on your side of the product this round. The **Interrupteurs**
+> page is the 3am screen: two switches that stop outbound SMS and outbound
+> AI messages for EVERY dealer at once. The **Annonces** page is how you tell
+> them — a bar at the top of their app plus a notification in their bell.
+> You need a platform super-admin account with two-factor on, and two
+> browsers help: one in `/admin`, one signed in as a dealer's user. Locally
+> no e-mail leaves the machine, and a switch takes up to five seconds to
+> reach the other processes — both are expected.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 19.1 | `/admin` → **Interrupteurs** | Two switches, both *Envoi normal*: « Arrêt des SMS sortants » and « Arrêt des messages générés par l’IA ». Each says what keeps going — for the SMS one, "Les courriels (invitations, vérification de compte, avis de soutien) continuent." — and both say "Chaque processus obéit dans un délai maximal de 5 secondes." | ⬜ |
+| 19.2 | On « Arrêt des SMS sortants » press *Arrêter l’envoi* and type a four-word reason of fewer than ten characters | Refused in place: the field is *Raison (10 caractères minimum)* and nothing is stopped | ⬜ |
+| 19.3 | Type a real reason (e.g. *panne Twilio en cours*) and confirm | The switch reads *Envoi arrêté* with "Modifié par <your address> le <today>" and your reason; a red bar appears across the top of the console: "Envoi arrêté pour toute la plateforme : Arrêt des SMS sortants" | ⬜ |
+| 19.4 | In the dealer's browser, open a lead and try to send an SMS | Refused, with the reason in plain words: "La plateforme a suspendu tous les SMS sortants". Nothing is queued and nothing is sent later | ⬜ |
+| 19.5 | While the switch is still on, go to a tenant page in `/admin` and use "Resend the owner invitation" | The invitation still goes out (locally: the link comes back on screen). E-mail is covered by no switch — that is deliberate, so a locked-out operator can still get back in | ⬜ |
+| 19.6 | Back on **Interrupteurs**, press *Reprendre l’envoi* and type a wrong name in the confirmation box | The box asks "Tapez sms_send_killswitch pour confirmer la reprise"; a wrong name is refused with "Le nom ne correspond pas." and sending stays stopped | ⬜ |
+| 19.7 | Type `sms_send_killswitch` and confirm; wait about five seconds, then retry the dealer's SMS | The switch reads *Envoi normal*, the red console bar is gone, and the SMS goes. The reason you typed is no longer shown — it lives only in the audit trail | ⬜ |
+| 19.8 | `/admin` → **Annonces** → *Nouvelle annonce*. Fill only *Titre (français)* and *Texte (français)*, gravité *Information*, destinataires *Tous les locataires*, press *Publier* | Refused before anything is published: "Les deux langues sont obligatoires avant publication (loi 96)." and "Il manque encore : …" naming the two English fields | ⬜ |
+| 19.9 | Fill the English title and text, publish | The announcement is listed as *Active* with its window and an *Avis envoyés* count that fills in within a few seconds. In the dealer's browser: a grey strip near the top of the app, and a bell notification "Annonce : <your English or French title, matching that screen's language>" | ⬜ |
+| 19.10 | In the dealer's browser press *Masquer* on that strip, then reload the page | The strip stays gone for that person only; the bell notification is still there. Another user in the same dealer still sees the strip | ⬜ |
+| 19.11 | Publish a second announcement, gravité *Incident*, leaving *Lien vers l’état du service* empty | Refused — an incident must carry the status-page link. Add an `https://…` link and publish | ⬜ |
+| 19.12 | Look at the dealer's browser again | A red bar at the top with *Incident*, the text, and *Voir l’état du service* opening your link in a new tab. There is no *Masquer*: "Une annonce de maintenance ou d’incident ne peut pas être masquée tant qu’elle est active." | ⬜ |
+| 19.13 | In `/admin` open the incident → *Terminer maintenant* → confirm ("Elle disparaît immédiatement. Le texte est conservé et ne peut pas être modifié.") | It reads *Terminée*, the red bar is gone from the dealer's app on the next refresh, and nothing on the announcement can be edited or deleted — ever | ⬜ |
+| 19.14 | Publish a *Nouveauté* to *Tous les locataires*, then put one dealer into *Past due* from its tenant page and look at that dealer's app | The "Nouveauté" is not shown to them: "Une nouveauté n’est pas montrée aux locataires en retard de paiement ou en lecture seule." An *Incident* would still be shown to the same dealer | ⬜ |
+| 19.15 | As a **Support** staffer: *Nouvelle annonce* with gravité *Incident*; then as **Billing**, look for **Interrupteurs** | Support may publish *Information* and nothing heavier; billing is offered neither the switches nor the announcements | ⬜ |

@@ -1,9 +1,9 @@
 import { Queue } from 'bullmq';
 import {
   QUEUE_ASSISTANT_TURN, QUEUE_DEFERRED_SEND, queueOpts,
-  QUEUE_AI_EXTRACTION, QUEUE_FIRST_TOUCH, QUEUE_LIVE_ANALYSIS,
-  type AiExtractionJobT, type AssistantTurnJobT, type DeferredSendJobT, type FirstTouchJobT,
-  type LiveAnalysisJobT,
+  QUEUE_AI_EXTRACTION, QUEUE_FIRST_TOUCH, QUEUE_LIVE_ANALYSIS, QUEUE_ANNOUNCEMENT_FANOUT,
+  type AiExtractionJobT, type AnnouncementFanoutJobT, type AssistantTurnJobT, type DeferredSendJobT,
+  type FirstTouchJobT, type LiveAnalysisJobT,
 } from '@dealpilot/contracts';
 import type { Env } from './env.js';
 
@@ -35,6 +35,8 @@ export interface DeferredSendQueue {
   enqueueFirstTouch(job: FirstTouchJobT): Promise<void>;
   /** F-62: one silent-monitoring pass over a human-held thread (§10). */
   enqueueLiveAnalysis(job: LiveAnalysisJobT): Promise<void>;
+  /** F-72 §8: one bell row per recipient of a published announcement. */
+  enqueueAnnouncementFanout(job: AnnouncementFanoutJobT, delayMs?: number): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -85,6 +87,12 @@ export function noDeferredSendQueue(
         'a message on a human-held thread has no queue to run silent monitoring — the panel goes stale (set REDIS_URL)',
       );
     },
+    async enqueueAnnouncementFanout(job) {
+      warn(
+        { announcement_id: job.announcement_id },
+        'an announcement was published and there is no queue to fan it out — the banner still shows it, but nobody gets a bell row (set REDIS_URL)',
+      );
+    },
     async close() {},
   };
 }
@@ -104,6 +112,7 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
   const extractions = new Queue<AiExtractionJobT>(QUEUE_AI_EXTRACTION, queueOpts(connection));
   const firstTouches = new Queue<FirstTouchJobT>(QUEUE_FIRST_TOUCH, queueOpts(connection));
   const analyses = new Queue<LiveAnalysisJobT>(QUEUE_LIVE_ANALYSIS, queueOpts(connection));
+  const fanouts = new Queue<AnnouncementFanoutJobT>(QUEUE_ANNOUNCEMENT_FANOUT, queueOpts(connection));
 
   return {
     async enqueue(job, runAt) {
@@ -160,9 +169,25 @@ export function createDeferredSendQueue(env: Env, warn: (obj: Record<string, unk
         backoff: { type: 'exponential', delay: 2000 },
       });
     },
+    async enqueueAnnouncementFanout(job, delayMs) {
+      await fanouts.add(QUEUE_ANNOUNCEMENT_FANOUT, job, {
+        // NO jobId. The job re-enqueues itself with the next keyset cursor, so
+        // a deterministic id would make every link after the first a
+        // duplicate BullMQ silently drops, stranding the fan-out mid-walk.
+        // Idempotence lives in the database instead: a partial unique index on
+        // (entity_id, user_id) plus ON CONFLICT DO NOTHING, so a redelivery or
+        // a double publish converges on one row per person.
+        ...(delayMs !== undefined ? { delay: Math.max(0, delayMs) } : {}),
+        removeOnComplete: true,
+        removeOnFail: 5000,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2000 },
+      });
+    },
     close: async () => {
       await queue.close();
       await analyses.close();
+      await fanouts.close();
       await turns.close();
       await extractions.close();
       await firstTouches.close();

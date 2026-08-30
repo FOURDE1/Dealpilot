@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
@@ -7,6 +8,10 @@ import {
 import { buildApp } from '@dealpilot/api/app';
 import { createCarrier } from '@dealpilot/api/carrier';
 import { loadEnv } from '@dealpilot/api/env';
+// F-72/A17: the DIST instance, which is the one `drip-tick.ts` itself reads
+// through `@dealpilot/api/send`. Importing the source module here would reset a
+// cache nothing in this suite consults.
+import { resetKillSwitchCache } from '@dealpilot/api/platform-settings';
 import { runDripTick } from './drip-tick.js';
 
 /**
@@ -71,6 +76,38 @@ async function makeLostLead(n: number): Promise<{ leadId: string; enrollmentId: 
   );
   expect(er.rows.length).toBeGreaterThan(0);
   return { leadId, enrollmentId: er.rows[0]!.id };
+}
+
+/**
+ * A platform super admin, and the one act F-72 gives them over this worker.
+ *
+ * The flip goes through `admin_set_platform_setting` — the definer the console
+ * route calls, actor assertion, reason rule and audit row included — rather
+ * than through `POST /api/v1/admin/platform-settings/:setting_key`, because
+ * that route sits behind mandatory MFA and the TOTP oracle it needs
+ * (apps/api/src/testing/totp.ts) is excluded from the api build. The route's
+ * own coverage is the F-72 api suite; what is under test HERE is what the ride
+ * does while the switch is on.
+ */
+async function superAdmin(email: string): Promise<string> {
+  const su = await app!.inject({
+    method: 'POST', url: '/api/auth/sign-up/email',
+    payload: { email, password: 'correct-horse-battery-staple', name: 'Exploitante Plateforme' },
+  });
+  expect(su.statusCode, su.body).toBe(200);
+  await admin.query('SELECT * FROM platform_staff_grant($1, $2, $3, $4)', [
+    null, email, 'platform_super_admin', 'F-72 drip-pause fixture',
+  ]);
+  return (await admin.query<{ id: string }>(`SELECT id FROM users WHERE email = $1`, [email]))
+    .rows[0]!.id;
+}
+
+async function setSwitch(actor: string, key: string, enabled: boolean, reason: string): Promise<void> {
+  await admin.query('SELECT admin_set_platform_setting($1::uuid, $2::text, $3::boolean, $4::text)', [
+    actor, key, enabled, reason,
+  ]);
+  // Every process waits out KILL_SWITCH_TTL_MS; this one does not have to.
+  resetKillSwitchCache();
 }
 
 /** Shift an enrollment's clock so a step is due without waiting real days. */
@@ -151,6 +188,12 @@ afterAll(async () => {
   await app?.close();
   await appPool?.end();
   await admin?.end();
+});
+
+// The kill-switch snapshot is process memory with a five-second TTL, so a test
+// that flipped one must not leave the next test reading its answer.
+beforeEach(() => {
+  resetKillSwitchCache();
 });
 
 describe('the hourly drip tick (F-61, §11.1)', () => {
@@ -360,6 +403,80 @@ describe('the hourly drip tick (F-61, §11.1)', () => {
     expect(enr.rows[0]!.current_step).toBe(1);
   });
 
+  it('a platform pause makes the ride WAIT — the enrollment survives the outage and sends when the switch lifts (F-72 §5.3)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const { leadId, enrollmentId } = await makeLostLead(11);
+    const staff = await superAdmin(`f72w-drip-super-${run}@dealpilot.test`);
+    await setSwitch(staff, 'ai_outbound_killswitch', true, 'F-72: the assistant is misbehaving, stop outbound');
+
+    const paused = await runDripTick(deps(safeTickTime()));
+    expect(paused.sent, JSON.stringify(paused)).toBe(0);
+    expect(paused.waiting, JSON.stringify(paused)).toBeGreaterThanOrEqual(1);
+    // Not opted_out and not expired: a platform pause is reversible by
+    // definition, and ending the ride would punish a dealer for our outage.
+    const held = await admin.query<{ status: string; current_step: number }>(
+      `SELECT status, current_step FROM drip_enrollments WHERE id = $1`, [enrollmentId],
+    );
+    expect(held.rows[0]).toEqual({ status: 'active', current_step: 0 });
+    expect(
+      (await admin.query(
+        `SELECT 1 FROM send_decisions WHERE lead_id = $1 AND status = 'blocked' AND reason = 'platform_ai_paused'`,
+        [leadId],
+      )).rows.length,
+    ).toBeGreaterThan(0);
+    expect(
+      (await admin.query(
+        `SELECT 1 FROM messages m JOIN conversations c ON c.id = m.conversation_id
+          WHERE c.lead_id = $1 AND m.direction = 'outbound'`,
+        [leadId],
+      )).rows,
+    ).toHaveLength(0);
+
+    await setSwitch(staff, 'ai_outbound_killswitch', false, 'F-72: the incident is over, resume sending');
+    const resumed = await runDripTick(deps(safeTickTime()));
+    expect(resumed.sent, JSON.stringify(resumed)).toBeGreaterThanOrEqual(1);
+    const advanced = await admin.query<{ status: string; current_step: number }>(
+      `SELECT status, current_step FROM drip_enrollments WHERE id = $1`, [enrollmentId],
+    );
+    expect(advanced.rows[0]).toEqual({ status: 'active', current_step: 1 });
+  });
+
+  it('a refusal nobody classified is LOUD — the ride still waits, and production hears about it', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await makeLostLead(12);
+    const warnings: unknown[][] = [];
+    // The four reason sets partition BLOCKED_REASONS today, so the only way to
+    // reach the fall-through is to invent a reason the gate cannot produce yet
+    // — which is exactly the future this branch exists for.
+    vi.doMock('@dealpilot/api/send', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('@dealpilot/api/send')>()),
+      sendMessage: async () => ({
+        kind: 'blocked' as const,
+        decisionId: '00000000-0000-4000-8000-0000000000f7',
+        reason: 'a_reason_from_a_later_slice',
+        remedy: 'decide what a drip should do about it',
+      }),
+    }));
+    vi.resetModules();
+    try {
+      const { runDripTick: withUnknownReason } = await import('./drip-tick.js');
+      const summary = await withUnknownReason({
+        ...deps(safeTickTime()),
+        warn: (...args: unknown[]) => warnings.push(args),
+      });
+      expect(summary.sent, JSON.stringify(summary)).toBe(0);
+      expect(summary.waiting, JSON.stringify(summary)).toBeGreaterThanOrEqual(1);
+      expect(summary.ended, JSON.stringify(summary)).toBe(0);
+      expect(warnings.length).toBeGreaterThan(0);
+      // Two arguments: the message a human reads and the decision they need.
+      expect(warnings[0]).toHaveLength(2);
+      expect(String(warnings[0]![0])).toContain('a_reason_from_a_later_slice');
+    } finally {
+      vi.doUnmock('@dealpilot/api/send');
+      vi.resetModules();
+    }
+  });
+
   // LAST on purpose: it multiplies the sequence config, and a mid-test
   // failure must not leave three extra sequences enrolling later fixtures.
   it('drips spend the assistant daily budget — the fourth machine text is refused (F-61 review)', async (ctx) => {
@@ -409,5 +526,28 @@ describe('the hourly drip tick (F-61, §11.1)', () => {
       [leadId],
     );
     expect(held.rows).toHaveLength(1);
+  });
+});
+
+/**
+ * The fall-through above is a `deps.warn?.()` — optional, so a suite can pass
+ * while production is deaf. This is the source-scan that keeps the production
+ * registration honest (the realtime-vocabulary idiom).
+ */
+describe('the drip tick as it is registered (F-72)', () => {
+  it('the production runDripTick call passes a warn seam', () => {
+    const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'index.ts'), 'utf8');
+    // Assert on the OFFSET, before slicing. `slice(-1)` on a miss is the file's
+    // last character and never '', so a "did we find it" check written against
+    // the slice cannot fail — and losing the registration altogether would then
+    // be reported as a missing warn seam, pointing the reader at the smaller of
+    // the two breakages. There is deliberately no matching assertion on the
+    // '}),' terminator: index.ts carries several more of them below this call,
+    // so that search cannot come back empty in any file that parses, and an
+    // assertion with no way to fire is the very thing this comment is about.
+    const at = source.indexOf('runDripTick({');
+    expect(at, 'runDripTick({ is not called in apps/workers/src/index.ts').toBeGreaterThan(-1);
+    const call = source.slice(at, source.indexOf('}),', at));
+    expect(call, 'the production runDripTick({ … }) call passes no warn: seam').toMatch(/\bwarn:/);
   });
 });

@@ -7,6 +7,7 @@ import { LanguageSwitcher } from '../shared/i18n/language-switcher.js';
 import { ThemeToggle } from '../shared/theme-toggle.js';
 import { useAdminMe } from '../features/admin/api.js';
 import { ROLE_KEYS } from '../features/admin/labels.js';
+import { KillSwitchBanner } from '../features/admin/kill-switch-banner.js';
 
 /**
  * F-69 — the platform console's shell (admin-console.md §2). Same skeleton
@@ -22,6 +23,8 @@ export function AdminLayout() {
   const me = useAdminMe();
   const canManageStaff = me.data?.capabilities.includes('staff:manage') ?? false;
   const canManageSupport = me.data?.capabilities.includes('impersonation:manage') ?? false;
+  const canReadAnnouncements = me.data?.capabilities.includes('announcements:read') ?? false;
+  const canReadSwitches = me.data?.capabilities.includes('settings:read') ?? false;
   // The deadline carries its day when it is not today: a 12h window that
   // ends tomorrow morning must not read as a time already past (review).
   const reauthAt = me.data
@@ -41,6 +44,8 @@ export function AdminLayout() {
   const items = [
     { to: '/admin/tenants', label: t('navTenants') },
     ...(canManageSupport ? [{ to: '/admin/support-sessions', label: t('navSupport') }] : []),
+    ...(canReadAnnouncements ? [{ to: '/admin/announcements', label: t('navAnnouncements') }] : []),
+    ...(canReadSwitches ? [{ to: '/admin/platform-settings', label: t('navSwitches') }] : []),
     ...(canManageStaff ? [{ to: '/admin/staff', label: t('navStaff') }] : []),
   ];
   const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -87,6 +92,9 @@ export function AdminLayout() {
             </Button>
           </div>
         </header>
+        {/* F-72 §5.3: a flipped kill switch stands over every console page
+            until someone resumes sending — the reason it cannot be forgotten. */}
+        <KillSwitchBanner />
         <main id="main" tabIndex={-1} className="flex-1 p-4 pb-20 sm:p-6 lg:pb-6">
           <Outlet />
         </main>

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CursorQuery, Email, IsoDateTime, Locale, ProvinceCA, Uuid, paginated } from './common.js';
+import { CursorQuery, Email, IsoDateTime, Locale, ProvinceCA, Uuid, paginated, withKey } from './common.js';
 import { OrganizationStatus, PlanTier, orgSlugInput } from './organization.js';
 import { CreateStoreInput } from './store.js';
 import { ActivityEvent } from './activity.js';
@@ -36,6 +36,16 @@ export const PLATFORM_CAPABILITIES = {
   'impersonation:start_full': ['platform_super_admin'],
   /** F-71: the register, ending a session, the member picker. Billing: none. */
   'impersonation:manage': ['platform_super_admin', 'platform_support'],
+  /** F-72 §8: the announcement register and one announcement. Billing: none. */
+  'announcements:read': ['platform_super_admin', 'platform_support'],
+  /** F-72 §3: support may publish — and §3 says `info` only. */
+  'announcements:publish': ['platform_super_admin', 'platform_support'],
+  /** …anything louder than `info` is a super admin's alone (asked as a second literal). */
+  'announcements:publish_elevated': ['platform_super_admin'],
+  /** F-72 §5.3: seeing whether the platform is paused. */
+  'settings:read': ['platform_super_admin', 'platform_support'],
+  /** …flipping one is a super admin's alone (§5.3, verbatim). */
+  'settings:write': ['platform_super_admin'],
 } as const satisfies Record<string, readonly PlatformRoleT[]>;
 export type PlatformCapabilityT = keyof typeof PLATFORM_CAPABILITIES;
 export const PLATFORM_CAPABILITY_NAMES = Object.keys(PLATFORM_CAPABILITIES) as [PlatformCapabilityT, ...PlatformCapabilityT[]];
@@ -366,3 +376,214 @@ export type ImpersonationListQueryT = z.infer<typeof ImpersonationListQuery>;
 export type AdminTenantMemberT = z.infer<typeof AdminTenantMember>;
 export type ImpersonationBannerT = z.infer<typeof ImpersonationBanner>;
 export type SupportAccessEntryT = z.infer<typeof SupportAccessEntry>;
+
+/* ------------------------------------------------------------------------ *
+ * F-72 §5.3 — platform kill switches
+ * ------------------------------------------------------------------------ */
+
+/**
+ * Two keys, not the spec's three. `webhook_delivery_pause` is deliberately
+ * absent: this codebase has no outbound webhook deliverer to gate, and a
+ * switch nothing consults is the dead-vocabulary bug. Adding it is a forward
+ * CHECK swap on `platform_settings.setting_key` plus one gate line (D-073).
+ */
+export const PLATFORM_SETTING_KEYS = ['ai_outbound_killswitch', 'sms_send_killswitch'] as const;
+export const PlatformSettingKey = z.enum(PLATFORM_SETTING_KEYS);
+export type PlatformSettingKeyT = z.infer<typeof PlatformSettingKey>;
+
+/**
+ * The worst-case delay between a flip and every process obeying it. The API
+ * and each worker are separate processes with no shared cache and no
+ * invalidation channel (REDIS_URL is optional here), so this NUMBER is the
+ * contract — and the console prints it beside the switch rather than implying
+ * a propagation guarantee nothing makes true.
+ */
+export const KILL_SWITCH_TTL_MS = 5_000;
+
+export const PlatformSetting = z.object({
+  setting_key: PlatformSettingKey,
+  enabled: z.boolean(),
+  /** Held on the row only while the switch is ON; NULLed on resume. */
+  reason: z.string().nullable(),
+  changed_by_email: z.string().nullable(),
+  changed_at: IsoDateTime,
+});
+export const PlatformSettingList = z.object({ items: z.array(PlatformSetting) });
+
+export const SetPlatformSettingInput = z
+  .strictObject({
+    enabled: z.boolean(),
+    reason: z.string().trim().min(10).max(500),
+    /** Typed-to-confirm, required to RESUME sending, never to stop it. */
+    confirm_setting_key: z.string().trim().optional(),
+  })
+  .refine((v) => v.enabled || typeof v.confirm_setting_key === 'string', {
+    path: ['confirm_setting_key'],
+    ...withKey('confirm_required'),
+  });
+
+/* ------------------------------------------------------------------------ *
+ * F-72 §8 — announcements and broadcast
+ * ------------------------------------------------------------------------ */
+
+export const ANNOUNCEMENT_SEVERITIES = ['info', 'maintenance', 'incident', 'marketing'] as const;
+export const AnnouncementSeverity = z.enum(ANNOUNCEMENT_SEVERITIES);
+export type AnnouncementSeverityT = z.infer<typeof AnnouncementSeverity>;
+
+/**
+ * §8 spells the third arm `{"type":"tenants","tenant_ids":[…]}`. This repo
+ * says organization, never tenant — `tenant_id` appears nowhere in
+ * packages/schemas, which is the vocabulary source of truth — so the arm is
+ * `organizations`/`organization_ids`, matching the 0068 CHECK and
+ * `announcement_matches`. Recorded as a deliberate deviation in D-073.
+ */
+/**
+ * Canonically lower-case, because the two SQL sides compare the same id with
+ * two different relations: `admin_publish_announcement`'s PA026 guard casts to
+ * `uuid` (case-insensitive) while `announcement_matches` tests the jsonb array
+ * with `? p_org::text` (byte-exact). An upper-case id therefore passed the
+ * guard and matched nobody — and §12 immutability makes that unfixable except
+ * by ending the announcement. `z.uuid()` accepts both cases and normalizes
+ * neither, so the wire value is canonicalized here, once, at the boundary.
+ */
+const AudienceOrgId = Uuid.transform((v) => v.toLowerCase());
+
+export const AnnouncementAudience = z.discriminatedUnion('type', [
+  z.strictObject({ type: z.literal('all') }),
+  z.strictObject({ type: z.literal('plan'), plan_codes: z.array(PlanTier).min(1).max(4) }),
+  z.strictObject({ type: z.literal('organizations'), organization_ids: z.array(AudienceOrgId).min(1).max(200) }),
+]);
+
+/**
+ * What a TENANT USER is told. No organization id, no plan, no audience — a
+ * defect in the matcher can leak a platform-authored message; it cannot leak
+ * who else is a customer, what they pay, or how many there are.
+ */
+export const Announcement = z.object({
+  id: Uuid,
+  severity: AnnouncementSeverity,
+  title_en: z.string(),
+  title_fr: z.string(),
+  body_en: z.string(),
+  body_fr: z.string(),
+  dismissible: z.boolean(),
+  starts_at: IsoDateTime,
+  ends_at: IsoDateTime.nullable(),
+  /** §8's status-page link, typed by the publisher; the banner is the anchor. */
+  status_incident_url: z.string().nullable(),
+});
+export const ActiveAnnouncements = z.object({ items: z.array(Announcement) });
+
+export const AdminAnnouncement = Announcement.extend({
+  audience: AnnouncementAudience,
+  published_by_email: z.string(),
+  published_at: IsoDateTime,
+  /** A COUNT of real notifications rows, never a stored column that can drift. */
+  recipients_notified: z.number().int(),
+});
+export const AdminAnnouncementList = paginated(AdminAnnouncement);
+
+/** No `active` filter: `admin_list_announcements` takes no such argument. */
+export const AnnouncementListQuery = CursorQuery.extend({
+  severity: AnnouncementSeverity.optional(),
+});
+
+const announcementText = (max: number) => z.string().trim().max(max);
+
+export const PublishAnnouncementInput = z
+  .strictObject({
+    severity: AnnouncementSeverity,
+    title_en: announcementText(120),
+    title_fr: announcementText(120),
+    body_en: announcementText(2000),
+    body_fr: announcementText(2000),
+    audience: AnnouncementAudience,
+    starts_at: IsoDateTime.optional(),
+    ends_at: IsoDateTime.nullable().optional(),
+    status_incident_url: z.string().trim().url().max(512).optional(),
+    // `dismissible` is deliberately not an input: it is derived from severity
+    // by the definer and tied by a CHECK, so strictObject refuses it for free.
+  })
+  .superRefine((v, ctx) => {
+    // §8 / Bill 96: both languages, and the form marks EVERY empty one in one
+    // round trip (that is what ApiError.detailPaths was built for in F-70).
+    for (const f of ['title_en', 'title_fr', 'body_en', 'body_fr'] as const) {
+      if (v[f].length === 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [f],
+          message: 'both languages are required',
+          ...withKey('missing_translation'),
+        });
+      }
+    }
+    if (v.status_incident_url !== undefined && !v.status_incident_url.startsWith('https://')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['status_incident_url'],
+        message: 'the status-page link must be https',
+        // Its own key: the link is present and wrong, not absent.
+        ...withKey('status_incident_scheme'),
+      });
+    }
+    // The DB CHECK is the guarantee; this is the message. Without it a
+    // biconditional violation surfaces as 23514, which platformErrorFrom
+    // renders as "Reason required" on path `reason`.
+    if (v.severity === 'incident' && !v.status_incident_url) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['status_incident_url'],
+        message: 'an incident must link its status-page incident',
+        ...withKey('status_incident_required'),
+      });
+    }
+    if (v.severity !== 'incident' && v.status_incident_url) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['status_incident_url'],
+        message: 'only an incident links a status-page incident',
+        ...withKey('status_incident_forbidden'),
+      });
+    }
+    // Against the EFFECTIVE start, because `starts_at` is optional and the
+    // definer substitutes `COALESCE(p_starts_at, now())`. Requiring both ends
+    // left the CHECK to answer a blank "Starts" with a past "Ends" — 23514,
+    // which platformErrorFrom renders as "Reason required" on path `reason`,
+    // a field the compose form does not have. Compared as instants: the form
+    // may send a local offset, and two equal instants can differ lexically.
+    if (v.ends_at != null) {
+      const start = v.starts_at != null ? Date.parse(v.starts_at) : Date.now();
+      if (Date.parse(v.ends_at) <= start) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['ends_at'],
+          message: 'the window must end after it starts',
+          ...withKey('invalid_window'),
+        });
+      }
+    }
+  });
+
+/**
+ * F-72 §12 — the platform audit vocabulary, lockstep-tested against the
+ * `platform_audit_events_event_check` CHECK by platform-drift.test.ts.
+ */
+export const PLATFORM_AUDIT_EVENTS = [
+  'staff.granted',
+  'staff.role_changed',
+  'staff.reinstated',
+  'staff.revoked',
+  'announcement.published',
+  'announcement.ended',
+  'settings.flipped',
+] as const;
+
+export type PlatformSettingT = z.infer<typeof PlatformSetting>;
+export type PlatformSettingListT = z.infer<typeof PlatformSettingList>;
+export type SetPlatformSettingInputT = z.infer<typeof SetPlatformSettingInput>;
+export type AnnouncementAudienceT = z.infer<typeof AnnouncementAudience>;
+export type AnnouncementT = z.infer<typeof Announcement>;
+export type ActiveAnnouncementsT = z.infer<typeof ActiveAnnouncements>;
+export type AdminAnnouncementT = z.infer<typeof AdminAnnouncement>;
+export type AnnouncementListQueryT = z.infer<typeof AnnouncementListQuery>;
+export type PublishAnnouncementInputT = z.infer<typeof PublishAnnouncementInput>;

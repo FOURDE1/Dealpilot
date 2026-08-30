@@ -24,6 +24,7 @@ const recordingQueue = {
   enqueueAssistantTurn: () => Promise.resolve(),
   enqueueExtraction: () => Promise.resolve(),
   enqueueLiveAnalysis: () => Promise.resolve(),
+  enqueueAnnouncementFanout: () => Promise.resolve(),
   enqueueFirstTouch: (job: { lead_id: string }) => {
     firstTouches.push(job);
     return Promise.resolve();

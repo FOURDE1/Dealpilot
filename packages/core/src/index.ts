@@ -31,3 +31,4 @@ export * from './lead-duplicates.js';
 export * from './drip.js';
 export * from './tenant-lifecycle.js';
 export * from './impersonation.js';
+export * from './announcements.js';

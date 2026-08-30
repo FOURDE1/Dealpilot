@@ -36,6 +36,287 @@ under user context where the matrix's org-scoped RLS is invisible — the
 persona test caught every GM masked before the fix. The guard also learned
 that a JOIN against the matrix is enforcement's second shape.
 
+## D-073 — 2026-08-30 — Two kill switches that fail closed, and announcements that name no tenant
+
+F-72 (admin-console.md §3, §5.3, §8, §11, §12;
+localization-and-legal.md §2; ADR-007/009/019; designed by the same
+three-planner + judge workflow as F-69/F-70/F-71, every contested repo
+fact verified live before it was written). (1) **The switches are
+rows:** `platform_settings` (0068), `setting_key text PRIMARY KEY CHECK
+(setting_key IN ('ai_outbound_killswitch','sms_send_killswitch'))`,
+both seeded OFF in the migration so a missing row can only mean
+tampering. The app role holds `GRANT SELECT` and nothing else — it
+reads a switch on the send path and can never flip one. `reason` sits
+on the row only while the switch is ON (`CHECK (enabled = false OR
+reason IS NOT NULL)`, ten characters minimum in the Zod input, in
+`admin_set_platform_setting` and in the column CHECK), and the definer
+NULLs it on resume: "why was sending off at 04:00" then survives only
+in `platform_audit_events` (O-31). F-72 ships no flip-history route,
+and that is a choice, not an omission. (2) **Not
+`webhook_delivery_pause`** (O-28): §5.3 names three switches and this
+codebase has a chokepoint for two. There is no outbound webhook
+deliverer — `apps/api/src/carrier.ts:198` is the only `fetch(` in
+server source, the F-49 connectors are INBOUND mappings, and
+`f30-deliver.ts` is the SMS carrier handoff — so the third switch would
+gate nothing and be dead vocabulary in a table whose whole purpose is
+to be obeyed. 0068's closing paragraph carries its un-cut condition:
+one forward CHECK swap and one gate line, the day a deliverer lands.
+(3) **What the cache promises, and what it does not** (O-29, O-30):
+`apps/api/src/platform-settings.ts` is a per-process single-entry
+snapshot with `KILL_SWITCH_TTL_MS = 5000` and a coalesced `inFlight`
+promise cleared in a `finally` — the `finally` exists only so a FAILED
+read does not wedge the process forever; the rejection still
+propagates. Two claims, no more. The read can never silently fall back
+to OFF: there is no `try`/`catch`, no default-false, and a key with NO
+ROW reads as ON. Propagation is bounded by the TTL, in every process,
+and by nothing else: there is no invalidation channel, because
+`REDIS_URL` is optional in `env.ts` and a pub/sub broadcast would be a
+guarantee that is silently not one on a machine without Redis. §5.3's
+"read every request via an LRU cache" is honoured as a TTL snapshot of
+two booleans, and the console prints the number rather than implying
+that a flip is instantaneous. What is NOT claimed: on a cache HIT —
+the overwhelming majority of sends — `killSwitches(c)` never touches
+`c`, so this is not "read inside the transaction that records the
+send"; only a miss is. The console reads uncached through
+`admin_list_platform_settings()`, so a staffer who just flipped a
+switch sees the truth and not a five-second-old picture of it.
+(4) **Where they bite, and where they deliberately do not:**
+`BLOCKED_REASONS` gains `platform_sms_paused` and `platform_ai_paused`
+(twelve values), `ComplianceFacts` gains the two matching fields, and
+both checks go FIRST in `evaluateSend`, above `ai_suspended` — a dealer
+refused during an incident is told the platform's own lever before any
+of their own. The SMS arm is `req.channel === 'sms' && ...`: the
+channel predicate is mandatory, because `evaluateSend` also decides
+`voice` / `ai_outbound_call` sends and a switch the console calls
+« Arrêt des SMS sortants » may not refuse an ADAD call. The AI arm is
+`req.originator === 'ai'`, so a human advisor's replies keep going
+under the AI switch and stop under the SMS one — which both scope
+sentences say out loud. A belt in `f30-deliver.ts` refuses at the wire
+with `carrier_error = 'platform_paused: sms_send_killswitch'`, so the
+guarantee survives the redelivery job that does not exist yet. Email is
+NOT gated (O-34): `mailer.send(` has EIGHT call sites (auth.ts:63,
+f11-dispatch-routes.ts:257/:456/:683, f12-invitation-routes.ts:83,
+f70-provisioning-routes.ts:124/:159, f71-impersonation-routes.ts:69)
+and five are credential paths — sign-up verification (auth.ts:63),
+invitations (f12:83), owner provisioning (f70:124/:159) and the
+support-access notice (f71:69) — that a locked-out operator needs during
+the very incident the switch is for. Of the remaining three, two are the
+driver-company dispatch request (f11:257/:456), an operational notice to
+a third-party vendor, and only f11-dispatch-routes.ts:683
+(`customerEtaMessage`) is customer-facing — the named next step. An AI
+kill stops the SEND, not the model: `runTurn` still spends tokens and
+`AI_TRANSPORT=off` remains the spend switch. (5) **A refused drip WAITS, and the decision is now
+structural:** `drip-tick.ts` exports four sets — `OPTED_OUT_REASONS`
+(3), `BASIS_GONE_REASONS` (4), `WAITING_REASONS` (3) and
+`PLATFORM_PAUSE_REASONS` (2) — with an explicit branch each, and the
+new `drip-reasons.test.ts` asserts they partition `BLOCKED_REASONS`
+exactly. The behaviour was already `waiting`, but by fall-through, and
+"we decided" and "nothing happened to be listed" look identical in a
+diff; classifying a reversible platform pause as basis-gone would
+`expire` every dealer's sequence during a five-minute incident and
+nothing would restart them. The remaining fall-through now calls
+`deps.warn?.()`, wired in production at `apps/workers/src/index.ts`
+where it had never been passed, and a `platform_paused` rejection from
+the belt returns `'waiting'` so the tick's `sent` count cannot report a
+send that never left. (6) **"Emits a Sentry event + Better Stack
+incident" becomes three real artefacts** (O-33): neither service is
+wired into this codebase and F-72 invents neither. A flip writes an
+immutable `platform_audit_events` row (`settings.flipped`, the subject
+in `changes` as `setting_key` and a `{from,to}` pair, `target_user_id`
+NULL — no target columns, the 0065/0067 shape), emits
+`request.log.warn(..., 'platform_killswitch_flipped')` — WARN, not
+ERROR, because an operator's deliberate act is not a failure and
+ERROR-level noise for intended acts is how a drain gets ignored — and
+raises `<KillSwitchBanner />`, a standing `role="status"` bar in the
+console shell naming every switch that is ON. Only the last two are
+read by a human: `platform_audit_events` has seven INSERT sites across the
+migrations (0065 ×2, 0067 ×2, this slice ×3 — and since 0067 replaces both
+0065 bodies, five of them write on the live schema) and ZERO non-test
+SELECT sites in the whole repo. It is a forensic register,
+exactly as 0065 shipped it, and describing it as the operator-facing
+half of a status-page incident would be a claim no code makes true.
+(7) **The switches stay reachable during a support session** (O-32):
+`ADMIN_ALLOWED_DURING` gains exactly `'GET
+/api/v1/admin/platform-settings'` and `'POST
+/api/v1/admin/platform-settings/:setting_key'`. A kill switch with a
+prerequisite is not a kill switch — the incident that makes a super
+admin open a session is the incident in which they may need to stop all
+outbound, and ending the session first costs minutes and their place.
+The safety properties survive: the platform gate still runs (identity,
+mandatory MFA, the 12-hour re-auth clock), `admin_set_platform_setting`
+still asserts `platform_super_admin`, the audit row names the STAFFER
+and not the target, and the impersonation gate never swaps
+`request.session.user` on an `/api/v1/admin/` route. Publishing has no
+comparable urgency, so the exemption is exactly two routes wide and an
+announcement published during a session still answers 409
+`impersonation_active`. (8) **An announcement names no tenant.**
+`platform_announcements` deliberately carries no `organization_id`: the
+audience is a jsonb predicate, not a tenant key, so
+`rls-coverage.test.ts` — whose catalogue query keys on that column —
+does not, and must not, conscript it, and the app role holds no grant
+on either announcement table. Vocabulary deviation from §8, deliberate:
+the spec's arm is `{"type":"tenants","tenant_ids":[…]}`; this repo says
+organization and never tenant (`packages/schemas` is the vocabulary
+truth and contains no `tenant_id`), so the arm is
+`{"type":"organizations","organization_ids":[…]}` and an unknown
+organization in it is `PA026` → 422. ONE predicate serves all three
+readers — `announcement_matches(p_audience, p_severity, p_org,
+p_plan_tier, p_status)`, `IMMUTABLE`, revoked from PUBLIC and granted
+to nobody — carrying the three arms, the tenant-status filter
+`('offboarding','purged','suspended')` and §8's marketing suppression
+(`past_due`, `read_only`; `trial` is operational and DOES receive
+marketing). The feed, the dismiss check and the fan-out therefore
+cannot disagree about who an announcement is for; the moment the
+console can promise a reach the delivery does not make, the feature
+lies to the operator. (9) **Publishing IS creating** (O-36):
+`published_at timestamptz NOT NULL DEFAULT now()`, no `status` column,
+no draft, no amend, no retract, no revisions table. The only legal
+mutation is `POST /api/v1/admin/announcements/:id/end`, which moves
+`ends_at` to `GREATEST(now(), starts_at)` — that `GREATEST` is what
+makes ending a SCHEDULED announcement legal against `CHECK (ends_at IS
+NULL OR ends_at >= starts_at)` — and raises `PA025` the second time.
+§11 declares a `PATCH` and §12 declares the history immutable; a
+`PATCH` whose only legal body is `{ends_at}` is a PATCH in name only,
+and the sub-resource names the act. `platform_announcements_immutable()`
+refuses every DELETE and freezes every column but `ends_at` by
+comparing `to_jsonb(NEW) - 'ends_at'`, and refuses a widening (`PA022`
+→ 409 `invalid_window`). `ends_at` stays NULLABLE: an incident with no
+known end is the commonest incident, and forcing the publisher to
+invent a time is a worse lie than an open window. (10) **`dismissible`
+is derived, never chosen** (O-35): `CHECK (dismissible = (severity IN
+('info','marketing')))`. §8 lists it as a column the publisher sets,
+but "non-dismissible while active" IS the derivation, and an
+announcement outside its window is not shown at all.
+`PublishAnnouncementInput` is a `strictObject`, so a client that
+supplies it gets a 422 for free, and dismissing a maintenance or
+incident notice raises `PA023` → 422 `not_dismissible` in SQL rather
+than in a screen. (11) **The status page is a URL, not an opaque id:**
+one column `status_incident_url` with `CHECK (status_incident_url LIKE
+'https://%' ...)` and a biconditional `CHECK ((severity = 'incident') =
+(status_incident_url IS NOT NULL))`. §8 says an incident row must link
+the Better Stack status-page incident; an id plus a
+`STATUS_PAGE_BASE_URL` env nobody sets renders as inert text — dead
+vocabulary with extra steps. A URL has a consumer on day one with no
+integration at all: the anchor labelled « Voir l'état du service » and
+the person who clicks it. (12) **The tenant feed has nothing to get
+wrong:** `announcements_for_user()` takes NO parameters. Its whole WHERE clause
+is `announcement_visible(a.id)`, and THAT helper reads the person from
+`app.user_id` and carries `impersonation_scope_ok(o.id)` in its
+membership join, so calling the feed inside `withUser` gets the F-71
+scope for free and a later refactor cannot silently drop the argument
+that is not there. `LIMIT 20` lives in the definer, not the route, and
+the returned row names no organization, no plan and no audience — a
+defect in the matcher could leak a platform-authored message, but never
+who else is a customer. `announcement_dismiss(p_id)` likewise takes no
+user argument: the dismisser is the GUC. That property is exactly what
+makes the F-71 interaction invisible, so `IMPERSONATION_BLOCKED_ROUTES`
+refuses `POST /api/v1/announcements/:id/dismiss` in BOTH modes — under
+a full session `app.user_id` is the target's, and a staffer would
+permanently silence a dealer's incident banner in the dealer's own
+name, with no undo. (13) **The fan-out writes one bell row per PERSON**
+(O-37): `announcement_fanout_batch` scans and inserts in ONE statement
+as the definer's owner, so the worker opens no tenant context at all —
+"which people, across every tenant, match this audience" is exactly the
+question a tenant-scoped connection cannot ask. `DISTINCT ON
+(m.user_id)` gives a person in two matching tenants exactly one row,
+filed under the LOWEST matching organization id (deterministic on
+replay); the walk is a keyset cursor on `m.user_id` and the job re-arms
+itself. Idempotence is a database fact rather than a promise:
+`idx_notifications_announcement_once` (partial, on `entity_type =
+'announcement'`) plus `ON CONFLICT DO NOTHING`, so a crash mid-batch, a
+BullMQ redelivery and a double publish all converge on one row.
+`params` carries BOTH titles (`title_en`, `title_fr`) and `bell.tsx`
+picks at DISPLAY time, which is what 0051's own header demands: the
+spec's per-recipient pre-pick would read `users.language_pref`, which
+NOTHING in this product writes (no `UPDATE users SET` anywhere), so it
+would ship one language to every rooftop; and two locales with
+different ICU argument sets fail the i18n parity gate. `link` is NULL
+(`bell.tsx` guards it), urgency is incident→`high`,
+maintenance→`medium`, else `low`. Recorded because two slices interact:
+0067 rewrote `notifications_self_read` to carry
+`impersonation_scope_ok(organization_id)`, so while a support session
+is scoped to that person's OTHER organization the bell row is invisible
+— the BANNER still shows, because the feed matches any in-scope
+membership, and the row reappears the moment the session ends.
+(14) **Who:** five capabilities, added in the same commit that enforces
+them — `announcements:read` and `announcements:publish` → super admin +
+support; `announcements:publish_elevated` and `settings:write` → super
+admin alone; `settings:read` → super admin + support; billing none,
+because §3 gives billing no incident duty and every role in a
+capability array is a claim about who may do what. §3's "support
+publishes info only" is enforced TWICE: two literal `requirePlatform(
+request, '…')` calls in the publish route with no ternary — the drift
+guard reads them as written — and a role re-check inside
+`admin_publish_announcement` raising the EXISTING `PA009` (403), since
+one SQLSTATE maps to exactly one AppError. The `end` route asks
+`announcements:publish` and leaves the severity rule to the definer
+alone, because the severity is unknowable before the row is read and an
+admin route file may not name a role. (15) **Guards:** platform-drift
+scans both `f72-announcement-routes.ts` and `f72-killswitch-routes.ts`,
+pins the new grants (`platform_settings` SELECT only; nothing on either
+announcement table) and puts THREE CHECK vocabularies in lockstep with
+the schemas — `platform_settings.setting_key`,
+`platform_announcements.severity`, and `PLATFORM_AUDIT_EVENTS` against
+the widened `platform_audit_events.event` CHECK (platform-drift.test.ts:162).
+That last one is the Zod↔CHECK binding, and it is the only one: the new
+`platform-event-vocabulary.test.ts` never names `PLATFORM_AUDIT_EVENTS`
+at all. It does the other half — CHECK↔producer, one direction — by
+reading the LIVE constraint, stripping the constraint spans out of the
+migration corpus (and asserting the strip worked, so the guard cannot go
+vacuous) and requiring every value the CHECK declares to appear inside a
+surviving `INSERT INTO platform_audit_events`. `outbound-chokepoint.test.ts`
+pins the facts the belt argument rests on, over a scan asserted not to be
+looking at nothing: `sendMessage` as the only writer of an outbound
+`messages` row, `f30-deliver.ts` as the only holder of `carrier.send(`,
+each gated stager still reaching the gate, every `deliverMessage`
+downstream of a gated send — that one PER CALL SITE, with crash-recovery
+redelivery registered as a named exemption rather than waved through —
+and `killSwitches(` read in exactly four files. The two `holders()`
+checks are file-granular by construction, which is a limit worth knowing
+before the next redelivery worker lands;
+`drip-reasons.test.ts` pins the partition; `tenant-lifecycle-drift.test.ts`
+now also regexes `announcement_matches`, so the status list lives twice
+and drifts nowhere; and `contrast.test.ts` gains two pairs that real
+components already ship and no test read. Their provenance differs, and
+the difference is the interesting part: `['caution-text','caution-bg']`
+is the be-back ramp `tokens.ts:59` CLAIMED was "AA-gated ... 8.0:1
+light, 10.9:1 dark" — measuring it found 6.38:1 and 9.52:1, and that
+comment is corrected in this commit (8.0:1 was never reachable in light;
+the best any caution pairing manages is 6.85:1, on card).
+`['foreground','muted']` is the neutral status row F-72 gives `info` and
+`marketing` announcements — `tokens.ts` never claimed anything about it;
+it had simply never been listed. Both found by this slice, not used by
+it. F-72 adds NO RLS policy of any kind and no entry to any PRE-EXISTING
+exemption registry; the exemptions it does declare live in `EXEMPT_SITES`
+inside the chokepoint guard it writes itself, each carrying its reason
+and the source literal whose disappearance retires it. **Deviations from
+§5.3/§8/§11/§12, each deliberate:** `webhook_delivery_pause` is not
+declared; no Sentry event and no Better Stack incident (an audit row, a
+WARN line and a console banner); "an LRU cache read every request" → a
+5-second per-process TTL snapshot with no invalidation channel;
+`tenants` / `tenant_ids` on the wire → `organizations` /
+`organization_ids`; §11's `PATCH /:id` → `POST /:id/end`; `dismissible`
+derived from severity rather than supplied; the status-page link is a
+URL the publisher types, not an incident id resolved from an env var;
+the bell row carries both titles and the viewer's locale picks;
+§8's display window is "rendered tenant-local" in the spec but renders
+through `Intl.DateTimeFormat(i18n.language, …)`, i.e. in the VIEWER'S
+browser timezone, not the tenant's `stores.timezone`; the 21st
+simultaneous announcement is not returned and the client is given no
+"more exist" signal; email is gated by nothing. **Deferred, not
+invented:** an outbound webhook deliverer and its pause; an email kill
+switch (`Mailer.send` returns a bare boolean and has no decision row or
+refusal vocabulary, so a gate would be indistinguishable from an SES
+failure); a flip-history route or any console reader of
+`platform_audit_events`; an audience-preview endpoint and a recipients
+list (the console shows a count of the rows that exist); a
+draft/amend/retract lifecycle; a tenant-authored or tenant-scoped
+announcement; a Redis invalidation channel; the store timezone in the
+banner; a model-spend switch beyond `AI_TRANSPORT=off`; a tenant-facing
+kill-switch banner (a `maintenance` announcement is what tells every
+dealer the platform is paused).
+**Decided by:** Claude (implementation), 2026-08-30
+
 ## D-072 — 2026-08-27 — Impersonation with audit: a register row on the staffer's own session, scoped by the database
 
 F-71 (admin-console.md §3, §7, §11, §12; authentication-authorization.md

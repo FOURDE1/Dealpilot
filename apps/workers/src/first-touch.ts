@@ -2,6 +2,7 @@ import { withTenant, type Pool, type PoolClient } from '@dealpilot/db';
 import { tenantOperational } from './tenant-status.js';
 import { FirstTouchJob, type DeferredSendJobT, type FirstTouchJobT } from '@dealpilot/contracts';
 import { safeFirstTouchMessage } from '@dealpilot/ai';
+import { isPlatformPause } from '@dealpilot/core';
 import { sendMessage } from '@dealpilot/api/send';
 import { deliverMessage } from '@dealpilot/api/deliver';
 import { findOrCreateConversation } from '@dealpilot/api/inbound-router';
@@ -381,6 +382,17 @@ export async function runFirstTouch(deps: FirstTouchDeps, raw: unknown): Promise
     };
   });
 
+  // F-72: a platform kill switch postponed this greeting, it did not refuse
+  // it. Retry hourly like the tenant-not-operational branch above, so a lead
+  // that arrived during an incident is still greeted once it lifts — dropping
+  // it here would miss the 60-second SLA permanently and report success.
+  if (staged.kind === 'not_sent' && isPlatformPause(staged.reason.replace(/^blocked: /, ''))) {
+    await deps.retryLater?.(job, new Date(now.getTime() + 60 * 60_000));
+    return {
+      kind: 'skipped',
+      reason: deps.retryLater ? `${staged.reason}; retry in 1h` : staged.reason,
+    };
+  }
   if (staged.kind === 'skipped' || staged.kind === 'not_sent') return staged;
   if (staged.kind === 'defer') {
     await deps.defer(staged.job, new Date(staged.runAt));
