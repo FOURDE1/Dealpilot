@@ -120,6 +120,20 @@ export function createEmitOnlyEmitter(redisUrl: string | undefined): {
       // may still be in flight during a fast drain, and an abrupt disconnect
       // rejects that floating promise — an unhandled rejection that kills
       // the process mid-shutdown. QUIT waits for pending commands first.
+      // Drain before quitting. QUIT waits for commands ioredis has already
+      // WRITTEN, but the adapter's psubscribe can still be sitting in the
+      // offline queue, and every queued command is rejected — "Connection is
+      // closed." — the moment the socket goes. Nothing owns those promises:
+      // they belong to the adapter, not to us, so the `error` listeners above
+      // do not catch them and they surface as unhandled rejections. Vitest
+      // fails an entire run on one of those even when every test passes, which
+      // is how CI 33293056131 went red on 1603/1603 green.
+      //
+      // A round trip flushes the queue in order — PING is one of the few
+      // commands ioredis still allows a client in subscriber mode — so QUIT
+      // finds nothing pending behind it. allSettled, because a client that is
+      // already gone is exactly the case we are making safe.
+      await Promise.allSettled([pub.ping(), sub.ping()]);
       await pub.quit().catch(() => {});
       await sub.quit().catch(() => {});
     },
