@@ -149,10 +149,32 @@ migration hunks; the final file was re-verified hunk by hunk. Both are
 arguments for targeted edits over whole-file rewrites when agents share a
 tree.
 
-**Pushed** as `19a5c58` (70 files, +7490/-40). **CI GREEN first try —
-run 33291117664, conclusion `success`, both jobs** (lint/typecheck/test/build
-and the real-browser e2e), verified with
-`gh run view 33291117664 --json conclusion`. 32 of 33 pushes green first try.
+**Pushed** as `19a5c58` (70 files, +7490/-40). CI run 33291117664 GREEN,
+both jobs.
+
+**Then the docs-only follow-up `43901b6` went RED — twice — and it was
+ours, not a flake.** All 153 files and 1603 tests passed; vitest exited 1
+on two unhandled rejections, `Error: Connection is closed.` out of
+ioredis's close handler. The cause was in the F6/F8 review fix: the
+publish route wrote `Promise.race([enqueue, timeout]).catch(...)`, which
+attaches the catch to the RACE. When the timeout wins, the race resolves
+and the enqueue promise is abandoned still pending — and an abandoned
+ioredis command rejects when the pool shuts down, with nothing watching.
+The catch now belongs to the enqueue itself and the race only bounds how
+long the request WAITS; the timer is cleared rather than left holding the
+event loop open for 1500 ms after every publish.
+
+It never reproduced locally because **`REDIS_URL` is unset here and set in
+CI**: without it `createDeferredSendQueue` returns the loud no-op and the
+real BullMQ path — the one that can abandon a command — never executes.
+Every local gate in this slice had therefore been running a different
+code path from CI. Re-run with `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381
+npx vitest run`: 153 files, 1603 tests, exit 0, no unhandled errors. That
+env pair is now the one to use before believing a green local gate.
+
+Also worth keeping: `19a5c58` and `43901b6` differ by one markdown file,
+so the same latent defect was present in the green run and simply did not
+fire. A green CI is not evidence that an unobserved promise is safe.
 
 ## 2026-08-27 (tick 25) — F-71 impersonation: a register row, not a second session
 

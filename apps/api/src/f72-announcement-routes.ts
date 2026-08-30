@@ -85,6 +85,16 @@ async function readAnnouncement(pool: Pool, actorId: string, id: string): Promis
   return adminAnnouncementOf(row);
 }
 
+/**
+ * How long a publish waits for the fan-out enqueue before answering anyway.
+ * ioredis buffers commands while Redis is unreachable (`maxRetriesPerRequest:
+ * null`), so the add does not reject — it hangs. The banner is the primary
+ * delivery and needs no queue, so a bounded wait is better than a request that
+ * never returns and an operator who retries into a second immutable
+ * announcement.
+ */
+const ENQUEUE_WAIT_MS = 1500;
+
 export function registerF72AnnouncementRoutes(
   app: FastifyInstance,
   pool: Pool,
@@ -120,15 +130,32 @@ export function registerF72AnnouncementRoutes(
     // and Redis unreachable, ioredis buffers the `add` offline and the bare
     // await would HANG — the operator, mid-incident, would retry and publish a
     // second immutable announcement that cannot be deleted.
+    //
+    // The catch belongs to the ENQUEUE, not to the race. A race abandons its
+    // loser, and an abandoned ioredis command still rejects — with "Connection
+    // is closed." — when the pool shuts down, by which time nothing is
+    // watching. That is an unhandled rejection, and vitest fails a whole run on
+    // one even when every test passes (CI 33291543933: 1603/1603 green, exit 1).
+    // So: observe the enqueue always, and let the race decide only how long the
+    // request WAITS for it.
+    const enqueued = queue
+      .enqueueAnnouncementFanout({ announcement_id: id })
+      .catch((err: unknown) => {
+        request.log.warn(
+          { announcementId: id, err: err instanceof Error ? err.message : String(err) },
+          'announcement fan-out enqueue failed — the banner shows it, but nobody gets a bell row',
+        );
+      });
+    let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([
-      queue.enqueueAnnouncementFanout({ announcement_id: id }),
-      new Promise<void>((resolve) => setTimeout(resolve, 1500)),
-    ]).catch((err: unknown) => {
-      request.log.warn(
-        { announcementId: id, err: err instanceof Error ? err.message : String(err) },
-        'announcement fan-out enqueue failed — the banner shows it, but nobody gets a bell row',
-      );
-    });
+      enqueued,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, ENQUEUE_WAIT_MS);
+      }),
+    ]);
+    // An uncleared timer holds the event loop open for its full delay after
+    // every publish, which is how a fast suite ends up waiting on nothing.
+    clearTimeout(timer);
     request.log.info(
       { announcementId: id, severity: input.severity, audience: input.audience.type },
       'announcement_published',
