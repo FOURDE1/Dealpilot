@@ -172,6 +172,10 @@ code path from CI. Re-run with `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381
 npx vitest run`: 153 files, 1603 tests, exit 0, no unhandled errors. That
 env pair is now the one to use before believing a green local gate.
 
+The fix is `ebee4b9`, and **CI run 33292743236 is GREEN on both jobs**
+(verified with `gh run view 33292743236 --json conclusion`). develop is
+clean at `ebee4b9`.
+
 Also worth keeping: `19a5c58` and `43901b6` differ by one markdown file,
 so the same latent defect was present in the green run and simply did not
 fire. A green CI is not evidence that an unobserved promise is safe.
