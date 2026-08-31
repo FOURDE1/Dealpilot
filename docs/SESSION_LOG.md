@@ -140,7 +140,12 @@ slice row since S-01, with the caveat that F-19…F-75 were never on that
 board; `PROJECT.md` gains one how-to row. `SECURITY.md` unchanged — no new
 surface, no permission touched.
 
-**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as tick 29 was.**
+**Pushed as `c8efbc4` (56 files, +5129/−108). CI GREEN first try — run
+33373590281, both jobs** (lint/typecheck/test/build and the real-browser e2e),
+verified with `gh run view 33373590281 --json conclusion`. **Twelve consecutive
+greens.** No migration to apply to the dev database this time (0070 stays
+the newest). Next: F-77 — the tenant snapshot console page and the console's
+browser coverage (O-51), the scoping's third candidate.
 
 ## 2026-08-31 (tick 29) — F-75: the published brand paints the app, and the proof moves to the surfaces the app actually paints
 
