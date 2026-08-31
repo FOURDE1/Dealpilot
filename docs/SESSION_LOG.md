@@ -1,3 +1,160 @@
+## 2026-08-31 (tick 28) — F-74: the browser suite gets its own database, and the console gets its first browser test without spending the owner's one-shot
+
+**Where tick 27's CI story ended.** F-73 shipped as `e754022` (run
+33311281418, green). The three pushes since — `9d4a974` (tick 27 itself),
+`06c2eb3` (F-68 task-board store clock + F-67 empty heatmap e2e, and two
+comments that had drifted) and `245b91e` (the owner-decision docs below) —
+were green too: runs 33311699583, 33314215150 and 33314644925. **Seven
+consecutive greens** since the abandoned-promise fixes; `develop` was clean
+at `245b91e` when this slice started.
+
+**The decision this slice answers.** The platform console (`/admin/*`,
+thirteen routes) had no browser test, and the reason was structural: the
+first `platform_staff` row has exactly one producer, the no-actor
+`platform-grant` CLI path, which is legal only while no active super admin
+exists — a one-shot per database (PA010). A test that took it on the dev
+database would have made the owner's console permanently unreachable, the
+same shape as the `db:reset` lockout (HO-07), so it was written up for him as
+a `⚠ NEEDS YOUR DECISION` block with three options. He said "continue,
+sticking to the plan"; option A — give e2e its own database — was taken
+because it is the only one that needs no irreversible act on his machine,
+and the block's own recommendation. His one-shot is still unspent:
+`platform_staff` on `dealpilot` was 0 before this slice and is 0 now,
+checked before and after every run.
+
+**Design.** Three planners (safety-first, ci-parity, smallest-honest), a
+judge who emits rulings only — the F-72 lesson that a judge re-emitting a
+100 KB plan hits the output cap — and an adversarial critique; winner
+`safety-first`, hardened into a binding document of 18 rulings and 24
+amendments. The rulings that shaped the code: the database is
+`dealpilot_e2e_test`, so `reset()`'s existing `/_test$/` guard permits it BY
+NAME and `DB_RESET_CONFIRM` — the escape hatch that names the dev database —
+appears nowhere on the e2e path; ONE Node runner (`scripts/e2e.mjs`) is the
+only entry, locally and in CI, with no `env:` block in the workflow, because
+`REDIS_URL` unset-here-set-there is exactly how F-72's whole local gate
+became evidence about a program CI does not build; the API moves to 3101 and
+the SPA to 5176 so `pnpm dev` stays up, and the runner REFUSES rather than
+adopts when anything answers on its ports; the reset runs in the runner and
+never in a Playwright `globalSetup` — verified in the installed
+playwright@1.61.1 that webServer plugins start strictly before globalSetup
+files, so the API would pool against a schema that does not yet exist; the
+spec bootstraps its staffer by shelling out to the shipped `platform-grant`
+verb with the `_test` name as a new guarded positional (apps/web gains no
+dependency); the second staffer is minted from the console's own
+`/admin/staff` form, the one console write this slice affords;
+`adminNavItems()` is extracted so all three roles are unit-tested when only
+one bootstrap can exist per run; and the orphan `dealpilot_e2e` database is
+neither adopted nor script-dropped — its name does not end `_test`, so no
+code on this path may touch it, and the owner has a one-liner.
+
+Two proposals were rejected with the mechanism written down (D-075) so they
+are not re-proposed: a logical Redis database index (`/1`) — the BullMQ
+layer builds connections from hostname+port and DROPS the URL pathname while
+presence/realtime honour it, so `/1` splits queues from pub/sub and looks
+like isolation; and a read-only fingerprint of the dev database checked
+before and after the run — observational under `retries: 0`, and it opens a
+dev connection on the path whose thesis is that it has none. Replaced by two
+static guards that run in `checks` and are mutation-tested to red.
+
+**Build, interrupted twice.** The owner closed VS Code by mistake twice
+mid-slice. The first killed the judge/critique run — resumed with
+`resumeFromRunId` (5/6 agents cached; the script had to be copied into the
+scratchpad because the tool refuses the `.claude-readyloans` path). The
+second took Docker down with it (`db` and `redis` Exited 255) and killed the
+build agent mid-tree with no cached result. Docker came back with `docker
+compose up -d db redis`; a continuation agent was told to INVENTORY the
+partial tree before building (a resume would replay a prompt blind to the
+partial state) and found seven defects in it, one real: `process.exit(1)`
+inside the `try` after the API spawn skips the `finally`, orphaning the API
+on 3101 and blocking every later run at the port probe. Also: two guards
+catching themselves (the bootstrap verb in the guard's own title; the reset
+escape hatch named in comments the isolation guard scans), a `!` non-null on
+the port, TS2769 under `noUncheckedIndexedAccess`. The journey is
+`apps/web/e2e/f74-console-door.e2e.ts`.
+
+**Adversarial review: six lenses, refute-biased verification.** dev-db
+attacker, runner lifecycle, CI parity, journey flake, guard vacuity, claims
+honesty — 22 raw findings, **14 confirmed, 8 refuted**, every one verified by
+a second agent told to refute it. The two majors were one defect, and it is
+this repo's recurring shape: the isolation guard's literal scan stopped at
+the first space inside `${process.env.DEALPILOT_DB_PORT ?? 5434}`, so it
+never saw the maintenance base's `/dealpilot` tail, classified the remainder
+as a template and skipped it. Its "one exemption, deliberately" branch was
+dead, its `<= 1` count passed on zero, and — proven by mutation — pointing
+the API's own `DATABASE_URL` at `dealpilot` stayed GREEN: the free exemption
+slot absorbed it. The design had demanded "mutation-test both" and the
+literal clause was the one never mutated. It is template-aware now, the
+maintenance base is recognised by name AND owner credentials, and the count
+is `toBe(1)`. The rest, all fixed: two `pnpm e2e` started within the ~20 s
+between the port probe and the API binding its port would both pass the
+probe and the second would DROP the schema under the first one's live API
+(a pid lock now, taken before anything destructive, stale-aware, released on
+every exit path — the refusal measured at 62 ms); a signal-killed API left
+`exitCode` null and the poll ran its full 90 s with the wrong diagnosis
+(`signalCode` checked too); a pid-only SIGTERM to the runner skipped the
+`finally` and orphaned the API (handlers installed after the spawn, proven
+on Linux by the verifier); the 90 s timeout never said WHY — the verifier
+cut the database out from under a live API and the message was identical to
+"never bound the port", with an 80-line tail that was all the poll's own
+200s (the last observation is reported and the poll's request pairs are
+filtered out of the tail); the bootstrap guard counted a SUBSTRING, so the
+journey's own header comment satisfied "exactly one importer" after the
+import and the call were deleted (comments stripped before matching, and
+the naive import-regex fix was itself refuted because it would have let a
+namespace or dynamic second importer through); and six false claims in
+comments and messages — "TWO copies" of the TOTP pair when five definitions
+exist, `exact` "because the column headers are also labels" (getByLabel
+never sees a `<th>`), a spawn "behaviour-identical" to the dev script except
+that its cwd moved and the local document store is cwd-relative, "the dev
+ports are NOT probed" that held only while nobody had exported
+`DEALPILOT_*_PORT` (the ports are constants now), a refusal message that
+asserted the squatter "is pointed at the DEV database" and in the next
+sentence named an e2e orphan as the usual cause, and a `grep` recipe without
+`-E` that is empty on any tree. Refuted, and worth recording: "upload-artifact
+v7 excludes dot-directories, so `.e2e/api.log` is dead" — the pinned bundle's
+filter tests each traversal item's BASENAME, an explicit file path starts
+inside the directory, and the verifier ran the pinned dist against a mirror
+tree and saw three files found; "dev `users` is 1128, not 962" — that count
+was Better Auth's `"user"` table, the fingerprint script counts `users`, both
+numbers are right and neither moved.
+
+**Fixes verified before the gate:** ten guard mutations through a harness
+with sha-verified restores — the isolation guard red on the staging default,
+the API URL at `dealpilot`, a second owner-prefixed `/dealpilot` literal, the
+base renamed `/postgres`, and a whitespace-bearing template in a spec; the
+bootstrap guard red on import-and-call-deleted-prose-kept and on a namespace
+second importer, and green on a second spec that names the helper only in a
+comment. Then the manifest's remaining mutations on the real tree: a
+capability guard deleted from `nav.ts` → `nav.test.ts` red; `DB_RESET_CONFIRM`
+added to the `e2e:` job block → isolation guard red; the constant renamed
+`dealpilot_e2e` or pointed at `dealpilot` → isolation guard red; a Redis that
+does not answer → the PING preflight refuses; the API handed a non-`_test`
+`DATABASE_URL` → the runner refuses before the spawn and releases its lock.
+
+**Gate:** `pnpm turbo run build typecheck lint` 25/25 tasks (21 cached); `RLS_REQUIRED=1
+REDIS_URL=redis://localhost:6381 npx vitest run` → **166 files / 1752 tests, exit 0, no unhandled errors**; `node
+scripts/e2e.mjs` on a planted stale lock → taken over, **45 passed in 2.8 m against dealpilot_e2e_test rebuilt from migration zero**, lock
+released, nothing left listening. Dev database: `platform_staff = 0`, `users
+= 962`, untouched.
+
+**Docs:** D-075 (top of `DECISIONS.md`, with both rejections); the
+`⚠ NEEDS YOUR DECISION` block in `OWNER-DECISIONS-PENDING.md` replaced by
+the resolution — its spec count retired with it, the phrase is *every
+`*.e2e.ts` under `apps/web/e2e`*; `PROJECT.md`'s e2e section rewritten
+around `pnpm e2e` with the `DB_ADMIN_URL`-wins precedence and the residual
+Redis sentence; `OWNER-ACTIONS.md` (2026-08-31: how to run it, the one-shot
+still his, the `DROP DATABASE dealpilot_e2e` line); `SECURITY.md` dated entry
+plus the shared-Redis accepted risk; `OWNER-TEST-MASTER.md` ROUND 21.
+
+**Meta-lesson, carried on the design's instruction:** two of the three plans
+proposed fixing a "29 specs" comment in `ci.yml` that did not exist at
+`245b91e` — and the design's own "the TWO-copies count is already correct,
+do not re-fix it" was wrong in the other direction. A count in a plan is a
+claim in the product; the count is the grep, never the sentence.
+
+**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit,
+as tick 27 was for F-73.** Next: F-75 per the plan, once this run is green.
+
 ## 2026-08-30 (tick 27) — F-73 usage, snapshot and the job inspector: numbers that name a row, and a retry that admits it can text twice
 
 **Where tick 26's CI story ended.** F-72 shipped as `19a5c58` and CI run

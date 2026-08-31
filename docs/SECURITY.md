@@ -119,6 +119,55 @@ Per-topic implementation reference: OWASP Cheat Sheet Series
 
 <!-- Entries begin below. -->
 
+### 2026-08-31 — F-74 e2e isolation: the suite's database, the runner, the bootstrap
+
+**Scope:** `scripts/e2e.mjs`; the guarded `[dbname]` positional on `reset`
+and `platform-grant` in `packages/db/src/cli.ts` with
+`disposableDatabaseUrl()` / `ensureDatabase()`; the two vitest guards under
+`apps/web/e2e/`; the console journey and its `support/platform-staff.ts`
+bootstrap; the `e2e:` job of `ci.yml`. No route, no table, no policy, no
+column.
+
+- **The dev database is unreachable from the e2e path by construction, not
+  by care.** Every path that can drop a schema or mint a staffer routes the
+  database NAME through `/^[a-z][a-z0-9_]*_test$/` before a connection
+  exists; the name is a code literal, never an env var, so a shell whose
+  `DB_ADMIN_URL` points at dev still cannot aim a reset or a grant at it.
+  `DB_RESET_CONFIRM` appears nowhere on the path (guarded, including the
+  `e2e:` job block of `ci.yml`). The one literal ending `/dealpilot` is the
+  host-shaped maintenance base — `CREATE DATABASE` only — exempted by name
+  AND by owner credentials and asserted to occur exactly once; the API's own
+  `DATABASE_URL` is asserted to end `_test` before the process exists.
+  Adversarial mutations, each red now: the API URL pointed at `dealpilot` by
+  literal; the maintenance default renamed to a staging database; a second
+  smuggled `/dealpilot` literal; a whitespace-bearing template ending
+  `/dealpilot` in a spec. The first three were GREEN before the review — the
+  scan stopped at the first space inside `${…}` and never examined the tail
+  — which is the reason the guard is template-aware and its count is
+  `toBe(1)`, not `<= 1` ✔
+- **`CREATE DATABASE` interpolates an identifier.** The whitelist is the
+  rule itself (bare lowercase identifier ending `_test`), and the maintenance
+  host must be local (`localhost`, `127.0.0.1`, `db`), mirroring `reset()`'s
+  own refusal, so a hostile `DB_ADMIN_URL` cannot make a remote host receive
+  the statement ✔
+- **The bootstrap one-shot is owned by exactly one spec** through the shipped
+  `platform-grant` verb with the `_test` positional; the guard strips
+  comments before matching, so prose cannot stand in for the import in either
+  direction. The dev database's one-shot remains unspent — `platform_staff =
+  0` before and after every run of this slice ✔
+- **The runner never adopts a server** on its ports, takes a pid lock so a
+  second runner cannot drop the schema under the first one's API, and on a
+  pid-only SIGINT/SIGTERM kills its children before exiting. The API log it
+  writes carries pino's redaction of `authorization` and `cookie` headers and
+  is uploaded as a CI artifact on failure only ✔
+- **Secrets:** the e2e API's `BETTER_AUTH_SECRET` is generated per run from
+  `node:crypto`; no string in the repo looks like a secret. The e2e
+  database's app-role password is the dev-only literal the `checks` job
+  already carries ✔
+
+**Accepted (see below):** the e2e API shares Redis with the dev stack; a
+hand-started worker would consume e2e jobs.
+
 ### 2026-08-30 — F-73 per-tenant usage, tenant snapshot, job inspector / DLQ (§6, §9)
 
 **Scope:** `GET /api/v1/admin/tenants/:id/usage`, `GET
@@ -445,6 +494,16 @@ parameterized values throughout; React escaping holds on all three screens.
 
 ## Accepted risks
 
+- **2026-08-31 (F-74) — the e2e API shares Redis with the dev stack.** A
+  logical database index (`/1`) was rejected because the BullMQ layer builds
+  its connections from hostname+port and DROPS the URL pathname while
+  presence/realtime honour it — `/1` would split queues from pub/sub and look
+  like isolation (D-075). So with `REDIS_URL` set, a job the e2e API enqueues
+  would be consumed by any worker process on the same Redis. Accepted
+  because `apps/workers` has no dev script — `pnpm dev` never starts one — so
+  the exposure needs a hand-run `pnpm --filter @dealpilot/workers start`, and
+  because the runner prints the Redis it uses on its first line. Revisit if a
+  worker ever joins `pnpm dev`.
 - **2026-08-30 (F-73) — retrying a failed job on an `at_least_once` queue
   sends a second SMS to a real customer.** `deferred-send`, `assistant-turn`,
   `first-touch` and `drip-tick` all stamp `provider_ref` only AFTER the carrier

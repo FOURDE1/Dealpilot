@@ -162,10 +162,19 @@ jobs:
         # second browser. CI has no Chrome until we ask for one.
         run: pnpm --filter @dealpilot/web exec playwright install --with-deps chrome
 
-      - name: Database from migration zero
-        env:
-          DB_RESET_CONFIRM: dealpilot
-        run: pnpm --filter @dealpilot/db --fail-if-no-match run db:reset
+      - name: Database from migration zero (for the workers probe below)
+        # This step exists ONLY to give the workers boot/drain probe a migrated
+        # database in its existing position — and it also CREATES the database:
+        # the service container above only creates `dealpilot`, and creation
+        # happens inside the CLI's `reset <dbname>` path. The suite's own
+        # database is prepared AGAIN by scripts/e2e.mjs, unconditionally,
+        # because a runner that trusts a previous step to have reset the
+        # database behaves differently when run alone — the divergence F-74
+        # exists to kill (~7s of a 20-minute budget). The reset confirmation
+        # variable is gone from this job: the name ends _test, so reset()'s own
+        # guard accepts it on its terms (and a vitest guard fails `checks` if the
+        # variable ever reappears in this job block).
+        run: pnpm --filter @dealpilot/db --fail-if-no-match run db:reset dealpilot_e2e_test
 
       - name: Build
         run: pnpm turbo run build
@@ -181,7 +190,7 @@ jobs:
         # real POSIX signals, so the drain path cannot be exercised on the
         # owner's machine at all.
         env:
-          DATABASE_URL: postgresql://dealpilot_app:dealpilot_app_dev@localhost:5434/dealpilot
+          DATABASE_URL: postgresql://dealpilot_app:dealpilot_app_dev@localhost:5434/dealpilot_e2e_test
           REDIS_URL: redis://localhost:6381
           NODE_ENV: development
         run: |
@@ -220,55 +229,22 @@ jobs:
             exit 1
           }
 
-      - name: Start the API, then run the suite
-        # One step on purpose. The API is a background process, and starting it
-        # in an earlier step means trusting that it outlives that step's shell —
-        # true today, invisible when it stops being true. Here its death is
-        # caught by the `kill -0` check with its log attached, instead of
-        # surfacing as every spec failing to reach the server.
-        env:
-          DATABASE_URL: postgresql://dealpilot_app:dealpilot_app_dev@localhost:5434/dealpilot
-          DB_ADMIN_URL: postgresql://dealpilot:dealpilot@localhost:5434/dealpilot
-          REDIS_URL: redis://localhost:6381
-          BETTER_AUTH_URL: http://localhost:3001
-          # Matches what the suite is proven green against locally. Deviating
-          # here would test a configuration nobody has ever run.
-          NODE_ENV: development
-          PORT: '3001'
-        run: |
-          set -euo pipefail
-          # Ephemeral, single-run, single-container. Generated rather than
-          # written down so no string in this repo ever looks like a secret.
-          export BETTER_AUTH_SECRET="$(openssl rand -hex 32)"
-
-          pnpm --filter @dealpilot/api run dev > /tmp/api.log 2>&1 &
-          API_PID=$!
-
-          for _ in $(seq 1 90); do
-            if curl -fsS http://localhost:3001/api/v1/health > /dev/null 2>&1; then
-              echo "API healthy"
-              break
-            fi
-            if ! kill -0 "$API_PID" 2>/dev/null; then
-              echo "::error::API exited before becoming healthy"
-              cat /tmp/api.log
-              exit 1
-            fi
-            sleep 1
-          done
-
-          curl -fsS http://localhost:3001/api/v1/health > /dev/null || {
-            echo "::error::API never became healthy within 90s"
-            cat /tmp/api.log
-            exit 1
-          }
-
-          # Playwright's webServer block starts Vite, which proxies /api here.
-          pnpm --filter @dealpilot/web run test:e2e
+      - name: e2e (the same one command the owner runs)
+        # One command on purpose, and no env: block at all. Every value the old
+        # inline shell set here — the URLs, REDIS_URL, the ports, the generated
+        # BETTER_AUTH_SECRET (node:crypto now, not openssl: a stock Windows box
+        # has no openssl, so the openssl line could never have been the local
+        # line) — comes from scripts/e2e.mjs, so this step and `pnpm e2e` on a
+        # developer machine are the SAME program. The runner keeps everything
+        # this step's shell existed for: an early API death is caught by a
+        # liveness check with the log attached instead of surfacing as every
+        # spec failing to reach the server, and the health poll now parses the
+        # body — the old `curl -fsS` accepted a 200 that said db:"down".
+        run: node scripts/e2e.mjs
 
       - name: API log (on failure)
         if: failure()
-        run: cat /tmp/api.log || true
+        run: cat .e2e/api.log || true
 
       - name: Playwright report (on failure)
         if: failure()
@@ -278,5 +254,6 @@ jobs:
           path: |
             apps/web/playwright-report
             apps/web/test-results
+            .e2e/api.log
           retention-days: 7
           if-no-files-found: ignore

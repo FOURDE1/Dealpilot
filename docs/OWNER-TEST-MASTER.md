@@ -598,3 +598,22 @@ until it can be done without breaking readability.
 | 20.15 | Open **Réattribution de prospects** (or *Extraction par l’IA*), tick a failed job and press *Remettre en file* | No confirmation box and no red warning — instead "Les travaux de cette file peuvent être repris sans qu’un client reçoive de message." A reason of ten characters is still required | ⬜ |
 | 20.16 | Sign in as a **Billing** staffer and look at the console menu; then open a dealer's *Utilisation* page | **Files de travaux** is not offered at all, and the failed-jobs address is refused if typed directly. The usage page still opens — §11 gives usage to every platform role | ⬜ |
 | 20.17 | As a super admin, start a support session on a dealer, and while it is live try the *Utilisation* page and **Files de travaux** | Neither loads: the API refuses both with 409 while a session is live, and each page shows « Impossible de charger les données. Réessayez. » End the session and both work again. A retry filed inside a support session would carry two identities for one act, so it is not allowed | ⬜ |
+
+
+## ROUND 21 — The browser suite runs on its own database, and the console has its first test (F-74)
+
+> Nothing new on screen this round — this is about the test suite, and about
+> your dev database. Until now the browser tests ran against YOUR database,
+> and the platform console had no browser test at all because writing one
+> would have spent your database's one-shot first-staffer grant. Now the suite
+> owns a throwaway database, rebuilt from nothing on every run, and mints its
+> own first staffer there. Have Docker running (`docker compose up -d`).
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 21.1 | From `main-project`: `pnpm e2e` | The first line printed reads `e2e stack: db=localhost:5434/dealpilot_e2e_test (maintenance via dealpilot) \| api=http://localhost:3101 \| spa=http://localhost:5176 \| redis=redis://localhost:6381`. The run resets THAT database, starts its own API and browser, and ends green. Your `pnpm dev` can stay up the whole time | ⬜ |
+| 21.2 | Afterwards, sign in to YOUR dev app and look at the topbar | No **Console** link, exactly as before: your database's `platform_staff` is still empty and its one-shot is still yours to spend (OWNER-ACTIONS.md, 2026-08-26) | ⬜ |
+| 21.3 | Start a second `pnpm e2e` in another terminal while the first is still running | The second refuses within a second: "another `pnpm e2e` (pid …) holds …\.e2e\lock … wait for it to finish." Nothing is reset under the first run, which ends green | ⬜ |
+| 21.4 | `pnpm --filter @dealpilot/web exec playwright test` (the old way) | Refuses to load: "Run the suite with `pnpm e2e` (scripts/e2e.mjs)…" — a bare Playwright would have pointed the browser at your dev stack | ⬜ |
+| 21.5 | `pnpm e2e -- --grep console-door` | Only the console journey runs — five steps: no console for a non-staffer, the two-factor wall, the door opening with the six-item menu, the second staffer minted from `/admin/staff`, the billing role's single menu item — and it ends green | ⬜ |
+| 21.6 | One orphan to drop yourself, once: `docker exec -i dealpilot-db psql -U dealpilot -d postgres -c 'DROP DATABASE IF EXISTS dealpilot_e2e'` | Gone. Its name does not end `_test`, so nothing in the repo is allowed to touch it — which is exactly why it is yours to drop | ⬜ |

@@ -264,7 +264,10 @@ in this order:
 4. **Appointments** — the assistant already offers a tool for it that points at
    nothing.
 5. **Contacts / customer master** — a dealer CRM currently has no customer record.
-6. **The e2e gap** — ten merged slices with no browser test since 2026-07-26.
+6. ~~**The e2e gap**~~ — **narrowed (F-74, 2026-08-31).** The browser suite runs on
+   its own database with one command (`pnpm e2e`) and the platform console has
+   its first browser test; the twelve other `/admin/*` routes are still
+   uncovered and are named in that journey's header.
 
 The honest position on completion, measured 2026-08-14 against the plan's own
 phase pricing: **~35% of build effort, ~30% of the road to a dealership using it,
@@ -280,8 +283,34 @@ layer — is done and tested. The broad two-thirds is not.
 2. From `main-project`, with the dev database:
    `DB_ADMIN_URL=postgresql://dealpilot:dealpilot@localhost:5434/dealpilot pnpm --filter @dealpilot/db exec node dist/cli.js platform-grant <your email>`
    (it prints the target database first — check it is the dev one).
+   *Still unspent on 2026-08-31: the e2e suite mints its own first staffer on
+   its own database (F-74), so this command remains yours.*
 3. Enrol TOTP on `/security` if you have not (mandatory for the console).
 4. Sign in again (the console needs a session minted through the TOTP
    challenge) and open **Console** in the topbar → `/admin/tenants`.
 5. On RDS, before the first deploy: `ALTER ROLE <migration role> BYPASSRLS`
    (docs/SECURITY.md, accepted risk of 2026-08-26).
+
+
+## 2026-08-31 — F-74: the browser suite has its own database; your one-shot is still yours
+
+1. **Run the whole browser suite with one command:** `pnpm e2e` (Docker up
+   first: `docker compose up -d`). The first line it prints names the database
+   it will reset — `dealpilot_e2e_test` — and the ports it will use (API 3101,
+   SPA 5176), so your `pnpm dev` can stay up. Anything already on those two
+   ports makes it refuse rather than adopt, and a second `pnpm e2e` while one
+   is running is refused too.
+2. **Your dev database is untouched, and so is its one-shot.** The suite mints
+   the console's first staffer on ITS database through the same
+   `platform-grant` verb, with the `_test` name as an extra argument; nothing
+   on that path can name `dealpilot`, and the 2026-08-26 command above is still
+   yours to run when you want the console on your machine (`platform_staff`
+   there is still empty — checked before and after every run of this slice).
+3. **One orphan to drop yourself, once.** `dealpilot_e2e` was created empty
+   while option A was being designed, before the `_test` rule was applied. Its
+   name does not end `_test`, so nothing in the repo is allowed to touch it —
+   which is exactly why it is yours:
+   `docker exec -i dealpilot-db psql -U dealpilot -d postgres -c 'DROP DATABASE IF EXISTS dealpilot_e2e'`
+4. The old way — `DEALPILOT_WEB_PORT=… pnpm --filter @dealpilot/web test:e2e`
+   against your dev database — is gone: the Playwright config refuses to load
+   outside the runner.

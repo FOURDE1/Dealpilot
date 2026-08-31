@@ -1,43 +1,17 @@
-import { createHmac } from 'node:crypto';
 import { expect, test } from '@playwright/test';
+import { totp } from './support/totp.js';
 
 /**
  * F-41 — TOTP two-factor, through the real screens with REAL codes.
  *
  * The journey a locked-out owner would retell: enable on /security, type the
- * secret into "an authenticator" (RFC 6238 in twenty lines below — the spec
- * file runs in Node), prove the first code, see the backup codes once, sign
- * out — and then the password alone stops being enough.
+ * secret into "an authenticator" (RFC 6238 in support/totp.ts — the spec
+ * file runs in Node; F-74 moved the oracle there so the console journey can
+ * pass the same challenge), prove the first code, see the backup codes once,
+ * sign out — and then the password alone stops being enough.
  */
 const stamp = Date.now();
 const password = 'MotDePasse!2026-f41';
-
-function base32Decode(input: string): Buffer {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  let bits = 0;
-  let value = 0;
-  const out: number[] = [];
-  for (const ch of input.replace(/=+$/, '').toUpperCase()) {
-    const idx = alphabet.indexOf(ch);
-    if (idx === -1) continue;
-    value = (value << 5) | idx;
-    bits += 5;
-    if (bits >= 8) {
-      out.push((value >>> (bits - 8)) & 0xff);
-      bits -= 8;
-    }
-  }
-  return Buffer.from(out);
-}
-
-function totp(secretBase32: string): string {
-  const counter = Math.floor(Date.now() / 1000 / 30);
-  const msg = Buffer.alloc(8);
-  msg.writeBigUInt64BE(BigInt(counter));
-  const hmac = createHmac('sha1', base32Decode(secretBase32)).update(msg).digest();
-  const offset = hmac[hmac.length - 1]! & 0x0f;
-  return ((hmac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).toString().padStart(6, '0');
-}
 
 test('two-factor: enrol on /security → sign out → password alone is no longer enough', async ({ page }) => {
   const email = `f41-${stamp}@1dealer.test`;

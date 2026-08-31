@@ -3,15 +3,18 @@ import { expect } from 'vitest';
 
 /**
  * The test-side TOTP oracle (RFC 4648 base32 + RFC 6238), shared by the
- * F-41 suites and the F-69 admin suite.
+ * F-69..F-73 console suites (the F-41 suites keep private copies).
  *
- * There are TWO copies of the pure pair in this repo, not one: this file, and
- * `apps/web/e2e/f41-two-factor.e2e.ts`. They cannot be merged as things stand —
+ * There are two SHARED copies of the pure pair in this repo: this file, and
+ * `apps/web/e2e/support/totp.ts`. They cannot be merged as things stand —
  * this module imports `vitest` and its helpers take a Fastify `inject()`
  * injector, neither of which means anything inside a Playwright spec, and
  * `src/testing/**` is excluded from the api build so nothing outside the api's
- * own suites can import it. Two is the honest number; an earlier version of
- * this comment claimed one.
+ * own suites can import it. Three vitest suites also carry PRIVATE copies by
+ * their own recorded choice (f41-two-factor.test, f41-mfa-gate.test,
+ * announcement-fanout.test) — five definitions in all. The count is
+ * `grep -rn 'function base32Decode' apps packages`, not this sentence (an
+ * earlier version of it claimed one, then two).
  */
 
 /** RFC 4648 base32 → bytes (TOTP secrets are base32, no padding). */

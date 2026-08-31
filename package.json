@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "e2e": "node scripts/e2e.mjs",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "eslint .",

@@ -7,6 +7,7 @@ import { LanguageSwitcher } from '../shared/i18n/language-switcher.js';
 import { ThemeToggle } from '../shared/theme-toggle.js';
 import { useAdminMe } from '../features/admin/api.js';
 import { ROLE_KEYS } from '../features/admin/labels.js';
+import { adminNavItems } from '../features/admin/nav.js';
 import { KillSwitchBanner } from '../features/admin/kill-switch-banner.js';
 
 /**
@@ -21,11 +22,6 @@ export function AdminLayout() {
   const { t: tc } = useTranslation('common');
   const navigate = useNavigate();
   const me = useAdminMe();
-  const canManageStaff = me.data?.capabilities.includes('staff:manage') ?? false;
-  const canManageSupport = me.data?.capabilities.includes('impersonation:manage') ?? false;
-  const canReadAnnouncements = me.data?.capabilities.includes('announcements:read') ?? false;
-  const canReadSwitches = me.data?.capabilities.includes('settings:read') ?? false;
-  const canReadQueues = me.data?.capabilities.includes('queues:read') ?? false;
   // The deadline carries its day when it is not today: a 12h window that
   // ends tomorrow morning must not read as a time already past (review).
   const reauthAt = me.data
@@ -42,14 +38,11 @@ export function AdminLayout() {
     navigate('/login');
   }
 
-  const items = [
-    { to: '/admin/tenants', label: t('navTenants') },
-    ...(canManageSupport ? [{ to: '/admin/support-sessions', label: t('navSupport') }] : []),
-    ...(canReadAnnouncements ? [{ to: '/admin/announcements', label: t('navAnnouncements') }] : []),
-    ...(canReadSwitches ? [{ to: '/admin/platform-settings', label: t('navSwitches') }] : []),
-    ...(canReadQueues ? [{ to: '/admin/queues', label: t('navQueues') }] : []),
-    ...(canManageStaff ? [{ to: '/admin/staff', label: t('navStaff') }] : []),
-  ];
+  // F-74: the capability→item mapping lives in features/admin/nav.ts, where
+  // nav.test.ts proves it for all three platform roles (a browser run can
+  // mint at most two). This layout only translates; the e2e console journey
+  // is what proves the component renders that function's answer.
+  const items = adminNavItems(me.data?.capabilities ?? []).map((item) => ({ to: item.to, label: t(item.labelKey) }));
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
       'flex min-h-11 items-center rounded-md px-3 text-sm font-medium',

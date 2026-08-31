@@ -11,6 +11,101 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-075 — 2026-08-31 — The e2e suite owns a disposable database, and the console's first staffer is minted by the suite, never by the owner's one-shot
+
+F-74 (ci-cd.md §4; the `⚠ NEEDS YOUR DECISION` block of 2026-08-30,
+option A; ADR-023; designed by the three-planner + judge workflow — winner
+`safety-first` — hardened by an adversarial critique into a binding build
+document of 18 rulings and 24 amendments, built, then reviewed through six
+adversarial lenses with refute-biased verification: 22 raw findings, 14
+confirmed and fixed before landing, 8 refuted with the reasons on file).
+(1) **The suite runs against `dealpilot_e2e_test`, rebuilt from migration
+zero on every run, locally and in CI.** The name is the enforcement:
+`reset()`'s existing `/_test$/` guard permits it BY NAME, so
+`DB_RESET_CONFIRM` — the escape hatch that names the dev database — appears
+nowhere on the e2e path, and a vitest guard
+(`apps/web/e2e/e2e-isolation-guard.test.ts`, run by `checks`) goes red if it
+reappears in the runner, the Playwright config, any spec, or the `e2e:` job
+block of `ci.yml`. `packages/db` gained `disposableDatabaseUrl(base, name)`
+— the `/^[a-z][a-z0-9_]*_test$/` rule applied before any connection exists,
+which is also the identifier whitelist for the `CREATE DATABASE`
+interpolation — and an optional, guarded `[dbname]` positional on both
+`reset` and `platform-grant`. Each positional path builds a SECOND pool from
+the swapped URL: swapping the URL string and reusing the module pool would
+have `reset()` check its guards against the `_test` name while the `DROP
+SCHEMA` ran on the resolved default — HO-07 with the safety mechanism
+reporting success. A pool-swap test plants a sentinel in the default
+database and proves the named reset leaves it standing.
+(2) **One runner, `scripts/e2e.mjs`, is the only way to run the suite —
+`pnpm e2e` locally, `run: node scripts/e2e.mjs` with no `env:` block in CI —
+so the two worlds are the same program.** F-72 shipped two red pushes on a
+green local gate because `REDIS_URL` is unset on this desktop and set in CI;
+this file is where that class of divergence stops. In order: refuse unless
+Redis answers PING; take a pid lock, because the port probe alone cannot
+serialize two runners (the API binds its port ~20 s AFTER the reset, so two
+runners started inside that window would both pass the probe and the second
+would drop the schema under the first one's live API); refuse when anything
+answers on ITS ports — 3101 and 5176, both address families, constants
+rather than env reads so "the dev ports are never probed" is true
+unconditionally — and never adopt a server it did not start; build the full
+graph; reset the database through the built CLI; assert the API's
+`DATABASE_URL` ends `_test` before the process exists; spawn the API as a
+direct node child logging to `.e2e/api.log`; poll `/api/v1/health` for
+`{status:"ok",db:"up"}` (the old `curl -fsS` accepted a 200 that said
+`db:"down"`) and, on timeout, report the LAST observation with the poll's
+own traffic filtered out of the log tail; then run Playwright with the SPA
+as its only `webServer`, `reuseExistingServer: false`. Teardown reaches the
+actual listener (taskkill /T on Windows, SIGTERM elsewhere), also on a
+pid-only SIGINT/SIGTERM to the runner, and `--retries`/`--repeat-each` are
+refused because the console bootstrap is a one-shot per reset. The
+Playwright config refuses to load outside the runner (`DEALPILOT_E2E=1`), so
+a bare `playwright test` pointing a browser at the dev stack is a refusal,
+not an accident. The reset never moves into a Playwright `globalSetup`:
+verified in the installed playwright@1.61.1 that webServer plugins start
+strictly before globalSetup files, so the API would pool against a schema
+that does not yet exist.
+(3) **The console's first staffer is minted by ONE spec through the shipped
+`platform-grant` verb, with the `_test` name as its positional.**
+`apps/web/e2e/f74-console-door.e2e.ts` owns the database-wide no-actor
+one-shot (PA010 after the first), and `bootstrap-guard.test.ts` goes red on
+a second importer OR on zero — comments are stripped before matching, so
+prose cannot stand in for the import. The second staffer is granted from the
+console's own `/admin/staff` form: the one console write this slice affords,
+and what makes the capability-gated nav assertion falsifiable.
+`adminNavItems()` is extracted from the layout and unit-tested for all three
+roles, because only one bootstrap can exist per run. The owner's dev database
+keeps its one-shot — `platform_staff` there is still empty — and nothing on
+the e2e path can name that database: the only literal ending `/dealpilot` is
+the runner's host-shaped maintenance base (`CREATE DATABASE` only), exempted
+by name AND by owner credentials and asserted to occur exactly once. The
+adversarial review found that exemption dead on arrival: the literal scan
+stopped at the first space inside `${process.env.DEALPILOT_DB_PORT ?? 5434}`,
+never saw the `/dealpilot` tail, and a mutation pointing the API's own URL at
+`dealpilot` stayed green. The scan is template-aware now and all four
+mutations are red.
+(4) **Rejected, with reasons, so they are not re-proposed.** (a) *A logical
+Redis database index (`/1`) for e2e isolation:* verified in-tree that
+`deferred-queue.ts` and `apps/workers/src/index.ts` build BullMQ connections
+from hostname+port only, DROPPING the URL pathname, while presence/realtime
+hand the URL to ioredis, which honours it — `/1` would put the queues on 0
+and pub/sub on 1, a silent half-split that looks like isolation. The residual
+exposure is stated instead of built around: with `REDIS_URL` set, an
+e2e-enqueued job would be consumed by a worker process on the same Redis;
+`apps/workers` has no dev script, so `pnpm dev` never starts one, and the
+exposure requires a hand-run `pnpm --filter @dealpilot/workers start`.
+(b) *A read-only fingerprint of the dev database, checked before and after
+the run:* observational under `retries: 0` — it can only report a wipe after
+the fact — and it opens a dev connection on the very path whose thesis is
+that it has none. Replaced by the two static proofs above, each
+mutation-tested to red. (c) *Dropping the orphan `dealpilot_e2e` by script:*
+its defect is that its name does not end `_test`, so no code on this path may
+touch it; the owner's one-liner is in `docs/OWNER-ACTIONS.md`.
+Deferred and named in the journey's header, so widening the scope is a
+visible deletion: every console write except the `/admin/staff` grant, the
+twelve other `/admin/*` routes, and the `reauth` / `impersonating` gate
+outcomes. Related: D-070/D-071 (the console e2e debt this closes), D-074,
+HO-07.
+
 ## D-052 — FR-TEN-006 cost masking: absent, never null (2026-08-20)
 
 **Decision:** cross-store cost masking (inventory.md §9) is app-level column

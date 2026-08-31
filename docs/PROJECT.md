@@ -33,6 +33,7 @@
 | Type-check             | `pnpm typecheck` |
 | Tests                  | `pnpm test` — or `pnpm turbo run build typecheck lint test` for the full gate |
 | Tests, nothing skipped | `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 pnpm test` (fails instead of skipping when Postgres or Redis is unreachable). **Both variables, always.** `REDIS_URL` is unset on this desktop and set in CI, so without it the BullMQ producers return their no-op and the local gate runs a DIFFERENT code path from CI — which is how tick 26 shipped two RED docs-only pushes on a tree whose local gate was green (F-72) |
+| End-to-end suite       | `pnpm e2e` — the only path: its own `dealpilot_e2e_test` database rebuilt from migration zero, the API on 3101 and the SPA on 5176 (dev ports untouched), Redis required; `pnpm e2e -- --grep console-door` to narrow. CI runs the identical command (F-74) |
 | Dependency vuln scan   | `pnpm audit` |
 | Bootstrap the first platform super admin | `DB_ADMIN_URL=<dev db> pnpm --filter @dealpilot/db exec node dist/cli.js platform-grant <email>` (the account must exist; closes once a super admin exists — F-69) |
 | Provision a tenant | As a super admin (MFA enrolled): `/admin/tenants/new` in the web app, or `POST /api/v1/admin/tenants` (F-70). With the dev `log` mailer the owner's invitation link comes back in the response — hand it to the owner; "Resend the owner invitation" on the tenant page re-issues it |
@@ -58,22 +59,28 @@ DB_ADMIN_URL=postgresql://dealpilot:dealpilot@localhost:5436/dealpilot pnpm test
 env vars Turborepo passes through (`turbo.json` `globalPassThroughEnv`); anything
 else is stripped before a task runs, which reads as a phantom failure.
 
-**The e2e SPA port is the same story, and it bites harder.** 5173 is Vite's
-default, so it is also every other Vite project's default on this desktop.
-Playwright's `reuseExistingServer` cannot tell our dev server from somebody
-else's and will silently adopt a foreign app — every spec then dies at
-`page.goto` with an HTTP error that names no cause. Override it, and override
-the API's CORS origin to match, or every request is rejected and a signup simply
-never leaves `/signup`:
+**End-to-end suite: one command, its own database.** `pnpm e2e`
+(`scripts/e2e.mjs`) is the only way to run the Playwright suite, and CI's e2e
+step is the same call with no `env:` block — a green run here and a green run
+there are the same program (F-74, D-075). It builds the graph, resets
+`dealpilot_e2e_test` from migration zero, starts the API on **3101** and the
+SPA on **5176** — off the dev ports, so `pnpm dev` can stay up — and refuses
+rather than adopts when anything already answers on those two ports (usually
+an orphan of a crashed run; the message says how to find it). A second
+`pnpm e2e` while one is running is refused by a pid lock. Forward Playwright
+flags through the runner: `pnpm e2e -- --headed --grep console-door`. A bare
+`playwright test` refuses to load, and `--retries` is refused because the
+console journey's first-staffer bootstrap is a one-shot per reset.
 
-```
-DEALPILOT_WEB_PORT=5175 pnpm --filter @dealpilot/web test:e2e
-WEB_ORIGIN=http://localhost:5175   # on the API process, or CORS blocks everything
-```
-
-The e2e suite runs against the DEV database and never resets it, so rows
-accumulate across runs and the journeys get slower over time. If the 90s
-per-test ceiling starts being hit, check that before raising it.
+The runner's only connection to the dev database is host-shaped: the
+maintenance base for `CREATE DATABASE` names `dealpilot` and reads nothing.
+Precedence: an explicit `DB_ADMIN_URL` wins; `DEALPILOT_DB_PORT` feeds the
+default only when it is unset. Redis is shared with the dev stack on purpose
+(a logical `/1` index would split the queues from pub/sub — D-075): with
+`REDIS_URL` set, an e2e-enqueued job would be consumed by a worker process on
+the same Redis, but `apps/workers` has no dev script, so `pnpm dev` never
+starts one and the exposure needs a hand-run
+`pnpm --filter @dealpilot/workers start`.
 
 Integration suites target `dealpilot_test`, created on demand, so the dev
 database survives. Never point `db:reset` at `DATABASE_URL` — it resolves to the

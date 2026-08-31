@@ -1,35 +1,52 @@
 import { defineConfig } from '@playwright/test';
 
 /**
- * E2E for the auth journey (H-03 DoD). Requires the local stack:
- * Docker Postgres on :5434 (repo-root docker-compose) + the API on :3001 —
- * the webServer below only starts the SPA. Uses the system Chrome channel so
- * no browser download is needed.
+ * E2E suite config (H-03 DoD, rebuilt by F-74). The stack — a disposable
+ * dealpilot_e2e_test database reset from migration zero, Redis, an API on its
+ * own port — is assembled by scripts/e2e.mjs, the same file CI runs; the
+ * webServer below starts the SPA ONLY. Uses the system Chrome channel so no
+ * browser download is needed.
+ *
+ * There is deliberately NO globalSetup here, and the database reset must
+ * never be "tidied" into one: verified in playwright@1.61.1
+ * (lib/runner/index.js, createGlobalSetupTasks) that global-setup tasks run
+ * as [removeOutputDirs, ...pluginSetup(webServer), ...globalTeardowns,
+ * ...globalSetups] — webServer plugins start strictly BEFORE every
+ * globalSetup file, so a reset there would DROP SCHEMA under an API that had
+ * already booted and opened its pool. The reset lives in scripts/e2e.mjs,
+ * before the API is spawned.
  */
+if (process.env['DEALPILOT_E2E'] !== '1') {
+  throw new Error(
+    'Run the suite with `pnpm e2e` (scripts/e2e.mjs). It is the only path that builds the stack CI builds: ' +
+      'a disposable dealpilot_e2e_test database rebuilt from migration zero, Redis, and an API it started itself. ' +
+      'A bare `playwright test` points the browser at whatever answers on the dev ports — the DEV stack, on the DEV ' +
+      'database. For --ui / --debug / --grep, forward through the runner: `pnpm e2e -- --headed --grep console`.',
+  );
+}
 
 /**
- * The SPA port, overridable like DEALPILOT_DB_PORT.
- *
- * 5173 is Vite's default, which means it is also the default of every other
- * Vite project on the machine — and this one shares a desktop with several.
- * `reuseExistingServer` cannot tell our dev server from somebody else's, so a
- * foreign app already on 5173 gets adopted silently and every spec dies at
- * page.goto with an HTTP error that says nothing about the cause. That has now
- * happened twice: once to an orphan of ours bound to IPv6-only [::1], and once
- * to an unrelated project's server.
- *
- *   DEALPILOT_WEB_PORT=5175 pnpm --filter @dealpilot/web test:e2e
- *
- * MOVING THE PORT MEANS MOVING THE API'S ORIGIN TOO. `WEB_ORIGIN` defaults to
- * http://localhost:5173 and CORS is locked to exactly that one value, so an SPA
- * on any other port has every request rejected — which shows up as a signup that
- * silently never leaves /signup, not as a CORS message anyone will see. Start
- * the API with a matching origin:
- *
- *   WEB_ORIGIN=http://localhost:5175 <api start command>
+ * The SPA port. scripts/e2e.mjs is the sole producer of the real value
+ * (5176, off Vite's 5173 default so the dev stack can stay up); the `?? 5173`
+ * fallback below is unreachable on the e2e path — this module refuses to load
+ * without DEALPILOT_E2E=1, only the runner sets that, and the runner always
+ * sets the port. It is kept only so the expression stays total.
  */
 const PORT = Number(process.env['DEALPILOT_WEB_PORT'] ?? 5173);
 const BASE = `http://localhost:${PORT}`;
+
+/**
+ * The API port the SPA proxies to, written into webServer.env below rather
+ * than inherited. If it failed to arrive, Vite would proxy /api to the dev
+ * API on :3001 and the suite would pass green against the dev database —
+ * so it is REQUIRED here, at module load, like DEALPILOT_E2E: the runner
+ * always sets it, and a missing value means something other than the runner
+ * is loading this config. (vite.config.ts refuses on its own side too.)
+ */
+const API_PORT = process.env['DEALPILOT_API_PORT'];
+if (!API_PORT) {
+  throw new Error('DEALPILOT_API_PORT is unset — run the suite with `pnpm e2e` (scripts/e2e.mjs), which sets it.');
+}
 
 export default defineConfig({
   testDir: './e2e',
@@ -51,9 +68,9 @@ export default defineConfig({
    * finite because a genuinely hung test must still fail rather than run
    * forever.
    *
-   * If this needs raising again, look first at whether the dev database has
-   * grown: the e2e suite runs against it and it is never reset, so every run
-   * leaves rows behind and the queries behind these screens get slower.
+   * If this needs raising again, database growth is no longer a suspect: the
+   * suite runs against dealpilot_e2e_test, which was empty seconds earlier
+   * (F-74). A test near this ceiling is a test doing too much.
    */
   timeout: 90_000,
   /**
@@ -96,7 +113,18 @@ export default defineConfig({
     // only to [::1] is reachable by curl and invisible to the browser.
     command: `pnpm dev --port ${PORT} --strictPort --host 127.0.0.1`,
     url: BASE,
-    reuseExistingServer: true,
+    /**
+     * The adoption trap is REMOVED, not documented (it bit twice: an orphan of
+     * ours bound to IPv6-only [::1], and an unrelated project's server on
+     * 5173). With `false`, Playwright checks the URL BEFORE launching the
+     * command and throws "... is already used ..." — verified in
+     * playwright@1.61.1: Vite is never started, nothing is adopted. The API
+     * port has the same rule in scripts/e2e.mjs (a TCP probe that refuses).
+     */
+    reuseExistingServer: false,
+    // Merged over process.env by Playwright; the value is the one required
+    // above, so Vite's proxy target can only ever be the runner's API.
+    env: { DEALPILOT_API_PORT: API_PORT },
     // A ceiling, not a delay: locally Vite is up in about a second. On a cold CI
     // runner the first start also pre-bundles the dependency graph, and 30s was
     // close enough to that to turn a slow boot into a red build.

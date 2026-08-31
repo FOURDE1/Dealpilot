@@ -31,3 +31,8 @@ cdk.out/
 
 # F-13c local document storage driver (dev/CI)
 .storage/
+
+# Playwright output + the e2e runner's API log (F-74)
+playwright-report/
+test-results/
+.e2e/
