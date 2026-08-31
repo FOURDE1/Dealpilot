@@ -152,8 +152,11 @@ proposed fixing a "29 specs" comment in `ci.yml` that did not exist at
 do not re-fix it" was wrong in the other direction. A count in a plan is a
 claim in the product; the count is the grep, never the sentence.
 
-**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit,
-as tick 27 was for F-73.** Next: F-75 per the plan, once this run is green.
+**Pushed as `07fced4` (27 files, +1932/-190). CI GREEN first try — run
+33347003133, both jobs** (lint/typecheck/test/build and the real-browser e2e,
+which now runs `node scripts/e2e.mjs` exactly as this desktop does), verified
+with `gh run view 33347003133 --json conclusion`. **Eight consecutive greens**
+since the abandoned-promise fixes. Next: the next slice per the plan.
 
 ## 2026-08-30 (tick 27) — F-73 usage, snapshot and the job inspector: numbers that name a row, and a retry that admits it can text twice
 
