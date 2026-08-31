@@ -1,12 +1,19 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useReducer, useRef, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { BackLink } from '../../shared/ui/back-link.js';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, Label, Select } from '@dealpilot/ui';
 import { BillOfSaleSystem, StoreEsignPlatform } from '@dealpilot/schemas';
 import type { Locale } from '@dealpilot/i18n';
+import { CANADA_TIMEZONES, OTHER_TZ, isKnownTimezone } from '../../shared/timezones.js';
+import { can, usePermissionsMine } from '../../shared/permissions.js';
 import { useCreateStore, useStore, useUpdateStore } from './api.js';
-import { formErrorMessage } from './form-error.js';
+import { storeFieldError, type StoreErrorField } from './form-error.js';
+import { emptyHours, hoursReducer, rowErrors, type DayKey, type HoursAction } from './hours-grid.js';
+import { normalizeHolidays } from './holiday-dates.js';
+import { operationsPatch } from './store-patch.js';
+import { BusinessHoursGrid, hoursRowId } from './business-hours-grid.js';
+import { HOLIDAY_INPUT_ID, HolidayDatesField } from './holiday-dates-field.js';
 import { IntakeSources } from './intake-sources.js';
 import { ChecklistTemplateSection } from '../checklists/template-section.js';
 import { FleetSection } from '../dispatch/fleet-section.js';
@@ -14,7 +21,19 @@ import { FleetSection } from '../dispatch/fleet-section.js';
 const PROVINCES = ['AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT'] as const;
 type Province = (typeof PROVINCES)[number];
 
-/** Create AND edit (with :storeId param) for a store within one organization. */
+type FieldKey = Exclude<StoreErrorField, 'top' | 'hours'>;
+
+/**
+ * Create AND edit (with :storeId param) for a store within one organization.
+ *
+ * F-76: the « Exploitation » fieldset (edit) — timezone, phone, texting
+ * number, opening hours, holidays — is the producer for the store columns
+ * the assistant, the drips and the quiet-hours gate read. The timezone
+ * select is on CREATE too (default America/Montreal, the server's own). The
+ * form goes read-only without `store:update`: every control disabled, the
+ * save button gone — the server refuses anyway; the screen just stops
+ * pretending. Before F-76 this form had no permission gate at all.
+ */
 export function StoreFormPage() {
   const { t } = useTranslation('orgs');
   const navigate = useNavigate();
@@ -24,6 +43,10 @@ export function StoreFormPage() {
   const existing = useStore(orgId, storeId ?? '');
   const createStore = useCreateStore(orgId);
   const updateStore = useUpdateStore(orgId, storeId ?? '');
+  const mine = usePermissionsMine(orgId, { enabled: isEdit });
+  // Read-only once the permission set has ANSWERED and lacks store:update —
+  // never while it is loading, so the controls do not flash disabled.
+  const readOnly = isEdit && mine.isSuccess && !can(mine.data, 'store:update');
 
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -34,7 +57,17 @@ export function StoreFormPage() {
   const [bosSystem, setBosSystem] = useState<'CAMS' | 'Merlin' | 'Other'>('CAMS');
   const [esign, setEsign] = useState<'' | 'onespan' | 'docusign'>('');
   const [conflictWindow, setConflictWindow] = useState('4');
+  // F-76 « Exploitation ».
+  const [tz, setTz] = useState<string>('America/Montreal');
+  const [tzCustom, setTzCustom] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [sms, setSms] = useState('');
+  const [hours, dispatchHours] = useReducer(hoursReducer, undefined, emptyHours);
+  const [holidays, setHolidays] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldKey, string>>>({});
+  const [rowServerErrors, setRowServerErrors] = useState<Partial<Record<DayKey, string>>>({});
+  const [focusId, setFocusId] = useState<string | null>(null);
   const alertRef = useRef<HTMLParagraphElement>(null);
   // Populate ONCE per store — a background refetch must never clobber edits.
   const initializedFor = useRef<string | null>(null);
@@ -56,6 +89,12 @@ export function StoreFormPage() {
       setBosSystem(existing.data.bill_of_sale_system);
       setEsign(existing.data.esign_platform ?? '');
       setConflictWindow(String(existing.data.dispatch_conflict_window_hours));
+      setTz(existing.data.timezone);
+      setTzCustom(!isKnownTimezone(existing.data.timezone));
+      setPhone(existing.data.phone ?? '');
+      setSms(existing.data.sms_number ?? '');
+      dispatchHours({ type: 'load', hours: existing.data.business_hours });
+      setHolidays(normalizeHolidays(existing.data.holiday_dates));
     }
   }, [isEdit, existing.data]);
 
@@ -63,16 +102,38 @@ export function StoreFormPage() {
     if (error) alertRef.current?.focus();
   }, [error]);
 
+  useEffect(() => {
+    if (!focusId) return;
+    document.getElementById(focusId)?.focus();
+    setFocusId(null);
+  }, [focusId]);
+
+  const clearField = (field: FieldKey) =>
+    setFieldErrors((prev) => {
+      if (!(field in prev)) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  const dispatchHoursAndClear = (action: HoursAction) => {
+    setRowServerErrors({});
+    dispatchHours(action);
+  };
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    setFieldErrors({});
+    setRowServerErrors({});
     try {
       if (isEdit) {
         const base = baseline.current;
         if (!base) return; // form is only rendered once loaded
         // PATCH only what the USER changed (diff vs the open-time baseline) —
         // never rewrite unrelated fields, and never revert a concurrent edit.
-        const changes: Parameters<typeof updateStore.mutateAsync>[0] = {};
+        const changes: Parameters<typeof updateStore.mutateAsync>[0] = {
+          ...operationsPatch({ timezone: tz, phone, sms, hours, holidays }, base),
+        };
         if (name !== base.name) changes.name = name;
         if (code !== base.code) changes.code = code;
         if (province !== base.province) changes.province = province;
@@ -90,8 +151,8 @@ export function StoreFormPage() {
         }
         if (Object.keys(changes).length > 0) await updateStore.mutateAsync(changes);
       } else {
-        // timezone/status mirror the server defaults; dedicated fields come
-        // with a later slice (the schema output type requires them).
+        // Hours and holidays are configured on the edit form, once the store
+        // exists; the create form sends the server's own empty defaults.
         await createStore.mutateAsync({
           organization_id: orgId,
           name,
@@ -99,7 +160,7 @@ export function StoreFormPage() {
           province,
           city: city || undefined,
           default_locale: locale,
-          timezone: 'America/Montreal',
+          timezone: tz.trim(),
           business_hours: {},
           holiday_dates: [],
           status: 'active',
@@ -107,7 +168,34 @@ export function StoreFormPage() {
       }
       navigate(`/organizations/${orgId}`, { replace: true });
     } catch (err) {
-      setError(formErrorMessage(t, err, 'code'));
+      const mapped = storeFieldError(t, err);
+      switch (mapped.field) {
+        case 'top':
+          setError(mapped.message);
+          break;
+        case 'hours':
+          if (mapped.day) {
+            setRowServerErrors({ [mapped.day]: mapped.message });
+            setFocusId(hoursRowId(mapped.day, 'from'));
+          }
+          break;
+        case 'timezone':
+          setFieldErrors({ timezone: mapped.message });
+          setFocusId(tzCustom ? 'store-timezone-other' : 'store-timezone');
+          break;
+        case 'phone':
+          setFieldErrors({ phone: mapped.message });
+          setFocusId('store-phone');
+          break;
+        case 'sms_number':
+          setFieldErrors({ sms_number: mapped.message });
+          setFocusId('store-sms');
+          break;
+        case 'holidays':
+          setFieldErrors({ holidays: mapped.message });
+          setFocusId(HOLIDAY_INPUT_ID);
+          break;
+      }
     }
   }
 
@@ -115,6 +203,7 @@ export function StoreFormPage() {
   const windowInvalid =
     conflictWindow.trim() !== '' &&
     (!/^\d+$/.test(conflictWindow.trim()) || windowNum < 1 || windowNum > 24);
+  const hoursInvalid = isEdit && rowErrors(hours).length > 0;
   const busy = createStore.isPending || updateStore.isPending;
   if (isEdit && existing.isPending) {
     return (
@@ -131,6 +220,67 @@ export function StoreFormPage() {
     );
   }
 
+  const tzError = fieldErrors.timezone;
+  const timezoneField = (
+    <>
+      <div className="space-y-1">
+        <Label htmlFor="store-timezone">{t('timezone')}</Label>
+        <Select
+          id="store-timezone"
+          value={tzCustom ? OTHER_TZ : tz}
+          aria-invalid={!tzCustom && tzError ? true : undefined}
+          aria-describedby={!tzCustom && tzError ? 'store-timezone-error' : 'store-timezone-hint'}
+          className={!tzCustom && tzError ? 'border-danger-border' : undefined}
+          onChange={(e) => {
+            const other = e.target.value === OTHER_TZ;
+            setTzCustom(other);
+            if (!other) setTz(e.target.value);
+            clearField('timezone');
+          }}
+        >
+          {CANADA_TIMEZONES.map((zone) => (
+            <option key={zone} value={zone}>
+              {zone}
+            </option>
+          ))}
+          <option value={OTHER_TZ}>{t('timezoneOther')}</option>
+        </Select>
+        {!tzCustom && tzError ? (
+          <p id="store-timezone-error" role="alert" className="text-xs text-danger-text">
+            {tzError}
+          </p>
+        ) : (
+          <p id="store-timezone-hint" className="text-xs text-muted-foreground">
+            {t('timezoneHint')}
+          </p>
+        )}
+      </div>
+      {tzCustom ? (
+        <div className="space-y-1">
+          <Label htmlFor="store-timezone-other">{t('timezoneOther')}</Label>
+          <Input
+            id="store-timezone-other"
+            className={tzError ? 'border-danger-border font-mono' : 'font-mono'}
+            autoComplete="off"
+            placeholder="America/Montreal"
+            value={tz}
+            aria-invalid={tzError ? true : undefined}
+            aria-describedby={tzError ? 'store-timezone-other-error' : undefined}
+            onChange={(e) => {
+              setTz(e.target.value);
+              clearField('timezone');
+            }}
+          />
+          {tzError ? (
+            <p id="store-timezone-other-error" role="alert" className="text-xs text-danger-text">
+              {tzError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  );
+
   return (
     <div className={isEdit ? "mx-auto max-w-2xl space-y-6" : "mx-auto max-w-lg space-y-4"}>
       <BackLink to={`/organizations/${orgId}`}>{t('back')}</BackLink>
@@ -140,6 +290,14 @@ export function StoreFormPage() {
         className="space-y-4 rounded-lg border border-border bg-card p-6"
         noValidate
       >
+        {readOnly ? (
+          <p role="status" className="text-sm text-muted-foreground">
+            {t('readOnlyStore')}
+          </p>
+        ) : null}
+        {/* One `disabled` for the whole form: a fieldset disables every control
+            inside it, the nested fieldsets included. */}
+        <fieldset disabled={readOnly} className="min-w-0 space-y-4">
         <div className="space-y-1">
           <Label htmlFor="store-name">{t('storeName')}</Label>
           <Input id="store-name" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -185,8 +343,75 @@ export function StoreFormPage() {
             <option value="en-CA">{t('localeEn')}</option>
           </Select>
         </div>
+        {isEdit ? null : timezoneField}
         {isEdit ? (
-          <fieldset className="space-y-4 rounded-md border border-border p-4">
+          <fieldset className="min-w-0 space-y-4 rounded-md border border-border p-4">
+            <legend className="px-1 text-sm font-semibold">{t('operations')}</legend>
+            {timezoneField}
+            <div className="space-y-1">
+              <Label htmlFor="store-phone">{t('storePhone')}</Label>
+              <Input
+                id="store-phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
+                value={phone}
+                aria-invalid={fieldErrors.phone ? true : undefined}
+                aria-describedby={fieldErrors.phone ? 'store-phone-error' : 'store-phone-hint'}
+                className={fieldErrors.phone ? 'border-danger-border' : undefined}
+                onChange={(e) => {
+                  setPhone(e.target.value);
+                  clearField('phone');
+                }}
+              />
+              {fieldErrors.phone ? (
+                <p id="store-phone-error" role="alert" className="text-xs text-danger-text">
+                  {fieldErrors.phone}
+                </p>
+              ) : (
+                <p id="store-phone-hint" className="text-xs text-muted-foreground">
+                  {t('storePhoneHint')}
+                </p>
+              )}
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="store-sms">{t('smsNumber')}</Label>
+              <Input
+                id="store-sms"
+                type="tel"
+                inputMode="tel"
+                autoComplete="off"
+                value={sms}
+                aria-invalid={fieldErrors.sms_number ? true : undefined}
+                aria-describedby={fieldErrors.sms_number ? 'store-sms-error store-sms-hint' : 'store-sms-hint'}
+                className={fieldErrors.sms_number ? 'border-danger-border' : undefined}
+                onChange={(e) => {
+                  setSms(e.target.value);
+                  clearField('sms_number');
+                }}
+              />
+              {fieldErrors.sms_number ? (
+                <p id="store-sms-error" role="alert" className="text-xs text-danger-text">
+                  {fieldErrors.sms_number}
+                </p>
+              ) : null}
+              <p id="store-sms-hint" className="text-xs text-muted-foreground">
+                {t('smsNumberHint')}
+              </p>
+            </div>
+            <BusinessHoursGrid draft={hours} dispatch={dispatchHoursAndClear} serverErrors={rowServerErrors} />
+            <HolidayDatesField
+              dates={holidays}
+              onChange={(next) => {
+                setHolidays(next);
+                clearField('holidays');
+              }}
+              serverError={fieldErrors.holidays ?? null}
+            />
+          </fieldset>
+        ) : null}
+        {isEdit ? (
+          <fieldset className="min-w-0 space-y-4 rounded-md border border-border p-4">
             <legend className="px-1 text-sm font-semibold">{t('storeSettings')}</legend>
             <div className="space-y-1">
               <Label htmlFor="store-bos">{t('billOfSaleSystem')}</Label>
@@ -256,9 +481,12 @@ export function StoreFormPage() {
             {error}
           </p>
         ) : null}
-        <Button type="submit" className="w-full" disabled={busy || windowInvalid}>
-          {busy ? t('saving') : isEdit ? t('save') : t('createStore')}
-        </Button>
+        {readOnly ? null : (
+          <Button type="submit" className="w-full" disabled={busy || windowInvalid || hoursInvalid}>
+            {busy ? t('saving') : isEdit ? t('save') : t('createStore')}
+          </Button>
+        )}
+        </fieldset>
       </form>
 
       {isEdit && storeId ? <IntakeSources key={storeId} orgId={orgId} storeId={storeId} /> : null}

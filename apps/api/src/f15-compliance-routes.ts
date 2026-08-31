@@ -13,6 +13,7 @@ import {
   ComplianceCheckQuery,
   CreateInternalDncInput,
   CreateSuppressionInput,
+  MESSAGE_KEYS,
   RecordConsentInput,
   RevokeConsentInput,
   UpdateCommsConfigInput,
@@ -315,14 +316,33 @@ export function registerF15Routes(app: FastifyInstance, pool: Pool): void {
         [orgId],
       );
       const current = existing.rows[0];
-      const start = (input.sms_quiet_start ?? current?.['sms_quiet_start'] ?? '09:00') as string;
-      const end = (input.sms_quiet_end ?? current?.['sms_quiet_end'] ?? '21:00') as string;
+      // One shape before any comparison (F-76): the input is `HH:MM`, but a
+      // stored `time` comes back from `SELECT *` as 'HH:MM:SS', and these are
+      // compared as STRINGS. '21:00:00' > '21:00' is true — so once a row
+      // existed with the default end, every PUT that sent only a start was
+      // refused as too wide; and '10:00' >= '10:00:00' is false, so an order
+      // check on the raw values would let start == end through to the CHECK.
+      const start = String(input.sms_quiet_start ?? current?.['sms_quiet_start'] ?? '09:00').slice(0, 5);
+      const end = String(input.sms_quiet_end ?? current?.['sms_quiet_end'] ?? '21:00').slice(0, 5);
       if (start < PLATFORM_SMS_START || end > PLATFORM_SMS_END) {
         throw new AppError(422, 'window_too_wide', 'That window is wider than the platform allows', [
           {
             path: 'sms_quiet_start',
             code: 'window_too_wide',
             message: `Messaging hours must sit inside ${PLATFORM_SMS_START}–${PLATFORM_SMS_END}; a narrower window is fine`,
+          },
+        ]);
+      }
+      // The table's CHECK (0028) keeps start before end too — as the belt.
+      // Without this pre-check it fired as a 23514 nothing here maps: a 500
+      // for a window the owner typed backwards. Same key the cascade window
+      // uses for the same mistake (f42); no new vocabulary.
+      if (start >= end) {
+        throw new AppError(422, 'validation_failed', 'The window must end after it starts', [
+          {
+            path: 'sms_quiet_end',
+            code: MESSAGE_KEYS.invalid_window,
+            message: `Set an end later than the start (both inside ${PLATFORM_SMS_START}–${PLATFORM_SMS_END})`,
           },
         ]);
       }

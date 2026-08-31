@@ -12,6 +12,7 @@ import {
   PhoneE164,
   PostalCodeCA,
   Role,
+  Store,
   UpdateDealInput,
   UpdateLeadInput,
   UpdateOrganizationInput,
@@ -285,5 +286,114 @@ describe('ProvisionTenantInput (F-70, admin-console.md §4.3)', () => {
     expect(capabilitiesOf('platform_super_admin')).toContain('tenants:create');
     expect(capabilitiesOf('platform_support')).not.toContain('tenants:create');
     expect(capabilitiesOf('platform_billing')).not.toContain('tenants:create');
+  });
+});
+
+describe('holiday_dates (F-76 — calendar refine; a tightening of an existing field, no new key)', () => {
+  // The API's detail shape (apps/api/src/errors.ts:43-45): path joined with
+  // '.', code = the stable key when one exists, else zod's own code.
+  const detail0 = (r: { success: boolean; error?: unknown }): { path: string; code: string } | undefined => {
+    const issues = (
+      r.error as { issues?: { path: (string | number)[]; code: string; params?: { key?: string } }[] } | undefined
+    )?.issues;
+    const i = issues?.[0];
+    return i ? { path: i.path.join('.'), code: i.params?.key ?? i.code } : undefined;
+  };
+  const update = (holiday_dates: unknown) => UpdateStoreInput.safeParse({ holiday_dates });
+  // n distinct real dates: days 1–28 of Jan, Feb, Mar… (never a 29th–31st).
+  const realDates = (n: number): string[] =>
+    Array.from({ length: n }, (_, i) => `2026-${String(Math.floor(i / 28) + 1).padStart(2, '0')}-${String((i % 28) + 1).padStart(2, '0')}`);
+  const storeRow = {
+    id: UUID_A,
+    organization_id: UUID_B,
+    name: 'Kia Mont-Laurier',
+    code: 'KIA-ML',
+    phone: null,
+    sms_number: null,
+    address_line1: null,
+    city: null,
+    province: 'QC',
+    postal_code: null,
+    default_locale: 'fr-CA',
+    timezone: 'America/Montreal',
+    business_hours: {},
+    holiday_dates: ['2026-12-25', '2027-01-01'],
+    status: 'active',
+    bill_of_sale_system: 'CAMS',
+    esign_platform: null,
+    dispatch_conflict_window_hours: 2,
+    created_at: '2026-08-31T12:00:00.000Z',
+    updated_at: '2026-08-31T12:00:00.000Z',
+    deleted_at: null,
+  };
+
+  it('accepts real calendar dates, leap day included, and returns them verbatim', () => {
+    const ok = update(['2026-12-25', '2027-01-01', '2028-02-29']);
+    expect(ok.success).toBe(true);
+    if (ok.success) expect(ok.data.holiday_dates).toEqual(['2026-12-25', '2027-01-01', '2028-02-29']);
+  });
+
+  it('refuses a well-formed non-date as a custom issue on the item path (the API maps it to 422 holiday_dates.<i>)', () => {
+    // Postgres refused these with 22008 — a 500 — while the schema said yes.
+    const feb30 = update(['2026-02-30']);
+    expect(feb30.success).toBe(false);
+    expect(detail0(feb30)).toEqual({ path: 'holiday_dates.0', code: 'custom' });
+    for (const bad of ['2027-02-29', '2100-02-29', '2026-13-01', '2026-00-10', '2026-04-31', '2026-12-00']) {
+      expect(update([bad]).success, bad).toBe(false);
+    }
+    // The index is the item's position, not always 0.
+    expect(detail0(update(['2026-12-25', '2026-02-30']))?.path).toBe('holiday_dates.1');
+  });
+
+  it('refuses anything that is not YYYY-MM-DD — an ISO timestamp, a short form, garbage — without throwing', () => {
+    const iso = update(['2026-12-24T22:00:00.000Z']);
+    expect(iso.success).toBe(false);
+    expect(detail0(iso)?.path).toBe('holiday_dates.0');
+    for (const bad of ['2026-1-5', '25/12/2026', 'noël', '', '2026-12-25 ']) {
+      expect(update([bad]).success, JSON.stringify(bad)).toBe(false);
+    }
+  });
+
+  it('bounds the year to 1900–2199: year 0 (Postgres has none — 22008, a 500) and a mistyped three-digit year are refused on the item path', () => {
+    // Below 1000 the pg Date's getFullYear() is 1, 99, 999 — a value the
+    // format regex then refuses at every store exit, taking the whole store
+    // list down with it; 0000 never even reaches the row.
+    for (const bad of ['0000-01-01', '0001-01-01', '0099-12-31', '0202-12-25', '0999-01-01', '1899-12-31', '2200-01-01', '9999-12-31']) {
+      const r = update([bad]);
+      expect(r.success, bad).toBe(false);
+      expect(detail0(r), bad).toEqual({ path: 'holiday_dates.0', code: 'custom' });
+    }
+    for (const ok of ['1900-01-01', '2199-12-31']) expect(update([ok]).success, ok).toBe(true);
+  });
+
+  it('keeps the 60-date ceiling', () => {
+    expect(update(realDates(60)).success).toBe(true);
+    expect(update(realDates(61)).success).toBe(false);
+    expect(detail0(update(realDates(61)))).toEqual({ path: 'holiday_dates', code: 'too_big' });
+  });
+
+  it('does NOT dedupe or sort — those are client-side conveniences, not schema rules (A2)', () => {
+    const dup = update(['2027-01-01', '2026-12-25', '2026-12-25']);
+    expect(dup.success).toBe(true);
+    if (dup.success) expect(dup.data.holiday_dates).toEqual(['2027-01-01', '2026-12-25', '2026-12-25']);
+  });
+
+  it('CreateStoreInput carries the same refine and still defaults to []', () => {
+    const base = { organization_id: UUID_A, name: 'S', code: 'S-1', province: 'QC' };
+    expect(CreateStoreInput.safeParse({ ...base, holiday_dates: ['2026-02-30'] }).success).toBe(false);
+    expect(CreateStoreInput.parse(base).holiday_dates).toEqual([]);
+  });
+
+  it('Store output: YYYY-MM-DD parses; the pg Date rendered as an ISO timestamp does not (the f01 serialiser lockstep)', () => {
+    expect(Store.safeParse(storeRow).success).toBe(true);
+    const shifted = Store.safeParse({ ...storeRow, holiday_dates: ['2026-12-24T22:00:00.000Z', '2026-12-31T22:00:00.000Z'] });
+    expect(shifted.success).toBe(false);
+    expect(detail0(shifted)?.path).toBe('holiday_dates.0');
+    expect(Store.safeParse({ ...storeRow, holiday_dates: [] }).success).toBe(true);
+  });
+
+  it('Store output: business_hours is deliberately NOT tightened (F-76 MUST CUT) — unknown day keys still parse', () => {
+    const loose = Store.safeParse({ ...storeRow, business_hours: { monday: { open: '09:00', close: '17:00' } } });
+    expect(loose.success).toBe(true);
   });
 });

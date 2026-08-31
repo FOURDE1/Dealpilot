@@ -640,3 +640,28 @@ until it can be done without breaking readability.
 | 22.7 | Sign out | The sign-in page is **not** branded (D-041 still needs your answer) and the tab title is « 1Dealer » | ⬜ |
 | 22.8 | As a platform staffer, open the console (`/admin`) | No tenant brand anywhere in the console — its tabs, colours and logo are the platform's | ⬜ |
 | 22.9 ⚠ DECISION | Look at the **Police** and **Mode sombre** selects | « Personnalisé » is gone from both — it never did anything (no font upload, no custom dark colours), so migration 0070 retired it (D-076, with the conditions for bringing each back). « Inter » now reads « Police de la plateforme », because Inter is not actually served by the product. **Decide whether custom fonts are a slice you want** | ⬜ |
+
+
+## ROUND 23 — Your store's number, clock, hours and holidays — from the screen (F-76)
+
+> Until now the one thing you had to do by API was tell a store its texting
+> number. That, the store's timezone, its opening hours, its holidays and the
+> texting window are all screens now, under **Réglages** in the left menu
+> (on a phone, the « Réglages » link at the top of your organization's page).
+> Nothing moved: every page you know keeps its address. One thing to know
+> first: the assistant now reads the hours and holidays you set here — it
+> used to tell every customer the store was open — but in dev it does not
+> run, so 23.9 is proven by the worker's tests, not by your screen.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 23.1 | Click **Réglages** → **Succursales** | One row per store: its timezone, its texting number (« — » when none), « Non définies » under Heures, 0 under Fériés. Each store still opens on its own page | ⬜ |
+| 23.2 | Open **Kia Mont-Laurier** → the **Heures d'ouverture / Exploitation** section → choose « Autre (nom IANA) » for the timezone and type `EST` → Enregistrer | Refused under the field: « Fuseau horaire inconnu — utilisez un nom région/ville (ex. America/Montreal). » Pick `America/Montreal` from the list instead — the list is the same twelve Canadian zones the platform console offers | ⬜ |
+| 23.3 | **Numéro d'expédition des textos**: type `819` → Enregistrer | « Numéro invalide — 10 chiffres nord-américains, ex. 514 555 0199. » Type your real Twilio number; it is stored as `+1…`. Read the hint: changing a LIVE number moves the next text to the new number immediately, and replies sent to the old one no longer reach this store | ⬜ |
+| 23.4 | Tick **Ouvert — lundi**, set opening 18:00 and closing 09:00 | The row says « L'heure de fermeture doit suivre l'heure d'ouverture. » and **Enregistrer** is greyed. Set 09:00 → 20:00, use « Appliquer le lundi à mardi–vendredi », tick samedi 09:00 → 17:00 | ⬜ |
+| 23.5 | Under **Jours fériés** add `2026-12-25` twice, then `2027-01-01` → Enregistrer → reopen the store | Two dates, not three (duplicates are dropped); every value comes back exactly as you set it; the Succursales list now reads « Définies » and « 2 ». A date like 2026-02-30 — or any year outside 1900–2199 — is refused with « Date invalide — format AAAA-MM-JJ, année de 1900 à 2199. » | ⬜ |
+| 23.6 | Create a second store and give it the SAME texting number | « Ce numéro est déjà attribué à une autre succursale. Un numéro n'appartient qu'à une seule succursale. » — under the field, and it never says which store: the rule is platform-wide and another dealer's rooftop is not yours to see. Clear it on the first store, save, and the second accepts it | ⬜ |
+| 23.7 | **Réglages → Automatisations** | « Aucune configuration enregistrée : les valeurs par défaut de la plateforme s'appliquent (09:00–21:00, première réponse immédiate, 3 contacts par jour, 15 messages). » Set 10:00–20:00, untick the first-response exemption, save, reload — persisted. Try 08:00: « La fenêtre doit rester entre 09:00 et 21:00 — le plafond de la plateforme. Une fenêtre plus étroite est permise. » Try 20:30 → 20:00: « La fin doit suivre le début. » and the button is greyed | ⬜ |
+| 23.8 | Open any lead who has consented to texts, look at the « Messages texte » card | Outside your 10:00–20:00 window (in the LEAD's local time) it reads « En attente de ses heures locales » with « Envoi prévu à … » naming the window's start. The window rules automated texts only; a reply to a customer who just wrote in is not held | ⬜ |
+| 23.9 | Untick every day in the hours grid and save | Accepted — no hours means the assistant behaves as if the store were always open, exactly as before this round, except on a listed holiday, which still closes it for the day; the hint under the grid says so. With hours set, the assistant tells a customer who writes at 3 a.m. that the store is closed and when it reopens. **Proven by the worker's tests, not by your screen**: in dev the assistant does not run (OWNER-ACTIONS §3) | ⬜ |
+| 23.10 ⚠ DECISION | Sign in as a **Directeur des ventes** and open **Réglages → Automatisations** and a store's page | Both are read-only: « Vous pouvez consulter ces réglages ; votre rôle ne permet pas de les modifier. » and « Lecture seule : votre rôle ne permet pas de modifier cette succursale. » The plan says owner, GM and sales manager may edit Automations; the API gates it on « Modifier l'organisation », which sales managers do not hold by default. **Decide**: grant them that permission in Équipe → Rôles et permissions (it also lets them edit the organisation and the brand), or ask for a narrower permission as its own slice | ⬜ |

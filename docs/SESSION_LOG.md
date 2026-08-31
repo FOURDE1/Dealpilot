@@ -1,3 +1,147 @@
+## 2026-08-31 (tick 30) — F-76: the rooftop is configured from the screen, and the assistant reads the clock it was promised
+
+**Where tick 29's CI story ended.** F-75 shipped as `6d00de3` (run
+33360845396, green) and its docs tail `4dd004f` was green too (run
+33361339334) — eleven consecutive greens; `develop` was clean at `4dd004f`
+when this slice started, and this slice was built on that tip.
+
+**How the slice was chosen.** The runner-up of the 2026-08-31 scoping:
+admin-console.md §10's tenant settings — store operating config and the
+assistant/comms config — every column of which already had consumers in
+production code and no screen. Zero new vocabulary was the brief's
+constraint and the slice's point. The panel (three planners: zero-vocabulary,
+owner-runbook, smallest-visible; a judge ruling only; four critics) chose
+`owner-runbook` as the spine.
+
+**What the planners found before a line was written — the brief had it
+wrong in five places, and every one was measured.** The assistant did NOT
+read `business_hours`: `assistant-turn.ts:174` fed `hoursText: null` and
+`:195` `withinBusinessHours: true` while the prompt already printed the
+fields — every customer was told the store was open; `holiday_dates` had
+zero readers. pg returned `date[]` as local-midnight `Date`s, so
+`'2026-12-25'` came back as `2026-12-24T22:00:00.000Z` on this UTC+3 desktop
+(CI, on UTC, would have stayed green). The F-30 « one number, one store »
+409 carried no field path (`idx_stores_sms_number` absent from
+`CONSTRAINT_PATHS`; the f30 test asserted only `>= 400`). `PUT comms-config`
+compared `HH:MM` inputs against `HH:MM:SS` stored values as strings, and an
+inverted window was a 500 (the DB CHECK, unmapped). No route writes a
+per-store comms row although the table supports one. The judge ruled on
+each: wire the EXISTING consumer inside the producer slice (a grid whose
+only reader is a snapshot boolean is a producer for a boolean the owner
+cannot see); a store-row serialiser at all four store exits with
+`Store.parse` pinning it in UTC CI; the `CONSTRAINT_PATHS` entry; normalised
+operands and the existing `invalid_window` key (a critic-proposed
+`check_violation` was struck as new vocabulary); the per-store override
+deferred with its route as the un-cut condition.
+
+**Built in three waves** (schemas first — both sides depend on the tightened
+`Store.holiday_dates`; then core + api + workers ∥ i18n + web; then the two
+e2e specs and the gates). Shipped: `packages/core/src/store-hours.ts` (20
+golden cases incl. the 2026-03-08 DST morning and fourteen holidays in a
+row); the worker's hoisted SELECT (`holiday_dates::text[]`, the comms cap)
+feeding the four prompt fields and `maxMessagesBeforeHandoff`; `storeRow` +
+`local-date.ts`; `CONSTRAINT_PATHS.idx_stores_sms_number`; the f15
+normalisation + pre-check; an additive `/settings` group (index of ten
+sections mirroring their target pages, stores list, automations page — 3
+routes, nothing moved); the store form's « Exploitation » fieldset (timezone
+select + « Autre (nom IANA) » on edit AND create, phone, number, a seven-row
+hours grid backed by a pure reducer, a holiday list with a calendar refine)
+disabled as one `<fieldset>` without `store:update`; the automations form
+disabled without `organization:update`; a « Réglages » link on the org page
+for phones; i18n `nav` 2 + `orgs` 41 + `settings` 58 keys in both locales;
+guards: `sections.test.ts` (router-parsing route existence), the 200-draft
+hours-grid ⇔ `UpdateStoreInput` property test, the holiday-list ⇔
+`HolidayDatesShape` lockstep, `nav.test.ts` (seven phone items, `/settings`
+desktop-only), the token-roles tree scan over every new .tsx; two e2e specs
+(`f76-store-settings`, `f76-automations`; own owners; `timezoneId`
+America/Toronto pinned because the consent card renders `deferred_until` in
+the BROWSER zone; a « Directeur des ventes » invitation proving read-only on
+both forms). Deviations recorded by the builders: `NAV_ITEMS` hoisted to
+`app/nav.ts` (the shell reaches `document` at module load, so the nav unit
+test could not import it); a pure `store-patch.ts` for the blank → `null`
+rule; `f11-dispatch.e2e.ts`'s three « Ajouter » clicks scoped to the fleet
+region because the holidays button now precedes it in the DOM; the daily-cap
+label first narrowed to « Contacts lancés par l'assistant » — which the
+review then refuted: `f19-send.ts` maps drips to the same originator, so the
+shipped label reads « Contacts automatisés (assistant et relances) par
+prospect et par jour », whose hint promises only what holds — an
+assistant reply to an inbound message is never held back by the cap.
+
+**Mutations, each red then restored byte-identical:** schemas (drop the
+calendar refine, loosen the regex, `max(61)`, drop the no-throw guard —
+which proved zod 4 runs the refine after a failed regex); Wave A (drop the
+`CONSTRAINT_PATHS` entry → f30; `storeRow` off GET or LIST → f01 at
+`Store.parse`, in UTC+3 AND `TZ=UTC`; the slice or the pre-check → f15; the
+worker constants or `!known ||` → the worker); Wave B (plant `text-primary` →
+token-roles; delete one en-CA key → parity; a dead section link → sections;
+rename `leads/scoring` → sections; drop `mobileHidden` → nav). One scripted
+revert (the `constraint` mutation's `};` anchor is not unique in f01) failed
+and was restored by hand to the baseline sha — the runner script's anchor
+needs fixing before reuse.
+
+**Adversarial review: six lenses, refute-biased verification.** 17 raw
+findings, **10 confirmed, 7 refuted**, all six finders returned this time.
+Four majors, each a product defect the build had introduced and every test
+had missed. (1) A holiday whose year is below 1000 was accepted by the new
+calendar refine (JS has a proleptic year 0; Postgres does not), stored
+correctly, and then serialised by `local-date.ts` as `1-01-01` — month and
+day were padded, the year was not — at every store exit; the row then failed
+the very `Store.parse` this slice added, and because the stores list parses
+as a whole, ONE such date would have taken down `/settings/stores`, the
+organization page's store table and the eleven other pages that call
+`useStores`, with no way to open the offending store to remove it; year
+`0000` was a 500 (pg 22008). Fixed at both ends: the year is padded, and the
+refine — in the schema and its byte-identical client mirror — now bounds the
+year to 1900–2199, with the sub-1000 and year-0 cases in the
+f01 round trip (422 on `holiday_dates.0`) and in the holiday lockstep. (2) A
+holiday on a store with NO hours grid was ignored — `storeOpenState` returned
+"unknown" before it consulted the holiday set — so the assistant would have
+said open on a day the owner listed as closed, while the holidays hint
+promised « fermé toute la journée »; a listed holiday now reads closed all
+day whether or not a grid exists, golden-cased and worker-cased. (3) The
+coarse follow-up phrase named a weekday for openings seven to thirteen days
+out — « lundi » for a Monday eight days away promises a follow-up a week
+early; weekday names now stop at six days and the neutral phrase takes over,
+with golden cases at the boundary. (4) The daily-cap label said « Contacts
+lancés par l'assistant » for a cap that also governs drips (`f19-send.ts`
+maps both `bot` and `drip` senders to originator `'ai'` and says so) —
+reworded in both locales to automated contacts (assistant and drips), and
+the hint now says what is true — an assistant reply to an inbound message is
+never HELD BACK by the cap (`f19-send.ts` still adds every allowed
+`ai` decision to the day's tally, so "not counted" would have been a claim
+too). The minors: the
+hours-grid property test's generator never hit `24:00` and rested two named
+cases on single seeded draws (explicit boundary cases added, the loosened
+rule mutated to red); a dead `disabled` prop on the grid and the holiday
+field (the surrounding `<fieldset disabled>` is the producer — removed); the
+holiday lockstep bound a function the form never calls (re-bound to the
+form's path); keyboard focus fell to `<body>` after « Retirer — {date} » (it
+moves to the neighbouring button or the date input); the `store-hours-hint`
+id had no `aria-describedby` reader (wired); an e2e comment misattributed
+the store page's other « Ajouter » buttons (intake uses « Créer la clé »).
+Refuted, and worth keeping: the `store:create` gate on the stores list is
+the base design verbatim; exports with no importer are the repo's norm, not
+its law; the save button's focus-to-body is pre-existing across the app; the
+360-px horizontal scroll on the stores list is the platform's recorded
+list-table convention; the automations spec's daytime `pickWindow()` branch
+being unexercised was self-recorded by the builder (both build runs and all
+five review runs started before 09:00 Toronto).
+
+**Gate after the fixes:** `pnpm turbo run build typecheck lint` 25/25 tasks (17 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **184 files / 2028 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **57 passed in 2.2 m against dealpilot_e2e_test rebuilt from migration zero — after run 1 of the gate had failed two pre-existing specs under load (f40's assignee row and F-74 T3's directory search; both green in every other run), T3's failure turned out to have a real cause — F-69's directory form was keyed on the plans query and remounted when plans arrived, wiping the typed search — fixed by keying only the plan select, then T3 5/5 and the whole suite 57/57 twice**, lock released, nothing left listening Dev database untouched: `platform_staff
+= 0`, `users = 962`, 72 migrations (0070 is the newest; this slice adds
+none). Read-only probe before the build: 701 live stores, none with holidays
+or hours — the first owner-saved holiday would have parsed as a timestamp
+until the serialiser landed.
+
+**Docs:** D-077 at the top of `DECISIONS.md`; ROUND 23 (23.10 is the
+sales-manager ⚠ DECISION); `OWNER-ACTIONS.md` §1's fenced PATCH replaced by
+the screen path — the last curl in the runbook; `TASKS.md` gets its first
+slice row since S-01, with the caveat that F-19…F-75 were never on that
+board; `PROJECT.md` gains one how-to row. `SECURITY.md` unchanged — no new
+surface, no permission touched.
+
+**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as tick 29 was.**
+
 ## 2026-08-31 (tick 29) — F-75: the published brand paints the app, and the proof moves to the surfaces the app actually paints
 
 **Where tick 28's CI story ended.** F-74 shipped as `07fced4` (run

@@ -11,6 +11,142 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-077 — 2026-08-31 — The rooftop is configured from the screen, the assistant reads the clock it was promised, and the last curl leaves the owner's runbook
+
+F-76 (admin-console.md §10, §10.1; FR-TEN-004; FR-AI-011/017;
+compliance-and-quality.md §3; the runner-up of the 2026-08-31 scoping.
+Designed by the three-planner + judge workflow — winner `owner-runbook` —
+hardened by four adversarial critics into a binding build document of 12
+rulings and 25 amendments, built in three waves with disjoint file
+ownership, reviewed through six adversarial lenses with refute-biased
+verification (six lenses, 17 raw findings — 10 confirmed, 7 refuted, all six finders returned; every confirmed one fixed and proven red-then-green (the majors: sub-1000 holiday years serialised unpadded and refused by the new Store.parse for the whole store list, a holiday ignored on a store with no hours grid, weekday phrases a week early, and a daily-cap label that hid the drips)), and gated: `pnpm turbo run build typecheck lint` 25/25 tasks (17 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **184 files / 2028 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **57 passed in 2.2 m against dealpilot_e2e_test rebuilt from migration zero — after run 1 of the gate had failed two pre-existing specs under load (f40's assignee row and F-74 T3's directory search; both green in every other run), T3's failure turned out to have a real cause — F-69's directory form was keyed on the plans query and remounted when plans arrived, wiping the typed search — fixed by keying only the plan select, then T3 5/5 and the whole suite 57/57 twice**, lock released, nothing left listening.)
+(1) **Zero new vocabulary, by construction.** Every control this slice adds
+produces a column the API already accepted — `timezone`, `business_hours`,
+`holiday_dates`, `sms_number`, `phone`, `default_locale` through the
+existing `PATCH /api/v1/stores/:id`; the quiet window, the first-touch
+exemption, the daily cap and the turn cap through the existing
+`GET`/`PUT /api/v1/organizations/:id/comms-config` — and every one of them
+had consumers in production code and no screen: `evaluateSend` defers a text
+to the store's quiet window, drips tick on the store clock, the carrier sends
+from `sms_number`, the console snapshot reports `business_hours_set`, and
+the owner set the one live number with curl. No new column, enum value,
+permission, contract entry or detail code; three new routes only
+(`/settings`, `/settings/stores`, `/settings/automations`); no migration —
+0070 stays the newest.
+(2) **The premise the brief had wrong, measured before a line was written.**
+All three planners found that the assistant did NOT read the hours:
+`apps/workers/src/assistant-turn.ts:174` fed the prompt `hoursText: null`
+and `:195` `withinBusinessHours: true` unconditionally, while
+`packages/ai/src/prompt/system-prompt.ts:143/:166` already printed the
+fields — every customer was told the store was open. `holiday_dates` had
+zero readers anywhere. So the controls ship WITH their consumer, under the
+dead-vocabulary law's own logic: `packages/core/src/store-hours.ts` (pure —
+`storeOpenState`, an English `hoursText`, a coarse `nextOpenPhrase` in both
+languages: « plus tard aujourd'hui » / « demain matin » / a weekday /
+« dès la réouverture », and a store-local `localDateTimeText`; 20 golden
+cases including the 2026-03-08 DST morning, a half-open close, a holiday
+today and tomorrow, fourteen holidays in a row, `{}` → not known) and one
+hoisted worker SELECT (`business_hours, holiday_dates::text[], timezone` and
+the comms cap) feeding the four prompt fields plus
+`maxMessagesBeforeHandoff: bot_turn_cap ?? 15` — the turn-cap label is true
+for the prompt as well as the handoff evaluator. An EMPTY grid keeps today's
+behaviour — open, and no `Hours:` line — and the grid's hint says so; a
+listed holiday counts as closed all day whether or not a grid exists (the
+review caught the first cut returning "unknown" before it looked at the
+holidays). The coarse phrase names a weekday only for an opening two to six
+days out; beyond that it says « dès la réouverture » — a Monday eight days
+away must not read as « lundi ». The prompt's first consumer test is the
+worker's: closed at 03:00 → « The dealership is closed » + the phrase, open at
+14:00, `{}` → open and NO `Hours:` line, a holiday today → closed, cap 8 →
+« at most 8 messages ». ROUND 23.9 says in words that this is proven by the
+worker's tests and is not visible on the owner's screen until
+`AI_TRANSPORT=anthropic` and a key exist.
+(3) **Three defects inside existing routes, fixed because the screen would
+have exposed them (R12).** (a) pg returns `date[]` as local-midnight `Date`s:
+`'2026-12-25'` read back as `2026-12-24T22:00:00.000Z` on this UTC+3 desktop
+— a `storeRow` serialiser with local getters (the F-07 `acquisition_date`
+precedent, extracted to `apps/api/src/local-date.ts`) now runs at ALL FOUR
+store exits (list, GET, POST, PATCH including the no-op branch) and feeds
+`diff()` so an unrelated PATCH records no phantom holiday change;
+`Store.holiday_dates` is tightened to `YYYY-MM-DD` and `Store.parse(body)`
+on every exit makes the serialiser's absence red in UTC CI too, not only on
+non-UTC desktops. No global pg date parser (it would change
+`vehicles.acquisition_date` and two month payloads nobody asked about).
+(b) The F-30 « one number, one store » 409 carried no field path
+(`idx_stores_sms_number` was missing from `CONSTRAINT_PATHS`; the f30 test
+asserted only `>= 400`) — it lands on the number field now, and the copy
+never names the holding store: the index is platform-wide and the holder
+may be another dealer's rooftop. (c) `PUT comms-config` compared `HH:MM`
+inputs against `HH:MM:SS` stored values as strings, and an inverted window
+hit the database CHECK as a 500 — both operands are normalised and
+`start >= end` is refused as a 422 with the EXISTING `invalid_window` key on
+`sms_quiet_end` (the f42 precedent; a new `check_violation` code was struck).
+(4) **Shape (R3, R4, R9).** An additive `/settings` group; nothing moves —
+`/organizations/:orgId/stores/:storeId` stays the one producer form and
+every deep link and e2e path survives; §10's « legacy pages migrate under
+/settings/* » is deliberately not done. The index links ten sections and
+mirrors each target page: a link hides only when the page hides itself
+(branding, on `organization:update`); labels for existing pages reuse the
+target's own title key, so a renamed page renames its link; a source-parsing
+guard (`sections.test.ts`) proves every link resolves to exactly one route
+under the `/` shell (mutations: a dead link → red; a renamed route → red).
+The nav item is desktop-only (the phone bar keeps its seven items) and the
+organization page carries a « Réglages » link for phone reach. Gates are the
+server's own permissions through `can()` — never a role string: the store
+form's whole fieldset disables without `store:update` and the automations
+form without `organization:update`, each with its read-only sentence.
+§10's « sales_manager may edit Automations » is a ⚠ DECISION (ROUND 23.10):
+`DEFAULT_ROLE_PERMISSIONS.sales_manager` holds neither permission; the
+owner widens it in the A-13 matrix; no new permission was invented.
+(5) **The store form's « Exploitation » (R5, R6, R7).** Timezone = the F-70
+curated select over `CANADA_TIMEZONES` (hoisted to
+`apps/web/src/shared/timezones.ts`) + « Autre (nom IANA) », on CREATE too
+(default `America/Montreal`, so nothing changes for existing specs);
+`assertKnownTimezone` stays the only authority and the API pins all twelve
+literals. Hours = a seven-row grid whose payload omits closed days
+(`{}` IS the all-closed payload), one window per day, `close > open` mirrored
+client-side and bound to the server rule by a 200-draft property test
+(`rowErrors(d).length === 0 ⇔ UpdateStoreInput.safeParse(...).success`).
+Holidays = a date list with dedupe/sort, a calendar refine (2026-02-30 and
+2027-02-29 refused — previously a pg 22008 → 500) with the year bounded to
+1900–2199 (the review found that a year below 1000 was accepted and then
+serialised unpadded as `1-01-01`, which the new `Store.parse` refused for the
+whole store list; year 0 was a 500), max 60, lockstep-tested against
+`HolidayDatesShape` in the schema and its byte-identical client mirror. Every server refusal lands on its field by
+`detailPaths`/`detailCodes` — `unknown_timezone`, `phone_nanp`,
+`unique_violation`, the per-day `business_hours.<day>` errors,
+`holiday_dates.<i>` — and a pathless 409 still maps to the top alert.
+Blank numbers leave the browser as `null`, never `''`. The number hint
+states what changing a LIVE number does, each clause read from the senders:
+outbound moves on the next send; replies to the old number no longer reach
+the store.
+(6) **Rejected, with reasons:** a free-text timezone with a `<datalist>`
+from `Intl.supportedValuesOf` (no assistive-technology semantics; ICU builds
+may omit link names such as `America/Montreal`); `check_violation`
+(`invalid_window` exists); gating index links on permissions their target
+pages do not enforce (the index must not claim narrower access than the
+pages); extending the org page instead of `/settings` (it stops scaling at
+the first §10 section with no record to hang on); a self-deny step to prove
+read-only (it proves half — a « Directeur des ventes » invitation proves
+both forms); deferring holidays (a producer into a void until the wire; the
+wire lands here).
+(7) **Deferred, not invented — each with its un-cut condition:** per-store
+comms-config overrides (the table supports them; no route writes a store
+row — condition: `PUT /api/v1/stores/:id/comms-config` + contract entry);
+§10's route migration; the tenant snapshot console page (O-51) where
+`business_hours_set` becomes visible; a narrower permission for sales
+managers; the store's address fields on the form (the prompt already prints
+them); create-time hours; overnight or split windows (one window per day);
+holiday presets and recurrence; `adf_email` per store (no column); the
+first-touch after-hours clause in the templated first message (legal copy,
+Q-24); a browser-visible assistant proof (needs an Anthropic key). Not
+recorded before and now on the board: `TASKS.md` gets its first slice row
+since S-01 — F-19…F-75 were never added there and live in `SESSION_LOG.md`.
+Related: D-050/D-051 (F-51 hours awareness), D-074 (`business_hours_set`),
+D-075 (how e2e runs), D-076 (token roles every new screen obeys);
+migration `20260819000054_business-hours.sql` whose header promised the
+consumer « with the AI engine ».
+
 ## D-076 — 2026-08-31 — The published brand paints the app: a fill/text role split, proof surfaces the app actually paints, and two values nothing ever produced are retired
 
 F-75 (white-labeling.md §2–§7, §12, §13; FR-WL-002/004/005; ROADMAP §4;

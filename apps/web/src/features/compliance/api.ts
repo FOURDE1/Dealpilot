@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import {
+  CommsConfig,
   ComplianceCheck,
   ConsentRecord,
   RecordConsentInput,
   SuppressionRecord,
+  type UpdateCommsConfigInput,
 } from '@dealpilot/schemas';
 import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
 
@@ -20,7 +22,41 @@ import { apiRequest, failFromResponse as fail, routes } from '../../shared/api/c
 export const complianceKeys = {
   consent: (leadId: string) => ['compliance', 'consent', leadId] as const,
   check: (leadId: string, channel: string) => ['compliance', 'check', leadId, channel] as const,
+  commsConfig: (orgId: string) => ['compliance', 'comms-config', orgId] as const,
 };
+
+/**
+ * F-76 — the organization's texting window and caps (/settings/automations).
+ *
+ * `null` means no row: the platform defaults apply (comms-window.ts
+ * `fromRow`). Kept under the `['compliance']` prefix on purpose: the check
+ * panel on a lead's page (`useComplianceCheck`) answers from the same rule,
+ * so saving a narrower window must make it re-ask — the prefix invalidation
+ * in `useUpdateCommsConfig` is what keeps the two screens telling one story.
+ */
+export function useCommsConfig(orgId: string | undefined, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: complianceKeys.commsConfig(orgId ?? ''),
+    enabled: (opts?.enabled ?? true) && orgId !== undefined && orgId !== '',
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.compliance.commsConfig, { params: { id: orgId ?? '' }, signal });
+      if (res.status !== 200) fail(res.status, res.body);
+      return CommsConfig.nullable().parse(res.body);
+    },
+  });
+}
+
+export function useUpdateCommsConfig(orgId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: z.input<typeof UpdateCommsConfigInput>) => {
+      const res = await apiRequest(routes.compliance.updateCommsConfig, { params: { id: orgId ?? '' }, body });
+      if (res.status !== 200) fail(res.status, res.body);
+      return CommsConfig.parse(res.body);
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['compliance'] }),
+  });
+}
 
 export function useLeadConsent(leadId: string, opts?: { enabled?: boolean }) {
   return useQuery({

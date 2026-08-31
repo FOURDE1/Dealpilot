@@ -403,7 +403,11 @@ describe('a delivery receipt', () => {
 });
 
 describe('the number itself', () => {
-  it('cannot be claimed by two stores', async (ctx) => {
+  type Detail = { path?: string; code: string; message: string };
+  const details = (body: string): Detail[] =>
+    (JSON.parse(body) as { error: { details?: Detail[] } }).error.details ?? [];
+
+  it('cannot be claimed by two stores — a 409 ON THE FIELD, naming no store', async (ctx) => {
     if (!dbUp) return ctx.skip();
     const second = await app!.inject({
       method: 'POST', url: '/api/v1/stores', headers: { cookie },
@@ -418,6 +422,61 @@ describe('the number itself', () => {
       method: 'PATCH', url: `/api/v1/stores/${secondId}`, headers: { cookie },
       payload: { sms_number: storeNumber },
     });
-    expect(res.statusCode).toBeGreaterThanOrEqual(400);
+    // Before F-76 this asserted `>= 400` and the 409 carried no path — the
+    // store form could not put the error under the number field.
+    expect(res.statusCode, res.body).toBe(409);
+    expect(JSON.parse(res.body).error.code).toBe('conflict');
+    expect(details(res.body)[0]).toMatchObject({ path: 'sms_number', code: 'unique_violation' });
+    // conflictFrom sees only the constraint name: the body never says WHO
+    // holds the number, because the holder may be another tenant's rooftop.
+    expect(res.body).not.toContain('Rooftop');
+  });
+
+  it('nor by a store in ANOTHER organization — the index is platform-wide, and the body still names nobody', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const su = await app!.inject({
+      method: 'POST', url: '/api/auth/sign-up/email',
+      payload: { email: `f30-rival-${run}@dealpilot.test`, password: 'correct-horse-battery-staple', name: 'Rémi' },
+    });
+    const sc = su.headers['set-cookie'];
+    const rival = (Array.isArray(sc) ? sc : [sc!]).map((c) => c!.split(';')[0]).join('; ');
+    const org = await app!.inject({
+      method: 'POST', url: '/api/v1/organizations', headers: { cookie: rival },
+      payload: { name: 'Groupe Rival', slug: `groupe-f30-rival-${run}` },
+    });
+    expect(org.statusCode, org.body).toBe(201);
+    const rivalOrgId = (JSON.parse(org.body) as { id: string }).id;
+    const store = await app!.inject({
+      method: 'POST', url: '/api/v1/stores', headers: { cookie: rival },
+      payload: { organization_id: rivalOrgId, name: 'Rival lot', code: `F30R-${run.slice(-4)}`, province: 'QC' },
+    });
+    expect(store.statusCode, store.body).toBe(201);
+    const rivalStoreId = (JSON.parse(store.body) as { id: string }).id;
+
+    const taken = await app!.inject({
+      method: 'PATCH', url: `/api/v1/stores/${rivalStoreId}`, headers: { cookie: rival },
+      payload: { sms_number: storeNumber },
+    });
+    expect(taken.statusCode, taken.body).toBe(409);
+    expect(details(taken.body)[0]).toMatchObject({ path: 'sms_number', code: 'unique_violation' });
+    expect(taken.body).not.toContain('Rooftop');
+    expect(taken.body).not.toContain('Groupe F30');
+
+    // The remedy is the holder's: once the first store lets the number go,
+    // the other store may take it. (Last case in the file: the shared
+    // fixture's number is gone after this.)
+    const cleared = await app!.inject({
+      method: 'PATCH', url: `/api/v1/stores/${storeId}`, headers: { cookie },
+      payload: { sms_number: null },
+    });
+    expect(cleared.statusCode, cleared.body).toBe(200);
+    expect((JSON.parse(cleared.body) as { sms_number: string | null }).sms_number).toBeNull();
+
+    const claimed = await app!.inject({
+      method: 'PATCH', url: `/api/v1/stores/${rivalStoreId}`, headers: { cookie: rival },
+      payload: { sms_number: storeNumber },
+    });
+    expect(claimed.statusCode, claimed.body).toBe(200);
+    expect((JSON.parse(claimed.body) as { sms_number: string }).sms_number).toBe(storeNumber);
   });
 });

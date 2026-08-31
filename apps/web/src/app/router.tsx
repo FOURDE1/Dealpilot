@@ -161,6 +161,15 @@ const ConversationsPage = lazy(() =>
 const InvitationAcceptPage = lazy(() =>
   import('../features/invitations/accept-page.js').then((m) => ({ default: m.InvitationAcceptPage })),
 );
+const SettingsIndexPage = lazy(() =>
+  import('../features/settings/settings-index-page.js').then((m) => ({ default: m.SettingsIndexPage })),
+);
+const SettingsStoresPage = lazy(() =>
+  import('../features/settings/settings-stores-page.js').then((m) => ({ default: m.SettingsStoresPage })),
+);
+const AutomationsPage = lazy(() =>
+  import('../features/settings/automations-page.js').then((m) => ({ default: m.AutomationsPage })),
+);
 
 function RouteSkeleton() {
   return (
@@ -273,6 +282,13 @@ export const router = createBrowserRouter([
       { path: 'analytics/leaderboard', element: lazyPage(<LeaderboardPage />) },
       { path: 'analytics/activity-heatmap', element: lazyPage(<HeatmapPage />) },
       { path: 'tasks', element: lazyPage(<TasksPage />) },
+      // F-76 (D-077): the settings group is ADDITIVE — the index links the
+      // existing configuration pages at their existing addresses; only the
+      // stores list and the automations form are new screens. Editing a
+      // store stays at /organizations/:orgId/stores/:storeId.
+      { path: 'settings', element: lazyPage(<SettingsIndexPage />) },
+      { path: 'settings/stores', element: lazyPage(<SettingsStoresPage />) },
+      { path: 'settings/automations', element: lazyPage(<AutomationsPage />) },
       // Placeholder module routes land with their feature slices.
       { path: '*', element: <Navigate to="/" replace /> },
     ],

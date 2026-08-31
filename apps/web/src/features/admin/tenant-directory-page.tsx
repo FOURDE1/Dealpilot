@@ -117,7 +117,12 @@ export function TenantDirectoryPage() {
         so back/forward and a late-loading option list both re-apply the
         values the list is actually filtered by (review).
       */}
-      <form key={`${params.toString()}|${plans.isSuccess ? 'plans' : ''}`} role="search" onSubmit={submit} className="flex flex-wrap items-end gap-3">
+      {/* Keyed on the URL only: remounting resets the uncontrolled defaultValues when
+          the filters change. The plan SELECT below carries its own key for the plans
+          query — keying the whole form on it remounted the form when plans arrived and
+          wiped a search typed in the first moments after navigation (found as a
+          load-dependent e2e failure in F-74 T3; F-76 gate, 2026-08-31). */}
+      <form key={params.toString()} role="search" onSubmit={submit} className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
           <Label htmlFor="tenant-status">{t('filterStatus')}</Label>
           <Select id="tenant-status" name="status" defaultValue={filters.status ?? ''}>
@@ -129,7 +134,7 @@ export function TenantDirectoryPage() {
         </div>
         <div className="space-y-1">
           <Label htmlFor="tenant-plan">{t('filterPlan')}</Label>
-          <Select id="tenant-plan" name="plan" defaultValue={filters.plan ?? ''}>
+          <Select id="tenant-plan" name="plan" key={plans.isSuccess ? 'plans' : 'loading'} defaultValue={filters.plan ?? ''}>
             <option value="">{t('all')}</option>
             {(plans.data?.items ?? []).map((p) => (
               <option key={p.id} value={p.code}>{tOrgs(TIER_KEYS[p.code])}</option>

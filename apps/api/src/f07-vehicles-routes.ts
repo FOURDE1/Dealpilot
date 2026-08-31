@@ -5,6 +5,7 @@ import { AppError, notFound, parseOrThrow } from './errors.js';
 import { requirePermission } from './permissions.js';
 import { diff, recordEvent } from './activity.js';
 import { conflictFrom, idParam, keysetPage, sessionUser } from './f01-routes.js';
+import { localDate } from './local-date.js';
 
 /**
  * F-07 inventory (apiV1.vehicles). Same tenancy model as the other slices:
@@ -23,12 +24,6 @@ const VEHICLE_COLUMNS = [
   'acquisition_cost_cents', 'transport_cost_cents', 'recon_cost_cents', 'list_price_cents',
   'location_status', 'location_details',
 ] as const;
-
-/** YYYY-MM-DD from a Date's local parts — never via UTC. */
-function localDate(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-}
 
 function withTotalCost(row: Record<string, unknown>): Record<string, unknown> {
   const n = (k: string) => Number(row[k] ?? 0);

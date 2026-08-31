@@ -17,6 +17,7 @@ import { refuseByStatus } from './tenant-status.js';
 import { ensureTemplate } from './checklist.js';
 import { requirePermission, seedPermissions } from './permissions.js';
 import { diff, recordEvent } from './activity.js';
+import { localDate } from './local-date.js';
 
 /**
  * F-01: organization & store administration routes (apiV1.organizations,
@@ -100,7 +101,30 @@ const CONSTRAINT_PATHS: Record<string, string> = {
   // Postgres still reports its name here.
   vehicles_organization_id_store_id_stock_number_key: 'stock_number',
   idx_vehicles_org_vin: 'vin',
+  // F-30's carrier number (0036): a partial unique INDEX, and PLATFORM-WIDE —
+  // the holder may be another tenant's rooftop, which is why the 409 carries
+  // the field and never the holder. Without this entry the conflict reached
+  // the store form with no path, and the form could not place the error.
+  idx_stores_sms_number: 'sms_number',
 };
+
+/**
+ * A store row as the API returns it (F-76).
+ *
+ * `holiday_dates` is a `date[]`; pg parses each element into a JS Date at
+ * SERVER-LOCAL midnight, which JSON then renders as an ISO timestamp a day
+ * early on any server ahead of UTC — the 25th read back as the 24th (the F-07
+ * `acquisition_date` bug, on an array). Rewritten from LOCAL parts here, at
+ * every one of the four store exits (list, get, create, update — including
+ * the no-op update), and `Store.holiday_dates` in @dealpilot/schemas admits
+ * only `YYYY-MM-DD`, so a fifth exit that forgot this would fail the web's
+ * parse and the f01 test in UTC CI too.
+ */
+function storeRow(row: Record<string, unknown>): Record<string, unknown> {
+  const raw = row['holiday_dates'];
+  if (!Array.isArray(raw)) return row;
+  return { ...row, holiday_dates: raw.map((v: unknown) => (v instanceof Date ? localDate(v) : v)) };
+}
 
 /** Postgres unique_violation → canonical 409. */
 export function conflictFrom(err: unknown): AppError | null {
@@ -411,7 +435,7 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
           entityId: String(r.rows[0]!['id']),
           action: 'created',
         });
-        return r.rows[0];
+        return storeRow(r.rows[0] as Record<string, unknown>);
       });
       return await reply.status(201).send(store);
     } catch (err) {
@@ -441,12 +465,14 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
         }
         orgId = orgs[0]!;
       }
-      return keysetPage(
+      const rows = await keysetPage<Record<string, unknown> & { id: string }>(
         c,
         `SELECT * FROM stores WHERE organization_id = $1 AND deleted_at IS NULL`,
         [orgId],
         query,
       );
+      // After keysetPage, which strips `_ck` and hands back raw rows.
+      return { ...rows, items: rows.items.map(storeRow) };
     });
     return reply.send(page);
   });
@@ -462,7 +488,7 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
         [storeId],
       );
       if (r.rows.length === 0) throw notFound();
-      return r.rows[0];
+      return storeRow(r.rows[0] as Record<string, unknown>);
     });
     return reply.send(store);
   });
@@ -481,7 +507,11 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
           [storeId],
         );
         if (beforeRow.rows.length === 0) throw notFound();
-        const prior = beforeRow.rows[0]!;
+        // Serialised BEFORE the diff: `diff()` compares by String() and a
+        // Date[] never equals a string[], so a holiday PATCH re-sending the
+        // same dates would record a change whose `from` side is day-shifted
+        // ISO timestamps. Equal `YYYY-MM-DD` arrays compare equal.
+        const prior = storeRow(beforeRow.rows[0] as Record<string, unknown>);
 
         const fields = Object.entries(input);
         if (fields.length === 0) return prior;
@@ -498,7 +528,7 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
             entityType: 'store', entityId: storeId, action: 'updated', changes: changed,
           });
         }
-        return r.rows[0];
+        return storeRow(r.rows[0] as Record<string, unknown>);
       });
       return await reply.send(store);
     } catch (err) {

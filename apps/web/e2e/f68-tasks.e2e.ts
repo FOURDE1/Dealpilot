@@ -16,10 +16,11 @@ import { expect, test } from '@playwright/test';
  */
 
 /**
- * Every store the UI can create is stamped America/Montreal — the create form
- * hardcodes it and offers no field (store-form-page.tsx: "dedicated fields
- * come with a later slice"). So the store clock is a constant here, and the
- * only clock this test can move is the browser's.
+ * A store created through the UI without touching the timezone select is
+ * stamped America/Montreal — the create form's default (store-form-page.tsx,
+ * F-76 added the select; the default is unchanged). This journey never
+ * touches it, so the store clock is a constant here, and the only clock this
+ * test moves is the browser's.
  */
 const STORE_TZ = 'America/Montreal';
 const BROWSER_TZ = 'Asia/Tokyo';

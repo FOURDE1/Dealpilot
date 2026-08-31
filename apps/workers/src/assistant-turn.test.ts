@@ -66,17 +66,19 @@ function fakeModel(replies: string[]): ModelClient & { seen: ModelRequest[] } {
   };
 }
 
-function deps(model: ModelClient): AssistantTurnDeps {
+/** `now` defaults to NOW (a Thursday 14:00 in Montreal); the F-76 clock cases pin their own. */
+function deps(model: ModelClient, opts: { now?: Date } = {}): AssistantTurnDeps {
+  const now = opts.now ?? NOW;
   return {
     pool: appPool,
     model,
     carrier: createCarrier(loadEnv({}), { info: () => {}, warn: () => {} }),
     env: loadEnv({}),
-    now: () => NOW,
+    now: () => now,
   };
 }
 
-async function fixture(opts: { consent?: boolean } = {}) {
+async function fixture(opts: { consent?: boolean; storeId?: string } = {}) {
   const phone = nextPhone();
   if (opts.consent !== false) {
     const res = await app!.inject({
@@ -93,7 +95,7 @@ async function fixture(opts: { consent?: boolean } = {}) {
   const conversationId = await withTenant(appPool, orgId, async (c) => {
     const r = await c.query<{ id: string }>(
       `INSERT INTO conversations (organization_id, store_id, phone_e164) VALUES ($1,$2,$3) RETURNING id`,
-      [orgId, storeId, phone],
+      [orgId, opts.storeId ?? storeId, phone],
     );
     return r.rows[0]!.id;
   });
@@ -455,5 +457,134 @@ describe('a conversation a person has taken', () => {
     expect(result).toMatchObject({ kind: 'skipped' });
     expect(model.seen).toHaveLength(0);
     expect(await outbound(f.conversationId)).toHaveLength(0);
+  });
+});
+
+describe('the store clock and the tenant cap in the prompt (F-76)', () => {
+  // Tuesday 2026-09-01 in America/Montreal (the store default; EDT, UTC-4):
+  // 03:00 local is 07:00Z, 14:00 local is 18:00Z.
+  const TUE_0300 = new Date('2026-09-01T07:00:00Z');
+  const TUE_1400 = new Date('2026-09-01T18:00:00Z');
+  const WEEKDAYS = {
+    mon: { open: '09:00', close: '18:00' }, tue: { open: '09:00', close: '18:00' },
+    wed: { open: '09:00', close: '18:00' }, thu: { open: '09:00', close: '18:00' },
+    fri: { open: '09:00', close: '18:00' },
+  };
+  let hoursStoreId = '';
+
+  /** PATCH the clock store the way the owner's form does. */
+  async function patchStore(payload: Record<string, unknown>): Promise<void> {
+    const res = await app!.inject({
+      method: 'PATCH', url: `/api/v1/stores/${hoursStoreId}`, headers: { cookie }, payload,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+  }
+
+  /** Run one turn at `now` on the clock store and return what the model was told. */
+  async function systemText(now: Date): Promise<string> {
+    const f = await fixture({ storeId: hoursStoreId });
+    const model = fakeModel(['Bonjour!']);
+    const result = await runAssistantTurn(deps(model, { now }), {
+      organization_id: orgId, conversation_id: f.conversationId, message_id: f.messageId, attempt: 0,
+    });
+    expect(result.kind).toBe('replied');
+    const request = model.seen[0];
+    if (!request) throw new Error('the model was never called');
+    return request.system.map((b) => b.text).join('\n');
+  }
+
+  beforeAll(async () => {
+    if (!dbUp) return;
+    // Its own store: the other suites' conversations must keep seeing the
+    // grid-less default, which is the "open, no Hours line" case below.
+    const res = await app!.inject({
+      method: 'POST', url: '/api/v1/stores', headers: { cookie },
+      payload: { organization_id: orgId, name: 'Rooftop Heures', code: `F76-${run.slice(-4)}`, province: 'QC' },
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    hoursStoreId = (JSON.parse(res.body) as { id: string }).id;
+    await patchStore({ business_hours: WEEKDAYS });
+  });
+
+  it('at 03:00 the dealership is closed, the follow-up is coarse, the hours line is printed and "Right now" is store-local', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const text = await systemText(TUE_0300);
+    expect(text).toContain('The dealership is closed');
+    // French conversation (the table default) → the French phrase, no clock
+    // time — and at 03:00 on a day with a 09:00 window it is "later today",
+    // not "tomorrow morning".
+    expect(text).toContain('somebody will follow up plus tard aujourd’hui');
+    expect(text).toContain('Hours: Mon–Fri 09:00–18:00, Sat closed, Sun closed');
+    expect(text).toMatch(/Right now: .*mardi/);
+    expect(text).not.toContain('T07:00:00.000Z');
+
+    // After closing (20:00 local = 00:00Z Wednesday) the promise is tomorrow morning.
+    const evening = await systemText(new Date('2026-09-02T00:00:00Z'));
+    expect(evening).toContain('The dealership is closed');
+    expect(evening).toContain('somebody will follow up demain matin');
+    expect(evening).toMatch(/Right now: .*mardi/);
+  });
+
+  it('at 14:00 the same day it is open', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const text = await systemText(TUE_1400);
+    expect(text).toContain('The dealership is open.');
+    expect(text).not.toContain('The dealership is closed');
+  });
+
+  it('a holiday today closes it all day', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await patchStore({ holiday_dates: ['2026-09-01'] });
+    const text = await systemText(TUE_1400);
+    expect(text).toContain('The dealership is closed');
+    expect(text).toContain('demain matin');
+    await patchStore({ holiday_dates: [] });
+  });
+
+  it('an empty grid keeps today’s behaviour: open, and NO Hours line at all', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await patchStore({ business_hours: {} });
+    const text = await systemText(TUE_0300);
+    // Both halves: the positive claim and the absence. "Not configured" is
+    // not "closed", and nothing is printed that the owner never set.
+    expect(text).toContain('The dealership is open.');
+    expect(text).not.toContain('Hours:');
+    await patchStore({ business_hours: WEEKDAYS });
+  });
+
+  it('a listed holiday closes a store with NO grid too — what the holidays hint promises', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await patchStore({ business_hours: {}, holiday_dates: ['2026-09-01'] });
+    const text = await systemText(TUE_1400);
+    expect(text).toContain('The dealership is closed');
+    expect(text).not.toContain('The dealership is open.');
+    // No grid means no reopening instant: the only honest phrase is the non-committal one.
+    expect(text).toContain('somebody will follow up dès la réouverture');
+    expect(text).not.toContain('Hours:');
+
+    // The day after the holiday, the same grid-less store is open again, still with no Hours line.
+    const after = await systemText(new Date('2026-09-02T18:00:00Z'));
+    expect(after).toContain('The dealership is open.');
+    expect(after).not.toContain('Hours:');
+    await patchStore({ business_hours: WEEKDAYS, holiday_dates: [] });
+  });
+
+  it('the turn cap in the prompt is the tenant’s setting: 15 with no row, 8 after the Automations save', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    expect(await systemText(TUE_1400)).toContain('Hand over to a person after at most 15 messages');
+
+    const cap = await app!.inject({
+      method: 'PUT', url: `/api/v1/organizations/${orgId}/comms-config`, headers: { cookie },
+      payload: { bot_turn_cap: 8 },
+    });
+    expect(cap.statusCode, cap.body).toBe(200);
+    expect(await systemText(TUE_1400)).toContain('Hand over to a person after at most 8 messages');
+
+    // Back to the default so the row does not shadow the suites above on a re-run.
+    const restore = await app!.inject({
+      method: 'PUT', url: `/api/v1/organizations/${orgId}/comms-config`, headers: { cookie },
+      payload: { bot_turn_cap: 15 },
+    });
+    expect(restore.statusCode, restore.body).toBe(200);
   });
 });

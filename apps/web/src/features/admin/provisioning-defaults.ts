@@ -1,5 +1,6 @@
 import type { ProvinceCA } from '@dealpilot/schemas';
 import { slugify } from '../organizations/organization-new-page.js';
+import { CANADA_TIMEZONES, type CanadaTimezone } from '../../shared/timezones.js';
 
 export type ProvinceCAT = (typeof ProvinceCA.options)[number];
 
@@ -12,22 +13,10 @@ export type ProvinceCAT = (typeof ProvinceCA.options)[number];
 
 export { slugify };
 
-/** Region/city IANA names for Canada — the only kind `assertKnownTimezone` accepts (F-67). */
-export const CANADA_TIMEZONES = [
-  'America/St_Johns',
-  'America/Halifax',
-  'America/Moncton',
-  'America/Montreal',
-  'America/Toronto',
-  'America/Winnipeg',
-  'America/Regina',
-  'America/Edmonton',
-  'America/Vancouver',
-  'America/Whitehorse',
-  'America/Yellowknife',
-  'America/Iqaluit',
-] as const;
-export type CanadaTimezone = (typeof CANADA_TIMEZONES)[number];
+// F-76 (A8): the curated list moved to a leaf module so the store form can
+// share it without pulling this page's imports; re-exported for the existing
+// callers and tests.
+export { CANADA_TIMEZONES, type CanadaTimezone };
 
 const TIMEZONE_BY_PROVINCE: Record<ProvinceCAT, CanadaTimezone> = {
   AB: 'America/Edmonton',

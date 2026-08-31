@@ -17,6 +17,7 @@ import { notificationKeys } from '../features/notifications/api.js';
 import { useRealtime } from '../shared/realtime.js';
 import { SupportBanner } from '../shared/support-banner.js';
 import { AnnouncementBanner, AnnouncementNotices } from '../features/announcements/banner.js';
+import { NAV_ITEMS } from './nav.js';
 
 /**
  * F-43 (D-047 #1): holding the app open IS being online. The shell keeps one
@@ -38,22 +39,9 @@ function PresenceBeacon({ organizationId }: { organizationId: string }) {
   return null;
 }
 
-// `/pipeline` returns with its feature slice — a dead route belongs in no nav.
-const NAV_ITEMS = [
-  { to: '/', key: 'nav:dashboard', shortKey: 'nav:shortDashboard', end: true },
-  { to: '/organizations', key: 'nav:organizations', shortKey: 'nav:shortOrganizations' },
-  { to: '/leads', key: 'nav:prospects', shortKey: 'nav:shortProspects' },
-  { to: '/contacts', key: 'nav:contacts', shortKey: 'nav:shortContacts', mobileHidden: true },
-  { to: '/appointments', key: 'nav:appointments', shortKey: 'nav:shortAppointments', mobileHidden: true },
-  { to: '/tasks', key: 'nav:tasks', shortKey: 'nav:shortTasks', mobileHidden: true },
-  { to: '/conversations', key: 'nav:conversations', shortKey: 'nav:shortConversations' },
-  { to: '/pipeline', key: 'nav:pipeline', shortKey: 'nav:shortPipeline' },
-  { to: '/inventory', key: 'nav:inventory', shortKey: 'nav:shortInventory' },
-  { to: '/commissions', key: 'nav:commissions', shortKey: 'nav:shortCommissions', mobileHidden: true },
-  { to: '/dispatch', key: 'nav:dispatch', shortKey: 'nav:shortDispatch', mobileHidden: true },
-  { to: '/analytics/win-loss', key: 'nav:reports', shortKey: 'nav:shortReports', mobileHidden: true },
-  { to: '/team', key: 'nav:team', shortKey: 'nav:shortTeam' },
-] as const;
+// F-76: the items live in nav.ts (a leaf, so nav.test.ts can pin the mobile
+// partition without importing this shell); re-exported for callers.
+export { NAV_ITEMS };
 
 /**
  * App shell: fixed sidebar (240px, >=lg) + 56px topbar + bottom tab bar

@@ -28,20 +28,25 @@ test('full F-11 journey: fleet roster → book a run → board → status', asyn
   await page.getByLabel('Code').fill(`F11-${stamp % 10000}`);
   await page.getByRole('button', { name: 'Créer la succursale' }).click();
 
-  // Logistics roster lives on the store's edit page.
+  // Logistics roster lives on the store's edit page. The three « Ajouter »
+  // are indexed INSIDE the fleet section (its <section aria-labelledby> is a
+  // region named by the heading): the store form above it carries its own
+  // « Ajouter » since F-76 (the holidays list), so a page-wide index would
+  // land on that one first.
   await page.getByRole('link', { name: 'Succursale F11' }).click();
+  const fleet = page.getByRole('region', { name: 'Logistique (compagnies, autos-chasseur, plaques)' });
   await expect(
-    page.getByRole('heading', { name: 'Logistique (compagnies, autos-chasseur, plaques)' }),
+    fleet.getByRole('heading', { name: 'Logistique (compagnies, autos-chasseur, plaques)' }),
   ).toBeVisible();
   await page.getByLabel('Nom de la compagnie').fill('Transport Supreme');
   await page.getByLabel('Courriel (reçoit les demandes)').fill(`supreme-${stamp}@1dealer.test`);
-  await page.getByRole('button', { name: 'Ajouter', exact: true }).first().click();
+  await fleet.getByRole('button', { name: 'Ajouter', exact: true }).first().click();
   await expect(page.getByText('Transport Supreme')).toBeVisible();
   await page.getByLabel('Auto-chasseur').fill('Chasseur 1');
-  await page.getByRole('button', { name: 'Ajouter', exact: true }).nth(1).click();
+  await fleet.getByRole('button', { name: 'Ajouter', exact: true }).nth(1).click();
   await expect(page.getByText('Chasseur 1')).toBeVisible();
   await page.getByLabel('Plaque marchand').fill(`P${stamp % 10000}`);
-  await page.getByRole('button', { name: 'Ajouter', exact: true }).nth(2).click();
+  await fleet.getByRole('button', { name: 'Ajouter', exact: true }).nth(2).click();
   await expect(page.getByText(`P${stamp % 10000}`)).toBeVisible();
 
   // A deal to deliver.

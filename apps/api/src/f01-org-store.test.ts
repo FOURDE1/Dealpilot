@@ -449,9 +449,11 @@ describe('store business hours (F-51, FR-AI-011 config)', () => {
       },
     });
     expect(created.statusCode, created.body).toBe(201);
-    const store = JSON.parse(created.body) as { id: string; business_hours: Record<string, unknown>; holiday_dates: string[] };
+    // Parsed as Store (F-76): the holidays come back as the YYYY-MM-DD the
+    // caller sent, not as pg's local-midnight Dates.
+    const store = Store.parse(JSON.parse(created.body));
     expect(store.business_hours['mon']).toEqual({ open: '09:00', close: '18:00' });
-    expect(store.holiday_dates).toHaveLength(2);
+    expect(store.holiday_dates).toEqual(['2026-12-25', '2027-01-01']);
 
     const patched = await app!.inject({
       method: 'PATCH', url: `/api/v1/stores/${store.id}`, headers: { cookie: cookieA },
@@ -468,5 +470,172 @@ describe('store business hours (F-51, FR-AI-011 config)', () => {
       payload: { business_hours: { wed: { open: '18:00', close: '09:00' } } },
     });
     expect(backwards.statusCode, backwards.body).toBe(422);
+  });
+});
+
+describe('F-76 store settings core — what the owner’s form sends and reads back', () => {
+  /**
+   * The twelve zones the web's timezone select offers (`CANADA_TIMEZONES` in
+   * apps/web/src/shared/timezones.ts, hoisted there by F-76 wave B). Duplicated
+   * rather than imported so the API suite never loads the web bundle; the
+   * lockstep is that EVERY option the select offers is a name Postgres knows
+   * under `assertKnownTimezone`'s region/city filter — a zone added there and
+   * not here still fails when the owner picks it, so keep the two lists equal.
+   */
+  const CANADA_TIMEZONES = [
+    'America/St_Johns',
+    'America/Halifax',
+    'America/Moncton',
+    'America/Montreal',
+    'America/Toronto',
+    'America/Winnipeg',
+    'America/Regina',
+    'America/Edmonton',
+    'America/Vancouver',
+    'America/Whitehorse',
+    'America/Yellowknife',
+    'America/Iqaluit',
+  ] as const;
+  const HOLIDAYS = ['2026-12-25', '2027-01-01'];
+
+  let settingsOrgId = '';
+  let settingsStoreId = '';
+
+  type Detail = { path?: string; code: string; message: string };
+  const details = (body: string): Detail[] =>
+    (JSON.parse(body) as { error: { details?: Detail[] } }).error.details ?? [];
+
+  const patchStore = (payload: Record<string, unknown>) =>
+    app!.inject({ method: 'PATCH', url: `/api/v1/stores/${settingsStoreId}`, headers: { cookie: cookieA }, payload });
+
+  /** Store 'updated' events that touched holiday_dates, oldest first. */
+  async function holidayEvents(): Promise<{ from: unknown; to: unknown }[]> {
+    const r = await admin.query<{ changes: Record<string, { from: unknown; to: unknown }> }>(
+      `SELECT changes FROM activity_events
+       WHERE entity_type = 'store' AND entity_id = $1 AND action = 'updated'
+       ORDER BY created_at, id`,
+      [settingsStoreId],
+    );
+    return r.rows.map((row) => row.changes['holiday_dates']).filter((c): c is { from: unknown; to: unknown } => c !== undefined);
+  }
+
+  it('holiday round trip: POST, GET, LIST and PATCH all return YYYY-MM-DD and parse as Store', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const ownOrg = await app!.inject({
+      method: 'POST', url: '/api/v1/organizations', headers: { cookie: cookieA },
+      payload: { name: 'Groupe Réglages', slug: `groupe-reglages-${run}` },
+    });
+    expect(ownOrg.statusCode, ownOrg.body).toBe(201);
+    settingsOrgId = (JSON.parse(ownOrg.body) as { id: string }).id;
+
+    // pg parses a `date[]` into JS Dates at server-local midnight; on this
+    // UTC+3 desktop the raw row serialises 2026-12-25 as 2026-12-24T21:00Z.
+    // `Store.parse` is what makes the same omission red in UTC CI: an ISO
+    // timestamp never matches the YYYY-MM-DD the schema now demands.
+    const created = await app!.inject({
+      method: 'POST', url: '/api/v1/stores', headers: { cookie: cookieA },
+      payload: { organization_id: settingsOrgId, name: 'Réglages Kia', code: `RGL-${run.slice(-5)}`, province: 'QC', holiday_dates: HOLIDAYS },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const posted = Store.parse(JSON.parse(created.body));
+    expect(posted.holiday_dates).toEqual(HOLIDAYS);
+    settingsStoreId = posted.id;
+
+    const got = await app!.inject({ method: 'GET', url: `/api/v1/stores/${settingsStoreId}`, headers: { cookie: cookieA } });
+    expect(got.statusCode, got.body).toBe(200);
+    expect(Store.parse(JSON.parse(got.body)).holiday_dates).toEqual(HOLIDAYS);
+
+    // The list goes through keysetPage, which hands back raw rows — the one
+    // exit a serialiser applied "on the row" would miss.
+    const list = await app!.inject({
+      method: 'GET', url: `/api/v1/stores?organization_id=${settingsOrgId}`, headers: { cookie: cookieA },
+    });
+    expect(list.statusCode, list.body).toBe(200);
+    const listed = StorePage.parse(JSON.parse(list.body)).items.find((s) => s.id === settingsStoreId);
+    expect(listed?.holiday_dates).toEqual(HOLIDAYS);
+
+    // Same value re-sent: 200, still YYYY-MM-DD, and NO activity event — the
+    // serialised prior is what makes equal arrays compare equal in diff().
+    const same = await patchStore({ holiday_dates: HOLIDAYS });
+    expect(same.statusCode, same.body).toBe(200);
+    expect(Store.parse(JSON.parse(same.body)).holiday_dates).toEqual(HOLIDAYS);
+    expect(await holidayEvents()).toEqual([]);
+
+    // The no-op branch (`fields.length === 0 → prior`) is a store exit too.
+    const noop = await patchStore({});
+    expect(noop.statusCode, noop.body).toBe(200);
+    expect(Store.parse(JSON.parse(noop.body)).holiday_dates).toEqual(HOLIDAYS);
+
+    // An unrelated PATCH returns the whole row, holidays included.
+    const renamed = await patchStore({ name: 'Réglages Kia Centre' });
+    expect(renamed.statusCode, renamed.body).toBe(200);
+    expect(Store.parse(JSON.parse(renamed.body)).holiday_dates).toEqual(HOLIDAYS);
+
+    // A real change is recorded as YYYY-MM-DD on BOTH sides.
+    const changed = await patchStore({ holiday_dates: ['2026-07-01'] });
+    expect(changed.statusCode, changed.body).toBe(200);
+    expect(Store.parse(JSON.parse(changed.body)).holiday_dates).toEqual(['2026-07-01']);
+    expect(await holidayEvents()).toEqual([{ from: HOLIDAYS, to: ['2026-07-01'] }]);
+  });
+
+  it('refuses a well-formed non-date on its item path — a 422 where Postgres used to answer 500', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const res = await patchStore({ holiday_dates: ['2026-02-30'] });
+    expect(res.statusCode, res.body).toBe(422);
+    expect(details(res.body)[0]).toMatchObject({ path: 'holiday_dates.0', code: 'custom' });
+  });
+
+  it('bounds the year to 1900–2199: a three-digit year and year 0 are 422 on the item path — never a 200 whose body fails Store.parse, never a 500', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Before the bound, '0001-01-01' was stored and served back as '1-01-01'
+    // (pg's Date has getFullYear() === 1 and the serialiser padded only the
+    // month and day), a body every store exit then failed to parse — one such
+    // row took the organization's whole store list down; '0000-01-01' was a
+    // pg 22008 → 500.
+    for (const bad of ['0001-01-01', '0202-12-25', '0999-01-01', '0000-01-01']) {
+      const res = await patchStore({ holiday_dates: [bad] });
+      expect(res.statusCode, `${bad}: ${res.body}`).toBe(422);
+      expect(details(res.body)[0], bad).toMatchObject({ path: 'holiday_dates.0', code: 'custom' });
+    }
+    // The bound's own edges are ordinary dates and round-trip as YYYY-MM-DD.
+    const edges = await patchStore({ holiday_dates: ['1900-01-01', '2199-12-31'] });
+    expect(edges.statusCode, edges.body).toBe(200);
+    expect(Store.parse(JSON.parse(edges.body)).holiday_dates).toEqual(['1900-01-01', '2199-12-31']);
+  });
+
+  it('every zone the web’s select offers is accepted; a fixed-offset name and an empty string are refused on the field', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    for (const timezone of CANADA_TIMEZONES) {
+      const res = await patchStore({ timezone });
+      expect(res.statusCode, `${timezone}: ${res.body}`).toBe(200);
+      expect(Store.parse(JSON.parse(res.body)).timezone).toBe(timezone);
+    }
+    // « Autre (nom IANA) » keeps this reachable: EST is a name Postgres
+    // accepts and the route refuses, because it carries no daylight rule.
+    const est = await patchStore({ timezone: 'EST' });
+    expect(est.statusCode, est.body).toBe(422);
+    expect(details(est.body)[0]).toMatchObject({ path: 'timezone', code: 'unknown_timezone' });
+
+    const empty = await patchStore({ timezone: '' });
+    expect(empty.statusCode, empty.body).toBe(422);
+    expect(details(empty.body)[0]?.path).toBe('timezone');
+  });
+
+  it('the carrier number: normalised on save, refused with its code, cleared with null', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const saved = await patchStore({ sms_number: '514 555 0142' });
+    expect(saved.statusCode, saved.body).toBe(200);
+    expect(Store.parse(JSON.parse(saved.body)).sms_number).toBe('+15145550142');
+
+    for (const bad of ['514', '']) {
+      const res = await patchStore({ sms_number: bad });
+      expect(res.statusCode, `${JSON.stringify(bad)}: ${res.body}`).toBe(422);
+      expect(details(res.body)[0]).toMatchObject({ path: 'sms_number', code: 'phone_nanp' });
+    }
+
+    // Blank → null is the form's job ('' is a 422 above); null clears.
+    const cleared = await patchStore({ sms_number: null });
+    expect(cleared.statusCode, cleared.body).toBe(200);
+    expect(Store.parse(JSON.parse(cleared.body)).sms_number).toBeNull();
   });
 });

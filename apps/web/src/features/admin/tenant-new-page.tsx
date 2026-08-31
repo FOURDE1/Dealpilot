@@ -9,8 +9,8 @@ import { usePageTitle } from '../../shared/use-page-title.js';
 import { ApiError } from '../../shared/api/client.js';
 import { useAdminPlans, useProvisionTenant } from './api.js';
 import { TIER_KEYS } from './labels.js';
+import { CANADA_TIMEZONES, OTHER_TZ, isKnownTimezone } from '../../shared/timezones.js';
 import {
-  CANADA_TIMEZONES,
   codeOf,
   draftToBody,
   emptyDraft,
@@ -36,7 +36,6 @@ import {
  * the page that has to show it.
  */
 
-const OTHER_TZ = '__other__';
 const MAX_STORES = 20;
 
 /** `stores.1.code` → `tn-stores-1-code` — one rule for ids, error links and focus. */
@@ -64,10 +63,6 @@ const labelKey = <M extends Record<string, string>>(map: M, key: string): M[keyo
   Object.prototype.hasOwnProperty.call(map, key) ? map[key as keyof M] : undefined;
 const REQUIRED_TOP = ['display_name', 'legal_name', 'slug', 'plan_id', 'owner_name', 'owner_email'] as const;
 const REQUIRED_STORE = ['name', 'code', 'timezone'] as const;
-
-function isKnownTimezone(tz: string): boolean {
-  return (CANADA_TIMEZONES as readonly string[]).includes(tz);
-}
 
 export function TenantNewPage() {
   const { t, i18n } = useTranslation('admin');

@@ -50,12 +50,14 @@ chooses.
 | A MESSAGE COMES IN | `https://api.your-domain.ca/carrier/v1/sms/inbound` |
 | STATUS CALLBACK URL | `https://api.your-domain.ca/carrier/v1/sms/status` |
 
-**Then set the number on the store.** It lives on the store record, not in an
-env var, because each rooftop texts from its own number:
-
-```
-PATCH /api/v1/stores/{id}   { "sms_number": "+1514XXXXXXX" }
-```
+**Then set the number on the store — from the screen (F-76, 2026-08-31).**
+Sign in → **Réglages → Succursales → your store → « Numéro d'expédition des
+textos »**, paste the number, **Enregistrer**. It lives on the store record,
+not in an env var, because each rooftop texts from its own number. The same
+section holds the store's timezone, opening hours and holidays — which the
+assistant now reads. Changing a LIVE number moves the next outbound text to
+the new number immediately, and replies sent to the old number no longer
+reach this store.
 
 One number belongs to exactly one store platform-wide — the database enforces
 it, because two stores sharing a number makes an inbound message unroutable and

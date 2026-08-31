@@ -67,11 +67,18 @@ export function OrganizationDetailPage() {
           <h1 className="text-2xl font-semibold">{org.data.name}</h1>
           <span className="font-mono text-sm text-muted-foreground">{org.data.slug}</span>
         </div>
-        {canBrand ? (
-          <Link to={`/organizations/${orgId}/branding`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
-            {t('brandingLink')}
+        <div className="flex flex-wrap items-center gap-2">
+          {canBrand ? (
+            <Link to={`/organizations/${orgId}/branding`} className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+              {t('brandingLink')}
+            </Link>
+          ) : null}
+          {/* F-76: « Réglages » is desktop-only in the nav (mobileHidden) — this
+              link is how a phone reaches /settings. */}
+          <Link to="/settings" className={buttonVariants({ variant: 'outline', size: 'sm' })}>
+            {t('settingsLink')}
           </Link>
-        ) : null}
+        </div>
       </header>
 
       <form

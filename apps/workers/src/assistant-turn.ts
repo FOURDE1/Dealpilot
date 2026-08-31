@@ -2,7 +2,9 @@ import { withTenant, type Pool, type PoolClient } from '@dealpilot/db';
 import { tenantOperational } from './tenant-status.js';
 import { AssistantTurnJob, type Emitter } from '@dealpilot/contracts';
 import { LeadExtraction, runTurn, type ModelClient, type ModelMessage } from '@dealpilot/ai';
-import { evaluateHandoff, type ConversationFlags } from '@dealpilot/core';
+import {
+  evaluateHandoff, localDateTimeText, storeOpenState, type BusinessHoursLike, type ConversationFlags,
+} from '@dealpilot/core';
 import { autoAssignLead } from '@dealpilot/api/assignment';
 import { handOff, handoffNotice } from '@dealpilot/api/handoff';
 import { sendMessage } from '@dealpilot/api/send';
@@ -33,6 +35,14 @@ import type { Env } from '@dealpilot/api/env';
  * Note what is NOT here: any decision about what to say, whether to hand off,
  * or whether a draft is safe. Those live in `runTurn` and the gate, and a
  * dispatcher that started making them would be a second opinion.
+ *
+ * F-76: the prompt's hours, open/closed state, follow-up phrase and local
+ * clock come from the store's own `business_hours`, `holiday_dates` and
+ * `timezone` (via `storeOpenState`), and the turn cap in the prompt is the
+ * tenant's `bot_turn_cap` — the same number the handoff evaluator enforces.
+ * Before this they were constants: every customer was told the dealership
+ * was open, at 03:00 on Christmas. A store with NO grid keeps that behaviour
+ * (open, no `Hours:` line): "not configured" is not "closed".
  */
 
 export interface AssistantTurnDeps {
@@ -109,10 +119,21 @@ export async function runAssistantTurn(
     const conversation = conv.rows[0];
     if (!conversation) return null;
 
+    // One query for what the prompt needs from the store AND the tenant's
+    // turn cap. `holiday_dates::text[]` so pg never hands back a Date the
+    // serialiser would have to correct; `store_id IS NULL` is the row the
+    // comms-config PUT writes (per-store rows have no writer yet).
     const store = await c.query<{
       name: string; phone: string | null; address_line1: string | null; timezone: string;
+      business_hours: BusinessHoursLike; holiday_dates: string[]; bot_turn_cap: number | null;
     }>(
-      `SELECT name, phone, address_line1, timezone FROM stores WHERE id = $1`,
+      `SELECT s.name, s.phone, s.address_line1, s.timezone,
+              s.business_hours, s.holiday_dates::text[] AS holiday_dates,
+              c.bot_turn_cap
+       FROM stores s
+       LEFT JOIN tenant_comms_config c
+         ON c.organization_id = s.organization_id AND c.store_id IS NULL AND c.deleted_at IS NULL
+       WHERE s.id = $1`,
       [conversation.store_id],
     );
     const lead = conversation.lead_id
@@ -154,6 +175,15 @@ export async function runAssistantTurn(
   }
 
   const language = loaded.conversation.language;
+  const storeConfig = loaded.store;
+  const clientMessage = loaded.clientMessage;
+  // The store's clock, judged in the store's zone at this turn's instant.
+  const clock = storeOpenState({
+    hours: storeConfig.business_hours,
+    holidays: storeConfig.holiday_dates,
+    timezone: storeConfig.timezone,
+    nowUtc: now,
+  });
   const outcome = await withTenant(deps.pool, job.organization_id, async (c) => {
     const tools = createToolRunner(c, {
       organizationId: job.organization_id,
@@ -167,18 +197,22 @@ export async function runAssistantTurn(
 
     const turn = await runTurn(deps.model, tools.run, {
       tenant: {
-        dealershipLegalName: loaded.store!.name,
+        dealershipLegalName: storeConfig.name,
         personaName: 'Alex',
-        storeAddress: loaded.store!.address_line1,
-        storePhone: loaded.store!.phone,
-        hoursText: null,
+        storeAddress: storeConfig.address_line1,
+        storePhone: storeConfig.phone,
+        // One English line ('Mon–Fri 09:00–18:00, Sat closed, Sun closed') in
+        // the cached tenant block; null — no `Hours:` line — for an empty grid.
+        hoursText: clock.known ? clock.hoursText : null,
         // Quebec-first: the language question is asked because Bill 96 expects
         // it, not because the customer's locale was guessed.
         askLanguagePreference: true,
         currentOffersText: null,
         brands: [],
         complianceFooter: null,
-        maxMessagesBeforeHandoff: 15,
+        // §9 #5 is a TENANT setting (0033, default 15): the prompt now states
+        // the same cap the handoff evaluator below enforces.
+        maxMessagesBeforeHandoff: storeConfig.bot_turn_cap ?? 15,
         photoLimit: 3,
       },
       live: {
@@ -191,13 +225,19 @@ export async function runAssistantTurn(
           prefilled: [],
           consentState: 'express',
         },
-        localDateTimeText: now.toISOString(),
-        withinBusinessHours: true,
-        nextOpenPhrase: language === 'fr' ? 'demain matin' : 'tomorrow morning',
+        // Store-local, in the conversation's language — not a UTC timestamp
+        // the model has to convert.
+        localDateTimeText: localDateTimeText(now, storeConfig.timezone, language),
+        // A grid that says nothing keeps the doors open (today's behaviour);
+        // a grid that says "closed" closes them, and so does a listed holiday
+        // even without a grid — the holidays hint promises it unconditionally.
+        withinBusinessHours: clock.known ? clock.open : !clock.todayIsHoliday,
+        // Coarse by design: block 2 forbids promising a reply time.
+        nextOpenPhrase: clock.nextOpenPhrase[language],
         language,
       },
       history: loaded.history,
-      clientMessage: loaded.clientMessage!,
+      clientMessage,
       // Only what the tools actually returned this turn. The guard refuses a
       // stock number the conversation was never shown.
       allowedStockNumbers: tools.allowedStockNumbers(),

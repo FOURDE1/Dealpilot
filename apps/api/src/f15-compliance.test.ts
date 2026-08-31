@@ -489,3 +489,81 @@ describe('D-042 #1 · a walk-in can actually be replied to', () => {
     expect(JSON.parse(res.body)).toMatchObject({ status: 'blocked' });
   });
 });
+
+describe('the window is compared in ONE shape (F-76): partial saves once a row exists', () => {
+  // Its own organization: the rows above hold 10:00–20:00 and later cases
+  // depend on that. A fresh org starts with no row, like every new tenant.
+  let freshOrgId = '';
+  type Detail = { path?: string; code: string; message: string };
+  const put = (payload: Record<string, unknown>) =>
+    app!.inject({ method: 'PUT', url: `/api/v1/organizations/${freshOrgId}/comms-config`, headers: { cookie }, payload });
+  const details = (body: string): Detail[] =>
+    (JSON.parse(body) as { error: { details?: Detail[] } }).error.details ?? [];
+
+  it('a start-only PUT after a cap-only PUT keeps the default end and is NOT "too wide"', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const org = await app!.inject({
+      method: 'POST', url: '/api/v1/organizations', headers: { cookie },
+      payload: { name: 'Groupe F15 Fenêtre', slug: `groupe-f15-fenetre-${run}` },
+    });
+    expect(org.statusCode, org.body).toBe(201);
+    freshOrgId = (JSON.parse(org.body) as { id: string }).id;
+
+    // The Automations page's first save on a fresh org: one field, the row is
+    // INSERTed with the DB defaults — end stored as the `time` 21:00:00.
+    const cap = await put({ bot_turn_cap: 8 });
+    expect(cap.statusCode, cap.body).toBe(200);
+    expect(JSON.parse(cap.body)).toMatchObject({ bot_turn_cap: 8, sms_quiet_end: '21:00:00' });
+
+    // Then only the start. Before F-76: 422 window_too_wide, because the
+    // stored '21:00:00' compared greater than the ceiling string '21:00'.
+    const start = await put({ sms_quiet_start: '10:00' });
+    expect(start.statusCode, start.body).toBe(200);
+    expect(JSON.parse(start.body)).toMatchObject({ sms_quiet_start: '10:00:00', sms_quiet_end: '21:00:00' });
+  });
+
+  it('a one-field save on a narrowed row succeeds — the shape commsDiff sends', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const narrowed = await put({ sms_quiet_start: '10:00', sms_quiet_end: '20:00' });
+    expect(narrowed.statusCode, narrowed.body).toBe(200);
+    const toggle = await put({ first_touch_quiet_exempt: false });
+    expect(toggle.statusCode, toggle.body).toBe(200);
+    expect(JSON.parse(toggle.body)).toMatchObject({
+      sms_quiet_start: '10:00:00', sms_quiet_end: '20:00:00', first_touch_quiet_exempt: false,
+    });
+  });
+
+  it('a start equal to the stored end is refused on sms_quiet_end with invalid_window — not a 500', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Row is 10:00–20:00. Raw strings: '20:00' >= '20:00:00' is FALSE, so an
+    // unnormalised pre-check would pass this to the CHECK and answer 500.
+    const res = await put({ sms_quiet_start: '20:00' });
+    expect(res.statusCode, res.body).toBe(422);
+    expect(JSON.parse(res.body).error.code).toBe('validation_failed');
+    expect(details(res.body)[0]).toMatchObject({ path: 'sms_quiet_end', code: 'invalid_window' });
+
+    const after = await app!.inject({
+      method: 'GET', url: `/api/v1/organizations/${freshOrgId}/comms-config`, headers: { cookie },
+    });
+    expect(JSON.parse(after.body)).toMatchObject({ sms_quiet_start: '10:00:00', sms_quiet_end: '20:00:00' });
+  });
+
+  it('an inverted or empty explicit window is refused the same way', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    for (const payload of [
+      { sms_quiet_start: '12:00', sms_quiet_end: '11:00' },
+      { sms_quiet_start: '10:00', sms_quiet_end: '10:00' },
+    ]) {
+      const res = await put(payload);
+      expect(res.statusCode, JSON.stringify(payload) + ' ' + res.body).toBe(422);
+      expect(details(res.body)[0]).toMatchObject({ path: 'sms_quiet_end', code: 'invalid_window' });
+    }
+  });
+
+  it('the exact platform ceiling 09:00–21:00 is accepted — the copy’s numbers are the API’s', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const res = await put({ sms_quiet_start: '09:00', sms_quiet_end: '21:00' });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(JSON.parse(res.body)).toMatchObject({ sms_quiet_start: '09:00:00', sms_quiet_end: '21:00:00' });
+  });
+});

@@ -117,8 +117,15 @@ export function resolveRecipientTimezone(input: {
   return { tz: input.storeTimezone, source: 'store' };
 }
 
-/** Wall-clock parts in a timezone, without pulling in a date library. */
-function zonedParts(utc: Date, tz: string): {
+/**
+ * Wall-clock parts in a timezone, without pulling in a date library.
+ *
+ * Exported (F-76) as one of the two clock helpers this package owns: the
+ * store-hours module reuses it rather than carrying a second, untested clock.
+ * Throws the `Intl` RangeError on a timezone name it does not know — callers
+ * that cannot refuse the name upstream must catch it.
+ */
+export function zonedParts(utc: Date, tz: string): {
   year: number; month: number; day: number; hour: number; minute: number; second: number; weekday: number;
 } {
   const fmt = new Intl.DateTimeFormat('en-CA', {
@@ -149,8 +156,11 @@ function zonedParts(utc: Date, tz: string): {
  * settles the offset even across a daylight-saving change. Without the second
  * pass, the Sunday in March when clocks move would schedule an hour off — on
  * exactly the sort of edge nobody notices until a customer is woken up.
+ *
+ * Exported (F-76) as the second clock helper; the store-hours module's
+ * "next opening" instant is this function, so its DST case is proven once.
  */
-function utcForLocal(tz: string, y: number, mo: number, d: number, hh: number, mm: number): Date {
+export function utcForLocal(tz: string, y: number, mo: number, d: number, hh: number, mm: number): Date {
   let guess = Date.UTC(y, mo - 1, d, hh, mm, 0);
   for (let i = 0; i < 2; i++) {
     const p = zonedParts(new Date(guess), tz);
