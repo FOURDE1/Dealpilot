@@ -156,7 +156,14 @@ and 0070 as the fourth BYPASSRLS-dependent migration;
 `HUSSEIN-F14-CONTRACT.md` marks the custom-font line retired. `PROJECT.md`
 unchanged — no command moved.
 
-**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as tick 28 was.** Next: F-76 per the scoping (tenant settings core), once this run is green.
+**Pushed as `6d00de3` (88 files, +3946/−258). CI GREEN first try — run
+33360845396, both jobs** (lint/typecheck/test/build and the real-browser e2e),
+verified with `gh run view 33360845396 --json conclusion`. **Ten consecutive
+greens.** The dev database took 0070 through `db:migrate` right after the
+push: 72 migrations, the 72 published snapshots scrubbed of the WOFF keys,
+both columns gone, both CHECKs narrowed, `platform_staff` still 0 and
+`users` 962. Next: F-76 — tenant settings core, the runner-up of the
+scoping (`/settings/stores` + `/settings/automations`, zero new vocabulary).
 
 ## 2026-08-31 (tick 28) — F-74: the browser suite gets its own database, and the console gets its first browser test without spending the owner's one-shot
 
