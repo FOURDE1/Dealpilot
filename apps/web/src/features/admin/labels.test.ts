@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { enCA, frCA } from '@dealpilot/i18n';
 import { JOB_QUEUE_NAMES } from '@dealpilot/contracts';
-import { PLATFORM_CAPABILITY_NAMES, PLATFORM_SETTING_KEYS, QueueState, RetryOutcome, USAGE_GAUGES, USAGE_WINDOW_METRICS } from '@dealpilot/schemas';
-import { CAPABILITY_KEYS, QUEUE_KEYS, QUEUE_STATE_KEYS, RETRY_OUTCOME_KEYS, SETTING_KEYS, USAGE_METRIC_KEYS } from './labels.js';
+import {
+  BrandingStatus,
+  IntakeProvider,
+  PLATFORM_CAPABILITY_NAMES,
+  PLATFORM_SETTING_KEYS,
+  QueueState,
+  RetryOutcome,
+  USAGE_GAUGES,
+  USAGE_WINDOW_METRICS,
+} from '@dealpilot/schemas';
+import {
+  BRANDING_STATE_KEYS,
+  CAPABILITY_KEYS,
+  PROVIDER_KEYS,
+  QUEUE_KEYS,
+  QUEUE_STATE_KEYS,
+  RETRY_OUTCOME_KEYS,
+  SETTING_KEYS,
+  USAGE_METRIC_KEYS,
+} from './labels.js';
 
 /**
  * The console prints a staffer's capabilities and the name of every kill
@@ -27,6 +45,9 @@ const jobs = {
   en: ((enCA as Record<string, unknown>)['jobs'] ?? {}) as Record<string, string>,
   fr: ((frCA as Record<string, unknown>)['jobs'] ?? {}) as Record<string, string>,
 };
+// F-77's namespace, and the tenant-side one whose provider labels the console re-exports.
+const snapshot = { en: enCA.snapshot as Record<string, string>, fr: frCA.snapshot as Record<string, string> };
+const intake = { en: enCA.intake as Record<string, string>, fr: frCA.intake as Record<string, string> };
 
 function missing(bundle: { en: Record<string, string>; fr: Record<string, string> }, keys: readonly string[]): string[] {
   const gaps: string[] = [];
@@ -93,5 +114,28 @@ describe('the console can name every usage number and every queue', () => {
     expect(Object.keys(RETRY_OUTCOME_KEYS)).toHaveLength(5);
     expect(Object.keys(RETRY_OUTCOME_KEYS)).not.toContain('locked');
     expect(missing(jobs, Object.values(RETRY_OUTCOME_KEYS))).toEqual([]);
+  });
+});
+
+/**
+ * F-77 — two more label maps, same standard.
+ *
+ * `BRANDING_STATE_KEYS` is locked to `'none' | BrandingStatus` by the
+ * compiler and `PROVIDER_KEYS` to `IntakeProvider`; what the compiler cannot
+ * see is a map entry for a word the vocabulary dropped, or a key that resolves
+ * to nothing in one bundle — a French support person reading `brandDraft`
+ * beside a dealer's name. Both directions, both locales, by name.
+ */
+describe('the console can name a branding state and an intake provider', () => {
+  it('names exactly the three branding states the definer can emit, in both languages', () => {
+    expect(Object.keys(BRANDING_STATE_KEYS).sort()).toEqual(['none', ...BrandingStatus.options].sort());
+    expect(Object.keys(BRANDING_STATE_KEYS)).toHaveLength(3);
+    expect(missing(snapshot, Object.values(BRANDING_STATE_KEYS))).toEqual([]);
+  });
+
+  it('labels the five intake providers through the tenant page’s own map, in both languages', () => {
+    expect(Object.keys(PROVIDER_KEYS).sort()).toEqual([...IntakeProvider.options].sort());
+    expect(Object.keys(PROVIDER_KEYS)).toHaveLength(5);
+    expect(missing(intake, Object.values(PROVIDER_KEYS))).toEqual([]);
   });
 });

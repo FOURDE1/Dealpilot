@@ -119,6 +119,67 @@ Per-topic implementation reference: OWASP Cheat Sheet Series
 
 <!-- Entries begin below. -->
 
+### 2026-08-31 — F-77 tenant snapshot page: the screen cannot show a credential by construction
+
+**Scope:** `apps/web/src/features/admin/tenant-snapshot-page.tsx`,
+`snapshot-fields.ts`, `api.ts` (`useAdminTenantSnapshot`), the two guard
+files `snapshot-secret-guard.test.ts` and `tenant-snapshot-page.test.tsx`,
+T1/T6/T7 of `apps/web/e2e/f74-console-door.e2e.ts`. No route, no table, no
+policy, no column, no capability: the page reads `GET
+/api/v1/admin/tenants/:id/snapshot` (F-73, `tenants:read`, any platform role)
+whose definer `admin_tenant_snapshot` never projects an intake key's token or
+secret (0069:473-479). This entry is about the second half of that promise —
+that no future edit to the PAGE can undo it.
+
+- **A credential would have to cross five independent barriers, each with a
+  mutation that reddens it.** (a) A zod-v4 shape walk over
+  `AdminTenantSnapshot` (72 paths) admits no segment matching
+  `/token|secret|password|passphrase|hmac|signing|api[_-]?key|credential|private/i`
+  and pins `SnapshotIntakeKey` to its seven names — adding `token: z.string()`
+  is red here and in `f73-snapshot.test.ts` (:432/:456 through its own parse).
+  (b) The hook PARSES the body — the guard pins its source to
+  `return AdminTenantSnapshot.parse(res.body)` with no `res.body as` (a cast
+  is red) — and a fixture carrying `token`, `secret` and `webhook_secret`
+  parses to an object containing neither key nor value.
+  (c) A comment-stripped source scan forbids every generic render
+  (`Object.entries/keys/values/assign`, `JSON.stringify`,
+  `dangerouslySetInnerHTML`, `for…in`, a data spread into JSX, bracket access
+  on the data bindings) and walks every identifier against the regex above —
+  `webhook_secret` reddens because the regex has no word boundaries. (d) Every
+  top-level key is classified rendered (12, each read as `d.<key>`) or
+  detail-page (19, none read), the union is the schema exactly. (e) At render
+  time, a POISONED body past the mock puts none of `token` / `secret` /
+  `webhook_url` into the markup and no `[0-9a-f]{32}`; a Proxy recorder over
+  the honest AND the poisoned body proves the page reads only the allow-listed
+  properties and never a credential name — destructure, spread and
+  `Object.entries` all invoke `[[Get]]`, so no syntax evades it; dropping a
+  column from the allow-list while the page still reads it is red with `tsc`
+  green ✔
+- **What the browser proves, exactly.** T1 mints a REAL key through the
+  tenant UI and asserts its secret IS 64 hex and its token IS 22 base64url
+  before any negative; T6 proves the page LISTS that key, then asserts both
+  values absent from `#main`'s innerText AND from `page.content()`, and no
+  32-hex run in the innerText. Under the hook-cast + `Object.values` mutation
+  T6 stays green because the wire carries no credential: T6 is the browser
+  witness of the DEFINER and the SCHEMA; the page-side barrier is (c) + (e).
+  Recorded as measured, not as designed ✔
+- **No UUID reaches a text node** (ids are React keys, join keys and the
+  header link's href only; asserted with tags stripped) — the reason the
+  32-hex scan has no false positive ✔
+- **The 409 path is unchanged:** a staffer with a live support session is
+  walled by `RequirePlatform` before the page mounts; the accepted residual is
+  the probe's 30 s `staleTime` window in which a session started in ANOTHER
+  tab renders the page's load-error state instead of the wall (as on the
+  usage and queues pages), closed by the next probe or a reload ✔
+- **The one-shot is still owned by exactly one spec** (`bootstrap-guard`
+  byte-identical, green; a second importer is red) and the dev database's
+  grant remains unspent — `platform_staff = 0` before and after every run of
+  this slice ✔
+
+**Accepted (see D-078 (6), (9)):** the 30 s load-error residual under a
+concurrent-tab session; the usage/queues pages' re-probe parity is a
+follow-up.
+
 ### 2026-08-31 — F-74 e2e isolation: the suite's database, the runner, the bootstrap
 
 **Scope:** `scripts/e2e.mjs`; the guarded `[dbname]` positional on `reset`

@@ -629,6 +629,41 @@ export const frCA = {
     allowanceNotEnforced: 'Ce que le forfait comprend, rien de plus. Un dépassement n’est ni bloqué, ni mesuré, ni facturé automatiquement.',
     allowancePerTenant: 'Quantité pour toute l’organisation, pas par succursale.',
   },
+  snapshot: {
+    title: 'Instantané',
+    colTraffic: 'Messages (30 derniers jours)',
+    trafficCell: '{inbound} entrants · {outbound} sortants · {delivered} livrés',
+    colLastMessage: 'Dernier message (30 jours)',
+    noMessage30d: 'Aucun message en 30 jours',
+    storesEmpty: 'Aucune succursale.',
+    hoursWhere: 'Définies par le locataire sous Réglages → Succursales.',
+    colLastAccepted: 'Dernier prospect accepté',
+    keyActive: 'Active',
+    keyInactive: 'Inactive',
+    keyRevoked: 'Révoquée le {date}',
+    keysEmpty: 'Aucune source d’admission.',
+    keysCaption:
+      'Le jeton et le secret d’une clé ne sont jamais affichés dans la console. « Dernier prospect accepté » ne bouge que lorsqu’un prospect est accepté : une signature refusée ou un locataire suspendu ne le changent pas.',
+    storeOverrides:
+      '{count, plural, =0 {Aucune dérogation par succursale} one {# dérogation par succursale} other {# dérogations par succursale}}',
+    brandNone: 'Aucune image de marque',
+    brandDraft: 'Modifications non publiées',
+    brandPublished: 'Publiée',
+    brandVersion: 'Version {version}',
+    brandPublishedAt: 'Publiée le {date}',
+    brandNeverPublished: 'Jamais publiée',
+    brandCaption:
+      '« Modifications non publiées » signifie des modifications en attente ; la version publiée précédente, s’il y en a une, reste en ligne.',
+    accessHeading: 'Accès et connecteurs',
+    connectors: '{count, plural, =0 {Aucun connecteur actif} one {# connecteur actif} other {# connecteurs actifs}}',
+    connectorsCaption: 'Connecteurs d’admission enregistrés et actifs ; un connecteur désactivé ne compte pas.',
+    platformHeading: 'Plateforme — identique pour tous les locataires',
+    platformCaption:
+      'Configuration du déploiement, lue depuis l’environnement de l’API. Elle ne dit rien de ce locataire et ne se change pas dans la console. « log » signifie qu’aucun envoi réel n’a lieu ; « off » signifie que l’assistant ne s’exécute pas.',
+    transportSms: 'Transport SMS',
+    transportEmail: 'Transport courriel',
+    transportAi: 'Transport de l’assistant',
+  },
   /**
    * F-73 §9 — l’inspecteur de files.
    *

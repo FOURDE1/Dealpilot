@@ -281,6 +281,11 @@ console.log(
 // --- 1. forwarded Playwright argv (pnpm e2e -- --headed --grep console) -----
 
 const forwarded = process.argv.slice(2);
+// pnpm 10 forwards the `--` of `pnpm e2e -- --grep x` literally (argv = ["--", "--grep", "x"]);
+// Playwright reads that `--` as end-of-options and the filter is silently dropped — the
+// WHOLE suite runs (measured 2026-08-31, pnpm 10.26.1). `pnpm e2e --grep x` never had the
+// problem. Dropping one leading `--` makes both spellings filter; a no-op if pnpm stops forwarding it.
+if (forwarded[0] === '--') forwarded.shift();
 for (const arg of forwarded) {
   if (/^--(retries|repeat-each)(=|$)/.test(arg)) {
     // The console journey is serial against a once-reset database whose

@@ -11,6 +11,395 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-078 — 2026-08-31 — The snapshot page cannot show a credential by construction, and the console journey visits every read it can
+
+F-77 (admin-console.md §9 and §11; O-51; D-074 (7)'s « API only » follow-up;
+f75_scope §3, the third slice of the 2026-08-31 scoping). Designed by the
+three-planner + judge workflow — winner `secret-safety` — hardened by four
+adversarial critics into a binding build document of 21 rulings and 28
+amendments, built in four waves with disjoint file ownership (foundations →
+page → guards ∥ journey → mutations + gate), reviewed through six adversarial
+lenses with refute-biased verification (six lenses, 21 raw findings — 15 confirmed, 6 refuted, all six finders returned; the fifteen deduplicate to nine fixes, two of them product defects the design had ruled in and every test had passed — the « — » store cell that conflated a live organization-level key with a deleted store, and a caption claiming a duplicate does not move « Dernier prospect accepté » — every one fixed and proven red-then-green where a test could carry it), and gated: `pnpm turbo run build typecheck lint` 25/25 tasks (21 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **186 files / 2082 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **59 passed in 2.2 m against dealpilot_e2e_test rebuilt from migration zero (T1 8.6 s, T6 5.5 s, T7 6.0 s under 4 workers)**, lock released, nothing left listening.
+Base `590bedd`.
+
+(1) **Zero new vocabulary.** No API route (`ADMIN_HANDLER_COUNT` stays 28 and
+`platform-drift.test.ts` is untouched), no column, no contract or schema
+change, no permission or role check, no nav slot; 0070 stays the newest
+migration. What was added: one web route
+(`/admin/tenants/:tenantId/snapshot`, a sibling of the usage page, lazy like
+it), one query key (`adminKeys.snapshot(id) = ['admin','tenant',id,'snapshot']`
+— `invalidateTenant()`'s prefix matches it on purpose, so a status or plan
+change refetches the spread copy) with one hook that PARSES
+`AdminTenantSnapshot` (never a cast) and never polls, one `snapshot` i18n
+namespace of exactly 29 keys in both locales, two label tables
+(`BRANDING_STATE_KEYS`, typed against `BrandingStatus.options` so a fourth
+state is a compile error; `PROVIDER_KEYS` hoisted from the intake page into
+`features/organizations/labels.ts` and re-exported beside `STATUS_KEYS` /
+`TIER_KEYS` — one map, no page-module import), and `snapshot-fields.ts`, the
+allow-list the guards consume. Every column heading the page shares with a
+tenant screen is the tenant screen's own string — `settings:col_store /
+col_timezone / col_sms / col_hours / hoursSet / hoursUnset / defaultsNotice /
+windowStart / windowEnd / firstTouchExempt / dailyCap / sec_automations`,
+`intake:title / label / provider / provider_*`, `admin:storesTitle / colStatus
+/ never / yes / no / back / entity_tenant_branding / storeStatus_*`,
+`usage:metric_seats_provisioned / caption_seats_provisioned`, `orgs:hoursHint`
+— so the words the owner checked in ROUND 23.1 are the words ROUND 24.2
+quotes, and a rename on the tenant page renames the console's column.
+
+(2) **The page cannot show a credential — five barriers, each with the
+mutation that reddens it.** (a) A recursive zod-v4 walk over
+`AdminTenantSnapshot` (72 dotted paths at the tree; the test demands ≥ 40)
+asserts that no path segment matches `SECRET_NAME =
+/token|secret|password|passphrase|hmac|signing|api[_-]?key|credential|private/i`
+and that `SnapshotIntakeKey` has exactly the seven names the wire pins
+(`active, id, label, last_lead_accepted_at, provider, revoked_at, store_id`);
+`SECRET_NAME` is proven non-vacuous on `token / secret / signing_key /
+api-key / webhook_secret / apiKey` and silent on `label / stripe_customer_id /
+privacy_officer_name / store_id / last_lead_accepted_at` — the regex has no
+word boundaries because `_` is a word character and `\bsecret\b` would miss
+`webhook_secret`. Mutation m2 (`token: z.string()` added to
+`SnapshotIntakeKey`) reddens (a) and — through its own
+`AdminTenantSnapshot.parse` at `f73-snapshot.test.ts:126` — the API tests at
+:432 and :456; the raw-wire pin at :423-425 stays green because a schema edit
+does not change the definer's projection. (b) The schema strip, and the hook pinned to it: a valid body
+carrying `intake_keys[0].token` (22 base64url), `.secret` (64 hex) and a
+top-level `webhook_secret` parses to an object in which neither key survives
+and whose JSON contains neither value (m2 reddens it: the token now survives);
+and because the review showed that a cast in `useAdminTenantSnapshot` left
+every test green — the strip case calls the schema directly — the guard now
+reads the hook's source, comments stripped, and pins its `queryFn` to
+`return AdminTenantSnapshot.parse(res.body)` with no `res.body as` (the cast
+is red).
+(c) A comment-stripped source scan over `tenant-snapshot-page.tsx` and
+`snapshot-fields.ts`: no `Object.entries/keys/values/assign(`, no
+`JSON.stringify(`, no `dangerouslySetInnerHTML`, no `for (const|let|var … in`,
+no data object spread into JSX, no bracket access on the data bindings
+(`d`, `row.original`, `snapshot.data` — label-table lookups such as
+`STORE_STATUS_KEYS[…]` stay legal and are asserted present), and an identifier
+walk in which no identifier matches `SECRET_NAME` or `webhook_url` /
+`api_key`; sanity: `const d = snapshot.data` and `.last_lead_accepted_at`
+are present, and at runtime `INTAKE_KEY_COLUMNS ⊆ Object.keys(SnapshotIntakeKey.shape)`
+and `STORE_HEALTH_COLUMNS ⊆ Object.keys(SnapshotStoreHealth.shape)`. (d) The
+top-level classification: `SNAPSHOT_TOP_LEVEL.rendered` (12 keys) ∪
+`detailPage` (19) is exactly `Object.keys(AdminTenantSnapshot.shape)` (31),
+disjoint; every rendered key is read as `d.<key>` in the page (including
+`d.id`, which appears only in the header link's href) and no detail-page key
+is read there at all — inverted from the plan's version, which would have
+asserted that the tenant detail page reads every detail key and been red on
+day one for `store_count`. Mutation m3 (drop `connectors_active` from
+`rendered`) reddens it; so does deleting the header chips (`d.plan_code`
+unread). (e) Render-time proof over the real page and the real bundles under
+`strictIcu`: a POISONED body (the hook mocked, so the strip is bypassed on
+purpose) puts none of `token` / `secret` / `webhook_url` into the markup and
+the markup matches no `[0-9a-f]{32}`; a Proxy access recorder wrapped around
+the honest AND the poisoned body proves that every property read on
+`intake_keys[*]` is in `INTAKE_KEY_COLUMNS ∪ {id}`, on `store_health[*]` in
+`STORE_HEALTH_COLUMNS ∪ {id, traffic_30d}`, on `traffic_30d` in
+`SnapshotTraffic`'s keys, and that `token / secret / webhook_url /
+webhook_secret` are never read — the one barrier no syntax evades, since a
+destructure, a spread and `Object.entries` all invoke `[[Get]]`; the recorder's
+skip list is the design's starting list and was never widened. Mutations:
+m1 (hook cast + `Object.values(row.original)` in a cell) reddens (c), the
+poison case, the no-UUID case and the poisoned recorder; `{(row.original as
+any).secret}` reddens (c)'s identifier walk, the poison case and both recorder
+cases; m11 (drop `provider` from `INTAKE_KEY_COLUMNS` while the page still
+reads it) reddens the recorder while `tsc` stays green — the case that gives
+the column tables a consumer. **What the browser proves, stated exactly:** T6
+step 7 reads `#main`'s innerText and `page.content()` and asserts the key's
+label is present while the REAL token and secret minted in T1 are absent from
+both, and that the innerText carries no 32-hex run. Under m1 T6 stays green:
+the definer never projects a credential (0069:473-479), so a page that dumps
+every wire field prints the seven names and two dashed UUIDs (longest hex run
+12). T6 is therefore the browser-side witness of the WIRE — of the definer and
+the schema — and the page-side barrier is (c) + the render cases; the design's
+« with the guard skipped, T6 is red at both the exact value and the regex »
+was false at the tree and is recorded here as measured. The 32-hex regex is
+not vacuous for the same four reasons the design gave: T1 asserts the minted
+secret IS 64 hex and the token IS 22 base64url before any negative, T6 first
+proves the page lists that key, the exact values sit beside the regex, and
+the regex runs over innerText only (HTML carries hashes and data URIs).
+
+(3) **The honest states, in words, and where each string is produced.**
+The two tables stand in page flow under their headings, as every
+other DataTable in the product does (the component paints its own card; the
+review measured the design's card-in-a-card at 360 px narrowing the scroll
+region to 292 px against the 326 px the same table gets on Réglages →
+Succursales); the four other sections are cards. Label lookups over the
+wire's `z.string()` fields use `Object.hasOwn` — `in` is true for
+`constructor` and `toString`, and a poisoned value would have rendered blank
+or thrown where the page promises « raw » (the unknown-word render case now
+includes `constructor`). Rooftops: name with the code beneath, the status
+word from `STORE_STATUS_KEYS` (raw when the `z.string()` carries something
+new), the IANA name verbatim,
+the E.164 number or the bare literal « — » (no `aria-label` on a `<td>`, no
+sr-only sibling — the settings page's own convention), « Définies » /
+« Non définies », one traffic cell « {inbound} entrants · {outbound} sortants
+· {delivered} livrés » (zeros render as words, never blank; the 30-day window
+lives in the heading as the definer's comment requires, 0069:404-408), and
+« Aucun message en 30 jours » for a null last message — never « Jamais »,
+which would claim more than a 30-day window knows. Under the table:
+`orgs:hoursHint` verbatim (the store form's own sentence about what the
+assistant does with and without hours — D-077 (2)'s fact has one string) and
+one console-only sentence « Définies par le locataire sous Réglages →
+Succursales. »; the 0069 caption idea (« not settable from the console »,
+:459-462) is not rendered because F-76 made it false. Intake keys: label,
+provider word, the STORE NAME joined client-side from the same body — with
+two honest states the review forced apart: a key whose `store_id` is null is
+an ORGANIZATION-LEVEL key (migration 0050:61 dropped the NOT NULL: « an
+org-level key is the dealer group's ad-platform front door »; the POST route
+accepts it, `intake_resolve` serves it as live, leads land in the central
+queue), rendered with the settings pages' own word « Organisation »
+(`settings:orgScope`); a key whose store was soft-deleted renders « — »
+(`store_health` keeps `deleted_at IS NULL` rows, :472, while `intake_keys` is
+projected unfiltered, :489). The design had ruled both as « — » on the
+premise that the column was NOT NULL (0005:14) — false since 0050 — and a
+support person would have read a working front-door key and a dead orphan
+as the same dash. Then the
+state in the definer's own order — `revoked_at` first (« Révoquée le {date} »,
+because 0005 keeps `active` and `revoked_at` independent and a revoked key
+with `active = true` must not read as live, :477-479), then « Active », then
+« Inactive » — and « Jamais » for a key that never accepted a lead. « Inactive »
+is a type-completeness fallback and says so in the page comment: the only
+writer of `active = false` is the revoke UPDATE, which sets `revoked_at` in
+the same statement (f03-intake-routes.ts:158-159), so the row has no producer
+today; the word exists so a schema-legal row never renders blank or as a raw
+boolean (un-cut condition in (9)). Caption: the token and the secret are
+never shown in the console; « Dernier prospect accepté » moves only when a
+lead is accepted — a refused signature (401, before the transaction) or a
+suspended tenant (410) does not move it. The design's sentence also said
+« ou un doublon »; the review proved it false at runtime: the intake path
+has no duplicate rejection — a verbatim re-POST is accepted (202), becomes a
+lead the product itself flags as a certain duplicate, and
+`f03-intake-routes.ts:542` stamps `last_used_at` unconditionally inside the
+same transaction, so the stamp MOVES. F-73's comment claim (0069:473-476,
+f73-snapshot.test.ts:485-486, D-074) was only ever exercised with a bad
+signature; F-77 was the first place the « duplicate » half became
+user-facing text, and it shipped without it. Comms: with no organization
+row, exactly `settings:defaultsNotice` — the same sentence the tenant reads on
+Réglages → Automatisations (ROUND 23.7), because a second wording of the
+platform defaults is the drift D-074 forbids and the numbers are core's
+constants, which the console — the platform — may state; with a row, the
+four values under the settings page's labels; ALWAYS, last, « {count, plural,
+=0 {Aucune dérogation par succursale} … } » — `store_overrides` is computed
+independently of the org row (:427-430), a count of 0 is a fact, no route
+writes a store-level row (f73-snapshot.test.ts:340-344 pins 0), and the line
+is what would qualify the defaults sentence the day one exists. Branding:
+« Aucune image de marque » / « Modifications non publiées » / « Publiée » —
+not « Modifiée, non publiée », which reads as « nothing is live » while the
+definer's `draft` means unpublished EDITS with the previous version possibly
+still up (:440-441); « Version {n} » and « Publiée le {date} » in their own
+elements, « Jamais publiée » for a draft never published, and the caption says
+what draft means. Access: `seats_provisioned` under the usage page's own
+metric label WITH its caption (a usage number without its caption is what
+`USAGE_METRIC_KEYS` exists to prevent — D-074), and « {count, plural, =0
+{Aucun connecteur actif} … } » with a caption that names what counts
+(registered AND active; f73-snapshot.test.ts:400-404). Platform, last and
+`border-dashed`: « Plateforme — identique pour tous les locataires », the
+three transports RAW in monospace (the wire types them `z.string()`; a label
+map over env.ts's enums would be vocabulary the API does not publish and
+would fall back to raw the day a transport is added) and a caption with the
+two meanings a support person needs — « log » means no real send, « off »
+means the assistant does not run — and the sentence that none of it is
+changeable from the console. Every exact-text string renders in its own
+element, so Playwright's `exact: true` is a claim the render test already
+holds (`>Aucun connecteur actif<`, `>Aucune image de marque<`). No UUID
+reaches a text node (asserted with tags stripped; printing `row.original
+.store_id` reddens it) — ids are React keys and join keys only, which is also
+what keeps the 32-hex scan free of false positives.
+
+(4) **The header comes from the snapshot's own spread half.**
+`AdminTenantSnapshot` extends `AdminTenantDetail` precisely so the snapshot IS
+the detail plus more (D-074 (7)); the page renders `name` (a link to the
+tenant page), the plan word (`TIER_KEYS`), the status chip (`STATUS_CLASSES` /
+`STATUS_KEYS`, as the tenant page paints them) and « Supprimé » from the body
+and calls no second hook — a `useAdminTenant` here would fetch
+`admin_get_tenant` a third time per open (the snapshot route itself calls
+`readAdminTenant` first, f73-usage-routes.ts:195) and give the page two
+producers of the same name. The h1 is the bare word « Instantané », as the
+usage page's is « Utilisation »; `BackLink` points at `/admin/tenants` because
+its words (`admin:back`, « Retour aux locataires ») name the directory — a
+link whose text names one page and targets another is a false claim, and
+zero vocabulary forbade a new « Retour au locataire » key (the usage page's
+pre-existing mismatch is in (9)).
+
+(5) **A sibling route, not a section; no nav slot.** Measured before the
+ruling: a section on the tenant page costs a second `admin_get_tenant` per
+open, a half-error page under the 409, a six-mock render test and a 32-hex
+scan over the journal's payloads; the contract's own words for the snapshot
+are « open in a second tab » (v1.ts:1272-1276) and a second tab needs a URL.
+Blast radius of the sibling: one router line after the usage child, one link
+beside « Utilisation » (both inside a `ms-auto flex flex-wrap items-center
+gap-4` wrapper, 44 px tall), one key. The link and the h1 and the tab title
+share `snapshot.title` — D-077 (4)'s rule that a link reuses its target's
+own title key, so a renamed page renames its link; no `admin.navSnapshot`.
+`nav.ts` and `nav.test.ts` are untouched; T3's six-item and T5's one-item
+menus stay true, and T6 proves the page is reached without a nav slot by the
+most restricted role.
+
+(6) **O-50 unchanged — the wall through the probe, and the 30 s residual.**
+`RequirePlatform` wraps the whole `/admin` subtree and paints
+`ImpersonationWall` from the probe (require-platform.tsx:65); a staffer with a
+live support session never mounts the page. The residual: a session started
+in ANOTHER tab within the probe's `staleTime: 30_000` (queryClient.ts:12-13)
+renders `admin:loadError` on this page exactly as it does on the usage and
+queues pages (ROUND 20.17 describes that cached-probe case and is not
+edited), and the wall lands on the next probe — focus after 30 s, or a reload
+(ROUND 24.8 walks the reload). The same tab paints the wall immediately
+because `useStartImpersonation` invalidates `adminKeys.me` on success and on
+its own 409 (api.ts:303, :308). Rejected: a per-page re-probe on this one page
+(console-coverage §2.5) — it would leave the usage and queues pages
+inconsistent without a decision to retrofit them; the parity retrofit is a
+follow-up in (9), not scope.
+
+(7) **The journey: one file, tenant-side producers, the floor role reads the
+page, and the coverage arithmetic.** `f74-console-door.e2e.ts` is extended,
+not joined by a second spec: `bootstrap-guard.test.ts` (byte-identical, still
+green) requires exactly one importer of `bootstrapSuperAdmin`, and A's TOTP
+secret exists only in that module after T3 — handing it across files through
+a temp file would recreate the arbitrary-order hazard D-075 (3) forbids. Two
+corrections to f75_scope §3 measured by the planners: the F-74 org has NO
+store and NO key (T1 created only the organization), so every timezone /
+« — » / no-32-hex assertion would have been vacuous without producers; and the
+scoping's « twelve remaining routes » needed a source and a reconciliation:
+the number is D-075's « twelve other `/admin/*` routes » (the F-74 header's
+own bullet listed eleven names and no count), and it is a correct count, not
+prose — router.tsx's `/admin` block had 13 named children + index + `*`;
+F-74 opened index, tenants and staff; 11 named + `*` = twelve remained. T1 therefore grows, tenant-side and before the `/admin`
+refusals: it waits for the org URL (the f03 race note), creates « Succursale
+F74 » (`F74-nnnn`, `getByLabel('Code', { exact: true })`; no timezone typed
+— the create form's default `America/Montreal`; no number → null), opens
+"Sources d'admission" (straight apostrophe — `intake:title` as shipped),
+creates « Formulaire F74 », reads the one-time reveal's two `<code>` elements,
+and asserts the secret IS `^[0-9a-f]{64}$` and the token IS
+`^[A-Za-z0-9_-]{22}$` (f03-intake-routes.ts:50-55) BEFORE any negative — a
+changed shape fails loudly instead of turning absence into a tautology. These
+are tenant-side producers, not console writes; the one console write is still
+T4's grant. T5 now keeps B's TOTP secret (`secretB = await enrolTotp(page)`;
+the return was discarded before). T6 logs in as B — the billing role, §11's
+floor — and reads the directory by URL (`/admin/tenants?q=<slug>`, immune to
+the remount D-077 fixed), the tenant detail (h1 = the org name), the usage
+page (h1 « Utilisation », h2 « Taille du locataire »), then « Instantané »:
+tab title `/^Instantané — /`, region-scoped rows (« Succursales » exact,
+"Sources d'admission" exact — the key table also names the store), the
+em-dash cell found by its own text (`/^—$/`, never a column index), « Non
+définies », « 0 entrants · 0 sortants · 0 livrés », « Aucun message en 30
+jours », « Webhook JSON générique » / « Active » / « Jamais » / the store
+name, « Aucune configuration enregistrée », « Aucune image de marque »,
+« Aucun connecteur actif », « Plateforme — identique pour tous les
+locataires » with « Transport SMS » — and the credential block of (2). T7
+logs in as A and opens every read-only console page the F-74 header left
+unopened: `/admin/support-sessions` (« Sessions de soutien », « Aucune
+session. »), `/admin/announcements` (« Annonces », « Aucune annonce. »),
+`/admin/platform-settings` (« Interrupteurs de la plateforme », both switch
+headings, « Envoi normal » exactly twice — the per-switch chip and the
+post-flip notice are its two producers, platform-settings-page.tsx:89 and
+:75, so a count of two also proves no switch was flipped in the run; both are
+seeded off by 0068:81 and no other spec names the page), `/admin/queues`
+(« Files de travaux », the platform-view sentence, « Joignable » on the
+« Envois différés » row), the click-through to
+`/admin/queues/deferred-send` (« Travaux en échec — Envois différés »,
+« Aucun travail en échec dans cette file. ») and `/admin/nope` → the
+directory (the `*` child). Determinism, each stated where a red will be read:
+the registers are empty because only platform staff can write a session or an
+announcement and the only staff in the run are A and B in this serial file
+(grep: it is the sole spec naming `/admin`); « Joignable » holds because the
+runner refuses to start without a Redis PING (scripts/e2e.mjs:294-300) and
+passes `REDIS_URL` to the API it spawns, and the API's per-queue read budget
+is `QUEUE_READ_TIMEOUT_MS = 1500` (queue-inspector.ts:40) — a red there means
+the shared API process could not answer a `getJobCounts` inside 1.5 s under 4
+workers and is investigated at `queue_inspector_read_timed_out`, never re-run
+as flakiness; it is the suite's only browser proof that the API under test
+holds the runner's Redis (the local/CI divergence the memory records). « Aucun
+travail en échec » holds because, within apps/api/src, `new Worker(` appears
+only in `f73-queue-inspector.test.ts` (:88, :136); the real processors live in
+`apps/workers/src/index.ts` (:270, :301, :358) and step 7 of the runner spawns
+`apps/api/dist/index.js` alone — no workers process runs during a run, so no
+job can reach the failed set — AND, the review added, because the runner's
+Redis (the shared `dealpilot-redis` on :6381, under the constant
+`dealpilot` prefix, which the runner PINGs but never clears) carries no
+failed `deferred-send` job from an earlier process: no test in the tree
+fails one (the failing test Workers in `f73-queue-inspector.test.ts` are on
+other queues and wipe in `afterAll`; `queue-roundtrip.test.ts`'s
+deferred-send Worker only records) and the local dev stack starts no
+processor — a failed job needs a hand-run workers process. This is the first
+spec to assert on Redis-held state rather than on the freshly reset
+database; the comment beside the assertion says so and names the
+`redis-cli --scan` that tells an environment leak from a regression, and
+the runner clearing the product queues' failed sets after its database reset
+is a follow-up in (9). Coverage after F-77, counted against router.tsx
+at the tree: of the 11 named routes + `*` the F-74 header left, 7 named + `*`
++ the new snapshot route are opened; 4 stay deferred, each a write or a page
+only a write can populate — `tenants/new` (provisions a tenant and mints an
+owner invitation; a form visited and not submitted proves only a mount),
+`support-sessions/:sessionId` (needs a started session, which notifies the
+tenant owner and walls the console for the rest of the chain — F-71's own
+journey), `announcements/new` and `announcements/:announcementId` (a publish
+reaches every user on the database). The gate verdicts `reauth`,
+`impersonating` and `error` stay deferred for the header's reasons. Measured
+cost: T1 ≈ 8 s, T6 ≈ 5.6 s, T7 ≈ 6 s under 4 workers, inside the 90 s budget;
+the seven-step file runs in ≈ 36 s alone.
+
+(8) **Rejected, with reasons:** a second spec file (one importer, one TOTP
+secret); provisioning the tenant's store and key through `/admin/tenants/new`
+(a console WRITE with an owner-invitation side effect, ~15 s, when a
+tenant-side store costs 3 s and is what real tenants do); a section on the
+tenant page (the measured costs in (5)); a nav slot (T3/T5's menus are
+claims); a transport label map (vocabulary the wire does not publish); a
+second defaults sentence (`commsNoRow`); a `refetchInterval` (an incident page
+must not add load to the incident — the browser's reload is the refresh); a
+per-page 409 re-probe (sibling inconsistency without a decision); a
+`<caption>` on the tables (DataTable has no such prop and the section's
+`aria-labelledby` is the table's context; adding one would touch
+`@dealpilot/ui`); `aria-label` on the em-dash `<td>` (unreliably announced;
+an sr-only sibling breaks `toHaveText('—')`); « Aperçu » (an overview word
+for a page beside the detail page that IS the overview) and « Non » for an
+inactive key (not a state word); a regex collection of `row.original.<k>`
+reads in the guard (variable-name-bound — a destructure evades it; the
+`satisfies readonly (keyof …)[]` tables, the runtime subset checks and the
+recorder carry the claim); the JWT-shape regex in T6 (no JWT exists on this
+path — cookie sessions); `body.innerText()` as the scan surface (the banner's
+role chip and toasts for no gain; `#main` is admin-layout.tsx:93).
+
+(9) **Two defects the build found outside the slice's footprint, fixed
+because the gate required them, and the deferred list with un-cut
+conditions.** (a) `packages/i18n/src/parity.ts`'s `icuArgs` took the first
+word inside EVERY brace as an argument name; every plural in the repo before
+this slice happened to start its branches with `#`, and the first `=0 {Aucun
+connecteur actif}` / `=0 {No active connector}` pair reported a false
+args-mismatch. It is now an ICU-aware walk (argument heads only; recursion
+into plural / select / selectordinal bodies so a nested `{name}` still
+counts); the `{min}` / `{minimum}` mismatch is still detected, two cases were
+added to `parity.test.ts`, and `scripts/check-parity.mjs` reads the rebuilt
+dist, so CI runs the same checker. Nothing was weakened — the checker now
+reports strictly the real argument sets. (b) pnpm 10 forwards the `--` of
+`pnpm e2e -- --grep x` literally (`argv = ["--", "--grep", "x"]`); Playwright
+reads that `--` as end-of-options and silently drops the filter, so the WHOLE
+suite ran for a command that every doc string, the runner's own comment and
+ROUND 21.5 quote (measured with pnpm 10.26.1; `pnpm e2e --grep x` never had
+the problem). `scripts/e2e.mjs` now drops one leading `--` (a no-op if pnpm
+stops forwarding it); proven: the quoted command runs « Running 7 tests using
+1 worker ». Deferred, each with its un-cut condition: entitlements on the
+snapshot (§9 row 1 — un-cut = an entitlements / feature-flag producer; the
+snapshot carries `plan_code` only); a producer for « Inactive » (a route that
+pauses a key without revoking it); the usage page's `BackLink`, whose words
+name the directory while its target is the tenant page
+(tenant-usage-page.tsx:143 — the mirror of (4), not this slice's file); the
+usage / queues 409 re-probe parity retrofit ((6)); the e2e runner clearing
+the product queues' failed sets in Redis after its database reset (un-cut =
+a raw `DEL` of `dealpilot:<queue>:failed` between the PING and the API
+spawn, or a Redis the runner owns — today the shared :6381 is also the
+vitest gate's, and a concurrent gate would lose its queues); per-store comms
+rows (the route, D-077 (7)); transport labels (the day the wire publishes an
+enum); Twilio / DKIM / deploy version on the platform card (O-49). Also
+recorded: F-73's « dedupe leaves the stamp alone » comment
+(0069:473-476, D-074) is false — see (3) — and stays as a claim in that
+migration's header until a slice touches it. Related: D-074
+(the snapshot's definer, the caption rule, « API only »), D-075 (one importer,
+the runner), D-076 (token roles the new page obeys), D-077 (the settings
+strings this page reuses; the remount fix T6's URL form sidesteps); migration
+`20260830000069` (the definer `admin_tenant_snapshot`, whose NEVER-token /
+NEVER-secret projection is the fact every barrier here defends).
+
 ## D-077 — 2026-08-31 — The rooftop is configured from the screen, the assistant reads the clock it was promised, and the last curl leaves the owner's runbook
 
 F-76 (admin-console.md §10, §10.1; FR-TEN-004; FR-AI-011/017;

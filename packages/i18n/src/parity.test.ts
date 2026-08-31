@@ -47,6 +47,20 @@ describe('icuArgs', () => {
     expect(icuArgs('{count, plural, one {# item} other {# items}}')).toEqual(new Set(['count']));
     expect(icuArgs('no args')).toEqual(new Set());
   });
+
+  it('a plural branch that starts with a word, not #, is not an argument (F-77: « Aucun connecteur actif »)', () => {
+    expect(icuArgs('{count, plural, =0 {Aucun connecteur actif} one {# connecteur actif} other {# connecteurs actifs}}')).toEqual(
+      new Set(['count']),
+    );
+    expect(icuArgs('{count, plural, =0 {No active connector} one {# active connector} other {# active connectors}}')).toEqual(
+      new Set(['count']),
+    );
+  });
+
+  it('an argument nested inside a plural or select branch still counts', () => {
+    expect(icuArgs('{count, plural, one {# for {name}} other {# for {name}}}')).toEqual(new Set(['count', 'name']));
+    expect(icuArgs('{g, select, male {Il a {n} points} other {Elle a {n} points}}')).toEqual(new Set(['g', 'n']));
+  });
 });
 
 describe('createI18n', () => {

@@ -1,6 +1,7 @@
 import type { QueueNameT } from '@dealpilot/contracts';
 import type {
   ActivityEntityTypeT,
+  BrandingStatus,
   ImpersonationEndReasonT,
   ImpersonationModeT,
   OrganizationStatusT,
@@ -219,4 +220,16 @@ export const RETRY_OUTCOME_KEYS = {
 /** Destructive targets get the destructive button. */
 export const DESTRUCTIVE_TARGETS: ReadonlySet<OrganizationStatusT> = new Set<OrganizationStatusT>(['suspended', 'offboarding']);
 
-export { STATUS_KEYS, TIER_KEYS } from '../organizations/labels.js';
+/**
+ * F-77 — the three branding words the snapshot definer can emit.
+ * `admin_tenant_snapshot` projects `COALESCE(b.status, 'none')` (0069:442):
+ * 'none' when no brand row exists, else the `BrandingStatus` enum. Locked to
+ * that enum at compile time — a fourth status fails this map to compile.
+ */
+export const BRANDING_STATE_KEYS = {
+  none: 'brandNone',
+  draft: 'brandDraft',
+  published: 'brandPublished',
+} as const satisfies Record<'none' | (typeof BrandingStatus)['options'][number], string>;
+
+export { PROVIDER_KEYS, STATUS_KEYS, TIER_KEYS } from '../organizations/labels.js';

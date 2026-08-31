@@ -75,6 +75,7 @@ export function TenantDetailPage() {
   const { t: tOrgs } = useTranslation('orgs');
   const { t: tActivity } = useTranslation('activity');
   const { t: tTeam } = useTranslation('team');
+  const { t: tSnapshot } = useTranslation('snapshot');
   const { tenantId = '' } = useParams();
   const tenant = useAdminTenant(tenantId);
   const events = useAdminTenantEvents(tenantId);
@@ -212,11 +213,18 @@ export function TenantDetailPage() {
         <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_CLASSES[d.status]}`}>{tOrgs(STATUS_KEYS[d.status])}</span>
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{tOrgs(TIER_KEYS[d.plan_code])}</span>
         {d.deleted_at ? <span className="rounded-full bg-danger-bg px-2 py-0.5 text-xs text-danger-text">{t('deletedTenant')}</span> : null}
-        {/* F-73 §6: usage answers a question about a tenant already open, so
-            it hangs off this page rather than taking a console nav slot. */}
-        <Link to={`/admin/tenants/${d.id}/usage`} className="ms-auto inline-flex min-h-11 items-center text-sm underline underline-offset-4">
-          {t('navUsage')}
-        </Link>
+        {/* F-73 §6 / F-77: usage and the snapshot answer questions about a
+            tenant already open, so they hang off this page rather than taking
+            console nav slots. The snapshot link reuses its page's title key
+            (D-077 (4)): a renamed page renames its link. */}
+        <div className="ms-auto flex flex-wrap items-center gap-4">
+          <Link to={`/admin/tenants/${d.id}/usage`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">
+            {t('navUsage')}
+          </Link>
+          <Link to={`/admin/tenants/${d.id}/snapshot`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-4">
+            {tSnapshot('title')}
+          </Link>
+        </div>
       </header>
       <p
         ref={lastChangeRef}

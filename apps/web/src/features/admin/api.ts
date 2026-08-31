@@ -12,6 +12,7 @@ import {
   AdminTenantMembers,
   AdminTenantPage,
   AdminTenantProvisioned,
+  AdminTenantSnapshot,
   AdminTenantUsage,
   ImpersonationList,
   ImpersonationSession,
@@ -66,10 +67,11 @@ export const adminKeys = {
   // F-73: the period is part of the identity, not a filter over one cache
   // entry — 'mtd' and '90d' are different windows of different numbers.
   usage: (id: string, period: UsagePeriodT) => ['admin', 'tenant', id, 'usage', period] as const,
-  // No `snapshot` key here on purpose: the snapshot console screen is a
-  // recorded cut (D-074 / O-51), so nothing reads or invalidates one. A cache
-  // key naming an entry nothing writes is the dead-vocabulary failure one
-  // layer up from the event bus — it comes back with the hook that needs it.
+  // F-77: keyed UNDER the tenant on purpose. invalidateTenant()'s prefix
+  // ['admin', 'tenant', id] matches this key, and that is wanted — a status or
+  // plan change on the detail page refetches the snapshot's spread copy of the
+  // same tenant, so the two screens cannot disagree about it.
+  snapshot: (id: string) => ['admin', 'tenant', id, 'snapshot'] as const,
   queues: ['admin', 'queues'] as const,
   // The tenant filter is part of the identity for the same reason the period
   // is: the server pages by POSITION inside the filtered result, so a cursor
@@ -162,6 +164,27 @@ export function useAdminTenantUsage(id: string, period: UsagePeriodT) {
       const res = await apiRequest(routes.admin.tenants.usage, { params: { id }, query: { period }, signal });
       if (res.status !== 200) fail(res.status, res.body);
       return AdminTenantUsage.parse(res.body);
+    },
+  });
+}
+
+/**
+ * F-77 — one tenant's snapshot (F-73 §9): the detail plus the operating facts
+ * a support call needs, from the `admin_tenant_snapshot` definer.
+ *
+ * PARSED, never cast. `AdminTenantSnapshot` is a zod `z.object`, which strips
+ * every key it does not name, so a field the API might one day project beyond
+ * the schema — an intake key's credential included — never reaches React. No
+ * refetchInterval: an incident page must not add load to the incident, and
+ * the browser's reload is the refresh.
+ */
+export function useAdminTenantSnapshot(id: string) {
+  return useQuery({
+    queryKey: adminKeys.snapshot(id),
+    queryFn: async ({ signal }) => {
+      const res = await apiRequest(routes.admin.tenants.snapshot, { params: { id }, signal });
+      if (res.status !== 200) fail(res.status, res.body);
+      return AdminTenantSnapshot.parse(res.body);
     },
   });
 }

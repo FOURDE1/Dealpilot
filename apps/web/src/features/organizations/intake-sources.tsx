@@ -24,19 +24,12 @@ import {
 } from '@dealpilot/schemas';
 import { ApiError, apiRequest, failFromResponse as fail, routes } from '../../shared/api/client.js';
 import { LEAD_SOURCE_KEYS } from '../leads/labels.js';
+import { PROVIDER_KEYS } from './labels.js';
 import { BUILT_IN_CONNECTORS } from '@dealpilot/core';
 import { useConnectors } from '../connectors/api.js';
 
 const PaginatedKeys = paginated(IntakeKey);
 const PROVIDERS = IntakeProvider.options;
-
-const PROVIDER_KEYS = {
-  generic_json: 'provider_generic_json',
-  fluent_form: 'provider_fluent_form',
-  meta: 'provider_meta',
-  adf_email: 'provider_adf_email',
-  chat_widget: 'provider_chat_widget',
-} as const satisfies Record<IntakeKeyT['provider'], string>;
 
 // FR-first labels for the built-in presets; core's English label is only the
 // fallback for a preset added before its translation.

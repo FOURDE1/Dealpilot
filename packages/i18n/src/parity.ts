@@ -26,13 +26,69 @@ function flatten(tree: Tree, prefix = ''): Map<string, string> {
   return out;
 }
 
-/** ICU argument names referenced by a message ({name}, {n, plural, …}). */
+/**
+ * ICU argument names referenced by a message ({name}, {n, plural, …}).
+ *
+ * An ICU-aware walk: only the head of an argument is a name. The bodies of
+ * plural / select / selectordinal branches are message text again, so a
+ * nested `{name}` inside one counts and the branch's first word does not.
+ * The earlier regex took the first word inside EVERY brace, so a plural
+ * whose `=0` branch starts with a word instead of `#` — « Aucun connecteur
+ * actif » against "No active connector" — reported a false args-mismatch
+ * (F-77). Unbalanced braces are left to icu-syntax.test.ts.
+ */
 export function icuArgs(message: string): Set<string> {
   const args = new Set<string>();
-  for (const match of message.matchAll(/\{\s*([A-Za-z0-9_]+)/g)) {
-    if (match[1] !== undefined) args.add(match[1]);
-  }
+  walkText(message, 0, message.length, args);
   return args;
+}
+
+const BRANCHED = new Set(['plural', 'select', 'selectordinal']);
+
+/** Message text: every `{` opens an argument. */
+function walkText(msg: string, from: number, to: number, args: Set<string>): void {
+  let i = from;
+  while (i < to) {
+    if (msg[i] !== '{') {
+      i++;
+      continue;
+    }
+    const end = matchingBrace(msg, i, to);
+    if (end < 0) return;
+    readArgument(msg, i + 1, end, args);
+    i = end + 1;
+  }
+}
+
+/** `{name}`, `{name, type}` or `{name, plural|select|selectordinal, sel {body} …}`. */
+function readArgument(msg: string, from: number, to: number, args: Set<string>): void {
+  const m = /^\s*([A-Za-z0-9_]+)\s*(?:,\s*([A-Za-z]+)\s*(?:,([\s\S]*))?)?$/.exec(msg.slice(from, to));
+  if (!m || m[1] === undefined) return;
+  args.add(m[1]);
+  const type = m[2];
+  const rest = m[3];
+  if (rest === undefined || type === undefined || !BRANCHED.has(type)) return;
+  // Selector {body} pairs — each body is message text, so a nested `{name}` counts.
+  let j = 0;
+  while (j < rest.length) {
+    if (rest[j] !== '{') {
+      j++;
+      continue;
+    }
+    const end = matchingBrace(rest, j, rest.length);
+    if (end < 0) return;
+    walkText(rest, j + 1, end, args);
+    j = end + 1;
+  }
+}
+
+function matchingBrace(msg: string, open: number, to: number): number {
+  let depth = 0;
+  for (let k = open; k < to; k++) {
+    if (msg[k] === '{') depth++;
+    else if (msg[k] === '}' && --depth === 0) return k;
+  }
+  return -1;
 }
 
 function sameSet(a: Set<string>, b: Set<string>): boolean {

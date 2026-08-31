@@ -62,6 +62,9 @@ const TenantNewPage = lazy(() =>
 const TenantUsagePage = lazy(() =>
   import('../features/admin/tenant-usage-page.js').then((m) => ({ default: m.TenantUsagePage })),
 );
+const TenantSnapshotPage = lazy(() =>
+  import('../features/admin/tenant-snapshot-page.js').then((m) => ({ default: m.TenantSnapshotPage })),
+);
 const QueuesPage = lazy(() =>
   import('../features/admin/queues-page.js').then((m) => ({ default: m.QueuesPage })),
 );
@@ -220,6 +223,10 @@ export const router = createBrowserRouter([
       // F-73: what one tenant used, per window (§6). Reached from the tenant
       // page, not the nav — it answers a question about a tenant already open.
       { path: 'tenants/:tenantId/usage', element: lazyPage(<TenantUsagePage />) },
+      // F-77: the operating facts a support call needs, on one screen. A
+      // sibling of the usage route for the same reason — reached from the
+      // tenant page, never from the nav.
+      { path: 'tenants/:tenantId/snapshot', element: lazyPage(<TenantSnapshotPage />) },
       { path: 'staff', element: lazyPage(<PlatformStaffPage />) },
       // F-71: the support-session register and one session's trail.
       { path: 'support-sessions', element: lazyPage(<ImpersonationPage />) },

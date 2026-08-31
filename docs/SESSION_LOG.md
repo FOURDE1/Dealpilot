@@ -1,3 +1,185 @@
+## 2026-08-31 (tick 31) — F-77: the snapshot page cannot show a credential by construction, and the console journey visits every read it can
+
+**Where tick 30's CI story ended.** F-76 shipped as `c8efbc4` (run
+33373590281, green) and its docs tail `590bedd` was green too (run
+33374350641) — thirteen consecutive greens; `develop` was clean at `590bedd`
+when this slice started, and this slice was built on that tip.
+
+**How the slice was chosen.** The third slice of the 2026-08-31 scoping
+(f75_scope §3): the tenant snapshot F-73 shipped as an API only — O-51 and
+D-074 (7) both say so — and the console journey F-74 opened three of the
+console's routes and left eleven named ones plus the catch-all unopened.
+Zero new vocabulary was the constraint again. The panel (three planners:
+secret-safety, console-coverage, smallest-visible; a judge ruling only; four
+critics) chose `secret-safety` as the spine — the only plan whose guard was
+what the brief demanded — and grafted console-coverage's Proxy access
+recorder and settings-string reuse, and smallest-visible's measured
+section-vs-route table, billing-role read and « no UUID on the page » rule.
+
+**What the planners found before a line was written.** The scoping's own
+premise was wrong twice: the F-74 org had NO store and NO key (T1 created only
+the organization), so the scoping's « provisioned tenant » assertions would
+have been vacuous; and the scoping's « twelve remaining routes » needed its
+source named — D-075's « twelve other `/admin/*` routes », a correct count:
+router.tsx had 13 named `/admin` children + index + `*`, F-74 opened three,
+11 named + `*` = twelve remained (the F-74 header's own bullet listed eleven
+names and no number). The 0069 caption idea for the rooftop table
+(« not settable from the console ») had become false when F-76 shipped the
+hours grid. The critics then measured what the rulings had assumed:
+`admin_get_tenant_snapshot` does not exist (the definer is
+`admin_tenant_snapshot`); `\bsecret\b` does not match inside
+`webhook_secret` (the guard's regex needs no boundaries); the guard's
+`[.?]id\b` pattern would have been satisfied by a rooftop's `s.id` even with
+the header deleted (anchored to `d.` instead); OWNER-TEST-MASTER has no ROUND
+3 and no curl for the owner to post a signed lead with (the stamp's semantics
+are cited, not walked); O-51 is a single table row with no ⚠ block; the
+SECURITY entry belongs under `## Audit log`, not at line 7.
+
+**Built in four waves** (foundations: the 29-key `snapshot` namespace, the
+`PROVIDER_KEYS` hoist, `BRANDING_STATE_KEYS`, the parsing hook and
+`snapshot-fields.ts`; then the page, the router child and the link beside
+« Utilisation »; then the guard + render tests ∥ the journey; then fourteen
+mutations and the gate). Shipped: `tenant-snapshot-page.tsx` (six
+`<section aria-labelledby>` cards in the order stores · keys · comms ·
+branding | access · platform-last-and-dashed; the header from the snapshot's
+own spread half with no second hook; every exact-text string in its own
+element; no UUID in any text node; `BackLink` to the directory its words
+name); `snapshot-secret-guard.test.ts` (the zod-v4 shape walk — 72 paths —,
+the strip proof, the comment-stripped source scan with an identifier walk and
+a bracket ban anchored to the data bindings, the 12 + 19 top-level
+classification, `SECRET_NAME`'s non-vacuity, and — after the review — the
+hook's source pinned to `return AdminTenantSnapshot.parse(res.body)` — 30
+tests); `tenant-snapshot-page.test.tsx` (20 cases over the real bundles under
+`strictIcu`: the honest comms states, the key partition in the definer's
+order, the orphan store → « — », the bare and full rooftops, branding
+none/draft/published/raw, the platform card last and dashed with no vendor
+name, seats WITH the usage caption, the poison render, both locales, no
+`text-primary` / `text-danger-text` on a healthy snapshot, the header
+identity, no UUID in a text node, and the Proxy recorder over the honest and
+the poisoned body — the one barrier no syntax evades); the journey
+(`f74-console-door.e2e.ts` +234/−16: T1 mints a real store and intake key
+tenant-side and asserts the credential SHAPES before any negative; T5 keeps
+B's secret; T6 as billing reads detail → usage → snapshot with region-scoped
+locators and the exact-value + 32-hex negatives over `#main`; T7 as A opens
+support-sessions, announcements, platform-settings, queues, the DLQ page and
+the `*` child — 7 of the 11 left routes + `*` + the new route; 4 deferred,
+each a write). Deviations recorded by the builders: `STORE_HEALTH_COLUMNS`
+lists `traffic_30d`, not `last_message_at` (it lives inside the traffic
+object and the `satisfies` clause rejects it); the render manifest's case 1
+was split into 1 (no row) and 1b (present row), so m6 reddens 1b; the two
+switch names on platform-settings are asserted as level-2 headings (each
+switch is its own `<section>`) rather than bare text; T6 clicks the org link
+from within the slug-filtered row (the T3 idiom).
+
+**Mutations, fourteen in the build and one more from the review, each red
+then restored byte-identical (`sha256sum -c` after every one):** m1 (hook
+cast + `Object.values` render) → guard (c), the poison case, the no-UUID case
+and the poisoned recorder — the cast HALF alone reddens the guard's new hook
+pin — and T6 stays GREEN,
+because the wire never carries a credential: T6 step 7 witnesses the definer
+and the schema, not the page, and D-078 (2) says so where the design had said
+otherwise; m2 (`token` added to the key schema) → guard (a) and (b) and
+`f73-snapshot` at :432/:456 through its :126 parse (the :423-425 raw-wire pin
+stays green — a schema edit does not change the definer's projection); m3
+(drop `connectors_active`) → guard (d); m4 (delete the « Instantané » link) →
+T6 step 3; m5 (`sms_number ?? ''`) → render 3 and T6 :364; m6 (defaults
+sentence unconditional) → render 1b; m7 (drop « identique pour tous les
+locataires ») → render 5 and T6 :390, parity green (no ICU argument in either
+heading); m8 (delete an en-CA key) → parity; m9 (`text-primary`) →
+token-roles and render 9; m10 (a second `bootstrapSuperAdmin` importer) →
+bootstrap-guard; m11 (drop `provider` from the column table while the page
+reads it) → the recorder, with `tsc` green while mutated — the case that gives
+the tables a consumer; the decoy `secret` read → the identifier walk, the
+poison case and both recorder cases; printing `store_id` → the no-UUID case
+and the store-name cell; deleting the header chips → the header case and
+guard (d).
+
+**Two defects outside the footprint, fixed because the gate required them.**
+`parity.ts`'s `icuArgs` took the first word inside EVERY brace as an argument
+name — every plural before this slice happened to start its branches with
+`#`, and the first `=0 {Aucun connecteur actif}` / `=0 {No active connector}`
+pair was a false args-mismatch; it is an ICU-aware walk now (heads only,
+recursion into branch bodies), the `{min}`/`{minimum}` case still detects,
+two cases added. And pnpm 10 forwards the `--` of `pnpm e2e -- --grep x`
+literally, so Playwright dropped the filter and the WHOLE suite ran for the
+command the runner's comment, PROJECT.md and ROUND 21.5 all quote — the
+runner now drops one leading `--`; proven with « Running 7 tests using 1
+worker ».
+
+**Adversarial review: six lenses, refute-biased verification.** 21 raw findings, **15 confirmed, 6 refuted**, all six finders returned (27
+agents, none died). The fifteen deduplicate to nine fixes — three lenses
+found the same three things independently — and two of them are product
+defects the design had ruled in and every test had passed. (1) The key
+table's « — » store cell meant two opposite things: the design's premise was
+that `intake_keys.store_id` is NOT NULL (0005:14), so a null could only be a
+deleted store — but migration 0050:61 dropped the NOT NULL for
+ORGANIZATION-LEVEL keys (the dealer group's ad-platform front door, which the
+POST route accepts and `intake_resolve` serves as live, verified against the
+applied schema), so a working front-door key and a dead orphan would have
+read as the same dash beside « Active ». The page now prints the settings
+pages' own « Organisation » for a null store and « — » only for a deleted
+one, the comment cites 0050:61, and a render case pins each. (2)
+`keysCaption` said a duplicate does not move « Dernier prospect accepté »;
+the reviewer reproduced the opposite at runtime — the intake path has no
+duplicate rejection, a verbatim re-POST is a 202 that becomes a lead the
+product flags as a certain duplicate, and `f03-intake-routes.ts:542` stamps
+`last_used_at` unconditionally in the same transaction, so the stamp moved
+1.2 s later. The clause is gone from both locales; F-73's comment claim
+(0069:473-476, D-074) had only ever been exercised with a bad signature, and
+D-078 records it as false. The rest: barrier (b) was labelled « the HOOK »
+while it parsed the schema directly — a cast in `useAdminTenantSnapshot` left
+all 48 tests green (the poison and recorder cases already run with the hook
+mocked, so no credential would have rendered; the label was the defect) —
+renamed to the schema strip, and the guard now pins the hook's source to
+`return AdminTenantSnapshot.parse(res.body)` with no `res.body as`, proven red
+by the cast; `labelled` used `in`, which is true for `constructor` and
+`toString` — a poisoned `z.string()` would have rendered blank or thrown
+where the page promised « raw » — now `Object.hasOwn`, with `constructor` in
+the unknown-word case; the two DataTables sat as a bordered card inside a
+bordered card, the only nested DataTable in the product (measured at 1280 and
+360 px in both themes; at 360 the inner box narrowed the scroll region to 292
+px against the 326 px the same table gets on Réglages → Succursales) — the
+two table sections now stand in page flow like every other table; the
+STORE code comment claimed « four decimal digits » for an unpadded
+`stamp % 10000` (one run in ten minted fewer) — padded; the T7 comments
+cited runner lines this slice's own `--` fix had shifted by five, and a
+render-test comment cited `labels.ts` lines the added import had shifted by
+one — re-read at the tree; the header attributed the « twelve » to the F-74
+wording when it is D-075's, and called a correct count prose — reworded; and
+« Aucun travail en échec » was argued from within-run facts only while the
+runner never clears the Redis it inherits (residual keys from today's vitest
+gate were found on :6381) — the comment now states the cross-run premise and
+the `redis-cli --scan` that tells an environment leak from a regression, and
+the runner clearing the product failed sets is a recorded follow-up.
+Refuted, and worth keeping: three cheap evasions of the source scan (an
+aliased key, a `//` inside a string literal, a `Reflect.get`) are each caught
+by the recorder or the poison render — the scan is one barrier of five, as
+designed; a credential-shaped key under a nested object would be caught by
+the shape walk, which recurses; « Version 2 » for a never-published draft is
+the ruled behaviour (R8) and a real state (`tenant_branding.version`
+increments on save); « Active » for a key whose endpoint cannot accept a
+lead is the definer's own partition, and the intake path's 410 is a fact
+about the tenant, not the key; « Connecteurs d'admission » is the
+`tenant_connectors` table's own COMMENT; and the reused hours hint's « hors
+de ces heures » reads correctly under the « Heures » column it follows.
+
+**Gate after the fixes:** `pnpm turbo run build typecheck lint` 25/25 tasks (21 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **186 files / 2082 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **59 passed in 2.2 m against dealpilot_e2e_test rebuilt from migration zero (T1 8.6 s, T6 5.5 s, T7 6.0 s under 4 workers)**, lock released, nothing left listening. Dev database untouched: `platform_staff
+= 0`, `users = 962`, 72 migrations (0070 is the newest; this slice adds
+none). Watch items, recorded and not explained: `f76-store-settings` T3 failed
+once under 4 workers in an accidental full run during the build (green in
+isolation and in every deliberate full run; the call log resembles the F-69
+remount D-077 fixed — a fill landing before the store query resolved), and
+one vite « ws proxy socket error: read ECONNRESET » stderr line between two
+passing tests in one full run.
+
+**Docs:** D-078 at the top of `DECISIONS.md`; ROUND 24 (the support call's
+screen, and what it can never show) and ROUND 21.5's expected cell (« seven
+steps », not five); O-51 resolved in one cell; `PROJECT.md`'s snapshot row no
+longer « API only »; `TASKS.md` F-77 row under F-76's; `SECURITY.md` gains a
+dated Audit-log entry above F-74's for the exposure guard.
+
+**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29 and 30 were.**
+
 ## 2026-08-31 (tick 30) — F-76: the rooftop is configured from the screen, and the assistant reads the clock it was promised
 
 **Where tick 29's CI story ended.** F-75 shipped as `6d00de3` (run
