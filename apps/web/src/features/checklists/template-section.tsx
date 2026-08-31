@@ -65,7 +65,7 @@ export function ChecklistTemplateSection({ storeId }: { storeId: string }) {
                     checked={item.active}
                     disabled={update.isPending || isSafety}
                     onChange={(e) => toggle(item.code, e.target.checked)}
-                    className="size-6 accent-[var(--primary)] lg:size-4"
+                    className="size-6 accent-primary-text lg:size-4"
                   />
                 </li>
               );

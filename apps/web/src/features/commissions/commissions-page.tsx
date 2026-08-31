@@ -77,7 +77,7 @@ export function CommissionsPage() {
         cell: ({ row }) => {
           const ref = dealLead.get(row.original.deal_id);
           return ref?.leadId ? (
-            <Link to={`/leads/${ref.leadId}`} className="text-primary underline-offset-4 hover:underline">
+            <Link to={`/leads/${ref.leadId}`} className="text-primary-text underline-offset-4 hover:underline">
               {ref.label}
             </Link>
           ) : (

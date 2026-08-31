@@ -44,11 +44,35 @@ const textPairs: [SemanticToken, SemanticToken][] = [
   ['sidebar-foreground', 'sidebar'],
   ['sidebar-accent-foreground', 'sidebar-accent'],
   ['sidebar-primary-foreground', 'sidebar-primary'],
-  ['primary', 'background'], // links in body copy
-  ['primary', 'card'],
-  // hover states are text-bearing too (WCAG 1.4.3 applies to all states)
-  ['primary-foreground', 'primary-hover'],
-  ['destructive-foreground', 'destructive-hover'],
+  /**
+   * F-75 (D-076) split `primary` into the self-labelled FILL (`primary`) and
+   * the on-surface TONE (`primary-text`). The tone is what links, emphasis,
+   * the checkbox accent, the active-tab border and the unlabeled usage bars
+   * read, so it is held to AA against every light surface it can sit on —
+   * `accent` and `sidebar-accent` included, because `--accent-foreground` and
+   * `--sidebar-accent-foreground` take the tenant's `text.primary` tone.
+   */
+  ['primary-text', 'background'],
+  ['primary-text', 'card'],
+  ['primary-text', 'muted'],
+  ['primary-text', 'popover'],
+  ['primary-text', 'accent'],
+  ['primary-text', 'sidebar-accent'],
+  // hover states are text-bearing too (WCAG 1.4.3 applies to all states);
+  // a hover fill carries its OWN label token.
+  ['primary-hover-foreground', 'primary-hover'],
+  ['destructive-hover-foreground', 'destructive-hover'],
+  /**
+   * Kept: platform-only guarantee — a tenant fill is not held to these
+   * (D-076). The platform palette still satisfies them and removing a passing
+   * pair is a weakening; under a brand the pairs that matter are the
+   * `primary-text` rows above and the `*-hover-foreground` rows, which is why
+   * those tokens exist.
+   */
+  ['primary', 'background'], // platform-only guarantee
+  ['primary', 'card'], // platform-only guarantee
+  ['primary-foreground', 'primary-hover'], // platform-only guarantee
+  ['destructive-foreground', 'destructive-hover'], // platform-only guarantee
   // D-024 status-as-text variants
   ['success-text', 'background'],
   ['success-text', 'card'],
@@ -85,6 +109,21 @@ const textPairs: [SemanticToken, SemanticToken][] = [
 const uiPairs: [SemanticToken, SemanticToken][] = [
   ['ring', 'background'],
   ['destructive', 'card'],
+  /**
+   * F-75 (D-076). The fill's own 1.4.11 obligation on the platform —
+   * platform-only guarantee: a tenant fill is not held to 1.4.11 against
+   * surfaces (measured #FDE047 on card 1.318:1); under a brand only fill↔label,
+   * `primary-text`, `ring` and `danger-border` are proven.
+   */
+  ['primary', 'background'], // platform-only guarantee
+  ['primary', 'card'], // platform-only guarantee
+  /**
+   * `danger-border` becomes a tenant-fed token (← `ring.danger`) painted on the
+   * `border-danger-border` inputs whose surface is `input-bg`, and on the error
+   * boxes on `card`; the platform floor is stated for the surfaces it sits on.
+   */
+  ['danger-border', 'input-bg'],
+  ['danger-border', 'card'],
 ];
 
 describe.each([

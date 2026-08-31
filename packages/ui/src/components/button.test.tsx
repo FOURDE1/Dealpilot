@@ -19,7 +19,8 @@ describe('Button', () => {
       outline: 'border-border',
       ghost: 'hover:bg-accent',
       destructive: 'hover:bg-destructive-hover',
-      link: 'text-primary',
+      // F-75 role split: the link variant reads the on-surface TONE, never the fill.
+      link: 'text-primary-text',
     } as const;
     // ADR-018 raw-color ban: every Tailwind palette name, every color-bearing
     // utility prefix, and arbitrary color values.
@@ -37,6 +38,24 @@ describe('Button', () => {
         expect(classes).not.toContain('hover:opacity');
       }
     }
+  });
+
+  it('a hover fill carries its own hover label, and the base fill stays a fill (F-75)', () => {
+    // Under a tenant brand `--primary-hover` may take the opposite label from
+    // `--primary` (a mid-tone fill); the hover foreground token is what keeps
+    // the pair AA. The role guard (token-roles.ts) holds every literal to this;
+    // the vendored button is the one every page inherits it from.
+    const primary = buttonVariants({ variant: 'default' });
+    expect(primary).toContain('bg-primary');
+    expect(primary).toContain('text-primary-foreground');
+    expect(primary).toContain('hover:bg-primary-hover');
+    expect(primary).toContain('hover:text-primary-hover-foreground');
+    const destructive = buttonVariants({ variant: 'destructive' });
+    expect(destructive).toContain('bg-destructive');
+    expect(destructive).toContain('text-destructive-foreground');
+    expect(destructive).toContain('hover:bg-destructive-hover');
+    expect(destructive).toContain('hover:text-destructive-hover-foreground');
+    expect(buttonVariants({ variant: 'link' })).not.toMatch(/(?<![\w-])text-primary(?![\w-])/);
   });
 
   it('enforces the 44px touch-target floor below lg on every size', () => {

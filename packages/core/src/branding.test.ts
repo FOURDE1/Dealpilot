@@ -11,6 +11,7 @@ import {
   parseColor,
   readableOn,
   relativeLuminance,
+  ringFor,
   SURFACE_DARK,
   SURFACE_LIGHT,
   validateBrandingContrast,
@@ -323,5 +324,132 @@ describe('every fill the palette exposes has a legible label (CR-15)', () => {
     // in dark mode. Reusing one for the other is not a small error.
     const p = validateBrandingContrast({ primary: '#2563EB' });
     expect(p.foregrounds['primary']).not.toBe(p.foregrounds['primary_dark']);
+  });
+});
+
+describe('F-75 — proven against the surfaces the app paints, on the value that ships', () => {
+  /**
+   * Every assertion below re-parses the STRING the palette carries. The
+   * object `readableOn` returned used to pass at 4.5000042:1 while its
+   * `formatOklch` form re-parsed at 4.4999999:1 — the value in the browser is
+   * the string, so the string is what is proven. No epsilon, ever.
+   */
+  const fromString = (s: string) => parseColor(s);
+
+  it('the surfaces are the platform worst cases, not white and the dark page', () => {
+    expect(oklchToHex(SURFACE_LIGHT)).toBe('#f3f4f6');
+    expect(oklchToHex(SURFACE_DARK)).toBe('#232738');
+  });
+
+  it('#FDE047: the published text tone is readable on the page, muted and card; the ring visible on all three', () => {
+    const p = validateBrandingContrast({ primary: '#FDE047' });
+    for (const surface of ['#F5F7FA', '#F3F4F6', '#FFFFFF']) {
+      expect(contrastRatio(fromString(p.text['primary']!), hex(surface)), `text on ${surface}`)
+        .toBeGreaterThanOrEqual(AA_TEXT);
+      expect(contrastRatio(fromString(p.ring['primary']!), hex(surface)), `ring on ${surface}`)
+        .toBeGreaterThanOrEqual(AA_UI);
+    }
+  });
+
+  for (const brand of ['#FDE047', '#10B981', '#2563EB', '#1E3A8A', '#7C3AED']) {
+    it(`golden round-trip ${brand}: text and ring re-parsed from their strings clear AA`, () => {
+      const p = validateBrandingContrast({ primary: brand });
+      expect(contrastRatio(fromString(p.text['primary']!), SURFACE_LIGHT), 'text.primary')
+        .toBeGreaterThanOrEqual(AA_TEXT);
+      expect(contrastRatio(fromString(p.text['primary_dark']!), SURFACE_DARK), 'text.primary_dark')
+        .toBeGreaterThanOrEqual(AA_TEXT);
+      expect(contrastRatio(fromString(p.ring['primary']!), SURFACE_LIGHT), 'ring.primary')
+        .toBeGreaterThanOrEqual(AA_UI);
+      expect(contrastRatio(fromString(p.ring['primary_dark']!), SURFACE_DARK), 'ring.primary_dark')
+        .toBeGreaterThanOrEqual(AA_UI);
+    });
+  }
+
+  it('readableOn and ringFor return a value whose formatted string still passes', () => {
+    // The direct form of the round-trip law, on the two functions that adjust.
+    const pale = hex('#FDE047');
+    const text = readableOn(pale, SURFACE_LIGHT);
+    expect(contrastRatio(fromString(formatOklch(text)), SURFACE_LIGHT)).toBeGreaterThanOrEqual(AA_TEXT);
+    const ring = ringFor(pale, SURFACE_LIGHT);
+    expect(contrastRatio(fromString(formatOklch(ring)), SURFACE_LIGHT)).toBeGreaterThanOrEqual(AA_UI);
+  });
+
+  for (const brand of ['#E11D48', '#6366F1', '#DB2777']) {
+    it(`dead-zone fill ${brand} is nudged toward its label to 4.5:1, light and dark, and the move is recorded`, () => {
+      // Measured before the fix: 4.4988, 4.4311, 4.4025 — neither label reaches AA.
+      const raw = hex(brand);
+      expect(contrastRatio(raw, foregroundFor(raw))).toBeLessThan(AA_TEXT);
+
+      const p = validateBrandingContrast({ primary: brand });
+      const fill = fromString(p.fills['primary']!);
+      expect(contrastRatio(fill, fromString(p.foregrounds['primary']!)), 'light fill / label')
+        .toBeGreaterThanOrEqual(AA_TEXT);
+      expect(contrastRatio(fromString(p.dark['primary']!), fromString(p.foregrounds['primary_dark']!)), 'dark fill / label')
+        .toBeGreaterThanOrEqual(AA_TEXT);
+      // Still the tenant's colour: hue and chroma untouched, only L moved.
+      expect(fill.h).toBeCloseTo(raw.h, 1);
+      expect(fill.c).toBeCloseTo(raw.c, 3);
+
+      const fillAdjustments = p.adjustments.filter((a) => a.token === 'fills.primary');
+      expect(fillAdjustments).toHaveLength(1);
+      // `ratioBefore` is rounded to two places for the dialog (4.4988 shows as
+      // 4.5), so the before/after claim is checked on the colours it names.
+      const from = fromString(fillAdjustments[0]!.from);
+      const to = fromString(fillAdjustments[0]!.to);
+      expect(contrastRatio(from, foregroundFor(from))).toBeLessThan(AA_TEXT);
+      expect(contrastRatio(to, foregroundFor(from))).toBeGreaterThanOrEqual(AA_TEXT);
+      expect(fillAdjustments[0]!.ratioAfter).toBeGreaterThanOrEqual(AA_TEXT);
+      expect(fillAdjustments[0]!.reason).toContain('label');
+    });
+  }
+
+  for (const brand of ['#2563EB', '#0F766E', '#FDE047']) {
+    it(`${brand} already carries its label — no fill adjustment is recorded`, () => {
+      const p = validateBrandingContrast({ primary: brand });
+      expect(p.adjustments.filter((a) => a.token.startsWith('fills.'))).toEqual([]);
+      expect(p.adjustments.filter((a) => a.token.startsWith('dark.'))).toEqual([]);
+    });
+  }
+
+  it('a derived dark fill in the dead zone is held to the same floor (#0000F0 → 4.46:1 measured)', () => {
+    const p = validateBrandingContrast({ primary: '#0000F0' });
+    expect(contrastRatio(fromString(p.dark['primary']!), fromString(p.foregrounds['primary_dark']!)))
+      .toBeGreaterThanOrEqual(AA_TEXT);
+    expect(p.adjustments.some((a) => a.token === 'dark.primary')).toBe(true);
+  });
+
+  it('the fill unit is proven for every semantic colour too, including the FULL fixture info #6366F1', () => {
+    const p = validateBrandingContrast({
+      primary: '#2563EB', accent: '#0F766E', success: '#10B981',
+      warning: '#F59E0B', danger: '#B91C1C', info: '#6366F1',
+    });
+    for (const token of ['primary', 'accent', 'success', 'warning', 'danger', 'info']) {
+      expect(contrastRatio(fromString(p.fills[token]!), fromString(p.foregrounds[token]!)), token)
+        .toBeGreaterThanOrEqual(AA_TEXT);
+      expect(contrastRatio(fromString(p.dark[token]!), fromString(p.foregrounds[`${token}_dark`]!)), `${token} dark`)
+        .toBeGreaterThanOrEqual(AA_TEXT);
+    }
+    expect(p.adjustments.map((a) => a.token)).toContain('fills.info');
+  });
+
+  it('a hover fill keeps the base label whenever a step allows it', () => {
+    // #2563EB used to flip white → near-black under the cursor (measured
+    // fg 0.985 → 0.145). Measured after the fix: every probe brand, #7C3AED
+    // included, has a step that keeps the label — so equality is asserted
+    // for all of them, light and dark.
+    for (const brand of ['#2563EB', '#FDE047', '#1E3A8A', '#7C3AED']) {
+      const p = validateBrandingContrast({ primary: brand });
+      expect(p.foregrounds['primary_hover'], `${brand} light`).toBe(p.foregrounds['primary']);
+      expect(p.foregrounds['primary_hover_dark'], `${brand} dark`).toBe(p.foregrounds['primary_dark']);
+      expect(
+        contrastRatio(fromString(p.hover['primary']!), fromString(p.foregrounds['primary_hover']!)),
+        `${brand} hover label`,
+      ).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+  });
+
+  it('#2563EB hovers DARKER now, the platform\'s own primary-hover behaviour', () => {
+    const p = validateBrandingContrast({ primary: '#2563EB' });
+    expect(fromString(p.hover['primary']!).l).toBeLessThan(fromString(p.fills['primary']!).l);
   });
 });

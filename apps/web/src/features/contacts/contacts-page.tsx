@@ -111,7 +111,7 @@ export function ContactsPage() {
         cell: ({ row }) => (
           <Link
             to={`/contacts/${row.original.id}`}
-            className="font-medium text-primary underline-offset-4 hover:underline"
+            className="font-medium text-primary-text underline-offset-4 hover:underline"
           >
             {contactDisplayName(row.original, t('unnamed'))}
           </Link>

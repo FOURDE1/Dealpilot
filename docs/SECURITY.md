@@ -646,6 +646,17 @@ and never inline them. That is a convention, not an enforcement — if this
 codebase grows an inline-SVG helper, this is the reason it must not be pointed
 at tenant assets.
 
+_2026-08-31 (F-75, D-076): the consumer now exists.
+`apps/web/src/features/branding/brand-mark.tsx` renders tenant logos as
+`<img src>` through the sandboxed asset route (`?organization_id=&v=` on the
+URL) and never inlines markup; `brand-style.test.ts` pins that shape, and the
+favicon is a `<link rel="icon">` to the same route. Every colour the SPA
+injects passes `SAFE_COLOR` (`oklch(...)` or `#hex` only) — a CSS breakout from
+a network payload is refused even when the server computed it. Migration 0070
+is the fourth migration that depends on the RDS role holding BYPASSRLS
+(`SET LOCAL row_security = off`; it errors rather than updating zero rows
+without it)._
+
 ### Fixed here: buffering an upload the route was always going to refuse
 
 The raw-body parser accepted 20 MB for every binary route, including brand

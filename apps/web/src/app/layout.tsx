@@ -6,7 +6,11 @@ import { useMe } from '../shared/api/use-me.js';
 import { queryClient } from '../shared/api/queryClient.js';
 import { LanguageSwitcher } from '../shared/i18n/language-switcher.js';
 import { ThemeToggle } from '../shared/theme-toggle.js';
-import { BrandStyle, useBrandName } from '../features/branding/brand-style.js';
+import { FullPageSkeleton } from './guards.js';
+import { brandingGateOpen, usePublishedBranding } from '../features/branding/api.js';
+import { BrandNameContext, BrandStyle, brandDisplayName } from '../features/branding/brand-style.js';
+import { BrandMark } from '../features/branding/brand-mark.js';
+import { BrandDocument } from '../features/branding/brand-document.js';
 import { useOrganizations } from '../features/organizations/api.js';
 import { NotificationsBell } from '../features/notifications/bell.js';
 import { notificationKeys } from '../features/notifications/api.js';
@@ -72,8 +76,12 @@ export function AppLayout() {
     me.data?.mfa.required === true &&
     me.data.mfa.enabled === false &&
     location.pathname !== '/security';
-  // F-14: the tenant's own name in place of the platform name, when published.
-  const brandName = useBrandName(t('common:appName'));
+  // F-75 (D-076): the published brand — RequireAuth prefetched it in parallel
+  // with the session, so this usually answers from the cache. This is the
+  // query's ONLY observer: everything rendered under the gate below takes
+  // `brand` as a prop (an observer mounting under the gate would refetch an
+  // errored, data-less entry on every mount and loop the gate).
+  const branding = usePublishedBranding();
   // F-43: one presence beacon per organization (usually one).
   const orgs = useOrganizations();
 
@@ -85,10 +93,23 @@ export function AppLayout() {
     navigate('/login');
   }
 
+  // F-75: no platform-palette flash inside the shell — hold the neutral
+  // skeleton while the brand has never answered AND a fetch is in flight
+  // (`brandingGateOpen`). An errored, idle query — a 5xx, a timeout, a
+  // snapshot that fails to parse — means the platform look, and nothing
+  // rendered below observes the query, so an error cannot start a fetch that
+  // would re-open the gate.
+  if (brandingGateOpen(branding)) return <FullPageSkeleton />;
+  const brand = branding.data ?? null;
+  // F-14: the tenant's own name in place of the platform name, when published.
+  const brandName = brandDisplayName(brand) ?? t('common:appName');
+
   return (
+    <BrandNameContext.Provider value={brandDisplayName(brand)}>
     <div className="flex min-h-svh bg-background text-foreground">
-      {/* F-14: paint the tenant's published brand over the platform defaults. */}
-      <BrandStyle />
+      {/* F-14/F-75: paint the tenant's published brand over the platform defaults. */}
+      <BrandStyle branding={brand} />
+      <BrandDocument branding={brand} />
       {(orgs.data?.items ?? []).map((o) => (
         <PresenceBeacon key={o.id} organizationId={o.id} />
       ))}
@@ -99,7 +120,9 @@ export function AppLayout() {
         {t('common:skipToContent')}
       </a>
       <aside className="hidden w-[var(--sidebar-width)] shrink-0 flex-col border-e border-sidebar-border bg-sidebar text-sidebar-foreground lg:flex">
-        <p className="px-5 pt-5 pb-3 text-lg font-bold">{brandName}</p>
+        <p className="px-5 pt-5 pb-3 text-lg font-bold">
+          <BrandMark branding={brand} name={brandName} className="h-8 max-w-[180px] object-contain" />
+        </p>
         <nav aria-label={t('nav:mainNav')} className="flex flex-col gap-1 px-3">
           {NAV_ITEMS.map((item) => (
             <NavLink
@@ -123,13 +146,15 @@ export function AppLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-[var(--topbar-height)] items-center justify-between gap-4 border-b border-border bg-card px-3 sm:px-4">
-          <p className="text-sm font-semibold lg:hidden">{brandName}</p>
+          <p className="text-sm font-semibold lg:hidden">
+            <BrandMark branding={brand} name={brandName} className="h-6 max-w-[140px] object-contain" />
+          </p>
           <div className="ms-auto flex items-center gap-1.5 sm:gap-3">
             <span className="hidden text-sm text-muted-foreground sm:inline">
               {session?.user.name || session?.user.email}
             </span>
             {me.data?.platform_role ? (
-              <Link to="/admin" className="hidden text-sm font-medium text-primary underline-offset-4 hover:underline sm:inline">
+              <Link to="/admin" className="hidden text-sm font-medium text-primary-text underline-offset-4 hover:underline sm:inline">
                 {t('nav:console')}
               </Link>
             ) : null}
@@ -139,12 +164,12 @@ export function AppLayout() {
               // and this label pushed 360px viewports 8px sideways (caught by
               // the a11y reflow journey). The banner carries the path to
               // /security on mobile whenever the policy actually demands it.
-              className="hidden text-sm font-medium text-primary underline-offset-4 hover:underline sm:inline"
+              className="hidden text-sm font-medium text-primary-text underline-offset-4 hover:underline sm:inline"
             >
               {t('security:title')}
             </Link>
             <NotificationsBell />
-            <ThemeToggle />
+            <ThemeToggle locked={brand?.dark_mode === 'disabled'} />
             <LanguageSwitcher />
             <Button variant="outline" size="sm" onClick={() => void handleSignOut()}>
               {/* The F-47 bell spent the topbar's last slack at 360px (the
@@ -212,7 +237,7 @@ export function AppLayout() {
               className={({ isActive }) =>
                 cn(
                   'flex min-h-14 items-center justify-center overflow-hidden border-t-2 px-1 text-[11px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                  isActive ? 'border-primary text-primary' : 'border-transparent text-muted-foreground',
+                  isActive ? 'border-primary-text text-primary-text' : 'border-transparent text-muted-foreground',
                 )
               }
             >
@@ -222,5 +247,6 @@ export function AppLayout() {
         </nav>
       </div>
     </div>
+    </BrandNameContext.Provider>
   );
 }

@@ -226,7 +226,7 @@ export function PermissionsPage() {
                               role: tTeam(ROLE_KEYS[role]),
                             })}
                             onChange={() => void toggle(role, permission, has)}
-                            className="size-6 accent-[var(--primary)]"
+                            className="size-6 accent-primary-text"
                           />
                         </td>
                       );

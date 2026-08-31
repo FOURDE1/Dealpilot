@@ -140,7 +140,7 @@ export function InvitationAcceptPage() {
             </Button>
             <button
               type="button"
-              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              className="text-sm font-medium text-primary-text underline-offset-4 hover:underline"
               onClick={() => setMode((m) => (m === 'signup' ? 'signin' : 'signup'))}
             >
               {mode === 'signup' ? t('haveAccount') : t('noAccount')}

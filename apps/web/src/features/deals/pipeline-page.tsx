@@ -234,7 +234,7 @@ export function PipelinePage() {
                         {d.lead_id ? (
                           <Link
                             to={`/leads/${d.lead_id}`}
-                            className="font-medium text-primary underline-offset-4 hover:underline"
+                            className="font-medium text-primary-text underline-offset-4 hover:underline"
                           >
                             {leadName.get(d.lead_id) ?? '…'}
                           </Link>

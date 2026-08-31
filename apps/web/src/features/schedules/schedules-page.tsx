@@ -72,7 +72,7 @@ export function SchedulesPage() {
         <h1 className="text-2xl font-semibold">{t('title')}</h1>
         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         <p className="mt-1 text-sm">
-          <Link to="/team" className="font-medium text-primary underline-offset-4 hover:underline">
+          <Link to="/team" className="font-medium text-primary-text underline-offset-4 hover:underline">
             {t('backToTeam')}
           </Link>
         </p>
@@ -194,11 +194,11 @@ function MemberCard(props: {
           <legend className="text-xs font-medium text-muted-foreground">{t('languages')}</legend>
           <div className="flex gap-3">
             <label className="flex items-center gap-2 max-lg:min-h-11">
-              <input type="checkbox" checked={fr} disabled={props.busy} onChange={() => void toggleLanguage('fr-CA')} className="size-4 accent-primary" />
+              <input type="checkbox" checked={fr} disabled={props.busy} onChange={() => void toggleLanguage('fr-CA')} className="size-4 accent-primary-text" />
               {t('lang_fr')}
             </label>
             <label className="flex items-center gap-2 max-lg:min-h-11">
-              <input type="checkbox" checked={en} disabled={props.busy} onChange={() => void toggleLanguage('en-CA')} className="size-4 accent-primary" />
+              <input type="checkbox" checked={en} disabled={props.busy} onChange={() => void toggleLanguage('en-CA')} className="size-4 accent-primary-text" />
               {t('lang_en')}
             </label>
           </div>

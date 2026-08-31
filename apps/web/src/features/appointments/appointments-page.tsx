@@ -216,7 +216,7 @@ export function AppointmentsPage() {
         <input
           id="appt-past"
           type="checkbox"
-          className="size-4 accent-primary"
+          className="size-4 accent-primary-text"
           checked={showPast}
           onChange={(e) => setShowPast(e.target.checked)}
         />

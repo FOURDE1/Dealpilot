@@ -100,8 +100,14 @@ export const durations = {
  * layer — never primitives, never raw hex (release blocker per ADR-018).
  *
  * D-024 contrast rules encoded here:
- * - `primary` is blue-600, the AA-safe interactive tone (white foreground
- *   5.17:1; as link text on page 4.82:1).
+ * - `primary` is the self-labelled FILL (blue-600; white foreground 5.17:1) and
+ *   `primary-text` the on-surface link/emphasis TONE (also blue-600; on page
+ *   4.82:1). Both are blue-600 on the platform; under a tenant brand they
+ *   diverge (F-75, D-076): the fill is the tenant's colour, the tone is that
+ *   colour made readable on the darkest light / lightest dark surface, and the
+ *   role guard in token-roles.ts keeps `text-primary` out of the tree.
+ * - `*-hover-foreground` is the label a hover fill carries; on the platform it
+ *   equals `*-foreground`, under a brand it is the palette's `*_hover` label.
  * - blue-500 is the brand accent (`ring`, `chart-1`) — 3:1 class only, never
  *   text on white.
  */
@@ -115,6 +121,8 @@ export const semanticLight = {
   primary: primitives.blue[600],
   'primary-foreground': '#FFFFFF',
   'primary-hover': primitives.blue[700],
+  'primary-hover-foreground': '#FFFFFF',
+  'primary-text': primitives.blue[600],
   secondary: primitives.neutralLight.borderSubtle,
   'secondary-foreground': primitives.neutralLight.text,
   muted: primitives.neutralLight.borderSubtle,
@@ -124,6 +132,7 @@ export const semanticLight = {
   destructive: primitives.status.dangerStrong,
   'destructive-foreground': '#FFFFFF',
   'destructive-hover': primitives.status.dangerDeep,
+  'destructive-hover-foreground': '#FFFFFF',
   success: primitives.status.success,
   'success-foreground': primitives.neutralLight.text,
   warning: primitives.status.warning,
@@ -175,6 +184,8 @@ export const semanticDark: Record<keyof typeof semanticLight, string> = {
   primary: primitives.blue[400],
   'primary-foreground': primitives.neutralLight.text,
   'primary-hover': primitives.blue[300],
+  'primary-hover-foreground': primitives.neutralLight.text,
+  'primary-text': primitives.blue[400],
   secondary: primitives.neutralDark.elevated,
   'secondary-foreground': primitives.neutralDark.text,
   muted: primitives.neutralDark.borderSubtle,
@@ -184,6 +195,7 @@ export const semanticDark: Record<keyof typeof semanticLight, string> = {
   destructive: primitives.status.dangerDark,
   'destructive-foreground': primitives.neutralLight.text,
   'destructive-hover': primitives.status.dangerSoft,
+  'destructive-hover-foreground': primitives.neutralLight.text,
   success: primitives.status.successDark,
   'success-foreground': primitives.neutralLight.text,
   warning: primitives.status.warningDark,
@@ -226,17 +238,29 @@ export const componentTokens = {
   'sidebar-collapsed-width': '60px',
   'topbar-height': '56px',
   'kanban-col-min-w': '280px',
+  /**
+   * Read by DataTable body rows (`h-[var(--row-h)]`, a minimum on a `<tr>`),
+   * its cells (`py-[var(--cell-py)]`) and the Input/Select primitives
+   * (`h-[var(--input-h)]`); the `[data-density="compact"]` producer is the
+   * tenant's published `density` (F-75). Comfortable rows are 44 px minimum.
+   */
   'row-h': '44px',
   'cell-py': '10px',
+  'input-h': '40px',
   'transition-fast': '150ms ease',
   'transition-normal': '250ms ease',
   'transition-slow': '350ms ease',
 } as const;
 
-/** Density overrides applied via `[data-density="compact"]` (§5). */
+/**
+ * Density overrides applied via `[data-density="compact"]` (§5): rows and
+ * fields tighten to a 34 px MINIMUM — a row's content (a 36 px button) can
+ * still make it taller.
+ */
 export const densityCompact = {
   'row-h': '34px',
   'cell-py': '6px',
+  'input-h': '34px',
 } as const;
 
 export type SemanticToken = keyof typeof semanticLight;

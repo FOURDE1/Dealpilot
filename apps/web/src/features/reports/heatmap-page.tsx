@@ -25,18 +25,32 @@ const DIRECTIONS = ['inbound', 'outbound'] as const;
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
 const DAYS = [1, 2, 3, 4, 5, 6, 0]; // Monday-first for a dealership week
 /**
- * Fill AND ink per step. The busiest cells sit on the solid success color,
- * where the page foreground fails contrast in the dark theme (1.7:1); the
- * token layer's `success-foreground` is the pair the contrast test gates.
+ * Fill AND ink per step, and never an opacity modifier on the tenant fill.
+ *
+ * `--success` is a tenant colour under a published brand (F-75, D-076). The
+ * old ramp faded that fill (`bg-success/60`) under its solid-fill label, which
+ * measured 2.45:1 for a tenant's #0F766E — an alpha over an unknown surface is
+ * a colour nobody proved. So the translucent steps use the PLATFORM tint
+ * `success-bg` (never injected) with the platform `success-text`, proven once
+ * in heatmap-ramp.test.ts by compositing over `card`; the tenant fill appears
+ * only as a whole unit, `bg-success text-success-foreground`, whose pair is
+ * proven at publish. Steps 4 and 5 differ by weight, not colour.
+ *
+ * The scale is a scale only if step 4 is beyond step 3 in the theme's
+ * direction (darker on light, lighter on dark). The platform palette is
+ * proven so in heatmap-ramp.test.ts; a TENANT success fill is emitted by
+ * brand-style.tsx only when it satisfies the same ordering against the tint
+ * (a pale success such as #ECFDF5 would paint the busiest hour lighter than
+ * a medium one — it is gated, and the platform fill applies).
  */
-const STEPS = [
+export const HEATMAP_STEPS = [
   'bg-muted text-muted-foreground',
-  'bg-success/20 text-foreground',
-  'bg-success/40 text-foreground',
-  'bg-success/60 text-success-foreground',
-  'bg-success/80 text-success-foreground',
+  'bg-success-bg/40 text-success-text',
+  'bg-success-bg/70 text-success-text',
+  'bg-success-bg text-success-text',
   'bg-success text-success-foreground',
-];
+  'bg-success text-success-foreground font-semibold',
+] as const;
 // Typed keys: the i18n resource types refuse a template-literal key.
 const DAY_KEYS = ['hm_day_0', 'hm_day_1', 'hm_day_2', 'hm_day_3', 'hm_day_4', 'hm_day_5', 'hm_day_6'] as const;
 
@@ -139,7 +153,7 @@ export function HeatmapPage() {
                             <td key={h} className="p-0.5">
                               <div
                                 title={total > 0 ? t('hm_cell', { day: day(d), hour: h, inbound, outbound }) : undefined}
-                                className={`flex h-6 w-6 items-center justify-center rounded-sm text-[10px] tabular-nums ${STEPS[step(total)]}`}
+                                className={`flex h-6 w-6 items-center justify-center rounded-sm text-[10px] tabular-nums ${HEATMAP_STEPS[step(total)]}`}
                               >
                                 {total > 0 ? (
                                   <>

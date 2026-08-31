@@ -538,7 +538,7 @@ export function DeskingPage() {
           </h1>
           <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
-        <Link to={`/leads/${leadId}`} className="text-sm text-primary underline-offset-4 hover:underline">
+        <Link to={`/leads/${leadId}`} className="text-sm text-primary-text underline-offset-4 hover:underline">
           {t('backToLead')}
         </Link>
       </header>
@@ -657,7 +657,7 @@ export function DeskingPage() {
                 type="checkbox"
                 checked={draft.tax_exempt}
                 onChange={(e) => set('tax_exempt', e.target.checked)}
-                className="size-4 accent-[var(--primary)]"
+                className="size-4 accent-primary-text"
               />
               {t('taxExempt')}
             </label>
@@ -669,7 +669,7 @@ export function DeskingPage() {
                   checked={soldAsIs}
                   aria-describedby="desk-as-is-hint"
                   onChange={(e) => setSoldAsIs(e.target.checked)}
-                  className="size-4 accent-[var(--primary)]"
+                  className="size-4 accent-primary-text"
                 />
                 {t('soldAsIs')}
               </label>
@@ -720,7 +720,7 @@ export function DeskingPage() {
                 type="checkbox"
                 checked={draft.fees_taxable}
                 onChange={(e) => set('fees_taxable', e.target.checked)}
-                className="size-4 accent-[var(--primary)]"
+                className="size-4 accent-primary-text"
               />
               {t('feesTaxable')}
             </label>

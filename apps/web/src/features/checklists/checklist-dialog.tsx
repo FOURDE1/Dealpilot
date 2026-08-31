@@ -97,7 +97,7 @@ function ItemRow({
             checked={done}
             disabled={!canTick || waived || update.isPending}
             onChange={(e) => void send({ completed: e.target.checked })}
-            className="size-4 accent-[var(--primary)]"
+            className="size-4 accent-primary-text"
           />
           {label}
           {item.required ? null : <span className="text-xs text-muted-foreground">({t('optional')})</span>}

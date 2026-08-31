@@ -11,6 +11,160 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-076 — 2026-08-31 — The published brand paints the app: a fill/text role split, proof surfaces the app actually paints, and two values nothing ever produced are retired
+
+F-75 (white-labeling.md §2–§7, §12, §13; FR-WL-002/004/005; ROADMAP §4;
+F-14 increment 3. Designed by the three-planner + judge workflow — winner
+`aa-by-construction` — hardened by four adversarial critics into a binding
+build document of 16 rulings and 23 amendments, built in three waves with
+disjoint file ownership, reviewed through six adversarial lenses with
+refute-biased verification (six lenses, 20 raw findings across two passes — 15 confirmed, 5 refuted, every confirmed one fixed and proven red-then-green; the first pass's contrast finder died mid-response and its lens was re-run alone on the fixed tree (1 finding, confirmed minor, fixed)), and gated: `pnpm turbo run build typecheck lint` 25/25 tasks (21 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **175 files / 1903 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **48 passed in 2.4 m against dealpilot_e2e_test rebuilt from migration zero**, lock released, nothing left listening.)
+(1) **The problem, measured.** Since F-14 the editor offered six colours, a
+font, a radius, density and a dark mode, and Publish computed a full palette —
+but the SPA injected only `--radius`, `--ring`, `--sidebar-ring` and the
+display name. About 80% of `PublishedBranding` was a produced payload with no
+consumer, and a tenant's Publish was a claim the product did not honour. Worse,
+the palette's text tones and rings were proven against pure white
+(`SURFACE_LIGHT` at L = 1) while the app paints its page `#F5F7FA` and its
+muted/secondary surfaces `#F3F4F6`. Measured for `#FDE047`: `text.primary`
+4.502:1 on white, **4.195:1 on the page, 4.091:1 on muted** — and the focus
+ring, which F-14 already injected, **2.795:1 on the page against a 3:1
+floor.** A guarantee proven on a surface the app never paints was not a
+guarantee; twelve published brands on the dev database carried such values.
+(2) **The role split (R1).** `--primary` is fill-only. A new semantic token
+`primary-text` (blue-600 light / blue-400 dark — the values `primary` carried,
+so the platform look does not move) takes every text, border and accent site.
+One command renamed 46 `text-primary` class sites in `apps/web/src` (47 grep
+lines, one a comment) and 3 in `packages/ui`, 1 `border-primary`, 7
+`accent-primary` and 11 `accent-[var(--primary)]` checkbox sites, and 6
+`border-destructive` → `border-danger-border`; hand edits moved the unlabeled
+usage bar and win-loss bar to their `-text` tones and dropped the one
+`text-primary-foreground/75`. Rejected: re-pointing the `text-primary` class at
+another variable in the Tailwind wiring (a class named for `--primary` that
+reads `--primary-text` is a false claim in every DevTools panel, loses opacity
+modifiers, and still needs the same guard); renaming the fill instead (it
+inverts shadcn's `bg-primary text-primary-foreground` pairing that every
+vendored component assumes). `packages/ui/src/theme/token-roles.ts` holds
+rules 1–7 as a pure matcher scanned over the tree (154 files; 85 violations
+at the base tip, 0 after) and is mutation-tested: a fill must carry its label
+in the same class literal, a hover fill its hover label, no opacity on a
+tenant fill or on any foreground, no `var(--primary)` escape outside
+`brand-style.tsx`, no brand text tone inside a status tint.
+(3) **Proof surfaces (R11, A1, A2).** `SURFACE_LIGHT = #F3F4F6`,
+`SURFACE_DARK = #232738` — the darkest light and lightest dark neutral the
+app paints, pinned to `@dealpilot/ui` tokens by `surfaces-lockstep.test.ts`.
+`readableOn`/`ringFor` verify the value that SHIPS: the OKLCH string is
+re-parsed after formatting and L is stepped until the string round-trips ≥
+target (measured: the float passed at 4.5000042 while its formatted string
+measured 4.4999999). Dead-zone fills (`#E11D48` 4.4988, `#6366F1` 4.4311,
+`#DB2777` 4.4025 — luminance 0.17–0.19, where neither label reaches 4.5) are
+nudged toward their label and recorded as `fills.<name>` adjustments.
+`hoverFill` prefers the step on which the BASE label still clears AA (the
+default blue flipped its button label white → near-black on hover). Stale
+snapshots are not recomputed in SQL: the SPA re-proves `text.primary(_dark)`,
+`ring.primary(_dark)` and `ring.danger(_dark)` against the same surfaces and
+omits what fails — tokens.css applies and `data-brand-gated` names the cell;
+"publish again" is the remedy (ROUND 22.1).
+(4) **The token contract (R2, A3–A6).** `brand-style.tsx` is a table of 18
+rows `{css, light, dark, unit, requires, proof, when}` and `brandCss`
+iterates it. Units — a fill and its foreground emitted together or not at
+all: `primary` (`--primary`/`--primary-foreground`), `primary-hover`
+(requires `primary`), `destructive`, `destructive-hover`, `success` (consumed
+by the rebuilt heatmap ramp), `accent` (`--sidebar-accent` /
+`--sidebar-accent-foreground` — `accent_color`'s real consumer, R3; shadcn's
+`--accent` hover tint is never injected). Proof groups: `text.primary` →
+`--primary-text`, `--accent-foreground` (unconditionally, A5) and
+`--sidebar-accent-foreground` when no accent unit is present; `ring.primary`
+→ `--ring`, `--sidebar-ring`; `ring.danger` → `--danger-border` (the
+danger-bordered inputs; UI pairs `danger-border/input-bg` and `/card` join
+the gate). Warning and info rows are NOT painted and their editor fields are
+hidden: no app component paints a solid warning/info fill (A6; un-cut
+condition: a component that paints the solid fill with its label). Semantic
+`*-text` tones and `*-bg` tints stay platform because they sit on tints the
+palette does not carry. The light block is `:root:not([data-theme="dark"])`
+(A4), so an omitted dark half cannot be overridden by the light value through
+the cascade. `SAFE_COLOR` gates every value. `PALETTE_READS` is derived from
+the table, and `brand-consumers.test.ts` proves: every cell the producer emits
+is read XOR listed in `UNCONSUMED_PALETTE` with a reason; no phantom CSS
+variable is painted; no UNCONSUMED cell is read; every `PublishedBranding` key
+is accessed in consumer code with comments stripped; every unit fill is in
+`TENANT_FILLS`.
+(5) **Density, logo, favicon, title, dark lock, first paint (R5–R8, A11,
+A12, A19, A21).** `data-density` on `<html>` (compact only) finally has
+readers: DataTable rows and cells (`--row-h` 34 px, `--cell-py` 6 px) and
+inputs (`--input-h` 40 → 34); comfortable rows become 44 px minimum — the
+value the token always declared. `BrandMark` renders `<img src>` only (the
+SECURITY.md convention; the first consumer of the `dark:` variant), with the
+URL built from the contract path plus `organization_id`, `store_id` when set,
+and `v=<version>` (the asset route caches a slot URL as immutable). One
+`<link rel="icon" data-brand-favicon>`. Page titles read a `BrandNameContext`
+that only `AppLayout` provides, so `/admin/*` and public routes cannot carry
+a brand by construction. `dark_mode='disabled'` is a lock in `theme.ts`
+(`setTheme` a no-op, storage untouched, the toggle unmounted) and the stored
+preference survives a republish. No platform-palette flash: `RequireAuth`
+prefetches the branding query for non-`/admin` paths and `AppLayout` shows the
+neutral skeleton while the query has no answer and a fetch is in flight; a
+cold load with no session fires one unauthenticated GET that answers 401 and
+is refetched after sign-in (accepted, A21). The pre-login bootstrap of §3
+stays behind D-041.
+(6) **Migration 0070 (R4, A13, A14).** `dark_mode='custom'` and
+`font_family='custom'` (with `font_woff2_key`/`font_woff2_bold_key`) had no
+producer path reaching a consumer since F-14 — no custom-dark columns, no
+font slot, an editor that mapped `custom` back to `inter`. Retired
+forward-only: `SET LOCAL row_security = off` first (FORCE RLS: a
+non-BYPASSRLS runner errors instead of updating zero rows and passing the
+assertion vacuously — 0012's precedent), the column UPDATEs, a WHERE-scoped
+`published_snapshot` rewrite (`||` with a null-stripped object, because
+`jsonb_set(…, NULL)` would null a whole snapshot), a DO block that fails the
+migration if a retired value survives, the CHECK restatements, `DROP COLUMN`
+×2. On the dev database the value rewrite is a no-op (0 `custom` anywhere) but
+the key scrub touches 72 of 72 published snapshots — stated in the header;
+`version` is untouched on purpose. Lockstep: Zod enums, `UpdateBrandingInput`,
+the editor rendering `FontFamily.options`, both locales;
+`branding-vocabulary.test.ts` pins CHECK ⇔ enum set equality for all four
+branding enums and the absence of the dropped columns;
+`migration-0070-rewrite.test.ts` applies 0070 to a seeded stale row in its own
+disposable database. The un-cut conditions are verbatim in the 0070 header.
+`font_inter` is relabelled « Police de la plateforme » — Inter is not
+self-hosted anywhere in this repo.
+(7) **Editor (R14).** No new colour fields; warning/info hidden; a « Logo et
+favicon » fieldset with three uploads (200 / 200 / 100 KB; PNG, JPEG, SVG),
+« Retirer », and state text that distinguishes uploaded from published; hints
+for the accent, for density (« 34 px au minimum », never "rows are 34 px")
+and for a disabled dark mode. OWNER-TEST 14.9–14.11 become reachable from
+the editor for the first time.
+(8) **Proof (R13, A17, A18).** `apps/web/e2e/f75-brand-paint.e2e.ts` seeds a
+pale brand the publish adjusts, reads every expected value back from
+`GET /api/v1/branding`, asserts with `toHaveCSS`/`expect.poll` only, measures
+WCAG ratios in-page with `e2e/support/contrast.ts` on both themes, checks
+logo, favicon, title, density and font, proves the dark lock over a stored
+preference, and that `/login` is unbranded after sign-out; the F-14 spec
+asserts the unbranded shell carries none of it. No axe: a dependency is
+ask-first, and the ratio is the same number.
+**Rejected, with reasons:** the Tailwind re-point and the fill rename (2);
+retiring `accent_color` (a consumer existed one token away — plans 2 and 3);
+copying D-024 tint hexes into core to brand semantic text tones (a second
+source of truth for locked values); a `lockTheme()` that writes `light` to
+storage (destroys the preference for every other tenant); a route loader for
+first paint (serialises branding before the session, fires for visitors,
+needs a `HydrateFallback`); hardcoded OKLCH strings in the e2e (break on
+every core change); importing `@dealpilot/core` inside a Playwright spec (no
+precedent, loader unverified); a client-side colour computation (§5 forbids it
+— the SPA re-PROVES, it never derives).
+**Deferred, not invented:** card padding and kanban width under density (no
+component owns them); brand-derived semantic text tones and tints (the palette
+carries no tint); `--chart-1..5` and `--sidebar-primary*` (no readers, no
+chart library, no hue rotation); custom fonts and custom dark palettes
+(retired with their un-cut conditions in 0070); `login_bg_key` and
+`email_logo_key` (produced by F-14b, consumed by nothing — un-cut conditions:
+the D-041 answer in `docs/OWNER-DECISIONS-PENDING.md`; a branded-e-mail
+slice); the §3 pre-login bootstrap, §11 live preview and §12 logo-luminance
+heuristic; asset dimension validation (needs `sharp`, a dependency);
+`Cache-Control`/`ETag` on `GET /api/v1/branding` (the SPA's `staleTime` is the
+cache today); Inter self-hosting (D-024's promise, now labelled honestly).
+Related: D-024, D-041 (`docs/OWNER-DECISIONS-PENDING.md`), D-075, the F-14
+lineage in `docs/HUSSEIN-F14-CONTRACT.md` (CR-15/CR-16) and `docs/TASKS.md`.
+
 ## D-075 — 2026-08-31 — The e2e suite owns a disposable database, and the console's first staffer is minted by the suite, never by the owner's one-shot
 
 F-74 (ci-cd.md §4; the `⚠ NEEDS YOUR DECISION` block of 2026-08-30,

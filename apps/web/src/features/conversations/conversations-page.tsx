@@ -35,7 +35,7 @@ function Bubble({ message, label }: { message: MessageT; label: (k: string) => s
         ].join(' ')}
       >
         <p className="whitespace-pre-wrap break-words">{message.body}</p>
-        <p className={['mt-1 text-xs', fromUs ? 'text-primary-foreground/75' : 'text-muted-foreground'].join(' ')}>
+        <p className={['mt-1 text-xs', fromUs ? 'text-primary-foreground' : 'text-muted-foreground'].join(' ')}>
           {label(`sender_${message.sender_type}`)}
           {' · '}
           <time dateTime={message.created_at}>

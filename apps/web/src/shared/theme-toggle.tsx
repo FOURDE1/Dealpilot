@@ -3,9 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@dealpilot/ui';
 import { initTheme, setTheme, type Theme } from './theme.js';
 
-export function ThemeToggle() {
+/**
+ * `locked` (F-75): the tenant shell passes `dark_mode === 'disabled'` and the
+ * toggle renders nothing; the platform console passes nothing. The toggle
+ * never queries branding itself — the console must not fetch a tenant brand.
+ */
+export function ThemeToggle({ locked = false }: { locked?: boolean }) {
   const { t } = useTranslation('common');
   const [theme, setLocal] = useState<Theme>(() => initTheme());
+  if (locked) return null;
   const next: Theme = theme === 'dark' ? 'light' : 'dark';
   const label = theme === 'dark' ? t('themeLight') : t('themeDark');
   return (

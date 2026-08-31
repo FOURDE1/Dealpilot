@@ -163,7 +163,15 @@ export function contrastRatio(a: Oklch, b: Oklch): number {
 // The fixes (§12)
 // ---------------------------------------------------------------------------
 
-/** Whichever of near-white / near-black is more readable ON this fill. */
+/**
+ * Whichever of near-white / near-black is more readable ON this fill.
+ *
+ * It picks the BETTER of the two labels and gives no floor: a fill whose
+ * luminance sits around 0.17–0.19 is a dead zone where neither label reaches
+ * 4.5:1 (measured: #E11D48 4.4988, #6366F1 4.4311, #DB2777 4.4025). What
+ * guarantees the pair is the fill adjustment in `validateBrandingContrast`,
+ * which nudges such a fill away from its chosen label — not this function.
+ */
 export function foregroundFor(fill: Oklch): Oklch {
   return contrastRatio(fill, FG_LIGHT) >= contrastRatio(fill, FG_DARK) ? FG_LIGHT : FG_DARK;
 }
@@ -215,7 +223,22 @@ export function readableOn(color: Oklch, background: Oklch, target = AA_TEXT): O
   const q = 1e4;
   const snapped = towardDark ? Math.floor(best.l * q) / q : Math.ceil(best.l * q) / q;
   const quantized: Oklch = { ...best, l: clamp01(snapped) };
-  return contrastRatio(quantized, background) >= target ? quantized : best;
+  let candidate = contrastRatio(quantized, background) >= target ? quantized : best;
+
+  // Then verify the value that SHIPS, not the float. Snapping L is not enough:
+  // `formatOklch` also rounds C to four places and H to two, and for #FDE047
+  // on #F3F4F6 that rounding alone took an object at 4.5000042:1 to a string
+  // that re-parses at 4.4999999:1 (F-75). So the formatted string is parsed
+  // back and, while it still falls short, L steps one stored quantum further
+  // in the safe direction. Bounded: each step moves toward an extreme that
+  // was checked above, and the loop stops at that extreme regardless.
+  const step = towardDark ? -1 / q : 1 / q;
+  while (contrastRatio(parseColor(formatOklch(candidate)), background) < target) {
+    const next = clamp01(Math.round((candidate.l + step) * q) / q);
+    if (next === candidate.l) break;
+    candidate = { ...candidate, l: next };
+  }
+  return candidate;
 }
 
 /**
@@ -247,6 +270,12 @@ export function deriveDark(color: Oklch): Oklch {
  * whole-palette invariant caught the first time it ran. So candidates are tried
  * in order and the first one that both DIFFERS from the base and carries a
  * readable label wins.
+ *
+ * Among those, a step on which the BASE label still clears AA is preferred
+ * (F-75): the default brand `oklch(0.55 0.2 262)` used to flip its button
+ * label from white to near-black under the cursor (`fg 0.985 → 0.145`,
+ * measured), which is AA but reads as a glitch. `*_hover` foregrounds stay in
+ * the palette for the mid-tone fills where no step keeps the label.
  */
 export function hoverFill(fill: Oklch): Oklch {
   const delta = 0.06;
@@ -258,6 +287,12 @@ export function hoverFill(fill: Oklch): Oklch {
   const candidates = steps
     .map((step) => ({ ...fill, l: clamp01(fill.l + step) }))
     .filter((candidate) => candidate.l !== fill.l);
+
+  const baseLabel = foregroundFor(fill);
+  const keepsLabel = candidates.find(
+    (candidate) => contrastRatio(candidate, baseLabel) >= AA_TEXT,
+  );
+  if (keepsLabel) return keepsLabel;
 
   const legible = candidates.find(
     (candidate) => contrastRatio(candidate, foregroundFor(candidate)) >= AA_TEXT,
@@ -305,7 +340,11 @@ export interface ContrastAdjustment {
 }
 
 export interface ValidatedBranding {
-  /** Fills — the tenant's colours, untouched. */
+  /**
+   * Fills — the tenant's colours, untouched unless the fill can carry NEITHER
+   * label at 4.5:1 (the dead zone `foregroundFor` describes); such a fill is
+   * nudged away from its label and recorded as a `fills.<name>` adjustment.
+   */
   readonly fills: Record<string, string>;
   /** Text variants, adjusted where the raw colour was unreadable. */
   readonly text: Record<string, string>;
@@ -330,9 +369,17 @@ export interface ValidatedBranding {
   readonly adjustments: readonly ContrastAdjustment[];
 }
 
-/** The light and dark page surfaces the platform owns (§5 — not tenant-set). */
-export const SURFACE_LIGHT: Oklch = { l: 1, c: 0, h: 0 };
-export const SURFACE_DARK: Oklch = hexToOklch('#0F1117');
+/**
+ * The worst-case surfaces the platform paints text on (§5 — not tenant-set):
+ * the darkest LIGHT surface (packages/ui tokens: muted/secondary #F3F4F6) and
+ * the lightest DARK one (popover/elevated/secondary/accent #232738). A tone
+ * readable on these is readable on every surface the app owns; the lockstep
+ * test in apps/web pins them to the token source. Pure white and the dark page
+ * were the previous values — readable on them and 4.19:1 on the actual page
+ * (measured, F-75).
+ */
+export const SURFACE_LIGHT: Oklch = hexToOklch('#F3F4F6');
+export const SURFACE_DARK: Oklch = hexToOklch('#232738');
 
 /**
  * Validate and auto-fix a tenant's palette (§12).
@@ -363,13 +410,18 @@ export function validateBrandingContrast(input: BrandingInput): ValidatedBrandin
 
   for (const [token, raw, target] of tokens) {
     if (raw == null || raw === '') continue;
-    const color = parseColor(raw);
+    // Work on the value that SHIPS: `formatOklch` rounds L/C to four places
+    // and H to two, so every proof below is made on the quantized colour the
+    // palette actually carries, not on the float the hex parsed to.
+    const color = fillWithLabel(quantize(parseColor(raw)), `fills.${token}`, adjustments);
     fills[token] = formatOklch(color);
 
     // Every fill this palette exposes gets its own foreground, in the same
     // pass that creates it — the two are one decision, and splitting them is
-    // how `dark.primary` ended up with no label of its own.
-    const darkFill = deriveDark(color);
+    // how `dark.primary` ended up with no label of its own. The dark fill is
+    // derived from the ADJUSTED light fill and then held to the same floor
+    // (deriveDark can land in the dead zone on its own: #0000F0 → 4.46:1).
+    const darkFill = fillWithLabel(quantize(deriveDark(color)), `dark.${token}`, adjustments);
     const hoverLight = hoverFill(color);
     const hoverDark = hoverFill(darkFill);
 
@@ -417,6 +469,37 @@ export function validateBrandingContrast(input: BrandingInput): ValidatedBrandin
   }
 
   return { fills, text, foregrounds, dark, hover, ring, adjustments };
+}
+
+/** The colour as it will be stored — `formatOklch` is idempotent on this. */
+function quantize(color: Oklch): Oklch {
+  return parseColor(formatOklch(color));
+}
+
+/**
+ * §12 applied to the value that actually fails: a fill in the dead zone
+ * (luminance ≈ 0.17–0.19, where neither near-white nor near-black reaches
+ * 4.5:1) is moved AWAY from its chosen label — hue and chroma kept, only L
+ * moves, round-trip-verified by `readableOn` — and the move is recorded so the
+ * publish dialog can show it. Without this the consumer's pair gate would drop
+ * the whole unit, the button would stay platform blue, and "publish again"
+ * would change nothing (F-75; measured #E11D48 4.4988, #6366F1 4.4311,
+ * #DB2777 4.4025). A fill that already carries its label is returned as is.
+ */
+function fillWithLabel(fill: Oklch, token: string, adjustments: ContrastAdjustment[]): Oklch {
+  const label = foregroundFor(fill);
+  const before = contrastRatio(fill, label);
+  if (before >= AA_TEXT) return fill;
+  const fixed = readableOn(fill, label, AA_TEXT);
+  adjustments.push({
+    token,
+    from: formatOklch(fill),
+    to: formatOklch(fixed),
+    ratioBefore: round2(before),
+    ratioAfter: round2(contrastRatio(fixed, label)),
+    reason: token.startsWith('dark.') ? 'button label on this fill in dark mode' : 'button label on this fill',
+  });
+  return fixed;
 }
 
 function clamp01(v: number): number {

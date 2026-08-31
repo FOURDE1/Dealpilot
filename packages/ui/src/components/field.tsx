@@ -25,7 +25,7 @@ export function Label({
 }
 
 const fieldClasses =
-  'h-10 w-full rounded-md border border-input bg-input-bg px-3 text-sm text-foreground ' +
+  'h-[var(--input-h)] w-full rounded-md border border-input bg-input-bg px-3 text-sm text-foreground ' +
   'outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 max-lg:min-h-11';
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {

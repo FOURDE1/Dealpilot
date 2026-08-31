@@ -91,7 +91,7 @@ function AllowanceRow({ labelKey, used, included, format }: AllowanceRowProps) {
         aria-valuetext={sentence}
         className="h-2 w-full overflow-hidden rounded-full bg-muted"
       >
-        <div className="h-full rounded-full bg-primary" style={{ inlineSize: `${pct}%` }} />
+        <div className="h-full rounded-full bg-primary-text" style={{ inlineSize: `${pct}%` }} />
       </div>
       <p className="text-sm tabular-nums">{sentence}</p>
     </div>

@@ -274,7 +274,7 @@ export function LeadNewPage() {
               ref={alertRef}
               tabIndex={-1}
               role="alert"
-              className="rounded-md border border-destructive px-3 py-2 text-sm text-danger-text"
+              className="rounded-md border border-danger-border px-3 py-2 text-sm text-danger-text"
             >
               {error}
             </p>

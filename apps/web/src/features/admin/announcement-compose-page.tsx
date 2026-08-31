@@ -249,7 +249,7 @@ export function AnnouncementComposePage() {
           ref={summaryRef}
           tabIndex={-1}
           role="alert"
-          className="space-y-1 rounded-md border border-destructive px-3 py-2 text-sm text-danger-text outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="space-y-1 rounded-md border border-danger-border px-3 py-2 text-sm text-danger-text outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <p>{alert}</p>
           {Object.keys(fieldErrors).length > 0 ? (

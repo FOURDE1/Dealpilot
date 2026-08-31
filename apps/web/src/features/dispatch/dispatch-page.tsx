@@ -283,7 +283,7 @@ export function DispatchPage() {
             type="checkbox"
             checked={conflictsOnly}
             onChange={(e) => setConflictsOnly(e.target.checked)}
-            className="size-4 accent-[var(--primary)]"
+            className="size-4 accent-primary-text"
           />
           {t('conflictsOnly')}
         </label>
@@ -332,7 +332,7 @@ export function DispatchPage() {
       )}
       <p className="text-sm text-muted-foreground">
         {t('companiesHint')}{' '}
-        <Link to="/organizations" className="text-primary underline-offset-4 hover:underline">
+        <Link to="/organizations" className="text-primary-text underline-offset-4 hover:underline">
           {t('companiesLink')}
         </Link>
       </p>

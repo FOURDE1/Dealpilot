@@ -87,8 +87,11 @@ must not disagree about what is readable.
 
 - Colours accept **hex or `oklch(L C H)`**; storage is always OKLCH. Anything
   else is 422 — a silently-defaulted colour is a brand nobody chose.
-- `font_family: 'custom'` requires `font_woff2_key`, else 422. A custom font
-  with no file falls back silently and the tenant thinks their brand shipped.
+- ~~`font_family: 'custom'` requires `font_woff2_key`, else 422.~~ **Retired
+  2026-08-31 (F-75, migration 0070, D-076).** `custom` is no longer a font and
+  `font_woff2_key` / `font_woff2_bold_key` are no longer fields: both PUTs are
+  now 422 — the enum refuses the value and `strictObject` refuses the unknown
+  key. `font_family` is `inter | system`.
 - An empty PUT body is 422.
 - Asset fields are **keys, not URLs** (`logo_light_key`, `favicon_key`, …), filled
   by the upload endpoint documented at the end of this file.
@@ -213,6 +216,12 @@ and branding begins at first paint after sign-in.
 ---
 
 ## CR-15 closed — the palette now has everything the injection needs
+
+_2026-08-31 (F-75, D-076): the injection landed. `fills`/`foregrounds`/`hover`/`ring`
+are painted as units, the SPA re-proves `text.primary(_dark)`, `ring.primary(_dark)`
+and `ring.danger(_dark)` against its own surfaces before emitting them, and
+`dark_mode='custom'` / `font_family='custom'` (+ the two WOFF keys) were retired by
+migration 0070 — `PublishedBranding` no longer carries them._
 
 You were right on both counts, and the numbers made it quick. Fixed:
 

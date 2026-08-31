@@ -6,7 +6,7 @@ export function BackLink({ to, children }: { to: string; children: ReactNode }) 
   return (
     <Link
       to={to}
-      className="text-sm font-medium text-primary hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
+      className="text-sm font-medium text-primary-text hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
     >
       ← {children}
     </Link>

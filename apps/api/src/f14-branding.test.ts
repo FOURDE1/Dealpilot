@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createPool, ensureTestDatabase, reset, testAdminUrl, testAppUrl, type Pool } from '@dealpilot/db';
 import { AA_TEXT, contrastRatio, oklchToHex, parseColor, SURFACE_LIGHT } from '@dealpilot/core';
+import { PublishedBranding } from '@dealpilot/schemas';
 import { buildApp } from './app.js';
 import type { EmailMessage, Mailer } from './email.js';
 
@@ -127,6 +128,19 @@ describe('a draft never reaches the sales floor', () => {
     expect(after!.version).toBe(before!.version + 1);
     expect(after!.palette).not.toEqual(before!.palette);
   });
+
+  it('serves exactly the keys PublishedBranding declares — no more, no fewer', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // The route spreads the frozen snapshot into the payload and the SPA parses
+    // it with `z.object`, which STRIPS unknown keys. A key the route freezes and
+    // the schema forgot is dropped silently on every page load; a key the schema
+    // declares and the route never freezes fails the parse and unbrands the
+    // tenant. 0070 removed two of the first kind (the WOFF keys); this holds the
+    // two lists equal from now on.
+    const res = await app!.inject({ method: 'GET', url: '/api/v1/branding', headers: { cookie } });
+    const body = JSON.parse(res.body) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual(Object.keys(PublishedBranding.shape).sort());
+  });
 });
 
 describe('the accessibility promise survives a hostile client', () => {
@@ -186,10 +200,15 @@ describe('the accessibility promise survives a hostile client', () => {
     expect((await putBranding({ primary_color: 'rgb(1,2,3)' })).statusCode).toBe(422);
   });
 
-  it('refuses a custom font with no file — it would silently fall back', async (ctx) => {
+  it('`custom` is not a font: 422 with or without a key', async (ctx) => {
     if (!dbUp) return ctx.skip();
+    // Retired in 0070 (F-75): no slot could upload the file and no @font-face
+    // ever loaded it. The enum refuses the value and `strictObject` refuses the
+    // key, so neither spelling of the old request can reach the database.
     expect((await putBranding({ font_family: 'custom' })).statusCode).toBe(422);
-    expect((await putBranding({ font_family: 'custom', font_woff2_key: 'k/font.woff2' })).statusCode).toBe(200);
+    expect((await putBranding({ font_family: 'custom', font_woff2_key: 'k/font.woff2' })).statusCode).toBe(422);
+    // The key alone, beside a legal font, is refused too.
+    expect((await putBranding({ font_family: 'system', font_woff2_key: 'k/font.woff2' })).statusCode).toBe(422);
   });
 
   it('refuses an empty body rather than answering 200 to nothing', async (ctx) => {

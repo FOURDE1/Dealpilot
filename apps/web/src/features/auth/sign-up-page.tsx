@@ -63,7 +63,7 @@ export function SignUpPage() {
       </form>
       <p className="text-center text-sm text-muted-foreground">
         {t('haveAccount')}{' '}
-        <Link to="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+        <Link to="/login" className="font-medium text-primary-text underline-offset-4 hover:underline">
           {t('signInAction')}
         </Link>
       </p>

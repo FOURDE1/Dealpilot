@@ -1,3 +1,163 @@
+## 2026-08-31 (tick 29) — F-75: the published brand paints the app, and the proof moves to the surfaces the app actually paints
+
+**Where tick 28's CI story ended.** F-74 shipped as `07fced4` (run
+33347003133, green) and its docs tail `730053e` was green too (run
+33347453809) — nine consecutive greens; `develop` was clean at `730053e`
+when this slice started.
+
+**How the slice was chosen.** A read-only scoping pass ranked five
+buildable, owner-free candidates against the plan under the repo's laws:
+brand paint (this), tenant settings core (`/settings/stores` +
+`/settings/automations` — zero new vocabulary, the runner-up and the natural
+F-76), the tenant snapshot console page (O-51), commission clawbacks (a CHECK
+value with zero producers), the staff e-mail channel (buildable, reach gated
+by SES). Brand paint won on law pressure: the editor's « Publier » had been a
+claim the product did not honour since F-14 — six colours, font, density and
+dark mode published, and only the name, the radius and the focus ring
+painted; ~80% of `PublishedBranding` was a produced payload with no consumer.
+
+**What the panel found before a line was written.** All three planners,
+independently, measured the same pre-existing defect: `packages/core`
+proved every text tone and ring against **pure white** (`SURFACE_LIGHT` at
+L = 1) while the app paints its page `#F5F7FA` and its muted surfaces
+`#F3F4F6`. Re-measured here through core's own dist: for `#FDE047`,
+`text.primary` is 4.502:1 on white — right at the floor, by construction —
+but **4.195:1 on the page and 4.091:1 on muted**, and the focus ring, which
+F-14 already injected, is **2.795:1 on the page** against a 3:1 floor. An AA
+guarantee proven on a surface the app never paints was not a guarantee, and
+twelve published brands on the dev database carried such values. The judge
+(rulings only, plans on disk — the F-72 lesson) picked `aa-by-construction`
+as the spine; four critics returned `buildable_with_fixes` and the amend
+stage turned their 12 blockers, 33 gaps and 26 wrong facts into 23 binding
+amendments — among them a round-trip precision defect the design itself had
+just introduced (the float passed at 4.5000042 while the formatted OKLCH
+string measured 4.4999999), the dead-zone fills where neither label reaches
+4.5 (`#E11D48` 4.4988, `#6366F1` 4.4311, `#DB2777` 4.4025), a cascade leak
+(a light `:root{}` block beats tokens.css's `[data-theme="dark"]` whenever a
+dark half is omitted), the heatmap's opacity ramp (a tenant success fill at
+60% over the card measured 2.45:1 with a label computed for the solid fill),
+eleven `accent-[var(--primary)]` checkbox sites no rename pattern could see,
+and a "34 px row" claim all three plans made about a page whose rows carry
+36 px buttons.
+
+**Built in three waves with disjoint ownership** (core + ui + the class
+migration ∥ schemas + 0070 + api + i18n; then the web runtime + editor; then
+the e2e and the mutation manifest). The role split: `--primary` is fill-only
+and a new `primary-text` token (today's blue-600/blue-400, so the platform
+look does not move) took every text, border and accent site — one command
+over `apps/web/src`: 46 `text-primary` class sites (47 grep lines, one a
+comment) + 3 in `packages/ui`, 1 `border-primary`, 7 `accent-primary`, 11
+`accent-[var(--primary)]`, 6 `border-destructive` → `border-danger-border`,
+`git diff --stat` 38 files / 70+ / 70−, plus the hand edits (the unlabeled
+usage and win-loss bars, the `/75` opacity, the sidebar hover label).
+`token-roles.ts` holds rules 1–7 as a pure matcher: 154 files scanned, 85
+violations at the base tip, 0 after. Core: `SURFACE_LIGHT = #F3F4F6`,
+`SURFACE_DARK = #232738` pinned to the ui tokens by a lockstep test;
+`readableOn`/`ringFor` verify the STRING that ships; dead-zone fills are
+nudged toward their label and recorded as `fills.<name>` adjustments;
+`hoverFill` keeps the base label. `brand-style.tsx` is a table of 18 rows —
+fills with their foregrounds as units or not at all, three proof groups
+re-proven in the SPA against the same surfaces so a stale snapshot is gated
+rather than painted, `--accent-foreground` from the brand text tone
+unconditionally, `accent_color` finally consumed by the sidebar highlight,
+`--danger-border` from `ring.danger`, warning/info rows removed and their
+editor fields hidden (no component paints those fills), the light block as
+`:root:not([data-theme="dark"])`. Density has readers (DataTable rows/cells,
+inputs via a new `--input-h`), `BrandMark` renders `<img src>` through the
+sandboxed asset route with `organization_id`/`store_id`/`v` — the first
+consumer of the `dark:` variant — the favicon is one `<link rel=icon>`, page
+titles read a context only `AppLayout` provides, the dark lock lives in
+`theme.ts` and preserves the stored preference, and the shell shows a neutral
+skeleton instead of the platform palette on first paint (prefetch in
+`RequireAuth`, gate in `AppLayout`). Migration 0070 retires
+`dark_mode='custom'` / `font_family='custom'` and the two WOFF columns under
+`SET LOCAL row_security = off` with a scoped snapshot rewrite and a DO block
+that fails rather than passes vacuously; on the dev database the rewrite is a
+no-op for values (0 `custom`) and touches 72/72 published snapshots for the
+key scrub — the header says so; `branding-vocabulary.test.ts` pins CHECK ⇔
+Zod set equality for all four branding enums. The editor renders
+`FontFamily.options`, hides warning/info, and gains the « Logo et favicon »
+uploads — OWNER-TEST 14.9–14.11 were unreachable until now.
+
+**Mutation manifest, executed on the real tree with sha-verified restores:**
+plant `text-primary` / strip a fill's label / plant `accent-[var(--primary)]`
+→ token-roles red; revert `SURFACE_LIGHT` to white → lockstep + two
+brand-style cases red; re-add `custom` to `DarkMode` → enum-vocabulary +
+branding-vocabulary + the 422 test red; skip the pair gate, emit the light
+block as `:root{}`, drop the `requires` check, zero the on-surface floor →
+brand-style red; delete the `--primary-text` row (alone: brand-style red;
+all three `text.primary` rows: brand-consumers (a)(d)(e) red); delete the
+`dataset.density` line or mention `.density` only in a comment → (f) red;
+move a tuple to an unread or never-produced cell → (a)(b)(d) red; add a
+`--warning` unit without `TENANT_FILLS` → (a)(e)(g) red; 0070 without the
+snapshot rewrite → the DO block fails the migration, without the DO block →
+the rewrite test red, without the DROP COLUMNs → two tests red; disable the
+round-trip loop / the dead-zone adjustment / the hover label preference →
+core red; light `primary-text` blue-600 → blue-500 → six gate pairs red.
+
+**Adversarial review: six lenses, refute-biased verification — and one
+lens that had to be run twice.** The first pass returned 19 raw findings,
+**14 confirmed, 5 refuted** — but its contrast finder died mid-response
+(`agents_error: 1`), and a partial review is not a verdict (memory: check
+`agents_error` before trusting one), so that lens was re-run alone on the
+fixed tree: one raw finding, confirmed minor and fixed — under a PALE tenant success colour the heatmap's two hottest steps (the tenant fill) painted lighter than the platform-tint steps below them, so the header's "five-step intensity scale" was false for that brand (#ECFDF5 → luminance 0.947 against the tint's 0.876, indistinguishable from an empty cell); the `success` unit is now held to its consumer's invariant in `brand-style.tsx` (darker than the tint on light, lighter than it on dark, else gated and the platform fill applies), the ramp test asserts the ordering for the platform palette, and a pale-success case proves the gate (mutation: invariant disabled → red). The confirmed fourteen collapsed into ten fixes. The
+BLOCKER was a refetch loop nobody had run into because every test path
+succeeded: `AppLayout` gated the shell on `data === undefined &&
+isFetching` while `BrandStyle` owned a SECOND `usePublishedBranding()`
+observer, so an errored `GET /api/v1/branding` (retry off) opened the gate,
+mounted `BrandStyle`, whose fresh observer refetched the errored query,
+which closed the gate, unmounted it, and round again — measured on the
+unfixed tree with the route forced to 500: **1,215 requests in 15.6 s and a
+`main` that never rendered.** Fixed by making `AppLayout` the only observer
+(`BrandStyle` takes the branding as a prop and renders purely) and by a pure
+`brandingGateOpen` = pending ∧ fetching, unit-tested on the truth table;
+the new e2e Test 3 500s the route and asserts the shell renders with ≤ 3
+requests on a cold load (StrictMode replays one subscription in dev;
+production is 2) and zero growth across two navigations — fixed: 3, flat.
+The MAJOR: `--radius` and the `system` `--font-sans` had been swept into
+the light-only block, so dark mode silently reverted a brand's corners and
+font — they live in a theme-independent `:root{}` now, with dark
+assertions in the e2e. The rest: the consent panel's verdict stripes read
+`var(--success,…)`/`var(--warning,…)`/`var(--danger,…)` as 4 px borders —
+a tenant fill painted as a border on `card`, invisible for a pale success
+brand — repainted with the proven on-surface tokens, and rule 5 widened
+from `--primary` to every fill token so the guard sees that form; rules 2
+and 6 widened to what their own header text claimed (side and offset
+utilities, opacity on the `-hover` fills; +17 matcher cases); `BrandMark`'s
+`failed` state that never reset (a transient logo failure hid every later
+logo) made structural via `key={src}`; the `contrast.ts` header re-measured
+(the shipped tone is `oklch(0.5413 …)`: 4.616 / 4.502 / 4.954 on
+page / muted / card; Chrome 151 clips and quantises to `rgb(137,109,0)`:
+4.603 / 4.489 / 4.940) and its parser made to accept signed sRGB channels,
+with a new `contrast.test.ts` pinning every number it prints; the spec
+header's "every colour is asserted ≠ the platform value" made true — all
+twelve read-back cells are now compared in one colour space (the four
+string compares of `rgb()` against `oklch()` that could never fail are
+gone); two UNCONSUMED reason strings and the brand-document comment
+reworded to what the code does; the editor's asset state line now decides
+"live" by comparing the draft's key with the published snapshot's, not by
+the draft's status. Refuted, and worth keeping: `stripComments` on `//`
+inside a string (real, but the tree has no such site and the tree scan
+would surface one), the guard's conditional-label blindness (recorded in
+A8), a transparent-surface ratio (nothing asserts against a transparent
+surface). Every fix was proven red on the unfixed tree first; 12/12 guard
+mutations red with sha-verified restores.
+
+**Gate after the fixes:** `pnpm turbo run build typecheck lint` 25/25 tasks (21 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **175 files / 1903 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **48 passed in 2.4 m against dealpilot_e2e_test rebuilt from migration zero**, lock released, nothing left listening Dev database untouched: `platform_staff
+= 0`, `users = 962`, still on 0069 — 0070 is applied to it with
+`db:migrate` (never `db:reset`) after the push, and the twelve stale brands
+there stay gated until republished (ROUND 22.1).
+
+**Docs:** D-076 at the top of `DECISIONS.md` (the A/B/C role-split table as
+rejected alternatives, the token contract, both retirements with their un-cut
+conditions, the deferred list); ROUND 22; `TASKS.md`'s F-14 row closes its
+"STILL TO COME"; `SECURITY.md` names `BrandMark` as the `<img src>` consumer
+and 0070 as the fourth BYPASSRLS-dependent migration;
+`HUSSEIN-F14-CONTRACT.md` marks the custom-font line retired. `PROJECT.md`
+unchanged — no command moved.
+
+**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as tick 28 was.** Next: F-76 per the scoping (tenant settings core), once this run is green.
+
 ## 2026-08-31 (tick 28) — F-74: the browser suite gets its own database, and the console gets its first browser test without spending the owner's one-shot
 
 **Where tick 27's CI story ended.** F-73 shipped as `e754022` (run

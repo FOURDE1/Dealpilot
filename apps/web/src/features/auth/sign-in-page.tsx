@@ -84,7 +84,7 @@ export function SignInPage() {
       </form>
       <p className="text-center text-sm text-muted-foreground">
         {t('noAccount')}{' '}
-        <Link to="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
+        <Link to="/signup" className="font-medium text-primary-text underline-offset-4 hover:underline">
           {t('createAccount')}
         </Link>
       </p>

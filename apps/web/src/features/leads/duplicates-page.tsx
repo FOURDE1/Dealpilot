@@ -65,7 +65,7 @@ function SideCard({
       <p>
         <Link
           to={`/leads/${lead.id}`}
-          className="font-medium text-primary underline underline-offset-4"
+          className="font-medium text-primary-text underline underline-offset-4"
         >
           <span className={matched.has('name') ? hit : undefined}>
             {leadDisplayName(lead) ?? noName}

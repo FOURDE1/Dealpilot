@@ -82,7 +82,7 @@ export function ContactDetailPage() {
     return (
       <div className="space-y-2">
         <p role="alert" className="text-sm text-danger-text">{t('notFound')}</p>
-        <Link to="/contacts" className="text-sm text-primary underline-offset-4 hover:underline">
+        <Link to="/contacts" className="text-sm text-primary-text underline-offset-4 hover:underline">
           {t('backToList')}
         </Link>
       </div>
@@ -131,7 +131,7 @@ export function ContactDetailPage() {
                   date: new Date(c.customer_since).toLocaleDateString(i18n.language, { year: 'numeric', month: 'long' }),
                 })}
           </p>
-          <Link to="/contacts" className="text-sm text-primary underline-offset-4 hover:underline">
+          <Link to="/contacts" className="text-sm text-primary-text underline-offset-4 hover:underline">
             {t('backToList')}
           </Link>
         </div>
@@ -195,7 +195,7 @@ export function ContactDetailPage() {
             <input
               id="cd-consent"
               type="checkbox"
-              className="size-4 accent-primary"
+              className="size-4 accent-primary-text"
               checked={draft.consent_marketing}
               onChange={(e) => set('consent_marketing', e.target.checked)}
             />

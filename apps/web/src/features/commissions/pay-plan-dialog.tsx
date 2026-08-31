@@ -153,7 +153,7 @@ export function PayPlanDialog({
                 type="checkbox"
                 checked={tierOn}
                 onChange={(e) => setTierOn(e.target.checked)}
-                className="size-4 accent-[var(--primary)]"
+                className="size-4 accent-primary-text"
               />
               {t('tierOn')}
             </label>

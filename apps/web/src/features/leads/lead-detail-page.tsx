@@ -139,7 +139,7 @@ export function LeadDetailPage() {
           // customer's full record — their deals, their history, their consent.
           <Link
             to={`/contacts/${lead.data.contact_id}`}
-            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+            className="text-sm font-medium text-primary-text underline-offset-4 hover:underline"
           >
             {t('customerFile')}
           </Link>
@@ -267,7 +267,7 @@ export function LeadDetailPage() {
                     </span>
                     <Link
                       to={`/leads/${leadId}/desk/${d.id}`}
-                      className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11 max-lg:inline-flex max-lg:items-center"
+                      className="text-xs font-medium text-primary-text underline-offset-4 hover:underline max-lg:min-h-11 max-lg:inline-flex max-lg:items-center"
                       aria-label={td('editDealFor', {
                         name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.deal_type === 'cash' ? d.amount_financed_cents : d.monthly_payment_cents, i18n.language)}`,
                       })}
@@ -277,7 +277,7 @@ export function LeadDetailPage() {
                     {canDispatch ? (
                     <button
                       type="button"
-                      className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11"
+                      className="text-xs font-medium text-primary-text underline-offset-4 hover:underline max-lg:min-h-11"
                       aria-label={td('bookDispatchFor', {
                         name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.deal_type === 'cash' ? d.amount_financed_cents : d.monthly_payment_cents, i18n.language)}`,
                       })}
@@ -288,7 +288,7 @@ export function LeadDetailPage() {
                     ) : null}
                     <button
                       type="button"
-                      className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11"
+                      className="text-xs font-medium text-primary-text underline-offset-4 hover:underline max-lg:min-h-11"
                       aria-label={ta('historyFor', {
                         name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.deal_type === 'cash' ? d.amount_financed_cents : d.monthly_payment_cents, i18n.language)}`,
                       })}
@@ -298,7 +298,7 @@ export function LeadDetailPage() {
                     </button>
                     <button
                       type="button"
-                      className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11"
+                      className="text-xs font-medium text-primary-text underline-offset-4 hover:underline max-lg:min-h-11"
                       aria-label={td('checklistFor', {
                         name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.deal_type === 'cash' ? d.amount_financed_cents : d.monthly_payment_cents, i18n.language)}`,
                       })}
@@ -308,7 +308,7 @@ export function LeadDetailPage() {
                     </button>
                     <button
                       type="button"
-                      className="text-xs font-medium text-primary underline-offset-4 hover:underline max-lg:min-h-11"
+                      className="text-xs font-medium text-primary-text underline-offset-4 hover:underline max-lg:min-h-11"
                       aria-label={td('documentsFor', {
                         name: `${td(DEAL_TYPE_KEYS[d.deal_type])} ${formatCents(d.deal_type === 'cash' ? d.amount_financed_cents : d.monthly_payment_cents, i18n.language)}`,
                       })}

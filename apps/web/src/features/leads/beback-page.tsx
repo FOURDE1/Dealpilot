@@ -42,7 +42,7 @@ const TIER_KEYS = {
 /** Same floor the shared BackLink applies: bare text links are ~20px tall,
  * and these are the card's primary touch actions on a phone. */
 const ACTION_LINK =
-  'text-sm font-medium text-primary underline-offset-4 hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center';
+  'text-sm font-medium text-primary-text underline-offset-4 hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center';
 
 function TierChip({ tier, label }: { tier: BeBackTier; label: string }) {
   return (
@@ -167,7 +167,7 @@ export function BeBackPage() {
                       <TierChip tier={tier} label={t(TIER_KEYS[tier])} />
                       <Link
                         to={`/leads/${lead.id}`}
-                        className="font-medium text-primary underline-offset-4 hover:underline"
+                        className="font-medium text-primary-text underline-offset-4 hover:underline"
                       >
                         {name}
                       </Link>

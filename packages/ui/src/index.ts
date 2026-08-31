@@ -21,3 +21,4 @@ export {
   type SemanticToken,
 } from './theme/tokens.js';
 export { contrastRatio, relativeLuminance } from './theme/contrast.js';
+export { TENANT_FILLS } from './theme/token-roles.js';

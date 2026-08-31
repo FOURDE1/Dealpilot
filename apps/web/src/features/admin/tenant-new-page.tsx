@@ -269,7 +269,7 @@ export function TenantNewPage() {
       <h1 className="text-2xl font-semibold">{t('newTenantTitle')}</h1>
 
       {alert ? (
-        <div ref={summaryRef} tabIndex={-1} role="alert" className="space-y-1 rounded-md border border-destructive px-3 py-2 text-sm text-danger-text outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <div ref={summaryRef} tabIndex={-1} role="alert" className="space-y-1 rounded-md border border-danger-border px-3 py-2 text-sm text-danger-text outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <p>{alert}</p>
           {existingId ? (
             <Link to={`/admin/tenants/${existingId}`} className="inline-flex min-h-11 items-center underline underline-offset-4">{t('openExisting')}</Link>

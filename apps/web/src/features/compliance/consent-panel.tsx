@@ -102,12 +102,17 @@ export function ConsentPanel({ lead }: { lead: LeadT }) {
           { key: 'voice', label: t('channel_voice'), q: voice },
         ] as const).map(({ key, label, q }) => {
           const c = q.data;
+          // On-surface tokens proven against the card (F-75, D-076): the
+          // tenant `--success` FILL is proven against its own label only, so
+          // it is never read as a border — a pale brand made this stripe
+          // vanish. `success-text` / `warning-text` are platform-owned and
+          // ≥ 4.5:1 on every surface; `danger-border` is the proven border.
           const tone =
             c?.status === 'allowed'
-              ? 'border-l-4 border-l-[var(--success,theme(colors.emerald.600))]'
+              ? 'border-l-4 border-l-success-text'
               : c?.status === 'deferred'
-                ? 'border-l-4 border-l-[var(--warning,theme(colors.amber.500))]'
-                : 'border-l-4 border-l-[var(--danger,theme(colors.red.600))]';
+                ? 'border-l-4 border-l-warning-text'
+                : 'border-l-4 border-l-danger-border';
           return (
             <div key={key} className={`rounded-md border border-border p-3 ${c ? tone : ''}`}>
               <h3 className="text-sm font-medium">{label}</h3>
@@ -229,7 +234,7 @@ export function ConsentPanel({ lead }: { lead: LeadT }) {
       ) : null}
 
       {error ? (
-        <p role="alert" className="mt-3 text-sm text-[var(--danger,theme(colors.red.600))]">
+        <p role="alert" className="mt-3 text-sm text-danger-text">
           {error}
         </p>
       ) : null}

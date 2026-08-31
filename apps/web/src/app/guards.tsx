@@ -1,6 +1,8 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { useSession } from '../shared/auth/client.js';
+import { queryClient } from '../shared/api/queryClient.js';
+import { publishedBrandingOptions } from '../features/branding/api.js';
 
 /** Builds the /login redirect target preserving where the user was headed. */
 export function loginRedirect(pathname: string, search: string): string {
@@ -26,10 +28,23 @@ export function FullPageSkeleton() {
 /**
  * Session guard — UX only; the API + RLS enforce authorization server-side
  * (frontend-stack §3.2). Unauthenticated → /login with returnTo.
+ *
+ * F-75 (D-076): the tenant brand is prefetched here, in parallel with the
+ * session check, so the shell's first frame is already branded (AppLayout
+ * holds a skeleton while the answer is in flight). Never for `/admin` — the
+ * console renders no tenant brand. On a cold load with no session the call
+ * answers 401 and caches an error; after sign-in the data-less entry is stale
+ * and refetches on mount; sign-out clears the cache.
  */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { data: session, isPending } = useSession();
   const location = useLocation();
+  const onConsole = location.pathname.startsWith('/admin');
+
+  useEffect(() => {
+    if (onConsole) return;
+    void queryClient.prefetchQuery(publishedBrandingOptions());
+  }, [onConsole]);
 
   if (isPending) return <FullPageSkeleton />;
   if (!session) return <Navigate to={loginRedirect(location.pathname, location.search)} replace />;

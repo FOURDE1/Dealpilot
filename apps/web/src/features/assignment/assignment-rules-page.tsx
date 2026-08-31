@@ -125,7 +125,7 @@ export function AssignmentRulesPage() {
         <h1 className="text-2xl font-semibold">{t('title')}</h1>
         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
         <p className="mt-1 text-sm">
-          <Link to="/leads" className="font-medium text-primary underline-offset-4 hover:underline">
+          <Link to="/leads" className="font-medium text-primary-text underline-offset-4 hover:underline">
             {t('backToLeads')}
           </Link>
         </p>

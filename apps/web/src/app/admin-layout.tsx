@@ -46,7 +46,7 @@ export function AdminLayout() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
       'flex min-h-11 items-center rounded-md px-3 text-sm font-medium',
-      isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground hover:bg-sidebar-accent',
+      isActive ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
     );
 
   return (
@@ -102,7 +102,7 @@ export function AdminLayout() {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                cn('flex min-h-14 items-center justify-center text-xs font-medium', isActive ? 'text-primary' : 'text-muted-foreground')
+                cn('flex min-h-14 items-center justify-center text-xs font-medium', isActive ? 'text-primary-text' : 'text-muted-foreground')
               }
             >
               {item.label}

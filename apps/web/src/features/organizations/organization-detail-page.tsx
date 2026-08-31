@@ -141,7 +141,7 @@ export function OrganizationDetailPage() {
                     <td className="px-4 py-2.5 font-medium">
                       <Link
                         to={`/organizations/${orgId}/stores/${store.id}`}
-                        className="text-primary hover:underline"
+                        className="text-primary-text hover:underline"
                       >
                         {store.name}
                       </Link>

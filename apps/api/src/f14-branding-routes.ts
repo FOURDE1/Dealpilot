@@ -37,8 +37,7 @@ const BRANDING_COLUMNS = [
   'sms_sender_name', 'ai_persona_name',
   'logo_light_key', 'logo_dark_key', 'favicon_key', 'email_logo_key', 'login_bg_key',
   'primary_color', 'accent_color', 'success_color', 'warning_color', 'danger_color', 'info_color',
-  'font_family', 'font_woff2_key', 'font_woff2_bold_key',
-  'radius', 'density', 'dark_mode',
+  'font_family', 'radius', 'density', 'dark_mode',
 ] as const;
 
 /**
@@ -410,8 +409,6 @@ export function registerF14Routes(app: FastifyInstance, pool: Pool, storage: Sto
         logo_dark_key: b['logo_dark_key'],
         favicon_key: b['favicon_key'],
         font_family: b['font_family'],
-        font_woff2_key: b['font_woff2_key'],
-        font_woff2_bold_key: b['font_woff2_bold_key'],
         radius: b['radius'],
         density: b['density'],
         dark_mode: b['dark_mode'],

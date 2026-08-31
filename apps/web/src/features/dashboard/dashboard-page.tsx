@@ -71,14 +71,14 @@ export function DashboardPage() {
       <p className="text-sm">
         <Link
           to="/commissions"
-          className="font-medium text-primary hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
+          className="font-medium text-primary-text hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
         >
           {t('commissionsLink')}
         </Link>
         {' · '}
         <Link
           to="/dispatch"
-          className="font-medium text-primary hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
+          className="font-medium text-primary-text hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
         >
           {t('deliveriesLink')}
         </Link>
@@ -91,7 +91,7 @@ export function DashboardPage() {
           </h2>
           <Link
             to="/leads"
-            className="text-sm font-medium text-primary hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
+            className="text-sm font-medium text-primary-text hover:underline max-lg:inline-flex max-lg:min-h-11 max-lg:items-center"
           >
             {t('viewAll')}
           </Link>

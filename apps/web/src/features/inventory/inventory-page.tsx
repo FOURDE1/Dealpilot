@@ -121,7 +121,7 @@ export function InventoryPage() {
         accessorKey: 'stock_number',
         header: t('stockNo'),
         cell: ({ row }) => (
-          <Link to={`/inventory/${row.original.id}`} className="font-mono text-[13px] text-primary underline-offset-4 hover:underline">
+          <Link to={`/inventory/${row.original.id}`} className="font-mono text-[13px] text-primary-text underline-offset-4 hover:underline">
             {row.original.stock_number}
           </Link>
         ),

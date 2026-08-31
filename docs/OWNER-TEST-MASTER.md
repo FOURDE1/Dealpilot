@@ -441,7 +441,7 @@ will switch it.
 | 14.7 | Type a colour name like "cornflowerblue" instead of a hex | Refused. A silently-defaulted colour is a brand nobody chose | ⬜ |
 | 14.8 | As a salesperson (not owner/GM), open the app | They **see** the brand but cannot change it | ⬜ |
 
-| 14.9 | Upload a logo (PNG or SVG), publish, reload | Your logo appears. Upload a different one and it replaces it | ⬜ |
+| 14.9 | Upload a logo (PNG or SVG) in the editor's « Logo et favicon » section (reachable since F-75), publish, reload | Your logo appears in the sidebar and topbar. Upload a different one and it replaces it | ⬜ |
 | 14.10 | Try to upload a logo bigger than 200 KB | Refused, and it tells you the limit rather than just failing | ⬜ |
 | 14.11 | Try to use an SVG as the EMAIL logo | Refused — email programs cannot render SVG reliably, so it would look right here and be missing from every email you send | ⬜ |
 | 14.12 | Give ONE rooftop its own colours and name, publish it | That rooftop shows its own brand; your other stores keep the group's. Publishing a rooftop's brand does not touch the group's | ⬜ |
@@ -617,3 +617,26 @@ until it can be done without breaking readability.
 | 21.4 | `pnpm --filter @dealpilot/web exec playwright test` (the old way) | Refuses to load: "Run the suite with `pnpm e2e` (scripts/e2e.mjs)…" — a bare Playwright would have pointed the browser at your dev stack | ⬜ |
 | 21.5 | `pnpm e2e -- --grep console-door` | Only the console journey runs — five steps: no console for a non-staffer, the two-factor wall, the door opening with the six-item menu, the second staffer minted from `/admin/staff`, the billing role's single menu item — and it ends green | ⬜ |
 | 21.6 | One orphan to drop yourself, once: `docker exec -i dealpilot-db psql -U dealpilot -d postgres -c 'DROP DATABASE IF EXISTS dealpilot_e2e'` | Gone. Its name does not end `_test`, so nothing in the repo is allowed to touch it — which is exactly why it is yours to drop | ⬜ |
+
+
+## ROUND 22 — Your brand actually paints the app (F-75)
+
+> The theme editor has let you pick colours, a font, density and a dark mode
+> since July, and « Publier » computed a palette — but the app only ever took
+> your name, the corner radius and the focus ring. Now it takes the brand.
+> One thing to know first: every brand published **before today** was proven
+> readable against pure white, and the app's page is not white, so for those
+> the app refuses to paint the link colour and the ring until you publish
+> again (it will not paint a value it cannot prove). Publishing once fixes it.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 22.1 | Open your organization → **Image de marque**, set the primary colour to a pale yellow (`#FDE047`), publish, reload | Buttons take the yellow fill with a dark label; links and emphasis take a **darker** yellow-brown tone — not the fill — so they stay readable on the page. Nothing anywhere is unreadable. If you published this brand before today, the link tone and focus ring only change now that you have published again | ⬜ |
+| 22.2 | Switch to **Mode sombre** with the toggle | Buttons take the lighter, derived version of your colour; links take a lighter tone; still readable. Switch back — the light values return | ⬜ |
+| 22.3 | In the editor set **Mode sombre** to « Désactivé », publish, reload — then set it back to « Dérivé » and publish again | With « Désactivé » the dark-mode toggle is gone and the app stays light even if you had chosen dark before; with « Dérivé » the toggle is back and your earlier dark choice returns untouched | ⬜ |
+| 22.4 | Set **Densité** to « Compact », publish, open **Équipe** or **Prospects** | Tables and fields tighten (34 px minimum); back on « Confortable » rows are 44 px. The hint in the editor says exactly this — it never claims a row IS 34 px, because a row with a button in it is taller | ⬜ |
+| 22.5 | In the new **« Logo et favicon »** section upload a logo (PNG or SVG, ≤ 200 KB) and a favicon (≤ 100 KB), publish | Your logo replaces the wordmark in the sidebar and the phone topbar, the tab icon becomes your favicon, and the tab title reads « Prospects — *your brand name* ». Rounds 14.9–14.11 are now reachable from here | ⬜ |
+| 22.6 | Set an **accent** colour, publish | The highlighted item in the left menu takes it (with a readable label). The hover tint on table rows stays neutral — on purpose: painting it broke every hover row | ⬜ |
+| 22.7 | Sign out | The sign-in page is **not** branded (D-041 still needs your answer) and the tab title is « 1Dealer » | ⬜ |
+| 22.8 | As a platform staffer, open the console (`/admin`) | No tenant brand anywhere in the console — its tabs, colours and logo are the platform's | ⬜ |
+| 22.9 ⚠ DECISION | Look at the **Police** and **Mode sombre** selects | « Personnalisé » is gone from both — it never did anything (no font upload, no custom dark colours), so migration 0070 retired it (D-076, with the conditions for bringing each back). « Inter » now reads « Police de la plateforme », because Inter is not actually served by the product. **Decide whether custom fonts are a slice you want** | ⬜ |

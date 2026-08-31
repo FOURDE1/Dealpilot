@@ -1,11 +1,17 @@
 import { expect, test } from '@playwright/test';
 
 /**
- * F-14 injection — increment 1 (contrast-neutral): a published brand shows the
- * tenant's own NAME in place of the platform name and applies its corner
- * RADIUS. Colour injection is deferred (CR-15) — the app's dual-role --primary
- * cannot take a raw brand fill without breaking link/dark-mode contrast, which
- * an adversarial review proved. A tenant with no brand keeps the platform look.
+ * F-14 injection, extended by F-75 (D-076): a published brand shows the
+ * tenant's own NAME in place of the platform name, applies its corner RADIUS
+ * and its focus RING — and, since F-75's role split, its colours: the fill
+ * units, the on-surface text tone, the sidebar accent, density, font, logo and
+ * favicon, all proven in f75-brand-paint.e2e.ts. (The paragraph that used to
+ * stand here — "colour injection is deferred (CR-15)" — is no longer true.)
+ *
+ * This file keeps the F-14 assertions and owns the UNBRANDED half: before a
+ * brand exists the shell carries no brand stylesheet, no `data-density`, no
+ * favicon <link>, no gated diagnostics, and the platform name in the tab. A
+ * tenant with no brand keeps the platform look.
  */
 const stamp = Date.now();
 const password = 'MotDePasse!2026-f14';
@@ -18,9 +24,15 @@ test('published branding shows the tenant name + radius; no brand keeps the plat
   await page.getByRole('button', { name: 'Créer le compte' }).click();
   await expect(page).toHaveURL('/');
 
-  // Before any brand exists: the platform name shows, and no brand stylesheet.
+  // Before any brand exists: the platform name shows, and no brand stylesheet —
+  // nor any other trace of a brand on the document (F-75): no density
+  // attribute, no favicon link, no gated diagnostics, the platform tab title.
   await expect(page.getByTestId('brand-style')).toHaveCount(0);
   await expect(page.getByText('1Dealer').first()).toBeVisible();
+  await expect(page.locator('html[data-density]')).toHaveCount(0);
+  await expect(page.locator('link[rel="icon"]')).toHaveCount(0);
+  await expect(page.locator('[data-brand-gated]')).toHaveCount(0);
+  await expect(page).toHaveTitle(/1Dealer/);
   const platformRadius = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--radius').trim(),
   );
@@ -55,9 +67,9 @@ test('published branding shows the tenant name + radius; no brand keeps the plat
   );
   expect(brandedRadius).toBe('0.75rem');
 
-  // The focus ring is the brand's, guaranteed ≥3:1 by the server (CR-15) — a
-  // safe brand colour in both themes (the fills for buttons/links wait on the
-  // token role-split).
+  // The focus ring is the brand's, guaranteed ≥3:1 by the server (CR-15) and
+  // re-proven by the SPA against the worst-case surface (F-75) — a safe brand
+  // colour in both themes.
   const ringLight = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue('--ring').trim(),
   );

@@ -48,7 +48,7 @@ export function OrganizationsPage() {
               {orgs.data.items.map((org) => (
                 <tr key={org.id} className="border-b border-border last:border-b-0 hover:bg-muted">
                   <td className="px-4 py-2.5 font-medium">
-                    <Link to={`/organizations/${org.id}`} className="text-primary hover:underline">
+                    <Link to={`/organizations/${org.id}`} className="text-primary-text hover:underline">
                       {org.name}
                     </Link>
                   </td>

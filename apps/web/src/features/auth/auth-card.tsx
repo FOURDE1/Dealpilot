@@ -71,7 +71,7 @@ export function AuthField({
 export function AuthError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <p role="alert" className="rounded-md border border-destructive px-3 py-2 text-sm text-danger-text">
+    <p role="alert" className="rounded-md border border-danger-border px-3 py-2 text-sm text-danger-text">
       {message}
     </p>
   );

@@ -19,10 +19,24 @@ export const BrandColor = z
     message: 'Use a hex colour (#RRGGBB) or an oklch(L C H) value',
   });
 
-export const FontFamily = z.enum(['inter', 'system', 'custom']);
+/**
+ * `inter` = the platform's default font stack (Inter is not self-hosted, which
+ * is why the editor labels it « Police de la plateforme »); `system` = the OS
+ * stack. `custom` — a self-hosted WOFF2 — was retired by migration 0070 (F-75,
+ * D-076): no slot could upload the file and nothing ever loaded it. The CHECK
+ * on `tenant_branding.font_family` is held EQUAL to this list by
+ * apps/api/src/branding-vocabulary.test.ts.
+ */
+export const FontFamily = z.enum(['inter', 'system']);
 export const Radius = z.enum(['none', 'sm', 'md', 'lg']);
 export const Density = z.enum(['comfortable', 'compact']);
-export const DarkMode = z.enum(['derived', 'custom', 'disabled']);
+/**
+ * `derived` = the §5 dark palette computed at publish; `disabled` = the app is
+ * held to the light theme (consumed by the theme lock in apps/web, F-75).
+ * `custom` was retired by 0070 — no column ever carried a custom dark value.
+ * Same CHECK⇔enum guard as `FontFamily`.
+ */
+export const DarkMode = z.enum(['derived', 'disabled']);
 export const BrandingStatus = z.enum(['draft', 'published']);
 
 /** One recorded auto-fix, with the numbers that justify it (§12). */
@@ -57,8 +71,6 @@ export const TenantBranding = z.object({
   danger_color: z.string().nullable(),
   info_color: z.string().nullable(),
   font_family: FontFamily,
-  font_woff2_key: z.string().nullable(),
-  font_woff2_bold_key: z.string().nullable(),
   radius: Radius,
   density: Density,
   dark_mode: DarkMode,
@@ -74,8 +86,6 @@ export const TenantBranding = z.object({
       logo_dark_key: z.string().nullable(),
       favicon_key: z.string().nullable(),
       font_family: FontFamily,
-      font_woff2_key: z.string().nullable(),
-      font_woff2_bold_key: z.string().nullable(),
       radius: Radius,
       density: Density,
       dark_mode: DarkMode,
@@ -114,8 +124,6 @@ export const UpdateBrandingInput = z
     danger_color: BrandColor.nullable().optional(),
     info_color: BrandColor.nullable().optional(),
     font_family: FontFamily.optional(),
-    font_woff2_key: z.string().trim().min(1).max(500).nullable().optional(),
-    font_woff2_bold_key: z.string().trim().min(1).max(500).nullable().optional(),
     radius: Radius.optional(),
     density: Density.optional(),
     dark_mode: DarkMode.optional(),
@@ -124,12 +132,6 @@ export const UpdateBrandingInput = z
   .refine((v) => Object.values(v).some((x) => x !== undefined), {
     message: 'Nothing to change',
     path: ['primary_color'],
-  })
-  // A custom font with no file is a font nobody can load — the app would fall
-  // back silently and the tenant would think their brand shipped.
-  .refine((v) => v.font_family !== 'custom' || v.font_woff2_key !== undefined, {
-    message: 'A custom font needs its WOFF2 file',
-    path: ['font_woff2_key'],
   });
 
 /**
@@ -167,8 +169,6 @@ export const PublishedBranding = z.object({
   logo_dark_key: z.string().nullable(),
   favicon_key: z.string().nullable(),
   font_family: FontFamily,
-  font_woff2_key: z.string().nullable(),
-  font_woff2_bold_key: z.string().nullable(),
   radius: Radius,
   density: Density,
   dark_mode: DarkMode,

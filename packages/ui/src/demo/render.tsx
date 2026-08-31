@@ -56,7 +56,7 @@ function ThemePanel({ theme, label }: { theme: 'light' | 'dark'; label: string }
         <div className="min-w-0 flex-1 space-y-4 p-4">
           <header className="flex items-baseline justify-between gap-3">
             <h2 className="text-lg font-semibold">{label}</h2>
-            <a href="#demo" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+            <a href="#demo" className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">
               Voir tout
             </a>
           </header>

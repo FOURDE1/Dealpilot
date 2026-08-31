@@ -147,7 +147,7 @@ export function WinLossPage() {
                     </span>
                   </div>
                   <div aria-hidden="true" className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div className="h-full bg-success" style={{ width: `${(m.won / maxMonthly) * 100}%` }} />
+                    <div className="h-full bg-success-text" style={{ width: `${(m.won / maxMonthly) * 100}%` }} />
                     <div className="h-full bg-danger-border" style={{ width: `${(m.lost / maxMonthly) * 100}%` }} />
                   </div>
                 </li>

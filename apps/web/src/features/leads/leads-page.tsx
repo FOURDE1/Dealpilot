@@ -47,7 +47,7 @@ export function LeadsPage() {
         cell: ({ row }) => (
           <Link
             to={`/leads/${row.original.id}`}
-            className="font-medium text-primary hover:underline"
+            className="font-medium text-primary-text hover:underline"
           >
             {leadDisplayName(row.original) ?? t('noName')}
           </Link>
@@ -136,29 +136,29 @@ export function LeadsPage() {
               type="checkbox"
               checked={mineOnly}
               onChange={(e) => setMineOnly(e.target.checked)}
-              className="size-4 accent-[var(--primary)]"
+              className="size-4 accent-primary-text"
             />
             {t('myLeads')}
           </label>
-          <Link to="/leads/scoring" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          <Link to="/leads/scoring" className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">
             {t('scoringRulesLink')}
           </Link>
-          <Link to="/leads/distribution" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          <Link to="/leads/distribution" className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">
             {t('distributionLink')}
           </Link>
-          <Link to="/leads/connectors" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          <Link to="/leads/connectors" className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">
             {t('connectorsLink')}
           </Link>
-          <Link to="/leads/be-back" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          <Link to="/leads/be-back" className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">
             {t('bebackLink')}
           </Link>
-          <Link to="/leads/lost-reasons" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          <Link to="/leads/lost-reasons" className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">
             {t('lostReasonsLink')}
           </Link>
-          <Link to="/leads/duplicates" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          <Link to="/leads/duplicates" className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">
             {t('duplicatesLink')}
           </Link>
-          <Link to="/leads/assignment" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          <Link to="/leads/assignment" className="text-sm font-medium text-primary-text underline-offset-4 hover:underline">
             {t('assignmentRulesLink')}
           </Link>
           <Link to="/leads/new" className={buttonVariants()}>
