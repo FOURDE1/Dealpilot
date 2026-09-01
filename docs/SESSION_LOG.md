@@ -178,7 +178,7 @@ steps », not five); O-51 resolved in one cell; `PROJECT.md`'s snapshot row no
 longer « API only »; `TASKS.md` F-77 row under F-76's; `SECURITY.md` gains a
 dated Audit-log entry above F-74's for the exposure guard.
 
-**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29 and 30 were.**
+**Pushed as FOURDE1 as `cc76139`; CI run 33387163013 green first try, both jobs (lint / typecheck / test / build, and the real-browser e2e) — fourteen consecutive greens. This line was added in the follow-up docs commit, as ticks 29 and 30 did.**
 
 ## 2026-08-31 (tick 30) — F-76: the rooftop is configured from the screen, and the assistant reads the clock it was promised
 
