@@ -11,6 +11,183 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-081 — 2026-09-02 — The lender registry, and the deal that names its lender
+
+F-80 (lenders-billofsale.md §1.1–§1.2; FR-FIN-007 P1 — the registry half;
+closes the O-15 lenders deferral; the module-parity pick of the 2026-09-02
+scoping, f78_scope §4 — its « 0071 » corrected to 0073). Designed by the
+three-planner + judge workflow — winner `seed-and-births` — hardened by four
+adversarial critics into a binding build document of 15 rulings and 22
+amendments, built in four waves (backend → i18n + web → journey → mutations
++ gate), reviewed through six adversarial lenses with refute-biased
+verification (six lenses, 4 raw findings — 1 confirmed, 3 refuted, all six finders returned (three lenses came back empty after full sweeps); the one confirmed minor was the recorded name-collision blind-spot class caught by a live mutation: T-L2's PA014-arm pin matched the migration's own comment quoting the SQL, so deleting the real guard line stayed green — the comment now paraphrases and the pin asserts inside the definer's extracted body, proven red-then-green), and gated: `pnpm turbo run build typecheck lint` 25/25 tasks (18 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **198 files / 2178 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **72 passed in 3.0 m against dealpilot_e2e_test rebuilt from migration zero incl. 0073 (the five lender tests 4.0–10.0 s each)**, lock released, nothing left listening. Base `04e4f8b`.
+
+(1) **The combined cut IS the design.** The scoping measured that a registry
+alone is a producer with no consumer, so the slice pairs everything: the
+tenant-scoped `lenders` table (producer: 0073 + the seeds + the CRUD;
+consumers: the registry page, the desking Select, the render sites);
+`deals.lender_id` (producer: the desking save through the EXISTING deal
+PATCH; consumers: the lender name on the pipeline card — `short_name ??
+name` — and the lead-detail deal line, plus the deal diff so the activity
+trail names the change); and `lender:manage` (catalogue +
+owner/gm/fi_manager defaults + the 0073 backfill + `requirePermission` on
+POST and PATCH — permission-drift-locked). §2's submission vocabulary
+(statuses, rate_spread, expiry_date, selected, deal_submissions) is NOT
+declared — that is the follow-on slice this one builds the FK target for.
+Columns shipped are exactly what the product reads or edits: name,
+short_name, category, the three rep-contact fields, notes, active. Cut by
+name with un-cut conditions in (9): rate_sheet_url, avg_turnaround_days,
+approval_criteria, store_id, any lender-side pricing (rates stay on the
+deal — law), IN_HOUSE/CUSTOM categories.
+
+(2) **One seed, three births, every guard with teeth.** The 18 rows (7
+PRIME / 5 NEAR_PRIME / 5 SUBPRIME / 1 CAPTIVE) ship VERBATIM from the
+legacy catalog `lenderData.js` — §1.2's own table is a compressed summary
+of it (« RBC Royal Bank » shortened to « RBC », the short name glued into
+the name) and would have shipped the summary as data; the two real notes
+(« TD subprime program », « Kia Finance Company of Canada ») come along,
+empty strings become NULL. ONE constant — `LENDER_DEFAULTS` in
+packages/schemas, typed by the category enum (a deliberate deviation from
+the core home of LOST_REASON_DEFAULTS: core has no schemas dependency and
+would lose the typing) — feeds all three paths: the f01 signup birth
+(`seedLenders` in the birth transaction), console provisioning (the 0066
+`admin_provision_tenant` definer RESTATED in 0073 via CREATE OR REPLACE —
+its body copied from the 0066 FILE and verified BYTE-VERBATIM minus exactly
+two insertions by a programmatic line diff: the PA014 guard learns the
+lenders key, and one plain INSERT from `p_seeds->'lenders'` lands after
+lost_reasons; a plain INSERT so a duplicate-carrying payload aborts the
+birth loudly, never ON CONFLICT DO NOTHING in the definer — the recorded
+no-op class), and EXISTING organizations (the 0073 backfill, soft-deleted
+orgs included — a restored org must not be lender-less). The frozen SQL
+copy cannot drift ungated: a migration-text test pins every FULL
+(name, short_name, category, notes) tuple, the three permission rows, the
+PA014 arm and the jsonb INSERT into the 0073 file; and a disposable-DB test
+on the 0070-rewrite harness creates two orgs PRE-0073, applies the real
+directory, asserts rows-EQUAL against `LENDER_DEFAULTS` per org plus
+7/5/5/1, and re-runs both file-extracted backfill statements to prove zero
+change — the CI-executable proof the harness exists for (every other suite
+resets from migration zero, where the backfill runs against an empty
+table). The LEAD's dev spot-check at ship (`count(*) = orgs × 18`) is a
+ship step, not the proof.
+
+(3) **The FK cannot cross tenants even at the schema layer.**
+`deals.lender_id` is nullable (an existing deal has no lender) with a
+COMPOSITE FK `(organization_id, lender_id)` against `UNIQUE
+(organization_id, id)` on lenders — probed directly: a mismatched pair
+fails with 23503 on `deals_lender_fk` while the route surface answers 422.
+`requireLenderInOrg` in f05 splits the refusals so the screen can say the
+truth: unknown/rival → 422 `invalid_reference`; a NEW pick of a
+deactivated lender → 422 `lender_inactive` (« réactivez-le au registre »);
+and the GRANDFATHER clause — placed AFTER the f05 FOR-UPDATE read, a
+commented deviation from its requireLead/requireVehicle siblings, because
+it must read the deal's CURRENT lender — lets a re-save that keeps the same
+inactive lender succeed: desking re-sends every field, and refusing an
+untouched one would break saving old deals. History never loses its name:
+deactivation keeps the FK, the render sites keep showing the name
+(`include_inactive` list), the Select shows the current lender suffixed
+« (inactif) » and hides it for new picks.
+
+(4) **The registry's gates, measured against their precedents.** FORCED
+org-keyed `lenders_isolation` in 0072's shape and NO member_read policy —
+the judge measured the coupling the plans missed: 0055's member_read
+exists only because `reasonOrg` reads the row under `withUser`; F-80's
+id-addressed writes resolve the org via the clawbackOrg iteration
+(memberships under withUser → iterate withTenant → 404), which needs no
+extra policy, and the list GET runs withTenant + requireMember. Grants are
+exactly SELECT/INSERT/UPDATE — no DELETE anywhere (grant-pinned):
+deactivate is `PATCH {active:false}`, one door; a mistyped name is fixed by
+rename. The duplicate-name 409 is the f53 sibling's in-route shape — catch
+23505, 409 `duplicate_name` with path `name` — NOT a CONSTRAINT_PATHS
+entry: that table serves constraints surfacing through the SHARED
+conflictFrom plumbing, which f80 does not use, and only the two f80 routes
+can trip this constraint (the seeds insert into a fresh org; the backfill
+rides ON CONFLICT). The constraint itself is a PLAIN `UNIQUE
+(organization_id, name)` — the case-insensitive expression index was cut as
+an unforced deviation from the sibling vocabulary; « TD » vs « td » stays
+creatable, visible in the registry, and recorded here rather than hidden.
+The PATCH carries the f53 PATCHABLE sink guard (an unpatchable key is
+refused before identifier position). `lender:manage` joins NEITHER the
+impersonation block-list NOR permission-drift's dangerous floor-role pin:
+the block-list's own classes are authority/credentials/pay/legal/
+customer-reply and the pin's are money/authority/tenant-erasure — a lender
+registry is tenant config, the store:update class, and diluting either
+list weakens what membership means.
+
+(5) **The screens.** The registry lives under /settings in the F-76
+pattern (the sections guard's four hard pins extended additively; members
+read, writes render only with the permission — the readOnly sentence, zero
+write requests network-proven in the e2e); category groups carry the
+LEGACY-VERBATIM labels in both locales — « Prime / Quasi-prime / Subprime /
+Captif (OEM) », EN 'Captive (OEM)' (the plan's own fact sheet had the EN
+label wrong; the ruling pinned the shipped strings since parity checks
+keys, not values). The desking Select is grouped by category, never shows
+a uuid and never silently clears: pending → disabled with only the
+current/none option; list error → the current option renders '…' and a
+save leaves lender_id unchanged; the org argument is the RESOLVED orgId
+unconditionally (the useLeadNames multiOrg-ternary would never fetch for a
+single-org user — every fresh org). The pipeline card renders « Prêteur :
+{short_name ?? name} » beside the funding control; lead-detail the full
+name; NULL renders nothing invented. `input-persistence` was conscripted
+for the new FK: the deals fixture resolves the seeded « TD Auto Finance »
+id through the product API and sends `lender_id`, so the POST INSERT
+column has a named red.
+
+(6) **What the gate itself caught.** The first full vitest run went red on
+the ADR-018 brand-leak guard: three F-80 citation comments named the
+banned legacy project name (in the seed constant's header and both
+locales' comment lines) — a real defect none of the waves' targeted runs
+executed, fixed surgically (the comments now cite « the legacy client
+catalog » by path shape without the name) and re-proven green. Lesson
+recorded: a citation is also a string, and the guards read comments.
+
+(7) **The mutation loop's own honesty (18 rows, each red then restored
+byte-identical).** Three manifest corrections the loop forced: the row
+naming « T-L10 » named a test that does not exist — its real reds are the
+T-L2 pin plus the f70 birth/parity assertions; the drop-the-UNIQUE row is
+necessarily a two-edit coherent mutation (0073's own ON CONFLICT target
+fails at apply otherwise); and the drop-the-isolation-policy row reds at
+the suite's beforeAll (with no policy on a FORCED table the birth's own
+seed INSERT is refused) alongside the rls-coverage isolation check — the
+FORCED check stays green, exactly as ruled. The permission mutation drops
+BOTH requirePermission calls (the F-79 precedent: leaving one keeps the
+drift guard's enforced-somewhere scan green).
+
+(8) **Rejected, with reasons:** shipping §1.2's compressed table as seed
+data; a bare `REFERENCES lenders(id)` FK (violates the composite-FK law);
+a member_read policy (nothing reads the row under withUser); the
+case-insensitive unique (an unforced deviation the sibling lives without);
+CONSTRAINT_PATHS for a constraint outside the shared plumbing; a DELETE
+route or grant; z.coerce.boolean for include_inactive (the sibling
+schema's own comment bans it — 'false' would read as true); double-brace
+interpolation (house is {name}); a core home for the seed constant; the
+LEAD-at-ship count as the ONLY backfill proof (the 0070 harness exists for
+exactly this class); a lenders activity entity (the deal's own diff
+already answers who put the lender on the deal; registry CRUD follows the
+f53 config precedent).
+
+(9) **Deferred with un-cut conditions, and the resolution.** rate_sheet_url
+(un-cut: a screen that renders AND edits it); avg_turnaround_days (un-cut:
+the submissions slice's expected-decision display); approval_criteria
+(un-cut: FR-FIN-009 strategy guidance); store_id scoping (un-cut: a real
+per-store lender-list consumer); lender-side pricing (never while
+rates-stay-on-the-deal is law); IN_HOUSE (un-cut: an in-house financing
+module) and CUSTOM (never — a localStorage artifact); ALL of §2's
+submissions (the follow-on slice: statuses, platform, buy/sell rates,
+rate_spread, expiry_date, selected, `lender.approved`); a hard DELETE
+(un-cut: an owner asks, with a dedupe design preserving FKs); the
+funding-SLA sweep (§3.4). O-15's lenders line is RESOLVED by this slice;
+the rest of that row (fees, F&I products, message templates, notification
+rules, store thresholds, pipeline colours) stays deferred and the row now
+says so. SECURITY.md carries no entry — its header scopes the audit log to
+/security-audit runs; the isolation story is carried by rls-coverage's
+behavioural entry, the cross-tenant personas, the composite-FK probe and
+this decision. The PA014 window (an old-code provisioning call 500s
+between 0073 applying and the new code deploying) is accepted dev-only —
+the LEAD ships migration and code together. Related: D-033 (the
+catalogue), D-055-era seed patterns (0055/0057), D-071 (11) (the original
+deferral), D-080 (the clawbackOrg shape and in-route 409 precedents);
+migration `20260902000073_lender-registry.sql`.
+
 ## D-080 — 2026-09-02 — Commission clawbacks: the negative line the page has rendered since 0011 gets its producer
 
 F-79 (commissions-clawbacks.md §8, §11 item 4; FR-COM-004 P1; the runner-up

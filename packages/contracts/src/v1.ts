@@ -14,6 +14,10 @@ import {
   CreateLostReasonInput,
   LostReason,
   LostReasonListQuery,
+  Lender,
+  CreateLenderInput,
+  UpdateLenderInput,
+  LenderListQuery,
   BeBackQuery,
   BeBackQueue,
   CreateLeadInput,
@@ -859,6 +863,33 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: z.undefined(),
       responses: { 204: z.undefined(), ...errorResponses },
+    },
+  }),
+  /** F-80 lenders (lenders-billofsale.md §1.1–§1.2): the tenant's funding
+   * pick-list. No DELETE — deals reference lenders; a lender with history
+   * deactivates (active=false), the dripSequences rule. */
+  lenders: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/lenders',
+      query: LenderListQuery,
+      responses: {
+        200: z.object({ items: z.array(Lender), next_cursor: z.string().nullable() }),
+        ...errorResponses,
+      },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/lenders',
+      body: CreateLenderInput,
+      responses: { 201: Lender, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/lenders/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateLenderInput,
+      responses: { 200: Lender, ...errorResponses },
     },
   }),
   /** F-61 drip sequences (automation-notifications.md §11): client-facing

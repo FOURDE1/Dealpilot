@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { BackLink } from '../../shared/ui/back-link.js';
 import { useTranslation } from 'react-i18next';
@@ -23,6 +23,7 @@ import { LostReasonDialog } from './lost-reason-dialog.js';
 import { TaskPanel } from '../tasks/task-panel.js';
 import { useLostReasons } from './lost-reason-api.js';
 import { useDuplicates } from './duplicate-api.js';
+import { useLenders } from '../lenders/api.js';
 import { lostReasonLabel } from '@dealpilot/core';
 import type { DealT } from '@dealpilot/schemas';
 
@@ -55,6 +56,17 @@ export function LeadDetailPage() {
     enabled: lead.data?.status === 'lost' && lead.data.lost_reason_id !== null,
     includeInactive: true,
   });
+  // F-80: the deal line names its lender by FULL name; includeInactive so a
+  // deactivated lender keeps its name on history (§1.1).
+  const lenders = useLenders(lead.data?.organization_id, {
+    enabled: lead.isSuccess,
+    includeInactive: true,
+  });
+  const lenderName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of lenders.data?.items ?? []) map.set(l.id, l.name);
+    return map;
+  }, [lenders.data]);
   const pendingDups = useDuplicates(lead.data?.organization_id, {
     status: 'pending',
     leadId,
@@ -255,6 +267,7 @@ export function LeadDetailPage() {
                     {td(DEAL_TYPE_KEYS[d.deal_type])}
                     <span className="text-muted-foreground">
                       {' '}— {td(PIPELINE_STAGE_KEYS[d.pipeline_stage])} · {td(FUNDING_STATUS_KEYS[d.funding_status])}
+                      {d.lender_id !== null ? <> · {lenderName.get(d.lender_id) ?? '…'}</> : null}
                     </span>
                   </span>
                   <span className="flex flex-wrap items-center gap-2">

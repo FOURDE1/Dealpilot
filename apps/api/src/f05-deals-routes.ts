@@ -72,6 +72,35 @@ async function requireVehicleInOrg(client: PoolClient, vehicleId: string): Promi
   }
 }
 
+/**
+ * F-80: the lender must exist in THIS org (RLS scopes the read) and — for a
+ * NEW pick — be active. `allowInactiveId` carries the deal's CURRENT lender so
+ * re-saving an old deal that names a deactivated lender is not punished; only
+ * CHANGING to one is refused. Two distinct 422 codes (the fi_is_itemised
+ * specific-code precedent) so the desking UI can say "reactivate it in the
+ * registry" distinctly from "lender not found".
+ */
+async function requireLenderInOrg(
+  client: PoolClient,
+  lenderId: string,
+  allowInactiveId?: string,
+): Promise<void> {
+  const r = await client.query<{ active: boolean }>(
+    `SELECT active FROM lenders WHERE id = $1`,
+    [lenderId],
+  );
+  if (r.rows.length === 0) {
+    throw new AppError(422, 'validation_failed', 'Unknown lender for this organization', [
+      { path: 'lender_id', code: 'invalid_reference', message: 'Lender not found in this organization' },
+    ]);
+  }
+  if (!r.rows[0]!.active && lenderId !== allowInactiveId) {
+    throw new AppError(422, 'lender_inactive', 'This lender is deactivated', [
+      { path: 'lender_id', code: 'lender_inactive', message: 'Reactivate it in the registry, or pick an active lender' },
+    ]);
+  }
+}
+
 /** The lead must live in the SAME tenant (RLS makes a foreign one invisible). */
 async function requireLeadInOrg(client: PoolClient, leadId: string): Promise<void> {
   const r = await client.query(`SELECT 1 FROM leads WHERE id = $1 AND deleted_at IS NULL`, [leadId]);
@@ -132,14 +161,17 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
         if (input.lead_id) await requireLeadInOrg(c, input.lead_id);
         if (input.vehicle_id) await requireVehicleInOrg(c, input.vehicle_id);
         if (input.salesperson_id) await requireSalespersonMember(c, input.salesperson_id);
+        // No allowInactive: a new deal never grandfathers a deactivated lender.
+        if (input.lender_id) await requireLenderInOrg(c, input.lender_id);
         const cols = ['organization_id', 'store_id', 'lead_id', 'vehicle_id', 'salesperson_id',
-          'fi_reserve_cents', 'sold_as_is', ...INPUT_COLUMNS, ...OUTPUT_COLUMNS];
+          'lender_id', 'fi_reserve_cents', 'sold_as_is', ...INPUT_COLUMNS, ...OUTPUT_COLUMNS];
         const values: unknown[] = [
           input.organization_id,
           input.store_id,
           input.lead_id ?? null,
           input.vehicle_id ?? null,
           input.salesperson_id ?? null,
+          input.lender_id ?? null,
           input.fi_reserve_cents ?? 0,
           input.sold_as_is ?? false,
           ...INPUT_COLUMNS.map((k) => (input as Record<string, unknown>)[k] ?? null),
@@ -305,6 +337,16 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
       );
       if (current.rows.length === 0) throw notFound();
 
+      // F-80 — AFTER the FOR-UPDATE read, a deliberate deviation from the
+      // requireLead/requireVehicle placement above: the grandfather escape
+      // needs the deal's CURRENT lender_id (re-saving an old deal that names
+      // a deactivated lender is allowed; only a NEW pick of one is refused).
+      if (input.lender_id) {
+        await requireLenderInOrg(
+          c, input.lender_id, (current.rows[0]!['lender_id'] as string | null) ?? undefined,
+        );
+      }
+
       // Once a deal has itemised F&I, its aggregate is DERIVED (F-13b's
       // trigger). Letting this route write it too would leave two sources of
       // truth for the same money, disagreeing until the next product write
@@ -439,7 +481,7 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
       // useless, because it looked complete.
       const otherChanges = diff(before, input as Record<string, unknown>, [
         ...INPUT_COLUMNS,
-        'salesperson_id', 'vehicle_id', 'lead_id', 'fi_reserve_cents',
+        'salesperson_id', 'vehicle_id', 'lead_id', 'fi_reserve_cents', 'lender_id',
       ]);
       if (Object.keys(otherChanges).length > 0) {
         await recordEvent(c, { ...evt, action: 'updated', changes: otherChanges });

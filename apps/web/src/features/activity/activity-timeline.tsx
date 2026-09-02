@@ -54,6 +54,9 @@ const FIELD_KEYS: Record<string, string> = {
   price_cents: 'field_price',
   cost_cents: 'field_cost',
   fi_price_cents: 'field_fi_price',
+  // F-80: the deal's lender change (values stay raw uuids — the timeline's
+  // own doctrine: this is the surface an auditor reads).
+  lender_id: 'field_lender',
 };
 
 const ENUM_VALUE_KEYS: Record<string, Record<string, string>> = {

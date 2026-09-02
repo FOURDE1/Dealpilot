@@ -289,6 +289,9 @@ importers:
         specifier: ^8.16.0
         version: 8.22.0
     devDependencies:
+      '@dealpilot/schemas':
+        specifier: workspace:*
+        version: link:../schemas
       '@types/pg':
         specifier: ^8.15.0
         version: 8.20.0

@@ -258,6 +258,10 @@ describe('the birth (§4.3)', () => {
     expect(await count(`SELECT count(*) AS n FROM role_permissions WHERE organization_id = $1`, [orgId])).toBe(expectedPerms);
     const reasons = await admin.query<{ name: string; display_order: number }>(`SELECT name, display_order FROM lost_reasons WHERE organization_id = $1 ORDER BY display_order`, [orgId]);
     expect(reasons.rows).toEqual(LOST_REASON_DEFAULTS.map((r, i) => ({ name: r.name, display_order: i + 1 })));
+    // F-80: born with the 18-lender pick-list, 7/5/5/1 per category.
+    expect(await count(`SELECT count(*) AS n FROM lenders WHERE organization_id = $1`, [orgId])).toBe(18);
+    const lenderCats = await admin.query<{ category: string; n: string }>(`SELECT category, count(*) AS n FROM lenders WHERE organization_id = $1 GROUP BY category`, [orgId]);
+    expect(Object.fromEntries(lenderCats.rows.map((r) => [r.category, Number(r.n)]))).toEqual({ PRIME: 7, NEAR_PRIME: 5, SUBPRIME: 5, CAPTIVE: 1 });
 
     // Nothing else: no identity, no membership, no business row, no config row.
     expect(await count(`SELECT count(*) AS n FROM users WHERE email = $1`, [ownerEmail])).toBe(0);
@@ -273,6 +277,11 @@ describe('the birth (§4.3)', () => {
     expect((await perms(orgId)).rows).toEqual((await perms(refOrg)).rows);
     const reasons = (org: string) => admin.query(`SELECT name, name_fr, icon, display_order FROM lost_reasons WHERE organization_id = $1 ORDER BY display_order`, [org]);
     expect((await reasons(orgId)).rows).toEqual((await reasons(refOrg)).rows);
+    // F-80: the two births share one lender seed, row for row (notes included).
+    const lenders = (org: string) => admin.query(`SELECT name, short_name, category, notes, active FROM lenders WHERE organization_id = $1 ORDER BY name`, [org]);
+    const bornLenders = (await lenders(orgId)).rows;
+    expect(bornLenders).toHaveLength(18);
+    expect(bornLenders).toEqual((await lenders(refOrg)).rows);
     const checklist = (store: string) => admin.query(`SELECT code, label_fr, label_en, required, overridable, sort_order, active FROM checklist_templates WHERE store_id = $1 ORDER BY sort_order`, [store]);
     const reference = (await checklist(refStore)).rows;
     expect(reference).toHaveLength(10);
@@ -281,7 +290,7 @@ describe('the birth (§4.3)', () => {
 
   it('the platform wrote through a definer: the app role sees nothing without tenant context, and the definer re-checks its actor', async (ctx) => {
     if (!dbUp) return ctx.skip();
-    for (const table of ['role_permissions', 'lost_reasons', 'checklist_templates', 'invitations', 'stores']) {
+    for (const table of ['role_permissions', 'lost_reasons', 'lenders', 'checklist_templates', 'invitations', 'stores']) {
       const bare = await appPool.query(`SELECT 1 FROM ${table} WHERE organization_id = $1`, [orgId]);
       expect(bare.rows, `${table} visible on a bare connection`).toHaveLength(0);
       const scoped = await withTenant(appPool, orgId, (c) => c.query(`SELECT 1 FROM ${table} WHERE organization_id = $1`, [orgId]));

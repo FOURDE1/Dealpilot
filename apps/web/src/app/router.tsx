@@ -173,6 +173,9 @@ const SettingsStoresPage = lazy(() =>
 const AutomationsPage = lazy(() =>
   import('../features/settings/automations-page.js').then((m) => ({ default: m.AutomationsPage })),
 );
+const LendersPage = lazy(() =>
+  import('../features/settings/lenders-page.js').then((m) => ({ default: m.LendersPage })),
+);
 
 function RouteSkeleton() {
   return (
@@ -296,6 +299,7 @@ export const router = createBrowserRouter([
       { path: 'settings', element: lazyPage(<SettingsIndexPage />) },
       { path: 'settings/stores', element: lazyPage(<SettingsStoresPage />) },
       { path: 'settings/automations', element: lazyPage(<AutomationsPage />) },
+      { path: 'settings/lenders', element: lazyPage(<LendersPage />) },
       // Placeholder module routes land with their feature slices.
       { path: '*', element: <Navigate to="/" replace /> },
     ],

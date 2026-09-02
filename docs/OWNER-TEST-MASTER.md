@@ -739,3 +739,25 @@ until it can be done without breaking readability.
 | 26.6 | Look at the reversed line again | It offers no « Reprise… » action — one reversal per commission line, ever. The refusal on a direct re-flag is also proven by the API suite | ⬜ |
 | 26.7 | From `main-project`: `pnpm e2e -- --grep commissions` | « Running 2 tests using 1 worker » — the original commissions journey untouched, plus the clawback journey (flag → confirm → the line → the dropped total → the seller's bell) — green in under a minute | ⬜ |
 | 26.8 ⚠ DECISION | Read the cap you now live under | **One reversal per commission line, definitive** — even a partial (your 500 $ on a 1 375 $ line) closes that line forever; and when one person carries both a sale and an override on the SAME deal, only one of the two can ever be reversed (the other's flag stays pending, harmlessly). This keeps the never-pays-twice guarantee untouched. **Decide**: live with it, or ask for the widening slice (D-080 records exactly what it costs — schema surgery plus editing the funding writer's idempotency, re-proven) | ⬜ |
+
+
+## ROUND 27 — Your lenders, on file, and the deal that names its bank (F-80)
+
+> Until now a deal carried a rate, a term and an amount — but no bank. Your
+> organization now has a lender registry: the 18 Canadian auto lenders every
+> dealer knows (7 prime, 5 quasi-prime, 5 subprime, Kia's captive), seeded
+> for you, editable under **Réglages → Prêteurs**, and the desking screen
+> lets you name the lender on a deal. Deactivating a lender removes it from
+> NEW picks only — history keeps its name. No submissions, rates or
+> turnaround promises ride the lender yet; that is the next slice. Steps
+> 27.2 and 27.3 leave marks in your real registry — each row says how to
+> clean up.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 27.1 | Open **Réglages → Prêteurs** | Four groups — Prime, Quasi-prime, Subprime, Captif (OEM) — with your 18 seeded lenders: « TD Auto Finance », « RBC Royal Bank », « Scotia Dealer Advantage » with its short name « SDA », down to « Kia Finance (KFCC) ». Every organization gets the same start; edits are yours alone | ⬜ |
+| 27.2 | Add « Caisse Rivière-Rouge » under Quasi-prime, then try adding the EXACT same name again | The second attempt is refused under the name field: « Ce nom de prêteur existe déjà pour votre organisation. » (The check is exact — « caisse rivière-rouge » in lowercase would be a second row; the registry shows both, so a duplicate is visible, not hidden.) **Cleanup**: deactivate your test lender when done | ⬜ |
+| 27.3 | On a deal's desking screen, pick « TD Auto Finance » under **Prêteur** and save | The pipeline card now reads « Prêteur : TD » beside the funding status, and the lead's deal line names « TD Auto Finance » in full | ⬜ |
+| 27.4 | Back in **Prêteurs**, deactivate « TD Auto Finance », then look at the deal from 27.3 and at a DIFFERENT deal's desking | The old deal keeps « Prêteur : TD » everywhere, and its own desking shows « TD Auto Finance (inactif) » — re-saving it works. The other deal's Prêteur list no longer offers TD. History never loses its name; new picks do. **Cleanup**: reactivate TD Auto Finance — it is a real prime lender you will use | ⬜ |
+| 27.5 | Sign in as a **Vendeur** and open **Réglages → Prêteurs** | The list is readable — « Vous pouvez consulter les prêteurs ; votre rôle ne permet pas de les modifier. » — with no add, edit or deactivate controls anywhere (owner, GM and F&I hold the authority by default; widen it in Équipe → Rôles if you wish) | ⬜ |
+| 27.6 | From `main-project`: `pnpm e2e -- --grep lenders` | « Running 5 tests using 1 worker » — the seeded registry, the exact-duplicate refusal, the desking pick, the honest deactivation, and the salesperson's read-only proof (the browser fires zero write requests) — green in under a minute | ⬜ |

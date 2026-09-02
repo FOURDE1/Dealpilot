@@ -153,6 +153,16 @@ const BEHAVIOURALLY_COVERED = new Set([
   // driven as the APP role — a rival's flag is a 404 on the commission SELECT,
   // a rival's confirm a 404 on the clawbackOrg walk.
   'commission_clawbacks',
+  // F-80: cross-tenant case in apps/api/src/f80-lenders.test.ts (T-L6), driven
+  // as the APP role — a rival's PATCH of our lender id is a 404 via the
+  // lenderOrg walk, a rival's list never contains our rows, and a rival deal
+  // naming our lender id is a 422. NO USER_KEYED_POLICIES entry: lenders has
+  // no member_read policy — the list runs under withTenant + requireMember and
+  // id-addressed writes resolve the org via the clawbackOrg iteration, so the
+  // one org-keyed isolation policy is the only door (registering anything here
+  // would trip the 'vanished' branch, which only classifies BARE user-keyed
+  // policies).
+  'lenders',
 ]);
 
 interface PolicyRow {

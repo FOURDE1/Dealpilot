@@ -93,6 +93,7 @@ describe('settings index — labels are the target pages\' own titles (A9, verba
       'Règles de pointage',
       'Règles d’assignation',
       'Raisons de perte',
+      'Prêteurs',
       'Connecteurs de prospects',
       'Horaires de travail',
       'Rôles et permissions',
@@ -111,31 +112,32 @@ describe('settings index — visibleSections mirrors the target pages', () => {
   const ORG = '22222222-2222-4222-8222-222222222222';
   const ids = (mine: Set<PermissionT> | undefined, orgId: string | undefined) => visibleSections(mine, orgId).map((s) => s.id);
 
-  it('an empty permission set sees nine sections — everything but branding, in render order', () => {
+  it('an empty permission set sees ten sections — everything but branding, in render order', () => {
     expect(ids(new Set(), ORG)).toEqual([
       'stores',
       'automations',
       'scoring',
       'assignment',
       'lost_reasons',
+      'lenders',
       'connectors',
       'schedules',
       'permissions',
       'security',
     ]);
-    expect(ids(undefined, ORG)).toHaveLength(9);
+    expect(ids(undefined, ORG)).toHaveLength(10);
   });
 
-  it('organization:update alone adds branding (ten), with the org id in its href', () => {
+  it('organization:update alone adds branding (eleven), with the org id in its href', () => {
     const visible = visibleSections(new Set<PermissionT>(['organization:update']), ORG);
-    expect(visible.map((s) => s.id)).toHaveLength(10);
+    expect(visible.map((s) => s.id)).toHaveLength(11);
     const branding = visible.find((s) => s.id === 'branding');
     expect(branding && sectionHref(branding, ORG)).toBe(`/organizations/${ORG}/branding`);
   });
 
   it('no orgId drops branding even for a holder — the link needs a record to hang on', () => {
     expect(ids(new Set<PermissionT>(['organization:update']), undefined)).not.toContain('branding');
-    expect(ids(new Set<PermissionT>(['organization:update']), undefined)).toHaveLength(9);
+    expect(ids(new Set<PermissionT>(['organization:update']), undefined)).toHaveLength(10);
   });
 
   it('only branding is gated (a gate on a page that does not hide itself is a false claim)', () => {

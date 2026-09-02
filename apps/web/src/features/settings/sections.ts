@@ -31,6 +31,7 @@ export type SectionId =
   | 'scoring'
   | 'assignment'
   | 'lost_reasons'
+  | 'lenders'
   | 'connectors'
   | 'schedules'
   | 'permissions'
@@ -43,6 +44,7 @@ export type SectionLabelKey =
   | 'scoring:title'
   | 'assignment:title'
   | 'leads:lr_title'
+  | 'lenders:title'
   | 'connectors:title'
   | 'schedules:title'
   | 'permissions:title'
@@ -71,6 +73,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: 'scoring', to: '/leads/scoring', labelKey: 'scoring:title', descKey: 'desc_scoring' },
   { id: 'assignment', to: '/leads/assignment', labelKey: 'assignment:title', descKey: 'desc_assignment' },
   { id: 'lost_reasons', to: '/leads/lost-reasons', labelKey: 'leads:lr_title', descKey: 'desc_lost_reasons' },
+  // F-80: member-readable page (lenders-page.tsx gates its WRITE controls on
+  // `lender:manage` only), so the link is unconditional per rule 2.
+  { id: 'lenders', to: '/settings/lenders', labelKey: 'lenders:title', descKey: 'desc_lenders' },
   { id: 'connectors', to: '/leads/connectors', labelKey: 'connectors:title', descKey: 'desc_connectors' },
   { id: 'schedules', to: '/team/schedules', labelKey: 'schedules:title', descKey: 'desc_schedules' },
   { id: 'permissions', to: '/team/permissions', labelKey: 'permissions:title', descKey: 'desc_permissions' },

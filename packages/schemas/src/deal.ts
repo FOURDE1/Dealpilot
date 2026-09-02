@@ -67,6 +67,12 @@ export const Deal = DeskingInputs.extend({
   vehicle_id: Uuid.nullable(),
   salesperson_id: Uuid.nullable(),
   /**
+   * The lender funding this deal (F-80, lenders-billofsale.md §1.2), picked on
+   * the desking screen. Nullable: pre-F-80 deals and cash deals name none, and
+   * deactivating the lender never clears it — history keeps its name.
+   */
+  lender_id: Uuid.nullable(),
+  /**
    * The primary buyer (FR-CON-005), denormalised from `deal_parties` so a deal
    * list can render a customer name without a join. Nullable: a cash walk-in
    * with no enquiry behind it has nothing to match on, and inventing a blank
@@ -100,6 +106,8 @@ export const CreateDealInput = DeskingInputs.extend({
   vehicle_id: Uuid.optional(),
   /** Who sold it (F-09) — drives the commission when the deal funds. */
   salesperson_id: Uuid.optional(),
+  /** Who funds it (F-80); must be an ACTIVE lender of the same organization. */
+  lender_id: Uuid.optional(),
   /**
    * The buyer (FR-CON-005). Optional because the usual path infers them from
    * the lead's phone number; supply it explicitly for a walk-in cash deal with
@@ -147,6 +155,12 @@ export const UpdateDealInput = z.strictObject({
   lead_id: Uuid.nullable().optional(),
   vehicle_id: Uuid.nullable().optional(),
   salesperson_id: Uuid.nullable().optional(),
+  /**
+   * F-80: change or clear the funding lender. A NEW pick must be an active
+   * same-org lender; re-saving the deal's CURRENT lender is always allowed
+   * even after deactivation (the grandfather clause, enforced in f05).
+   */
+  lender_id: Uuid.nullable().optional(),
   fi_reserve_cents: NonNegativeCents.optional(),
 });
 

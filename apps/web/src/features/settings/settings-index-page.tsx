@@ -21,6 +21,7 @@ export function SettingsIndexPage() {
     'scoring',
     'assignment',
     'leads',
+    'lenders',
     'connectors',
     'schedules',
     'permissions',

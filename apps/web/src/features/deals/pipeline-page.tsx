@@ -8,6 +8,7 @@ import { ApiError } from '../../shared/api/client.js';
 import { useOrganizations } from '../organizations/api.js';
 import { useLeadNames } from '../leads/api.js';
 import { leadDisplayName } from '../leads/labels.js';
+import { useLenders } from '../lenders/api.js';
 import { usePipelineDeals, useUpdateDealTracks } from './api.js';
 import { ChecklistDialog } from '../checklists/checklist-dialog.js';
 import { DealActivityDialog } from '../activity/activity-dialog.js';
@@ -34,6 +35,11 @@ export function PipelinePage() {
   const orgId = multiOrg ? orgFilter || orgs.data?.items[0]?.id : orgs.data?.items[0]?.id;
   const deals = usePipelineDeals(multiOrg ? orgId : undefined, { enabled: !orgs.isPending });
   const leads = useLeadNames(multiOrg ? orgId : undefined, { enabled: !orgs.isPending });
+  // F-80 (A10): the RESOLVED orgId, unconditionally — GET /lenders 400s
+  // without the param (unlike the leads list, which self-resolves a single
+  // org), so the leadNames `multiOrg ? orgId : undefined` shape would never
+  // fetch for single-org users. Only the `enabled` half transfers.
+  const lenders = useLenders(orgId, { includeInactive: true, enabled: !orgs.isPending });
   const update = useUpdateDealTracks(multiOrg ? orgId : undefined);
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +54,13 @@ export function PipelinePage() {
     for (const l of leads.data ?? []) map.set(l.id, leadDisplayName(l) ?? l.phone);
     return map;
   }, [leads.data]);
+
+  // The card's compact label: short_name, full name when none ('…' unresolved).
+  const lenderLabel = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of lenders.data?.items ?? []) map.set(l.id, l.short_name ?? l.name);
+    return map;
+  }, [lenders.data]);
 
   const byStage = useMemo(() => {
     const map = new Map<DealT['pipeline_stage'], DealT[]>();
@@ -314,6 +327,11 @@ export function PipelinePage() {
                             </option>
                           ))}
                         </Select>
+                        {d.lender_id !== null ? (
+                          <p className="text-xs text-muted-foreground">
+                            {t('lenderOn', { name: lenderLabel.get(d.lender_id) ?? '…' })}
+                          </p>
+                        ) : null}
                       </div>
                     </article>
                   ))}

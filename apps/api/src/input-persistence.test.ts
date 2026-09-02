@@ -35,6 +35,7 @@ let userId = '';
 let leadId = '';
 let vehicleId = '';
 let contactId = '';
+let lenderId = '';
 
 /** Fields whose stored form legitimately differs from what was sent. */
 const NOT_ECHOED: Record<string, readonly string[]> = {
@@ -97,6 +98,14 @@ beforeAll(async () => {
     },
   });
   contactId = (JSON.parse(contact.body) as { contact: { id: string } }).contact.id;
+  // F-80: resolved through the PRODUCT surface (never admin SQL), which
+  // doubles as a live proof the birth seed ran — a fresh org must already
+  // hold 'TD Auto Finance'.
+  const lenders = await app!.inject({
+    method: 'GET', url: `/api/v1/lenders?organization_id=${orgId}`, headers: { cookie },
+  });
+  lenderId = (JSON.parse(lenders.body) as { items: { id: string; name: string }[] })
+    .items.find((l) => l.name === 'TD Auto Finance')!.id;
 });
 
 afterAll(async () => {
@@ -154,6 +163,8 @@ describe('what the API accepts, it stores', () => {
       term_months: 48, residual_percent: 55, tax_exempt: false,
       fi_reserve_cents: 50_000, sold_as_is: true,
       lead_id: leadId, vehicle_id: vehicleId, salesperson_id: userId,
+      // F-80: the funding lender, seeded at birth (see beforeAll).
+      lender_id: lenderId,
       // F-36: an explicit buyer. The deal echoes it because deals.contact_id is
       // trigger-maintained from the deal_parties row this creates.
       contact_id: contactId,

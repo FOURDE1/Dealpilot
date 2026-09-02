@@ -372,7 +372,7 @@ is the version that matters to you.
 | O-12 | **No `prospect` status** until Stripe makes provisioning two-phase (D-071 1). | None. |
 | O-13 | A **soft-deleted organization keeps its slug**: re-provisioning a churned dealer under the same slug answers 409 pointing at the deleted tenant. Slug reuse is a retention / slug-history policy for later. | Slug stays taken. |
 | O-14 | The owner receives the generic bilingual "join a team" invitation email; a tenant-named owner email is a small follow-up. | Generic now. |
-| O-15 | §4.4 catalogs without a table today (fees, F&I products, lenders, message templates, notification rules, store thresholds, pipeline colours) are **deferred, not invented**; a reviewer reading §4.4 literally will call the slice incomplete. | Deferred (D-071 11). |
+| O-15 | §4.4 catalogs without a table today are **deferred, not invented**; a reviewer reading §4.4 literally will call the slice incomplete. | Deferred (D-071 11); **lenders resolved 2026-09-02 by F-80 (D-081)** — fees, F&I products, message templates, notification rules, store thresholds and pipeline colours stay deferred. |
 | O-16 | Lost-reason vocabulary: the repo's **ten** bilingual names (incl. "Merged duplicate") ship, not the spec's nine keys. | Repo list. |
 
 ## F-71 support sessions (impersonation) — eleven defaults implemented (2026-08-27)

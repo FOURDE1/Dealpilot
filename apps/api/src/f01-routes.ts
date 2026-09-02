@@ -6,6 +6,7 @@ import {
   CreateOrganizationInput,
   CreateStoreInput,
   CursorQuery,
+  LENDER_DEFAULTS,
   StoreListQuery,
   UpdateOrganizationInput,
   UpdateStoreInput,
@@ -274,6 +275,24 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
     );
   }
 
+  /** F-80: every organization is born with §1.2's 18-lender pick-list —
+   * the desking Select must never open empty. Same rows as the console
+   * birth (org-seeds.ts) and the 0073 backfill — LENDER_DEFAULTS is the
+   * single source. Plain INSERT: a brand-new orgId cannot conflict. */
+  async function seedLenders(c: PoolClient, organizationId: string): Promise<void> {
+    await c.query(
+      `INSERT INTO lenders (organization_id, name, short_name, category, notes)
+       SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::text[])`,
+      [
+        organizationId,
+        LENDER_DEFAULTS.map((l) => l.name),
+        LENDER_DEFAULTS.map((l) => l.short_name),
+        LENDER_DEFAULTS.map((l) => l.category),
+        LENDER_DEFAULTS.map((l) => l.notes),
+      ],
+    );
+  }
+
   app.post('/api/v1/organizations', async (request, reply) => {
     const input = parseOrThrow(CreateOrganizationInput, request.body);
     const user = sessionUser(request);
@@ -306,6 +325,9 @@ export function registerF01Routes(app: FastifyInstance, pool: Pool): void {
         // The lost-reason vocabulary likewise (leads.md §11): the first lost
         // lead must find a pick-list, not an empty modal.
         await seedLostReasons(c, orgId);
+        // And the lender pick-list (F-80): the first desked deal must find
+        // §1.2's 18 Canadian defaults, not an empty Select.
+        await seedLenders(c, orgId);
         await recordEvent(c, {
           organizationId: orgId, actorUserId: user.id,
           entityType: 'organization', entityId: orgId, action: 'created',

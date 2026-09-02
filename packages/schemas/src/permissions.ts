@@ -66,6 +66,12 @@ export const PERMISSIONS = [
   /** Correcting a DELIVERED deal's checklist — costs a reason (D-034). */
   'checklist:correct_delivered',
 
+  // --- lenders (F-80) ------------------------------------------------------
+  /** Curate the lender registry the desking screen picks from: create, edit,
+      deactivate. Config authority, not money — rates and amounts stay on the
+      deal. F&I owns the lender relationships (they chase the funding). */
+  'lender:manage',
+
   // --- documents ----------------------------------------------------------
   /** Print and assemble the wet-ink file. Day-to-day admin work. */
   'document:prepare',
@@ -158,6 +164,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
     'pay_plan:read', 'commission:read_all',
     // …and chases the deals that fall through after paying out (F-79 §11.4).
     'commission:clawback',
+    // The F&I office owns the lender relationships (F-80).
+    'lender:manage',
     // F&I prepares the wet-ink file and witnesses the signatures.
     'document:prepare', 'document:sign',
     // Reads the thread before the customer sits down; the sales side answers it.

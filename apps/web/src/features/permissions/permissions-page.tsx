@@ -20,7 +20,7 @@ export const GROUPS: { key: string; prefixes: string[] }[] = [
   { key: 'group_team', prefixes: ['member:', 'schedule:'] },
   { key: 'group_leads', prefixes: ['lead:', 'intake_key:'] },
   { key: 'group_inventory', prefixes: ['vehicle:'] },
-  { key: 'group_deals', prefixes: ['deal:', 'checklist:'] },
+  { key: 'group_deals', prefixes: ['deal:', 'checklist:', 'lender:'] },
   { key: 'group_documents', prefixes: ['document:'] },
   { key: 'group_money', prefixes: ['pay_plan:', 'commission:'] },
   { key: 'group_dispatch', prefixes: ['dispatch:', 'fleet:'] },

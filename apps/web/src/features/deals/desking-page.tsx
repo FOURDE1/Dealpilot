@@ -12,6 +12,9 @@ import { vehicleDisplayName } from '../inventory/labels.js';
 import { leadDisplayName } from '../leads/labels.js';
 import { useCalculateDeal, useCreateDeal, useDeal, useUpdateDealInputs } from './api.js';
 import { useCreateFiProduct, useDeleteFiProduct, useFiProducts } from './fi-products-api.js';
+import { useLenders } from '../lenders/api.js';
+import { deskingLenderSelect } from '../lenders/options.js';
+import { CATEGORY_KEYS } from '../lenders/labels.js';
 import { DEAL_TYPE_KEYS, FI_KIND_KEYS, PROVINCE_KEYS } from './labels.js';
 import { FiProductKind } from '@dealpilot/schemas';
 
@@ -353,6 +356,7 @@ function OutputRow({ label, cents, locale, emphasis }: { label: string; cents: n
 
 export function DeskingPage() {
   const { t, i18n } = useTranslation('deals');
+  const { t: tLenders } = useTranslation('lenders');
   // The title used to be set (repeatedly) from inside MoneyField — the page
   // only had one because money fields happened to render. Owned here now.
   usePageTitle(t('title'));
@@ -370,6 +374,9 @@ export function DeskingPage() {
   const members = useMembers(lead.data?.organization_id, { enabled: lead.isSuccess });
   const sellers = activeMembers(members.data?.items);
   const [soldBy, setSoldBy] = useState('');
+  // F-80: who funds it. '' means none; the Select's option model (pending /
+  // error / inactive-current postures) is deskingLenderSelect's, ruled A11.
+  const [lenderId, setLenderId] = useState('');
   const [fiReserve, setFiReserve] = useState('');
   const [soldAsIs, setSoldAsIs] = useState(false);
   // Provenance of the sale price: only an auto-filled (never user-typed) price
@@ -411,6 +418,7 @@ export function DeskingPage() {
     });
     setVehicleId(d.vehicle_id ?? '');
     setSoldBy(d.salesperson_id ?? '');
+    setLenderId(d.lender_id ?? '');
     setFiReserve(money(d.fi_reserve_cents));
     setSoldAsIs(d.sold_as_is);
     setPrefilled(true);
@@ -442,6 +450,14 @@ export function DeskingPage() {
       setDraft((d) => (d.fi_price === '' && d.fi_cost === '' ? d : { ...d, fi_price: '', fi_cost: '' }));
     }
   }, [isEdit, prefilled, fiProducts.data]);
+
+  // F-80: the registry the « Prêteur » Select offers. includeInactive so the
+  // deal's CURRENT lender keeps its name after deactivation (§1.1 — only NEW
+  // picks stop offering it, filtered in the option model).
+  const lenderList = useLenders(lead.data?.organization_id, {
+    includeInactive: true,
+    enabled: !!lead.data,
+  });
 
   const inputs = useMemo(() => draftToInputs(draft), [draft]);
   useEffect(() => {
@@ -485,6 +501,9 @@ export function DeskingPage() {
             ...(hasFiProducts ? inputsNoFi : inputs),
             vehicle_id: vehicleId === '' ? null : vehicleId,
             salesperson_id: soldBy === '' ? null : soldBy,
+            // F-80: unchanged re-saves of a deactivated lender are lawful (the
+            // grandfather clause, f05); '' is an explicit clear, never silent.
+            lender_id: lenderId === '' ? null : lenderId,
             fi_reserve_cents: reserveCents,
             sold_as_is: soldAsIs,
           },
@@ -497,6 +516,7 @@ export function DeskingPage() {
           lead_id: lead.data.id,
           ...(vehicleId === '' ? {} : { vehicle_id: vehicleId }),
           ...(soldBy === '' ? {} : { salesperson_id: soldBy }),
+          ...(lenderId === '' ? {} : { lender_id: lenderId }),
           fi_reserve_cents: reserveCents,
           sold_as_is: soldAsIs,
         });
@@ -528,6 +548,11 @@ export function DeskingPage() {
   const residualInvalid = isLease && (residualNum === null || residualNum > 100);
   const reserveInvalid = fiReserve.trim() !== '' && parseMoneyToCents(fiReserve) === null;
   const isHstProv = HST_PROVINCES.has(draft.province);
+  const lenderSelect = deskingLenderSelect(
+    { isPending: lenderList.isPending, isError: lenderList.isError, items: lenderList.data?.items },
+    lenderId,
+    t('lenderInactiveSuffix'),
+  );
 
   return (
     <div className="space-y-4 max-lg:pb-24">
@@ -762,6 +787,29 @@ export function DeskingPage() {
                     {t('invalidTerm')}
                   </p>
                 ) : null}
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="desk-lender">{t('lenderLabel')}</Label>
+                <Select
+                  id="desk-lender"
+                  value={lenderId}
+                  disabled={lenderSelect.disabled}
+                  onChange={(e) => setLenderId(e.target.value)}
+                >
+                  <option value="">{t('lenderNone')}</option>
+                  {lenderSelect.current ? (
+                    <option value={lenderSelect.current.value}>{lenderSelect.current.label}</option>
+                  ) : null}
+                  {lenderSelect.groups.map((g) => (
+                    <optgroup key={g.category} label={tLenders(CATEGORY_KEYS[g.category])}>
+                      {g.options.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </Select>
               </div>
               {isLease ? (
                 <div className="space-y-1">

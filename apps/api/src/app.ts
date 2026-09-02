@@ -35,6 +35,7 @@ import { registerF40Routes } from './f40-assignment-routes.js';
 import { registerF24Routes } from './f24-speed-routes.js';
 import { registerF52Routes } from './f52-beback-routes.js';
 import { registerF53Routes } from './f53-lost-reason-routes.js';
+import { registerF80Routes } from './f80-lender-routes.js';
 import { registerF54Routes } from './f54-duplicate-routes.js';
 import { registerF61Routes } from './f61-drip-routes.js';
 import { registerF65Routes } from './f65-source-roi-routes.js';
@@ -524,6 +525,7 @@ export async function buildApp(
   registerF49Routes(app, pool);
   registerF52Routes(app, pool);
   registerF53Routes(app, pool);
+  registerF80Routes(app, pool);
   registerF54Routes(app, pool);
   registerF55Routes(app, pool);
   registerF61Routes(app, pool);

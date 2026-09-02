@@ -1,3 +1,116 @@
+## 2026-09-02 (tick 34) — F-80: the lender registry, and the deal that names its lender
+
+**Where tick 33's CI story ended.** F-79 shipped as `e1bb80c` (run
+33600997066, green) and its docs tail `04e4f8b` was green too (run
+33601751159) — nineteen consecutive greens; `develop` was clean at `04e4f8b`
+when this slice started.
+
+**How the slice was chosen.** The 2026-09-02 scoping's module-parity pick
+(f78_scope §4 — P1 beats the P2 drip console under the laws): lenders had
+NOTHING at the tip — zero matches in migrations and the catalogue — while
+deals carried rate, term and amount with no bank name, and O-15 recorded
+the deferral. The scoping's own measurement made the COMBINED cut the only
+honest one: a registry alone is a producer with no consumer, so the table,
+`deals.lender_id` and `lender:manage` ship together, each end in-slice.
+One correction carried in: the migration is 0073 (F-78/F-79 consumed the
+scope's « 0071 »).
+
+**What the panel and critics caught before a line was written.** The
+seed's true verbatim source is the legacy client catalog (`lenderData.js`)
+— §1.2's table is a compressed summary two plans would have shipped as
+data, and one plan's cut of `short_name` rested on a false measurement
+(the catalog seeds all 18, not 3). The judge's measured rulings: a plain
+per-org UNIQUE (the case-insensitive index cut as an unforced deviation),
+the in-route 409 (only the two f80 routes can trip the constraint — the
+CONSTRAINT_PATHS table serves the shared plumbing f80 does not use), NO
+member_read policy (0055's exists only because reasonOrg reads under
+withUser; the clawbackOrg iteration needs none — a loser plan's
+reasonOrg-shaped resolver with no policy would have 404'd every legitimate
+PATCH), the composite (organization_id, lender_id) FK (a loser's bare
+REFERENCES violated the house law), and BOTH backfill proofs — the
+full-tuple text pin AND a disposable-DB test on the 0070-rewrite harness
+(the LEAD-at-ship count alone was rejected: the harness exists precisely
+because every other suite resets from migration zero and the backfill
+would run against an empty table in CI forever).
+
+**Built in four waves** (the build's gate wave was killed once by a
+session limit and RESUMED from the workflow journal — waves 1–3 replayed
+from cache, the gate ran live). Backend: `LENDER_DEFAULTS` in schemas (18
+tuples verbatim, '' → null), migration 0073 — the table, the FK, the
+frozen backfill with its disclaimer, the 0066 definer restated via CREATE
+OR REPLACE with its body verified BYTE-VERBATIM minus exactly the two
+ruled insertions by a programmatic line diff, the `lender:manage` backfill
+— the routes (in-route 409; the f53 sink guard; the clawbackOrg
+resolution), `requireLenderInOrg` with split 422 codes and the grandfather
+clause after the FOR-UPDATE read, and the suites: the full-tuple pin, the
+0070-harness backfill test (rows-EQUAL, idempotent re-run), the
+grant-shape + 23503 composite-FK probes, f70 parity extended additively,
+input-persistence sending the seeded TD's id. Web: the lenders namespace
+in both locales with the LEGACY-VERBATIM category labels (« Prime /
+Quasi-prime / Subprime / Captif (OEM) »), the registry page under
+/settings (the sections guard's four pins extended), the grouped desking
+Select (pending/error/inactive-current postures ruled — never a uuid,
+never a silent clear; the RESOLVED orgId, not the multiOrg ternary that
+would never fetch for a single-org user), the pipeline « Prêteur : {name} »
+and lead-detail renders, the GROUPS prefix and FIELD_KEYS conscriptions.
+Journey: five serial tests — the registry born full, CRUD with an
+EXACT-string duplicate 409, desking → the name beside the funding status,
+deactivation as honest history (the second deal's Select no longer offers
+TD while the first keeps its name), and the invited salesperson proving
+read-only with a POST/PATCH-only network listener.
+
+**Mutations, eighteen, each red then restored byte-identical — with three
+manifest corrections the loop forced:** the row naming « T-L10 » named a
+test that does not exist (its real reds: the T-L2 pin + the f70 birth and
+parity assertions); dropping the UNIQUE is a two-edit coherent mutation
+(0073's own ON CONFLICT fails at apply otherwise); dropping the isolation
+policy reds at the suite's beforeAll — on a FORCED table the birth's own
+seed INSERT is refused — beside the rls-coverage isolation check, with the
+FORCED check green exactly as ruled. And the full gate's first vitest run
+caught a REAL defect none of the targeted runs had executed: the ADR-018
+brand-leak guard went red on three F-80 citation comments naming the
+banned legacy project name — fixed surgically, re-proven green. A citation
+is also a string, and the guards read comments.
+
+**Adversarial review: six lenses, refute-biased verification.** 4 raw findings, **1 confirmed, 3 refuted**, all six finders returned (two
+finders — the FK/races and claims lenses — returned empty after full
+sweeps, and the screen lens likewise: the money-free surface held). The one
+confirmed minor is the repo's documented name-collision blind-spot class,
+caught by a verifier who ran the mutation for real: T-L2's pin on the
+definer's PA014 lenders arm matched the migration's OWN explanatory
+comment, which quoted the SQL verbatim — deleting the real guard line left
+every gate green (22/22 with the arm gone), because f70's PA014 cases fire
+through the sibling arms and nothing else pins the definer text. Fixed both
+ways: the 0073 comment now paraphrases instead of quoting, and the pin now
+slices the file from `CREATE OR REPLACE FUNCTION admin_provision_tenant`
+and asserts the arm INSIDE the definer's text (the two jsonb-INSERT pins
+scoped along with it) — proven red-first by re-running the drop-the-arm
+mutation (T-L2 the sole failure) and restored sha-identical. Refuted, and
+worth keeping: the backfill's four-column rows-equal scope is the binding
+design's own prescription, with `active` covered where the design put it
+(the births' parity) and the constructed drift still caught by a loud
+regex red — a two-mistake hypothetical, not a defect; and two findings
+mistook the recorded mutation checklist's own mutate-and-restore cycles —
+observed mid-review through file mtimes and a disposable test database —
+for a rogue writer racing the gate: every cycle ended in a sha-verified
+byte-identical restore, the tree matches the gated state exactly, and the
+quiet green verdict those findings demanded already exists as the recorded
+gate run on identical bytes.
+
+**Gate after the fixes:** `pnpm turbo run build typecheck lint` 25/25 tasks (18 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **198 files / 2178 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **72 passed in 3.0 m against dealpilot_e2e_test rebuilt from migration zero incl. 0073 (the five lender tests 4.0–10.0 s each)**, lock released, nothing left listening. Dev database untouched all build long:
+`platform_staff = 0`, `users = 962`, 0072 the newest applied, the lenders
+table absent — 0073 reached dev only at ship, via `db:migrate`,
+immediately before the commit: 74 → 75 migrations, newest 20260902000073; lenders = 15 984 = 888 organizations × 18 exactly, 4 categories; platform_staff still 0, users 962.
+
+**Docs:** D-081 at the top of `DECISIONS.md`; ROUND 27 (the registry, the
+desking pick, the honest deactivation — with the cleanup steps so the
+owner's real registry keeps its prime lender); O-15's lenders line
+resolved in its own row; `TASKS.md` F-80 row; `PROJECT.md` how-to row.
+`SECURITY.md` unchanged — the audit log's contract; the ruling recorded in
+D-081 (9).
+
+**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–33 were.**
+
 ## 2026-09-02 (tick 33) — F-79: commission clawbacks — the « Reprise » line gets its producer
 
 **Where tick 32's CI story ended.** F-78 shipped as `51fd9ce` (run
