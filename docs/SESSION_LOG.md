@@ -142,7 +142,7 @@ month's real numbers » row; `TASKS.md` F-78 row (deps F-05, F-07, F-08,
 F-09, F-55, F-66, F-75, F-76). `SECURITY.md` unchanged — no new surface, no
 permission touched, no new table.
 
-**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–31 were.**
+**Pushed as FOURDE1 as `51fd9ce`; CI run 33584894132 green first try, both jobs (lint / typecheck / test / build, and the real-browser e2e) — sixteen consecutive greens. This line was added in the follow-up docs commit, as ticks 29–31 did.**
 
 ## 2026-08-31 (tick 31) — F-77: the snapshot page cannot show a credential by construction, and the console journey visits every read it can
 
