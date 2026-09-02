@@ -1,3 +1,149 @@
+## 2026-09-02 (tick 32) — F-78: the dashboard's numbers become true
+
+**Where tick 31's CI story ended.** F-77 shipped as `cc76139` (run
+33387163013, green) and its docs tail `73a9084` was green too (run
+33567459690) — fifteen consecutive greens; `develop` was clean at `73a9084`
+when this slice started, and this slice was built on that tip.
+
+**How the slice was chosen.** A fresh scoping at the tip (2026-09-02,
+f78_scope — the old scope's remaining candidates re-measured after three
+slices landed; its own headline correction: the next free migration was 0071,
+not 0070). The recommendation was the highest-pressure item under the repo's
+own laws: the dashboard's four stat tiles were computed over the FIRST PAGE
+of leads (`limit: 100`) and shown as totals — a false measured count shipping
+on the owner's most-clicked surface, the same law-pressure that made F-75
+first. FR-REP-003 (P1) specifies the real thing; commission clawbacks ranked
+second and is panel-ready for F-79. The panel (three planners:
+honest-figures, owner-first-screen, one-query-honest-sql; a judge ruling
+only; four critics) chose `honest-figures` — the claims-ledger plan — and
+grafted the runner-ups' store-clock resolution, page-title rule, zero-request
+network assertion and EXPLAIN evidence.
+
+**What the panel and critics caught before a line was written.** The three
+plans converged on shipping `deals.stage_entered_at` and reusing
+`report:view`, and diverged exactly where the judge had to rule: the
+backfill's semantics (the `updated_at` floor won over the NULL backfill —
+floors under-alert, never over-alert) and the clock (the f67 store-clock
+resolution won over a hardcoded Montreal constant — F-76 made the timezone
+tenant-producible, and a produced value the report ignores is the
+dead-vocabulary sin in reverse). The critics then found what the rulings had
+missed: the naive backfill FIRES the `deals_updated_at` BEFORE-UPDATE
+trigger and silently rewrites every deal's `updated_at` to migration time —
+the shipped 0071 wraps the backfill in `DISABLE TRIGGER` / `ENABLE TRIGGER`;
+the route's F-55-shaped `400 organization_required` contradicted the page's
+`scopeOrg` dance and would have 400'd every single-org owner on his own
+landing page — the hook resolves `items[0]?.id` unconditionally; and a
+literal half-open month bound would have made the boundary fixture
+future-dated for the first hour of each month — predicates are `>= start`
+only, which is also what the caption claims.
+
+**Built in four waves.** Backend: migration 0071 (one concern; the floor
+COMMENT; the no-index un-cut condition citing the measured 16.5 ms EXPLAIN),
+the 3-line guarded producer in the only `pipeline_stage` writer,
+`GmDashboardReport` + the contract entry, `WON`/`pct1dp` exported from f55
+(one classification for both report surfaces), the route (~12 statements,
+one connection, per-subquery EXPLAIN showing no seq scan), and an 11-test
+API suite whose money constants are the ENGINE's own outputs pinned at deal
+creation (34 492,50 $ financed; 7 000,00 $ front gross), with the Montreal
+±1 h boundary, the Vancouver store-clock case, the store-bound-manager
+split, the revoked-member null-name invariant and the
+rotting-then-PATCHed cross-proof. Web: −5/+58 dashboard keys per locale
+(the five floor-tile keys deleted with their feature, `statsTitle`
+included), the ten-tile « Chiffres du mois » grid, attention tables first,
+chartless aria-hidden bars with every number in text, `Intl` percent pinned
+to one decimal, dates formatted with the wire's `month.timezone` (the render
+test's discriminator uses Pacific/Auckland so a missing `timeZone` reds in
+UTC CI and on this UTC−4 desktop alike), the myDayTitle→gmTitle title rule,
+and the hook pinned to `GmDashboardReport.parse(res.body)` (the D-078
+discipline). Journey: six serial blocks — empty state with the old
+« Prospects (total) » tile proven GONE, lead → deal → funding queue, the f08
+delivery walk moving units/gross/conversion, fund → the unfunded table
+drains, one vehicle → stock and aging, and a salesperson persona in a second
+context whose whole session records ZERO `/reports/gm-dashboard` requests —
+47.4 s / 48.2 s wall over two consecutive green filtered runs, longest block
+18 s against the 90 s ceiling. Deviations recorded by the builders where the
+manifest was wrong: the funding-queue golden re-derived from the engine
+(5 748 750, not the manifest's presumed 5 449 250); the manifest's example
+counts were mutually inconsistent as one org and one coherent world was
+built preserving every predicate case; money sums dropped `.nonnegative()`
+(a losing month is legal and must parse); the Q9 aging fixture is a
+per-case delta so the suite cannot date-flake on the 1st–3rd of a month.
+
+**Mutations, red then restored byte-identical (sha-verified):** hardcoded
+Montreal → the Vancouver case; UTC `date_trunc` → the boundary case (both
+deliveries counted); dropped lost-exclusion → the funding-queue case;
+dropped same-stage guard → the producer case; rotting rewired to
+`activity_events` → the INSERT-born-deal case (no stage event exists);
+client-side rate recompute → the 33,3 % render case (the mutant showed
+62,5 %); dropped `requirePermission` → the salesperson-403 persona.
+
+**Adversarial review: six lenses, refute-biased verification.** 10 raw findings, **5 confirmed, 5 refuted**, all six finders returned. One
+verifier died mid-run on the first pass (a dropped API connection while
+verifying the one major); per the aborted-review rule the run was RESUMED
+from its journal — cached agents replayed, only the dead verifier ran live —
+and completed 16/16 with no errors. The major, confirmed by independent
+live measurement in the e2e Chrome: the money tiles OVERFLOWED a 360 px
+viewport in both themes (`scrollWidth` 383 vs 360) — a fr-CA amount is an
+unbreakable NBSP-joined token, and « 3 · 104 492,50 $ » needs 180 px where a
+two-column tile at 360 px leaves 124 — a violation of the binding R7 (« body
+never scrolls sideways ») that nothing caught: the e2e ran at 1280 and the
+render tests have no layout. Fixed with a one-column stats grid below `sm`
+(a 360 px tile gives ~294 px, fitting every measured string; truncating a
+money figure was ruled out — a clipped amount is a false figure), and PINNED
+by a new seventh e2e block that re-queues one dossier (the journey's end
+state had drained the wide figures and measured exactly 360 under the old
+grid), opens the dashboard in a 360×640 context and asserts document AND
+body overflow ≤ 1 px in the a11y-shell idiom — proven red before the grid
+change (6 px of sideways scroll, 366 vs 360, matching the standalone CSS
+measurement to the pixel) and green after, in both verification runs. The four
+minors: the route's zero-fill list hand-copied the `FundingStatus` enum —
+the repo's recorded « new vocabulary value teaches one consumer » class: a
+fifth status would be counted by the GROUP BY and silently dropped from the
+zero-filled rows while every fixture stays green — now
+`FundingStatus.options`, so the partition cannot drift; the journey has a
+~45 s-per-month real-clock window in which a lead created just before the
+Montreal month rollover lands in the old month while the delivery lands in
+the new one, exposing the conversion assertion at retries 0 — documented in
+the spec's self-limits style with the measured gap (~20–25 s at suite pace;
+probability ≈ 10⁻⁵ per run; a boundary red at midnight ET on the 1st is
+this, not a product bug); and `leads.converted` rides the wire with no render site — kept (the
+parse, the API golden and the render test's as-sent discriminator depend on
+it) and recorded as deliberately wire-only in the schema comment and here.
+Refuted, and worth keeping: the >10 attention-total server case is placed at
+the component layer by the judged manifest (the finder's own 12-deal probe
+proved the shipped `count(*) OVER ()` correct); `stage_entered_at` reaching
+the raw deal payload is the repo's pre-existing SELECT-*-spread mechanism,
+unchanged by this slice, and the column is deliberately off the Deal
+contract (a declared field with no client consumer would be dead
+vocabulary); `capRotting`'s « antérieures à septembre 2026 » cohort wording
+is the design's own re-reviewed sentence, true of every deal in its stated
+cohort and erring only in the safe understating direction; and the reviewer
+probe file a finder flagged as stray had already been deleted by its owner.
+
+**Gate after the fixes:** `pnpm turbo run build typecheck lint` 25/25 tasks (19 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **188 files / 2103 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **66 passed twice consecutively (2.7 m / 2.8 m) against dealpilot_e2e_test rebuilt from migration zero incl. 0071 — after one investigated infra red: a vite dev-server dynamic-import fetch failure took down f09's desking page once under 4-worker load (an error-boundary snapshot proves it; not a product defect; f09 and the seven f78 blocks green in every other run)**, lock released, nothing left listening. The e2e gate took five full runs to
+produce the two consecutive greens: runs 2 and 3 each failed ONE
+pre-existing spec outside this slice, and each was investigated to root
+cause per D-077's bar BEFORE any re-run — `f75-brand-paint`'s request-storm
+bound is timing-marginal under 4-worker contention (deterministic at 3 in
+isolation, 4/4 runs; the one 4 was mount-bounded), and `f76-automations`
+has a real populate-clobber race proven from the surviving e2e database and
+the API log (a 44 ms GET-between-fills window; the DB row kept the
+clobbered value with the PUT's own timestamp). Neither spec was touched —
+both are recorded for their owners in D-079 (9). One surgical fix:
+`migration-0070-rewrite.test.ts` pinned « 0070 is the newest » and was
+generalized to the real directory with exact equality kept. Dev database
+untouched all build long: `platform_staff = 0`, `users = 962`, 72 applied
+migrations — 0071 reached dev only at ship, via `db:migrate`, immediately
+before the commit: 72 → 73 migrations, newest 20260902000071; all 374 deals backfilled (zero NULL), max(updated_at) byte-unchanged by the trigger-disabled backfill; platform_staff still 0, users 962.
+
+**Docs:** D-079 at the top of `DECISIONS.md`; ROUND 25 (the owner's month,
+walkable in dev); O-52…O-57 appended; `PROJECT.md` gains the « See your
+month's real numbers » row; `TASKS.md` F-78 row (deps F-05, F-07, F-08,
+F-09, F-55, F-66, F-75, F-76). `SECURITY.md` unchanged — no new surface, no
+permission touched, no new table.
+
+**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–31 were.**
+
 ## 2026-08-31 (tick 31) — F-77: the snapshot page cannot show a credential by construction, and the console journey visits every read it can
 
 **Where tick 30's CI story ended.** F-76 shipped as `c8efbc4` (run

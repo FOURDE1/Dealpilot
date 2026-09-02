@@ -392,6 +392,12 @@ export function registerF05Routes(app: FastifyInstance, pool: Pool): void {
       if (input.pipeline_stage && DELIVERY_STAGES.has(input.pipeline_stage) && !current.rows[0]!['delivered_at']) {
         setEntries.push(['delivered_at', new Date().toISOString()]);
       }
+      // F-78 (0071): age-in-stage restarts ONLY when the stage actually moves —
+      // a same-value PATCH or a money-only edit must not reset the rotting
+      // clock. INSERT is covered by the column DEFAULT.
+      if (input.pipeline_stage && input.pipeline_stage !== current.rows[0]!['pipeline_stage']) {
+        setEntries.push(['stage_entered_at', new Date().toISOString()]);
+      }
       const sets = setEntries.map(([k], i) => `${k} = $${i + 2}`).join(', ');
       const r = await c.query<Record<string, unknown>>(
         `UPDATE deals SET ${sets} WHERE id = $1 AND deleted_at IS NULL RETURNING *`,

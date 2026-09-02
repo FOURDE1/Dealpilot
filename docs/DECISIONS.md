@@ -11,6 +11,225 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-079 — 2026-09-02 — The dashboard's numbers become true: a measured GM report replaces the floor-as-total tiles
+
+F-78 (reports-analytics.md §14.1; FR-REP-003 P1 — genuinely missing at the
+tip — and FR-REP-007; the recommended slice of the 2026-09-02 scoping,
+f78_scope §1). Designed by the three-planner + judge workflow — winner
+`honest-figures`, the claims-ledger plan — hardened by four adversarial
+critics into a binding build document of 9 rulings and 28 amendments, built
+in four waves with disjoint ownership (backend → i18n + web → journey →
+mutations + gate), reviewed through six adversarial lenses with refute-biased
+verification (six lenses, 10 raw findings — 5 confirmed, 5 refuted; one verifier died mid-run and the review was RESUMED from its journal to 16/16 rather than trusted partial; the major: the money tiles scrolled a 360 px viewport sideways (a fr-CA amount is an unbreakable NBSP token wider than a two-column tile) — fixed with a one-column grid below sm and pinned by a red-first 360 px overflow probe in the e2e; every confirmed finding fixed and proven red-then-green where a test could carry it), and gated: `pnpm turbo run build typecheck lint` 25/25 tasks (19 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **188 files / 2103 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **66 passed twice consecutively (2.7 m / 2.8 m) against dealpilot_e2e_test rebuilt from migration zero incl. 0071 — after one investigated infra red: a vite dev-server dynamic-import fetch failure took down f09's desking page once under 4-worker load (an error-boundary snapshot proves it; not a product defect; f09 and the seven f78 blocks green in every other run)**, lock released, nothing left listening. Base `73a9084`.
+
+(1) **The violation this slice removes.** The dashboard's four stat tiles
+were computed over the FIRST PAGE of leads (`leads/api.ts:19` `limit: 100` →
+`computeLeadStats` → the « Prospects (total) » StatTile) — a page floor shown
+as a total on the owner's most-clicked surface, the same claim-in-the-product
+class F-75 was ranked first for fixing in branding. The four tiles,
+`computeLeadStats` and their five i18n keys (including `statsTitle`, whose
+consumers died with them) are DELETED for every role — never sat beside the
+real numbers, because two disagreeing totals on one screen are worse than one
+floor. The `limit: 100` itself stays: it is correct for a LIST page; the sin
+was totalling it, and the totaller died, not the list.
+
+(2) **The report.** `GET /api/v1/reports/gm-dashboard` — one tenant route
+(`ADMIN_HANDLER_COUNT` stays 28) in the F-55 discipline: SQL under
+`withTenant`, `requirePermission('report:view')`, F-55's membership
+store-scope block verbatim (a store-bound manager reports on their store
+only), the honest-classification block in the route header, ~12 plain
+statements on the one connection (each with its own full WHERE on its own
+existing index — EXPLAIN per subquery showed no seq scan anywhere the header
+claims one, and the whole report measured 16.5 ms on the largest seeded org),
+`400 organization_required` with the page resolving the org unconditionally
+(`items[0]?.id`) so a single-org owner is never 400'd by his own landing
+page. The gate is the EXISTING `report:view` — its own catalogue comment
+(« aggregate business analytics … manager authority by default ») describes
+this report exactly, F-66's leaderboard already serves `sum(total_gross_cents)`
+under it, and FR-REP-007's exclusions (salesperson, admin office, BDC) hold
+under the default matrix. That `sales_manager` and `fi_manager` therefore see
+the report is a recorded deliberate deviation from FR-REP-003's « gm/owner »
+phrasing: the catalogue is the law (D-033), and a role check outside it is
+the pattern permission-drift exists to ban. Mutation: dropping the
+`requirePermission` line reddens the salesperson-403 persona
+(f78-gm-dashboard.test.ts:392).
+
+(3) **Every figure is a claim with a caption, and a positive case.** Each
+figure ships as source columns → SQL → wire field → French label → caption
+(what is counted, on which clock and window — interpolated from the wire's
+month block, never hardcoded) → empty state → a hand-computed NON-ZERO test
+(the repo's law: a metric proven only by 0-on-empty is structurally dead).
+Open pipeline counts `pipeline_stage NOT IN ('delivered','complete','lost')`
+— terminal stages would accumulate forever and dominate the bars, and the
+caption says « Les livrées, complétées et perdues ne comptent pas. » Units
+and gross count deliveries since the month start; the averages are per
+delivered unit; the funding queue is captioned as a QUEUE, not a month figure
+(« peu importe le mois »), and excludes lost deals — the caption says so, and
+the lost-while-submitted mutation case pins it. Conversion is the SERVER's
+own one-decimal quotient (`pct1dp`, exported from f55 beside `WON` so the
+dashboard and the win-loss report can never disagree — two `export` keywords,
+no file hoist), rendered through `Intl.NumberFormat` percent with fraction
+digits pinned to 1; the render mutation (client-side `100*c/t` recompute)
+reds the 33,3 % case. Nullable rates and averages render « — », never a
+fabricated 0. Money sums are `int` WITHOUT `.nonnegative()` — a losing
+month's gross is legally negative and must parse as an honest figure.
+Attention lists cap at 10 rows with the TRUE total on the wire
+(`count(*) OVER ()`). Salesperson rows keep a revoked member as
+`{ name: null }` rendered as « Ancien vendeur » — the row's units are real —
+with the invariant Σ rows + unattributed = the month's units. NO metric
+reads `activity_events`: an audit log as a metric source makes a deleted or
+edited event a silent metric change, and an INSERT-born deal records no
+stage event at all — the mutation that rewires rotting to the events table
+reds exactly that case. « Activité récente » is therefore deferred by name
+with the line that settles it: activity read as a LIST is honest (rows claim
+only their own existence); as a METRIC it is banned.
+
+(4) **The clock, ruled and returned.** « This month » is computed on the
+STORE clock per the tree's one tenant-report precedent (f67's resolution,
+verbatim: the requested store's timezone, else the org's first in-scope
+store by `created_at`; f67's `'America/Toronto'` no-store fallback kept and
+stated in the route header — an org with no store holds no deals, but
+central-queue leads can exist, so the fallback is named, not hidden). The
+window rides the wire as `month { timezone, start }` — D-074's rule that no
+figure travels without its period — and every month caption interpolates
+`{start}` and `{tz}`; dates are formatted component-side with
+`Intl.DateTimeFormat(locale, { timeZone: month.timezone })`, so a Vancouver
+browser reading a Montreal month sees the month the SQL counted. Month
+predicates are `>= start` ONLY — no upper bound, because `delivered_at`
+cannot exceed `now()` outside time travel and a literal half-open bound
+would make the boundary fixture future-dated for the first hour of each
+month (a ~1 h/month flake at retries 0). Proven: the Montreal ±1 h boundary
+fixtures (computed independently via `Intl` parts — they red-line a UTC
+`date_trunc`), the assertion that `month.timezone` equals the STORE ROW's
+value (never a literal), and a Vancouver-store case that red-lines a
+hardcoded Montreal (stores created sequentially — f67's first-store pick has
+no tiebreak). The honest residue, stated plainly: F-09's commission months
+are UTC `date_trunc` over `funded_at`; this page's months are the store
+clock over `delivered_at`. Two clocks, two keys, recorded here — not
+smuggled; changing the pay month is money behaviour a dashboard slice must
+not touch. A multi-store org spanning timezones gets the first store's month,
+captioned (O-55). Today the point is moot in production data: 701/701 dev
+stores carry America/Montreal, measured live.
+
+(5) **Migration 0071 — `deals.stage_entered_at`, one concern, honest at both
+ends.** `ADD COLUMN` nullable → `ALTER TABLE deals DISABLE TRIGGER
+deals_updated_at` → `UPDATE SET stage_entered_at = updated_at` → `ENABLE
+TRIGGER` → `SET DEFAULT now()` → `SET NOT NULL`. The trigger wrap is
+load-bearing and was a critic's catch: the naive backfill fires the
+`BEFORE UPDATE` `set_updated_at()` trigger and silently rewrites every
+existing deal's `updated_at` to migration time (and
+`session_replication_role` was rejected — it also disables FK triggers).
+The backfill is the O-40 floor pattern: `updated_at` is at-or-after the true
+stage entry, so age-in-stage UNDERSTATES — a pre-0071 deal can be missed by
+« rotting > 7 days » but never falsely accused; the migration COMMENT and
+the table's caption both say so (« Pour les transactions antérieures à
+septembre 2026, l'ancienneté est un plancher »). A NULL backfill was
+rejected: equally honest, but it empties the slice's strongest table for
+weeks and wires a permanent `rotting_unmeasured` field for a decaying
+cohort; floors under-alert, never over-alert. Producer: a 3-line guarded
+stamp in the ONLY `pipeline_stage` writer (the f05 PATCH, beside the
+`funded_at`/`delivered_at` stamps), firing only when the stage actually
+changes — a same-stage PATCH does not re-stamp (mutation-proven), and the
+INSERT path is the DEFAULT. Consumer: the rotting table and its caption, in
+this slice. No index ships: EXPLAIN showed the existing indexes carry every
+subquery; the un-cut condition (a seq scan on a > 50k-deal org → a partial
+index in a NEW migration) is written in the 0071 comment and the route
+header. The `Deal` wire schema is NOT widened — the report is the consumer,
+and an unrendered field would be speculative vocabulary.
+
+(6) **« Livrées, non financées » — the honest name for "overdue funding".**
+The spec's name claims a submission clock the schema does not have (no
+`funding_submitted_at` anywhere — grepped); the state a dealership actually
+chases is delivered-and-not-paid, and both its columns have live producers.
+Predicate: `pipeline_stage IN ('delivered','complete') AND funding_status <>
+'funded'` — STATE-based, because `delivered_at` is stamped once and never
+cleared, so a date-based predicate would list a deal regressed out of
+delivered (or moved to lost) forever; aged from `COALESCE(delivered_at,
+created_at)` (the F-66 convention), oldest first, NO invented threshold —
+§14.1's only numeric constant is « rotting > 7 days in stage », and a 3-day
+or 7-day funding threshold would be an invented fact on the very page that
+exists to kill invented facts. Every delivered-unfunded deal is money not
+yet collected; the table lists them all (capped at 10, true count printed).
+The submission-age variant is cut by name (O-53). The rotting-then-PATCHed
+cross-proof pins producer and consumer against each other: moving a rotting
+deal's stage removes it from the table.
+
+(7) **The page.** « Chiffres du mois »: ten captioned tiles — ONE column on
+the smallest screens (the review measured a fr-CA money string as an
+unbreakable NBSP-joined token wider than a two-column tile at 360 px; the
+page scrolled sideways until the grid went `grid-cols-1 sm:grid-cols-2
+lg:grid-cols-4`, and a 360 px e2e probe now pins `overflow ≤ 1 px` with a
+money figure on screen, proven red first; truncating an amount was ruled out
+— a clipped figure is a false figure) — then « À surveiller » — the two attention
+tables FIRST (they are the "do something now" surface), then
+« Répartitions »: chartless O-42 bars (open pipeline by stage, the same
+open set by funding status, stock aging 0–30/31–60/60+) with fills as
+`aria-hidden` decoration and every number in a text node — share-of-max has
+no semantic maximum, so `role="progressbar"` was cut; then sources and
+sales-by-salesperson. The F-55 SpeedPanel stays verbatim. The page title is
+« Ma journée » while the permissions probe is pending and « Chiffres du
+mois » once it resolves with `report:view` — the brief flicker is a ruled
+behaviour (a title claims no figure), not drift. A salesperson's dashboard
+keeps the greeting, the SpeedPanel, the links and the recent-leads LIST — a
+list is honest as a list — with ZERO figures and ZERO report requests: the
+report component never mounts without the permission, which the e2e proves
+with `page.on('response')` recording no `/reports/gm-dashboard` request
+across the persona's whole session. Perceived speed, stated honestly: the
+report fetch is serialized behind the orgs and permissions probes — two
+round trips precede it — not « +1 cached probe ».
+
+(8) **Rejected, with reasons:** a new `report:gm_dashboard` verb (a second
+spelling of the same authority, plus catalogue/matrix/backfill/drift cost
+for zero FR gain); deriving rotting or overdue from `activity_events`
+(banned — (3)); a NOT-NULL-DEFAULT-now() backfill (claims every old deal
+entered its stage at migration time); the NULL backfill ((5)); invented
+thresholds ((6)); a fixed `America/Montreal` constant and hardcoded
+« heure de Montréal » captions (stale the day one rooftop changes its clock
+— F-76 made the timezone tenant-producible, and a produced value the report
+ignores is the dead-vocabulary sin in reverse); a `< now()` upper bound on
+the month ((4)); a chart dependency (O-42's chartless bars); an
+`analytics-classification.ts` file hoist (two `export` keywords instead);
+all-stages pipeline bars; a bare `LEFT JOIN users` for salesperson names
+(f66's membership-scoped resolution is mandatory — its review comment
+records the cross-org-stranger bug the bare join caused); per-store month
+windows summed (one figure with data-dependent meaning); keeping reduced
+tiles for salespeople (the floor restated one role down); an access-denied
+banner on the non-holder's landing page (absence is not an apology).
+
+(9) **Deferred with un-cut conditions (O-52…O-57), and what the gate
+surfaced.** O-52 the 12-month gross trend (un-cut: ≥ 3 months of delivered
+history and a 12-row month list consumer); O-53 overdue-since-submission
+(un-cut: `funding_submitted_at` with its f05 producer and consumer in one
+slice); O-54 the incomplete-checklists attention table (un-cut: eager
+materialization or a counted set-returning query with a measured plan —
+`ensureDealItems` materializes lazily, so a SQL count today reads unopened
+checklists as complete); O-55 the multi-timezone org clock (un-cut: an
+org-level clock producer or an all-stores-agree rule); O-56 a salesperson
+own-figures dashboard (un-cut: a personal ledger gated on the person); O-57
+attention rows render the customer as plain text (un-cut: `contact_id` on
+the attention wire and a contact link). Also deferred by name: « Livraisons
+aujourd'hui » (producer live — `booked_delivery_at`; rider-sized), the
+activity list ((3)), a store picker (the API already takes `store_id`), the
+three cut §14.1 charts. The full-suite gate surfaced two pre-existing spec
+races OUTSIDE this slice, investigated to root cause and left for their
+owners, never re-run as unexamined flakiness: `f75-brand-paint`'s
+request-storm bound (≤ 3) is timing-marginal under 4-worker contention (the
+StrictMode-replayed prefetch races settled-error vs in-flight; isolation is
+deterministic at 3; the one 4 was still mount-bounded — nothing like the
+1215-request storm the bound guards), and `f76-automations` has a real
+populate-clobber race proven from the surviving e2e database and the API
+log (the form's GET resolving between two fills clobbers the first; the
+spec's later assertions mask it because the pre-populate default passes
+instantly). One surgical fix inside the gate:
+`migration-0070-rewrite.test.ts` pinned « 0070 is the newest migration » and
+reds the moment ANY later migration exists — generalized to exact equality
+against [0070, …every later migration] computed from the real directory
+(0070-applied and nothing-re-runs still exactly asserted; not one of the
+named guards). Related: D-033 (the catalogue is the law), D-074 (the caption
+law and the returned window), D-077 (the store clock became
+tenant-producible), D-078 (the parse-pin discipline the hook test reuses);
+migration `20260902000071_stage-entered-at.sql`.
+
 ## D-078 — 2026-08-31 — The snapshot page cannot show a credential by construction, and the console journey visits every read it can
 
 F-77 (admin-console.md §9 and §11; O-51; D-074 (7)'s « API only » follow-up;

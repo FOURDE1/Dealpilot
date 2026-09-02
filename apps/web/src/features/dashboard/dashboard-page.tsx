@@ -3,39 +3,45 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePageTitle } from '../../shared/use-page-title.js';
 import { useSession } from '../../shared/auth/client.js';
+import { can, usePermissionsMine } from '../../shared/permissions.js';
 import { useOrganizations } from '../organizations/api.js';
 import { useLeads } from '../leads/api.js';
 import { LEAD_STATUS_KEYS, leadDisplayName } from '../leads/labels.js';
-import { computeLeadStats, recentLeads } from './stats.js';
+import { recentLeads } from './stats.js';
 import { SpeedPanel } from './speed-panel.js';
+import { GmReport } from './gm-report.js';
 
-function StatTile({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p className="text-3xl font-bold tabular-nums">{value}</p>
-    </div>
-  );
-}
-
-/** Live lead overview — real data from the same endpoints the Leads page uses. */
+/**
+ * The post-login landing (F-78, D-079). The old floor tiles — client counts
+ * over the lead list's first page presented as org totals — are GONE for
+ * every role. Holders of report:view get the GM Command Center's
+ * server-computed figures (gm-report.tsx); everyone else keeps the greeting,
+ * the SpeedPanel, the links and the recent-leads LIST — zero figures, and
+ * the report request is never fired.
+ */
 export function DashboardPage() {
   const { t } = useTranslation('dashboard');
-  usePageTitle(t('statsTitle'));
   const { t: tLeads } = useTranslation('leads');
   const { data: session } = useSession();
   const orgs = useOrganizations();
   const multiOrg = (orgs.data?.items.length ?? 0) > 1;
   const scopeOrg = multiOrg ? orgs.data?.items[0] : undefined;
+  // A4: the REPORT's org is the first org, unconditionally (the shipped
+  // win-loss pattern) — the scopeOrg dance above is undefined for every
+  // single-org tenant and would 400 the owner on his own page.
+  const orgId = orgs.data?.items[0]?.id;
+  const mine = usePermissionsMine(orgId, { enabled: !orgs.isPending });
+  const canView = can(mine.data, 'report:view');
+  // A10: while permissions/mine resolves, can() is false, so every holder
+  // briefly carries the non-holder title — accepted deliberately (a title
+  // claims no figure), switching to gmTitle once report:view settles.
+  usePageTitle(t(canView ? 'gmTitle' : 'myDayTitle'));
   // Wait for orgs before listing: a multi-org user's unscoped list is a
   // guaranteed 4xx (server requires organization_id).
   const leads = useLeads(scopeOrg?.id, { enabled: !orgs.isPending });
 
   const name = session?.user.name || session?.user.email;
   const items = useMemo(() => leads.data?.items ?? [], [leads.data]);
-  const stats = useMemo(() => computeLeadStats(items), [items]);
   const recent = useMemo(() => recentLeads(items), [items]);
   const pending = orgs.isPending || leads.isPending;
 
@@ -45,26 +51,7 @@ export function DashboardPage() {
         {name ? t('greetingName', { name }) : t('greeting')}
       </h1>
 
-      <section className="space-y-3" aria-labelledby="dash-stats-title">
-        <h2 id="dash-stats-title" className="text-lg font-semibold">
-          {t('statsTitle')}
-          {scopeOrg ? <span className="text-muted-foreground"> — {scopeOrg.name}</span> : null}
-        </h2>
-        {pending ? (
-          <p className="text-sm text-muted-foreground">{tLeads('loading')}</p>
-        ) : leads.isError ? (
-          <p role="alert" className="text-sm text-danger-text">
-            {tLeads('loadError')}
-          </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile label={t('statTotal')} value={stats.total} />
-            <StatTile label={t('statNew')} value={stats.fresh} />
-            <StatTile label={t('statAssignedContacted')} value={stats.inProgress} />
-            <StatTile label={t('statConverted')} value={stats.converted} />
-          </div>
-        )}
-      </section>
+      {canView ? <GmReport orgId={orgId} /> : null}
 
       <SpeedPanel orgId={scopeOrg?.id} enabled={!orgs.isPending} />
 

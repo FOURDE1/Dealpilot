@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import { Uuid } from './common.js';
+import { IsoDateTime, Uuid } from './common.js';
 import { LeadSource } from './lead.js';
+import { FundingStatus, PipelineStage } from './deal.js';
 
 /**
  * F-55 — win/loss analytics (reports-analytics.md §9). Aggregate numbers
@@ -149,3 +150,98 @@ export const HeatmapReport = z.object({
 });
 export type HeatmapReportT = z.infer<typeof HeatmapReport>;
 export type HeatmapQueryT = z.infer<typeof HeatmapQuery>;
+
+/**
+ * F-78 — the GM Command Center report (reports-analytics.md §14.1,
+ * FR-REP-003). Every figure is server-computed; the wire carries the month
+ * window it was computed over (the store clock, resolved f67-style) so every
+ * caption interpolates the real window instead of describing one. Rates are
+ * server quotients at 1 dp, null-on-zero — a rate over nothing is not zero.
+ */
+
+const Int = z.number().int();
+
+export const GmDashboardQuery = z.strictObject({
+  organization_id: Uuid.optional(),
+});
+
+export const GmDashboardSalesperson = z.object({
+  user_id: Uuid,
+  /** Membership-scoped resolution (the F-66 rule — never the global user
+   * table). NULL when the seller no longer holds an active membership: the
+   * row STAYS so Σ rows.units + unattributed_units === month_sales.units
+   * holds structurally; the page renders a placeholder. */
+  name: z.string().nullable(),
+  units: Int,
+  gross_cents: Int,
+});
+
+export const GmRottingRow = z.object({
+  deal_id: Uuid,
+  lead_id: Uuid.nullable(),
+  /** Server-joined display name: contact first (deals.contact_id, 0039),
+   * then lead — concat_ws, so a one-name customer still shows it. */
+  customer: z.string().nullable(),
+  stage: PipelineStage,
+  days_in_stage: Int,
+});
+
+export const GmDeliveredUnfundedRow = z.object({
+  deal_id: Uuid,
+  lead_id: Uuid.nullable(),
+  customer: z.string().nullable(),
+  funding_status: FundingStatus,
+  days_since_delivery: Int,
+});
+
+export const GmDashboardReport = z.object({
+  /** The report clock: the org's first in-scope store's timezone (f67 rule;
+   * 'America/Toronto' when the org has no store). start = that zone's month
+   * start; predicates are `>= start` only — no upper bound. */
+  month: z.object({ timezone: z.string(), start: IsoDateTime }),
+  /** Open deals right now: pipeline_stage NOT IN delivered/complete/lost.
+   * by_stage is zero-filled over the seven open stages. */
+  pipeline: z.object({
+    total: Int,
+    by_stage: z.array(z.object({ stage: PipelineStage, count: Int })),
+  }),
+  /** The same open deals, by where the money is — zero-filled, Σ = total. */
+  funding_by_status: z.array(z.object({ status: FundingStatus, count: Int })),
+  /** Closed = delivered/complete, closed_on = COALESCE(delivered_at,
+   * created_at) — the F-66 classification, so this page and the leaderboard
+   * can never call different deals "sold". Averages null on zero rows. */
+  month_sales: z.object({
+    units: Int,
+    gross_cents: Int,
+    avg_front_gross_cents: Int.nullable(),
+    avg_back_gross_cents: Int.nullable(),
+  }),
+  /** The funding queue (no window): submitted/stips_required, not lost. */
+  funding: z.object({ count: Int, amount_financed_cents: Int }),
+  /** Age buckets on the store clock's date; over_30 = 31_60 + over_60. */
+  inventory: z.object({
+    in_stock: Int,
+    over_30_days: Int,
+    aging_0_30: Int,
+    aging_31_60: Int,
+    aging_over_60: Int,
+  }),
+  /** conversion_rate = pct1dp(converted, created) — server-side, 1 dp,
+   * null when no leads (never 0). `converted` is deliberately wire-only (no
+   * render site): it is the numerator the API goldens and the render test's
+   * as-sent discriminator consume — a client recompute of the rate reds. */
+  leads: z.object({ created: Int, converted: Int, conversion_rate: z.number().nullable() }),
+  lead_sources: z.array(z.object({ source: LeadSource, count: Int })),
+  salespeople: z.object({
+    rows: z.array(GmDashboardSalesperson),
+    unattributed_units: Int,
+  }),
+  /** Both lists cap at 10 rows; count is the TRUE total over the predicate. */
+  attention: z.object({
+    rotting: z.object({ count: Int, rows: z.array(GmRottingRow) }),
+    delivered_unfunded: z.object({ count: Int, rows: z.array(GmDeliveredUnfundedRow) }),
+  }),
+});
+
+export type GmDashboardQueryT = z.infer<typeof GmDashboardQuery>;
+export type GmDashboardReportT = z.infer<typeof GmDashboardReport>;

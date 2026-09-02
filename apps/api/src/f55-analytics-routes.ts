@@ -24,13 +24,13 @@ const PERIOD_SQL: Record<string, string | null> = {
   all: null,
 };
 
-const WON = `(l.status = 'converted' OR EXISTS (
+export const WON = `(l.status = 'converted' OR EXISTS (
   SELECT 1 FROM deals dd WHERE dd.lead_id = l.id AND dd.deleted_at IS NULL))`;
 const LOST = `(l.status = 'lost' AND NOT ${WON})`;
 
 /** §9: each rate is its OWN quotient at 1 dp — the loss rate is never the
  * complement of the rounded win rate (they diverge on half-decimals). */
-function pct1dp(part: number, decided: number): number | null {
+export function pct1dp(part: number, decided: number): number | null {
   if (decided === 0) return null;
   return Math.round((part / decided) * 1000) / 10;
 }

@@ -339,3 +339,70 @@ describe('F-05 saved deals', () => {
     expect(res.statusCode).toBe(422);
   });
 });
+
+describe('F-78 stage_entered_at producer (0071)', () => {
+  // The column is not on the Deal wire (its consumer is the GM report's SQL),
+  // so every assertion reads it back via admin SQL. Fresh deal: the shared
+  // dealId above has already been walked to delivered/funded.
+  let f78DealId = '';
+
+  async function stampOf(): Promise<string> {
+    const r = await admin.query<{ stamp: string }>(
+      `SELECT stage_entered_at::text AS stamp FROM deals WHERE id = $1`,
+      [f78DealId],
+    );
+    return r.rows[0]!.stamp;
+  }
+
+  it('a new deal gets stage_entered_at from the column DEFAULT', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const lead = await app!.inject({
+      method: 'POST', url: '/api/v1/leads', headers: { cookie: cookieOwner },
+      payload: { organization_id: orgId, store_id: storeId, phone: '5145550178', source: 'walk_in', first_name: 'Stamp' },
+    });
+    const res = await app!.inject({
+      method: 'POST', url: '/api/v1/deals', headers: { cookie: cookieOwner },
+      payload: {
+        ...WORKSHEET, organization_id: orgId, store_id: storeId,
+        lead_id: (JSON.parse(lead.body) as { id: string }).id,
+      },
+    });
+    expect(res.statusCode).toBe(201);
+    f78DealId = (JSON.parse(res.body) as { id: string }).id;
+    expect(await stampOf()).not.toBeNull();
+  });
+
+  it('a stage PATCH to a DIFFERENT stage stamps stage_entered_at forward', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const before = await stampOf();
+    const move = await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${f78DealId}`, headers: { cookie: cookieOwner },
+      payload: { pipeline_stage: 'submitted' },
+    });
+    expect(move.statusCode).toBe(200);
+    const after = await stampOf();
+    expect(new Date(after).getTime()).toBeGreaterThan(new Date(before).getTime());
+  });
+
+  it('a money-only PATCH leaves stage_entered_at byte-identical', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const before = await stampOf();
+    const edit = await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${f78DealId}`, headers: { cookie: cookieOwner },
+      payload: { sale_price_cents: 3_650_000 },
+    });
+    expect(edit.statusCode).toBe(200);
+    expect(await stampOf()).toBe(before);
+  });
+
+  it('a SAME-stage PATCH does not re-stamp', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const before = await stampOf();
+    const same = await app!.inject({
+      method: 'PATCH', url: `/api/v1/deals/${f78DealId}`, headers: { cookie: cookieOwner },
+      payload: { pipeline_stage: 'submitted' },
+    });
+    expect(same.statusCode).toBe(200);
+    expect(await stampOf()).toBe(before);
+  });
+});

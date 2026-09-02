@@ -691,3 +691,27 @@ until it can be done without breaking readability.
 | 24.7 | Sign in as a **Billing** staffer (the one ROUND 20.16 used) and open the same dealer's page | **Instantané** opens for that role too — the snapshot is any platform role — and the left menu is still only **Locataires** | ⬜ |
 | 24.8 | Keep the snapshot open in one tab; in a SECOND tab start a support session on some dealer; come back and reload the snapshot tab | The wall (« … session de soutien … »), not the page — a reload is a fresh probe. End the session in the second tab, reload again: the page returns. (Without the reload, a tab that stays open shows « Impossible de charger » for up to 30 seconds after the session starts — ROUND 20.17 — and then the wall on its next probe) | ⬜ |
 | 24.9 | From `main-project`: `pnpm e2e -- --grep console-door` | « Running 7 tests using 1 worker » — the five steps of ROUND 21.5 plus two: the snapshot of a tenant with a real intake key whose token and secret never appear, and the read-only console pages (support sessions, announcements, platform switches, queues, the failed-jobs page, an unknown console address) — and it ends green | ⬜ |
+
+
+## ROUND 25 — Your month, in numbers that are true (F-78)
+
+> The four tiles at the top of your home page used to be computed over the
+> first hundred prospects and shown as totals. They are gone. In their place:
+> **Chiffres du mois** — measured figures, each with a caption that says what
+> it counts and on which clock, two « À surveiller » tables that tell you
+> where money is waiting, and bar lists with the numbers written out. Managers
+> (owner, GM, sales manager, F&I) see it; a salesperson's home page shows no
+> figures at all — and never even asks the server for them. Nothing else on
+> the page moved: your greeting, the response-speed panel and the recent
+> prospects list are as before.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 25.1 | Open the app (your home page) as owner | **Chiffres du mois** with ten captioned tiles and, above the grid, « Mois en cours depuis le 1 … (fuseau America/Montreal). » — the month is your STORE's clock, read from the store you set up in ROUND 23, and the caption names it. The old « Prospects (total) » tile is nowhere on the page (Ctrl+F finds nothing) | ⬜ |
+| 25.2 | Read **À surveiller** first | « En souffrance — plus de 7 jours dans l'étape » lists open deals whose stage has not moved, oldest first; its caption tells you that for deals from before September 2026 the age is a floor (we could not know when an old deal entered its stage — we will never accuse one falsely, we can only miss it). « Livrées, non financées » lists delivered deals whose money has not landed, oldest first, no cutoff — every one is money waiting | ⬜ |
+| 25.3 | Deliver a deal the way ROUND 13 did (checklist → Livrée) | « Unités livrées » and « Ventes brutes » move by exactly that deal; the deal appears in « Livrées, non financées » | ⬜ |
+| 25.4 | Mark that deal's funding **Financé** | It leaves « Livrées, non financées »; the funding tile's « {n} · {montant} » drops accordingly. Read the funding caption: submitted and stips-required deals count whatever the month, and « Les transactions perdues ne comptent pas. » | ⬜ |
+| 25.5 | Read « Taux de conversion » | One decimal, computed by the server — the same classification as your Ventes et pertes report (the caption says so). On an org with no prospects this month it reads « — », never « 0 % » (walkable on a fresh org; your live org has prospects, so here you check the caption, and the arithmetic is pinned by the API suite) | ⬜ |
+| 25.6 | Change a stale deal's stage (any stage move) | It leaves « En souffrance » on the next reload. The « more than 7 days » half is proven by the API suite — a browser cannot time-travel — so what you check here is the leave, not the wait | ⬜ |
+| 25.7 | Sign in as your **Directeur des ventes**, then as a **Vendeur** | The sales manager sees « Chiffres du mois » too (the report follows the « Rapports » permission, exactly like Ventes et pertes — narrow it in Équipe → Rôles if you want it gm/owner-only). The salesperson sees « Ma journée » — greeting, response speed, recent prospects, and NO figures; the browser never even requests the report | ⬜ |
+| 25.8 | From `main-project`: `pnpm e2e -- --grep gm-dashboard` | « Running 6 tests using 1 worker » — empty state, the funding queue, the delivery walk that moves the numbers, the drain, the stock tile, and the salesperson's zero-request proof — and it ends green in under a minute | ⬜ |

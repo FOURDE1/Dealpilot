@@ -20,7 +20,8 @@ import { DEFAULT_HOST_URL, disposableDatabaseUrl, ensureDatabase } from './test-
  * Method: copy every migration BEFORE 0070 (byte-identical, so the ledger
  * checksums match afterwards) into a staging directory, reset a DISPOSABLE
  * database to that state, seed the stale row as 0027 allowed it, then apply
- * the real directory — which applies exactly 0070 — and read the row back.
+ * the real directory — which applies 0070 and every migration after it, and
+ * nothing before it — and read the row back.
  *
  * Own database (`dealpilot_mig0070_test`, created on demand through the
  * *_test rule in test-db.ts) rather than the shared `dealpilot_test`: the
@@ -149,8 +150,15 @@ it('0070 rewrites the stale row and its snapshot, leaves version alone, and drop
   );
 
   const applied = await migrate(admin, migrationsDir);
-  // Only 0070 was missing from the ledger — nothing before it may re-run.
-  expect(applied).toEqual([MIGRATION]);
+  // Everything from 0070 on was missing from the ledger — 0070 applies first,
+  // every later migration follows, and nothing BEFORE 0070 may re-run. Exact
+  // equality, so a re-run of any earlier migration still reds this line.
+  const expectedApplied = readdirSync(migrationsDir)
+    .filter((f) => /^\d{14}_[a-z0-9-]+\.sql$/.test(f))
+    .sort()
+    .filter((f) => f >= MIGRATION);
+  expect(expectedApplied[0]).toBe(MIGRATION);
+  expect(applied).toEqual(expectedApplied);
 
   const stale = await admin.query<{
     dark_mode: string; font_family: string; version: number; published_snapshot: Record<string, unknown>;

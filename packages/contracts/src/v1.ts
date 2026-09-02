@@ -3,6 +3,8 @@ import { z } from 'zod';
 import {
   WinLossReport,
   WinLossQuery,
+  GmDashboardQuery,
+  GmDashboardReport,
   LeadDuplicate,
   DuplicateScanResult,
   DuplicateScanInput,
@@ -775,6 +777,14 @@ export const apiV1 = c.router({
       path: '/api/v1/analytics/win-loss',
       query: WinLossQuery,
       responses: { 200: WinLossReport, ...errorResponses },
+    },
+    /** F-78 (reports-analytics.md §14.1, FR-REP-003): the GM Command Center
+     * report — every dashboard figure, server-computed, with its window. */
+    gmDashboard: {
+      method: 'GET',
+      path: '/api/v1/reports/gm-dashboard',
+      query: GmDashboardQuery,
+      responses: { 200: GmDashboardReport, ...errorResponses },
     },
   }),
   /** F-54 duplicates (leads.md §8): pairs, scans, and the two verbs. */

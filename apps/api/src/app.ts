@@ -53,6 +53,7 @@ import { registerF73QueueRoutes } from './f73-queue-routes.js';
 import { createQueueInspector, type QueueInspector } from './queue-inspector.js';
 import { impersonationGate, impersonationRequestLog, impersonationScopeGate } from './impersonation.js';
 import { registerF55Routes } from './f55-analytics-routes.js';
+import { registerF78Routes } from './f78-gm-dashboard-routes.js';
 import { createStorage, MAX_UPLOAD_BYTES, RAW_BODY_CONTENT_TYPES, type StorageDriver } from './storage.js';
 import { createCarrier, type Carrier } from './carrier.js';
 import { createDeferredSendQueue, type DeferredSendQueue } from './deferred-queue.js';
@@ -530,6 +531,7 @@ export async function buildApp(
   registerF66Routes(app, pool);
   registerF67Routes(app, pool);
   registerF68Routes(app, pool);
+  registerF78Routes(app, pool);
   registerF69Routes(app, pool, env);
   registerF70Routes(app, pool, mailer, env);
   registerF71Routes(app, pool, mailer);
