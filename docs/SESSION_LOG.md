@@ -109,7 +109,7 @@ resolved in its own row; `TASKS.md` F-80 row; `PROJECT.md` how-to row.
 `SECURITY.md` unchanged — the audit log's contract; the ruling recorded in
 D-081 (9).
 
-**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–33 were.**
+**Pushed as FOURDE1 as `6a7fb31`; CI run 33622835928 green first try, both jobs (lint / typecheck / test / build, and the real-browser e2e) — twenty consecutive greens. This line was added in the follow-up docs commit, as ticks 29–33 did.**
 
 ## 2026-09-02 (tick 33) — F-79: commission clawbacks — the « Reprise » line gets its producer
 
