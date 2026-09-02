@@ -114,7 +114,7 @@ with its ⚠ DECISION row on the terminal-per-line rule); `TASKS.md` F-79 row;
 header scopes entries to /security-audit runs, and the ruling is recorded
 in D-080 (8).
 
-**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–32 were.**
+**Pushed as FOURDE1 as `e1bb80c`; CI run 33600997066 green first try, both jobs (lint / typecheck / test / build, and the real-browser e2e) — eighteen consecutive greens. This line was added in the follow-up docs commit, as ticks 29–32 did.**
 
 ## 2026-09-02 (tick 32) — F-78: the dashboard's numbers become true
 
