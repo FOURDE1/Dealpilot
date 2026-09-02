@@ -1,16 +1,19 @@
 import type { FastifyInstance } from 'fastify';
 import { withTenant, withUser, type Pool, type PoolClient } from '@dealpilot/db';
-import { calculateCommission, type CommissionPlan, type Overrider } from '@dealpilot/core';
+import { buildClawbackLine, calculateCommission, type CommissionPlan, type Overrider } from '@dealpilot/core';
 import {
   ActivityListQuery,
+  ClawbackListQuery,
   CommissionListQuery,
   CreatePayPlanInput,
+  FlagClawbackInput,
   PayPlanListQuery,
   UpdatePayPlanInput,
 } from '@dealpilot/schemas';
 import { AppError, forbidden, notFound, parseOrThrow } from './errors.js';
 import { conflictFrom, idParam, keysetPage, requireMember, sessionUser } from './f01-routes.js';
 import { diff, recordEvent } from './activity.js';
+import { notify } from './notifications.js';
 import { hasPermission, requirePermission } from './permissions.js';
 
 /**
@@ -22,13 +25,18 @@ import { hasPermission, requirePermission } from './permissions.js';
  * writes the result.
  *
  * WHO SEES PAY: money is personal. Reading someone else's plan or commission
- * needs `owner`/`gm`/`fi_manager`; anyone can read their own (RLS self-read
- * policies in migration 0011). Writing a plan is owner/gm only.
+ * needs `commission:read_all`; anyone reads their own. That privacy is
+ * ROUTE-enforced (the user_id clamp below) — migration 0013 dropped 0011's
+ * self-read policies because bare user-keyed policies OR across organizations.
+ * Writing a plan needs `pay_plan:write`.
  *
  * TRIGGER: lines are written when a deal's `funded_at` is first set — the
  * commission belongs to the month the money arrived, never to the stage. The
  * unique (deal_id, user_id, kind) index makes re-running it a no-op, so a
- * retried or double-clicked funding can never double-pay.
+ * retried or double-clicked funding can never double-pay. A confirmed clawback
+ * (F-79) writes exactly one negative `kind='clawback'` line dated into the
+ * OPEN period — the same unique index makes a duplicate reversal an error,
+ * never a second line.
  */
 
 
@@ -378,6 +386,260 @@ export function registerF09Routes(app: FastifyInstance, pool: Pool): void {
     });
     return reply.send({ ...page, items: page.items.map((c) => numericToNumbers(c as Record<string, unknown>)) });
   });
+
+  /**
+   * F-79 flag (commissions-clawbacks.md §8, §11.4): mark a paid line for
+   * reversal. Writes NO money — the negative line is written only by the human
+   * confirm below, derived from the STORED clawback row, never from a client.
+   */
+  app.post('/api/v1/commission-clawbacks', async (request, reply) => {
+    const input = parseOrThrow(FlagClawbackInput, request.body);
+    const user = sessionUser(request);
+    try {
+      const cc = await withTenant(pool, input.organization_id, async (c) => {
+        await requirePermission(c, user.id, 'commission:clawback');
+        const cm = await c.query<Record<string, unknown>>(
+          `SELECT * FROM commissions WHERE id = $1`,
+          [input.commission_id],
+        );
+        // RLS makes a rival's commission invisible — the cross-tenant case IS
+        // this line, driven as the APP role (rls-coverage's behavioural case).
+        if (cm.rows.length === 0) throw notFound();
+        const commission = cm.rows[0]!;
+        if (commission['kind'] === 'clawback') {
+          throw new AppError(422, 'validation_failed', 'A clawback line cannot be clawed back', [
+            { path: 'commission_id', code: 'not_clawbackable', message: 'This line is itself a reversal' },
+          ]);
+        }
+        const amountCents = commission['amount_cents'] as number;
+        if (amountCents <= 0) {
+          // REACHABLE, not decorative: a loss deal writes a $0 kind='sale'
+          // line (the funding INSERT is unconditional; the engine floors at 0).
+          throw new AppError(422, 'validation_failed', 'There is nothing to recover on this line', [
+            { path: 'commission_id', code: 'nothing_to_recover', message: 'The line paid nothing' },
+          ]);
+        }
+        if (input.reversed_amount_cents > amountCents) {
+          throw new AppError(422, 'validation_failed', 'Cannot reverse more than the line paid', [
+            { path: 'reversed_amount_cents', code: 'over_amount', message: `At most ${amountCents}` },
+          ]);
+        }
+        // Terminal check (D-080 a). FOR UPDATE with NO status predicate locks
+        // EVERY existing clawback row for this commission, so a flag racing a
+        // confirm blocks on the confirm's row lock and re-reads 'reversed'
+        // here once it commits — no zombie flag on a reversed commission. A
+        // 'flagged' row deliberately falls THROUGH to the INSERT: the partial
+        // unique index stays the ONLY duplicate gate (race-proof 409).
+        const existing = await c.query<{ status: string }>(
+          `SELECT status FROM commission_clawbacks WHERE commission_id = $1 FOR UPDATE`,
+          [input.commission_id],
+        );
+        if (existing.rows.some((r) => r.status === 'reversed')) {
+          throw new AppError(422, 'clawback_terminal', 'This commission has already been reversed — one clawback per line');
+        }
+        const r = await c.query<Record<string, unknown>>(
+          `INSERT INTO commission_clawbacks
+             (organization_id, deal_id, commission_id, reason, original_amount_cents, reversed_amount_cents, flagged_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+          [
+            input.organization_id, commission['deal_id'], input.commission_id,
+            input.reason, amountCents, input.reversed_amount_cents, user.id,
+          ],
+        );
+        const row = r.rows[0]!;
+        const deal = await c.query<{ store_id: string | null }>(
+          `SELECT store_id FROM deals WHERE id = $1`,
+          [commission['deal_id'] as string],
+        );
+        // STATUS ONLY in changes — activity:read is floor-wide and the f10 pay
+        // filter is deliberately not extended; the reason rides its own field.
+        await recordEvent(c, {
+          organizationId: input.organization_id,
+          storeId: deal.rows[0]?.store_id ?? null,
+          actorUserId: user.id,
+          entityType: 'commission_clawback',
+          entityId: String(row['id']),
+          action: 'created',
+          reason: input.reason,
+          changes: { status: { from: null, to: 'flagged' } },
+          parentEntityType: 'deal',
+          parentEntityId: commission['deal_id'] as string,
+        });
+        return row;
+      });
+      return await reply.status(201).send(cc);
+    } catch (err) {
+      throw conflictFrom(err) ?? err;
+    }
+  });
+
+  /**
+   * F-79 confirm — the human confirmation that writes the money. ONE
+   * withTenant transaction: the negative line, the status flip, the event and
+   * the bells commit together or roll back together.
+   */
+  app.post('/api/v1/commission-clawbacks/:id/confirm', async (request, reply) => {
+    const ccId = idParam(request);
+    const user = sessionUser(request);
+    const orgId = await clawbackOrg(pool, user.id, ccId);
+    const out = await withTenant(pool, orgId, async (c) => {
+      await requirePermission(c, user.id, 'commission:clawback');
+      // The lock is on the CLAWBACK row only — commissions are immutable and
+      // the live UNIQUE is the cross-path backstop. Two racing confirms
+      // serialize here; the second reads 'reversed' below and 422s (never a
+      // silent 200 — a double-click must learn it did not write twice).
+      const r = await c.query<Record<string, unknown>>(
+        `SELECT * FROM commission_clawbacks WHERE id = $1 FOR UPDATE`,
+        [ccId],
+      );
+      if (r.rows.length === 0) throw notFound();
+      const cc = r.rows[0]!;
+      if (cc['status'] !== 'flagged') {
+        throw new AppError(422, 'already_reversed', 'This clawback is already confirmed');
+      }
+      const cm = await c.query<Record<string, unknown>>(
+        `SELECT * FROM commissions WHERE id = $1`,
+        [cc['commission_id'] as string],
+      );
+      const commission = cm.rows[0]!; // exists by the NOT NULL FK
+      const deal = await c.query<{ store_id: string | null }>(
+        `SELECT store_id FROM deals WHERE id = $1`,
+        [cc['deal_id'] as string],
+      );
+      const storeId = deal.rows[0]?.store_id ?? null;
+      // ONE stamp for BOTH confirmed_at and the negative line's funded_at
+      // (the f05 stamping precedent; pinned byte-equal by T-A4).
+      const confirmedAt = new Date().toISOString();
+      const line = buildClawbackLine(
+        {
+          totalGrossCents: commission['total_gross_cents'] as number,
+          grossForCommissionCents: commission['gross_for_commission_cents'] as number,
+          // numeric(5,4) arrives as a string — num() is the typed boundary.
+          appliedRate: num(commission['applied_rate'] as string),
+          amountCents: commission['amount_cents'] as number,
+        },
+        cc['reversed_amount_cents'] as number,
+        confirmedAt,
+      );
+      try {
+        // Plain INSERT — ON CONFLICT DO NOTHING is BANNED here: a flipped
+        // status with no line is the recorded no-op-feature class.
+        await c.query(
+          `INSERT INTO commissions (organization_id, deal_id, user_id, kind, total_gross_cents,
+                                    gross_for_commission_cents, applied_rate, amount_cents, funded_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [
+            orgId, cc['deal_id'], commission['user_id'], line.kind,
+            line.total_gross_cents, line.gross_for_commission_cents, line.applied_rate,
+            line.amount_cents, line.funded_at,
+          ],
+        );
+      } catch (err) {
+        const e = err as { code?: string; constraint?: string };
+        // The commissions UNIQUE (deal_id, user_id, kind) 23505 IS reachable,
+        // in exactly ONE configuration: the same-person sale+override edge —
+        // two commission lines, ONE (deal, user, 'clawback') slot — whether
+        // the two flags are confirmed sequentially (T-A5b) or as a
+        // sibling-commission race (this confirm losing the race to the
+        // sibling flag's confirm). A same-commission fresh flag cannot race
+        // this confirm: the flag route's FOR-UPDATE terminal check closes
+        // that path (its 'no zombie flag on a reversed commission' comment
+        // above). Mapped to 422 clawback_cap_reached — truthful: THIS
+        // commission was not reversed, its sibling holds the slot — and
+        // thrown so the WHOLE transaction rolls back: the status never
+        // flips lineless.
+        if (e.code === '23505' && e.constraint === 'commissions_deal_id_user_id_kind_key') {
+          throw new AppError(422, 'clawback_cap_reached', 'The clawback line for this deal and person already exists');
+        }
+        throw err;
+      }
+      const upd = await c.query<Record<string, unknown>>(
+        `UPDATE commission_clawbacks
+         SET status = 'reversed', confirmed_by = $2, confirmed_at = $3
+         WHERE id = $1 RETURNING *`,
+        [ccId, user.id, confirmedAt],
+      );
+      const earnerId = commission['user_id'] as string;
+      // params carry ONE locale-free number (bell.tsx's law: every producer's
+      // params are locale-free); each recipient's own locale renders it via
+      // the ICU ::currency/CAD argument in the key.
+      const params = { amount: (cc['reversed_amount_cents'] as number) / 100 };
+      const notifyOne = (userId: string, urgency: 'high' | 'medium') =>
+        notify(c, {
+          organizationId: orgId, userId, urgency,
+          titleKey: 'notif_commission_clawback', params,
+          link: '/commissions', entityType: 'commission_clawback', entityId: ccId, storeId,
+        });
+      // The earner is NEVER dropped — the person whose pay moved is told even
+      // when they confirmed it themselves. HIGH: their pay moved.
+      await notifyOne(earnerId, 'high');
+      let managerIds = await storeRoleIds(c, orgId, storeId, 'gm');
+      if (managerIds.length === 0) {
+        // Owner is the FALLBACK for a no-GM store, never a co-recipient.
+        managerIds = await storeRoleIds(c, orgId, storeId, 'owner');
+      }
+      for (const managerId of managerIds) {
+        // The confirming ACTOR is dropped from the MANAGER set (the f40
+        // no-self-notify precedent), and the earner already has their bell.
+        if (managerId === user.id || managerId === earnerId) continue;
+        await notifyOne(managerId, 'medium');
+      }
+      await recordEvent(c, {
+        organizationId: orgId,
+        storeId,
+        actorUserId: user.id,
+        entityType: 'commission_clawback',
+        entityId: ccId,
+        action: 'updated',
+        changes: { status: { from: 'flagged', to: 'reversed' } },
+        parentEntityType: 'deal',
+        parentEntityId: cc['deal_id'] as string,
+      });
+      return upd.rows[0]!;
+    });
+    return reply.send(out);
+  });
+
+  /**
+   * F-79 list — pay privacy mirrored from the commissions list above: without
+   * `commission:read_all` the mandatory FK JOIN clamps to the caller's OWN
+   * lines. No user_id filter parameter exists, deliberately: the clamp is the
+   * only door.
+   */
+  app.get('/api/v1/commission-clawbacks', async (request, reply) => {
+    const query = parseOrThrow(ClawbackListQuery, request.query);
+    const user = sessionUser(request);
+    const orgId = await resolveOrg(pool, user.id, query.organization_id);
+    const page = await withTenant(pool, orgId, async (c) => {
+      await requireMember(c, user.id);
+      const canSeeEveryone = await hasPermission(c, user.id, 'commission:read_all');
+      const params: unknown[] = [orgId];
+      let where = 'cc.organization_id = $1';
+      if (!canSeeEveryone) {
+        params.push(user.id);
+        where += ` AND cm.user_id = $${params.length}`;
+      }
+      for (const [col, val] of [
+        ['cc.deal_id', query.deal_id],
+        ['cc.commission_id', query.commission_id],
+      ] as const) {
+        if (val) {
+          params.push(val);
+          where += ` AND ${col} = $${params.length}`;
+        }
+      }
+      // keysetPage's sortAlias exists for exactly this JOIN shape (both sides
+      // carry created_at/id); the 0072 org index matches the sort.
+      return keysetPage(
+        c,
+        `SELECT cc.* FROM commission_clawbacks cc
+         JOIN commissions cm ON cm.id = cc.commission_id
+         WHERE ${where}`,
+        params, query, 'cc',
+      );
+    });
+    return reply.send(page);
+  });
 }
 
 /** pg returns numeric as a string; the contract promises numbers. */
@@ -433,6 +695,47 @@ async function planOrg(pool: Pool, userId: string, planId: string): Promise<stri
     if (found) return orgId;
   }
   throw notFound();
+}
+
+/** planOrg's shape against commission_clawbacks (F-79): iterate the caller's
+ * orgs under withTenant; a rival's (or unknown) clawback id is a 404. */
+async function clawbackOrg(pool: Pool, userId: string, clawbackId: string): Promise<string> {
+  const orgs = await withUser(pool, userId, async (c) => {
+    const r = await c.query<{ organization_id: string }>(
+      `SELECT DISTINCT organization_id FROM memberships WHERE status = 'active'`,
+    );
+    return r.rows.map((x) => x.organization_id);
+  });
+  for (const orgId of orgs) {
+    const found = await withTenant(pool, orgId, async (c) => {
+      const r = await c.query('SELECT 1 FROM commission_clawbacks WHERE id = $1', [clawbackId]);
+      return r.rows.length > 0;
+    });
+    if (found) return orgId;
+  }
+  throw notFound();
+}
+
+/**
+ * Active members holding `role` for the deal's store (org-wide membership, or
+ * that store's). The role is DATA picking notification recipients here —
+ * access itself was already decided by requirePermission above (the task-sweep
+ * recipient precedent, split into GM-then-owner-fallback per F-79's scope).
+ */
+async function storeRoleIds(
+  client: PoolClient,
+  orgId: string,
+  storeId: string | null,
+  role: string,
+): Promise<string[]> {
+  const r = await client.query<{ user_id: string }>(
+    `SELECT DISTINCT m.user_id FROM memberships m
+     WHERE m.organization_id = $1 AND m.status = 'active'
+       AND m.roles && $2::text[]
+       AND (m.store_id IS NULL OR $3::uuid IS NULL OR m.store_id = $3::uuid)`,
+    [orgId, [role], storeId],
+  );
+  return r.rows.map((x) => x.user_id);
 }
 
 export { forbidden };

@@ -256,6 +256,47 @@ describe('F-10 activity trail', () => {
       await Promise.all(sources.map((f) => readFile(join(dir, f), 'utf8')))
     ).join('\n');
 
+    // F-79: `notify()` also takes an `entityType:` key (notification linkage),
+    // so a bell producer must never vouch for ACTIVITY vocabulary — the F-79
+    // mutation loop (M5) dropped every commission_clawback recordEvent and this
+    // guard stayed green on the notify() call alone, the name-collision blind
+    // spot. Strip notify(...) call spans before matching; the walk is
+    // quote-aware so a paren inside a string cannot unbalance it. Skipping a
+    // `notify(` preceded by a word char (notifyOne's NAME never carries the
+    // key) or an unbalanced span keeps the old, weaker behaviour — this edit
+    // can only strengthen the guard, never blind it further.
+    const stripNotifyCalls = (src: string): string => {
+      let out = '';
+      let i = 0;
+      for (;;) {
+        const at = src.indexOf('notify(', i);
+        if (at === -1) return out + src.slice(i);
+        if (at > 0 && /[\w.]/.test(src[at - 1]!)) {
+          out += src.slice(i, at + 'notify('.length);
+          i = at + 'notify('.length;
+          continue;
+        }
+        out += src.slice(i, at);
+        let depth = 0;
+        let quote: string | null = null;
+        let j = at;
+        for (; j < src.length; j++) {
+          const ch = src[j]!;
+          if (quote) {
+            if (ch === '\\') j++;
+            else if (ch === quote) quote = null;
+          } else if (ch === "'" || ch === '"' || ch === '`') quote = ch;
+          else if (ch === '(') depth++;
+          else if (ch === ')' && --depth === 0) {
+            j++;
+            break;
+          }
+        }
+        i = j;
+      }
+    };
+    const activityCode = stripNotifyCalls(code);
+
     // F-71: an entity whose ONLY producer is SQL is vouched for by the named
     // migration — an `INSERT INTO activity_events` naming it — not by API
     // code. The map is the promise; pointing it at the wrong file fails.
@@ -269,7 +310,7 @@ describe('F-10 activity trail', () => {
     };
     const unusedEntities: string[] = [];
     for (const v of ActivityEntityType.options) {
-      const used = v in SQL_PRODUCED_ENTITIES ? await producedBySql(v) : new RegExp(`entityType:\\s*'${v}'`).test(code);
+      const used = v in SQL_PRODUCED_ENTITIES ? await producedBySql(v) : new RegExp(`entityType:\\s*'${v}'`).test(activityCode);
       if (!used) unusedEntities.push(v);
     }
     expect(unusedEntities, `entity types no code path ever writes: ${unusedEntities.join(', ')}`).toEqual([]);

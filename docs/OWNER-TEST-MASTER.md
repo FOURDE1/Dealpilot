@@ -715,3 +715,27 @@ until it can be done without breaking readability.
 | 25.6 | Change a stale deal's stage (any stage move) | It leaves « En souffrance » on the next reload. The « more than 7 days » half is proven by the API suite — a browser cannot time-travel — so what you check here is the leave, not the wait | ⬜ |
 | 25.7 | Sign in as your **Directeur des ventes**, then as a **Vendeur** | The sales manager sees « Chiffres du mois » too (the report follows the « Rapports » permission, exactly like Ventes et pertes — narrow it in Équipe → Rôles if you want it gm/owner-only). The salesperson sees « Ma journée » — greeting, response speed, recent prospects, and NO figures; the browser never even requests the report | ⬜ |
 | 25.8 | From `main-project`: `pnpm e2e -- --grep gm-dashboard` | « Running 6 tests using 1 worker » — empty state, the funding queue, the delivery walk that moves the numbers, the drain, the stock tile, and the salesperson's zero-request proof — and it ends green in under a minute | ⬜ |
+
+
+## ROUND 26 — Taking a commission back, on the record (F-79)
+
+> Since ROUND 2 your commissions page has known the word « Reprise » without
+> ever being able to produce one. Now it can: an F&I manager, GM or owner
+> flags a commission with a reason and an amount (up to the original), a
+> human confirms it, and the confirmation writes exactly one negative
+> « Reprise » line into the CURRENT pay month — a closed month's statement
+> never changes. One reversal per commission line, definitive: that cap and
+> its trade-off are yours to keep or widen (the ⚠ row below). The seller is
+> told, with the amount; the person who clicked is not notified of their own
+> click. Everything here runs on your dev stack with no external account.
+
+| # | What to do | Expected | Status |
+|---|---|---|---|
+| 26.1 | On **Commissions**, as owner (or your Directeur commercial / F&I), click « Reprise… » on a funded commission line and enter a reason and `500` | The dialog names the line's original amount as the maximum; French amounts work (« 500,50 » is 500,50 $ — never mangled); after saving, the line shows « Reprise en attente » | ⬜ |
+| 26.2 | Try the refusals: as a **Vendeur**, look for the button; as the flagger, flag the SAME line again | The salesperson sees no « Reprise… » anywhere (and the browser never even asks the server about flagging); the second flag is refused — one pending reprise per line | ⬜ |
+| 26.3 | Click « Confirmer la reprise » on the flagged line | The confirm dialog restates the stored amount and tells you two true things: the reversal lands in the pay period « EN COURS », and « Cette action est définitive. » Confirm | ⬜ |
+| 26.4 | Read the page | A new « Reprise » line of −500,00 $ on the deal; the month's total drops by exactly 500,00 $ (e.g. 1 375,00 $ → 875,00 $); the badge reads « Reprise confirmée » | ⬜ |
+| 26.5 | Check the bells: sign in as the SELLER, then look at your own bell | The seller's bell reads « Reprise de commission confirmée : 500,00 $. » — the amount in their own language's format. YOUR bell has nothing new: the person who confirms is not notified of their own action | ⬜ |
+| 26.6 | Look at the reversed line again | It offers no « Reprise… » action — one reversal per commission line, ever. The refusal on a direct re-flag is also proven by the API suite | ⬜ |
+| 26.7 | From `main-project`: `pnpm e2e -- --grep commissions` | « Running 2 tests using 1 worker » — the original commissions journey untouched, plus the clawback journey (flag → confirm → the line → the dropped total → the seller's bell) — green in under a minute | ⬜ |
+| 26.8 ⚠ DECISION | Read the cap you now live under | **One reversal per commission line, definitive** — even a partial (your 500 $ on a 1 375 $ line) closes that line forever; and when one person carries both a sale and an override on the SAME deal, only one of the two can ever be reversed (the other's flag stays pending, harmlessly). This keeps the never-pays-twice guarantee untouched. **Decide**: live with it, or ask for the widening slice (D-080 records exactly what it costs — schema surgery plus editing the funding writer's idempotency, re-proven) | ⬜ |

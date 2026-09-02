@@ -80,6 +80,43 @@ export const Commission = z.object({
   created_at: IsoDateTime,
 });
 
+export const ClawbackStatus = z.enum(['flagged', 'reversed']);
+
+/**
+ * F-79 (commissions-clawbacks.md §8, §11.4): one lifecycle row per clawback —
+ * terminal per commission line (D-080). The negative commissions line is
+ * derived from THIS row at confirm time, never sent by a client. `created_at`
+ * is the flag moment (0072 carries no separate flagged_at column).
+ */
+export const CommissionClawback = z.object({
+  id: Uuid,
+  organization_id: Uuid,
+  deal_id: Uuid,
+  commission_id: Uuid,
+  status: ClawbackStatus,
+  reason: z.string(),
+  original_amount_cents: z.number().int(),
+  reversed_amount_cents: z.number().int(),
+  flagged_by: Uuid,
+  confirmed_by: Uuid.nullable(),
+  confirmed_at: IsoDateTime.nullable(),
+  created_at: IsoDateTime,
+});
+
+export const FlagClawbackInput = z.strictObject({
+  organization_id: Uuid,
+  commission_id: Uuid,
+  reason: z.string().trim().min(3).max(500),
+  /** Partial allowed: 0 < reversed ≤ the line's amount (server re-checks). */
+  reversed_amount_cents: z.number().int().positive(),
+});
+
+export const ClawbackListQuery = CursorQuery.extend({
+  organization_id: Uuid.optional(),
+  deal_id: Uuid.optional(),
+  commission_id: Uuid.optional(),
+});
+
 export const PayPlanListQuery = CursorQuery.extend({
   organization_id: Uuid.optional(),
   user_id: Uuid.optional(),
@@ -92,6 +129,8 @@ export const CommissionListQuery = CursorQuery.extend({
 });
 
 export type PayPlanT = z.infer<typeof PayPlan>;
+export type CommissionClawbackT = z.infer<typeof CommissionClawback>;
+export type FlagClawbackInputT = z.infer<typeof FlagClawbackInput>;
 export type CommissionT = z.infer<typeof Commission>;
 export type CreatePayPlanInputT = z.infer<typeof CreatePayPlanInput>;
 export type UpdatePayPlanInputT = z.infer<typeof UpdatePayPlanInput>;

@@ -87,6 +87,8 @@ export const IMPERSONATION_BLOCKED_PERMISSIONS: readonly PermissionT[] = [
   'member:revoke',
   'intake_key:manage',
   'pay_plan:write',
+  /** F-79: confirming a clawback writes a money line against someone's pay — the 'move pay' class. */
+  'commission:clawback',
   'document:sign',
   'checklist:sign_safety',
   'conversation:reply',

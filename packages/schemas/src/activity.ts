@@ -20,6 +20,12 @@ export const ActivityEntityType = z.enum([
    * apps/api/src/f10-activity.test.ts.
    */
   'impersonation_session',
+  /**
+   * F-79: a flagged/confirmed commission reversal; parent = its deal, so the
+   * deal's timeline shows it. Events carry STATUS ONLY, never amounts —
+   * activity:read is floor-wide and pay stays behind commission:read_all.
+   */
+  'commission_clawback',
 ]);
 
 export const ActivityAction = z.enum([

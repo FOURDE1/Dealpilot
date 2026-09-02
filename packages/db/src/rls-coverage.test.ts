@@ -149,6 +149,10 @@ const BEHAVIOURALLY_COVERED = new Set([
   // of these customers", and a 404 rather than a 403 on GET and PATCH) — a
   // customer list is the single most valuable thing a rival could take.
   'contacts',
+  // F-79: cross-tenant case in apps/api/src/f79-clawbacks.test.ts (T-A3/T-A8),
+  // driven as the APP role — a rival's flag is a 404 on the commission SELECT,
+  // a rival's confirm a 404 on the clawbackOrg walk.
+  'commission_clawbacks',
 ]);
 
 interface PolicyRow {

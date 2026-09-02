@@ -11,6 +11,190 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-080 — 2026-09-02 — Commission clawbacks: the negative line the page has rendered since 0011 gets its producer
+
+F-79 (commissions-clawbacks.md §8, §11 item 4; FR-COM-004 P1; the runner-up
+of the 2026-09-02 scoping, f78_scope §2 — its « 0071 » corrected to 0072).
+Designed by the three-planner + judge workflow — winner `lifecycle-and-gates`
+— hardened by four adversarial critics into a binding build document of 18
+rulings and 21 amendments, built in four waves (backend → i18n + web →
+journey → mutations + gate), reviewed through six adversarial lenses with
+refute-biased verification (six lenses, 10 raw findings — 6 confirmed, 6-into-4 fixes all claims-class minors, 4 refuted, all six finders returned; the sharpest: the confirm route's requirePermission had NO red test (deleting that one line survived the suite) — T-A3b now pins it, proven red first; plus the flag dialog's month promise rebound to confirmation time, the foreclosed two-paths race comment corrected, and the notification registry's actor claim made true), and gated: `pnpm turbo run build typecheck lint` 25/25 tasks (18 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **191 files / 2135 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **67 passed in 2.9 m first try against dealpilot_e2e_test rebuilt from migration zero incl. 0072 (the clawback test ~14.8 s)**, lock released, nothing left listening. Base `9eede0a`.
+
+(1) **The completion.** `commissions.kind` has allowed `'clawback'` since
+migration 0011 with ZERO producers, while the commissions page rendered the
+kind (« Reprise ») and `monthTotal` subtracted negative lines, test-pinned —
+the repo's strongest consumer-with-no-producer. The confirm route is now the
+producer. Five vocabulary items ship, each with BOTH ends in-slice and a
+guard that reds if either end is deleted: the `commission_clawbacks` table
+(0072), `commission:clawback` (catalogue + owner/gm/fi_manager defaults +
+the 0072 backfill à la 0057 + `requirePermission` in flag AND confirm —
+permission-drift-locked, and added to its dangerous floor-role pin),
+`notif_commission_clawback` (title-keys lockstep + the bell render test),
+the `commission_clawback` activity entity (the f10 guard), and the
+flagged/reversed status pair (badges, the duplicate-flag 409, the terminal
+422). NOT declared: an un-flag status, an auto-suggest status, the §11.4
+webhook (no webhook infrastructure exists), a reason taxonomy, any new
+ActivityAction.
+
+(2) **The two decisions, ruled with measurements.** (a) The live UNIQUE
+`(deal_id, user_id, kind)` stands: ONE clawback per commission line,
+terminal. It is the same constraint `writeCommissionsForFundedDeal` leans on
+for funding idempotency (the ON CONFLICT arbiter), and a partial-index
+replacement cannot arbitrate the bare conflict target — relaxing means
+editing the repo's most money-critical INSERT to buy a capability no spec
+sentence requires (§11.4 asks only `reversed ≤ original`; one partial
+satisfies it). The un-cut condition is recorded: a new migration with the
+partial index PLUS the f09 arbiter retarget PLUS re-proving never-pays-twice,
+together. The same-person sale+override edge (two lines, one (deal, user)
+slot for `'clawback'`) maps to 422 `clawback_cap_reached` — and its accepted
+consequence is recorded plainly: the second clawback row stays « flagged »
+forever (no un-flag exists until the deferred slice); the money stays safe
+under the UNIQUE. (b) The negative line lands in the OPEN pay period:
+`funded_at` = the confirm transaction's `confirmed_at`, ONE
+`new Date().toISOString()` stamp used for both, byte-equality pinned. The
+funded_at consumer census that makes this safe: `monthTotal` buckets by line
+`funded_at` (the owner sees THIS month drop — the point), the commission
+tier input reads `deals.funded_at` (pay math untouched), and F-78's
+dashboard reads `delivered_at` on the store clock (D-079 (4)'s two-clock
+residue restated, not changed). The shipped 0011:65 comment — « always the
+deal's funded_at » — was a stale claim; it is restated truthfully for all
+three kinds by 0072's `COMMENT ON COLUMN` (0011 itself is never edited), and
+the month-M/M+1 test pins that a closed month's sum is byte-unchanged after
+a confirmation in M+1, with the sums computed FROM `GET /api/v1/commissions`
+items — admin SQL touches only the two clock backdates.
+
+(3) **The transaction shapes.** Flag: `requirePermission` → the commission
+read (404 across tenants as the APP role) → the 422 refusal map (over-amount
+by path; a $0 or negative line — reachable: a loss deal writes a real
+`amount_cents = 0` sale line, proven by a positive fixture; a clawback
+line's own id) → a terminal check as `SELECT status … FOR UPDATE` over ALL
+the commission's clawback rows — closing the zombie-flag race a critic
+constructed (a flag racing a confirm blocks on the confirm's row lock and
+re-reads « reversed » → 422 `clawback_terminal`), while a « flagged » row
+falls THROUGH to the INSERT so the partial unique index
+`commission_clawbacks_one_flagged` stays the ONLY duplicate gate (no
+pre-SELECT — the index-drop mutation reds the 409 test) → plain INSERT,
+23505 → 409 with path `commission_id` via the CONSTRAINT_PATHS entry.
+Confirm, one `withTenant` transaction: the clawback row `FOR UPDATE`; 422
+`already_reversed` on a re-confirm (idempotent-or-422 resolves to 422 — a
+double-click learns it did not write twice); the commission + store read
+with `num()` at the numeric boundary; ONE stamp; the core `buildClawbackLine`
+(golden-tested — the negative line copies the original's user, deal, gross
+and rate and carries `amount = −reversed` from the STORED row, never a
+client value); a PLAIN INSERT — `ON CONFLICT DO NOTHING` is banned here
+because a status flip with no line is the repo's recorded no-op-feature
+class — with the commissions-UNIQUE 23505 caught BY CONSTRAINT NAME and
+mapped to 422 `clawback_cap_reached`, rolling the WHOLE transaction back so
+status and line are inseparable; the status flip; `notify()` and
+`recordEvent` in the same transaction. List: `requireMember` with the
+f09:365-372 pay-privacy clamp mirrored through the mandatory FK join — a
+salesperson sees only their own rows unless `commission:read_all`.
+
+(4) **The gates.** FORCED org-keyed RLS in 0013's shape with NO bare
+user-keyed policy; grants on the new table exactly SELECT/INSERT/UPDATE and
+no DELETE (the status flip is the one UPDATE a workflow table needs — the
+0072 comment pre-answers the append-only reviewer; `commissions` itself
+stays SELECT/INSERT only, and the grant-shape test pins both). Behavioural
+cross-tenant coverage registered in rls-coverage (the entry-drop mutation
+reds the guard). `commission:clawback` is also in
+`IMPERSONATION_BLOCKED_PERMISSIONS` — confirming a clawback writes a money
+line against someone's pay, squarely that list's « move pay » class, so a
+platform support session can neither flag nor confirm — pinned by test.
+Activity events carry STATUS ONLY, no amounts, and the f10 pay filter is
+deliberately NOT extended: an event without money is not pay data, and
+amounts-plus-filtering would reopen the door 0013 closed. The pay-visibility
+asymmetry is stated, not hidden: a manager holding `commission:clawback`
+without `commission:read_all` reads a line's original amount through the
+clawback row, and GM recipients are role-selected, so the matrix cannot
+fully narrow the bell — the task-sweep precedent.
+
+(5) **The notification.** Params carry ONE locale-free number
+(`amount: cents / 100`) — bell.tsx's own comment says every producer's
+params are locale-free, and storing display-formatted money would falsify it
+— rendered by an ICU `{amount, number, ::currency/CAD}` key in both locales,
+pinned by a render test (fr « Reprise de commission confirmée : 500,00 $. »,
+en « Commission clawback confirmed: $500.00. » — measured, with the
+narrowSymbol≡symbol equivalence noted so a future locale change cannot
+silently split the bell's format from the page's). Recipients: the earner
+ALWAYS at high urgency; the store's GMs at medium with an owner fallback for
+a no-GM store; the confirming actor is excluded from the MANAGER set only —
+the earner is never excluded. The fallback is proven POSITIVELY (a second,
+non-acting owner receives) beside the actor-exclusion proof, per the
+test-that-asserts-absence law.
+
+(6) **The screen.** The clawback column's branches are EXHAUSTIVE: a
+clawback-kind row → « — »; flagged → badge + the confirm action only with
+the permission; reversed → badge with sr-only terminal text; no clawback and
+(no permission OR `amount_cents ≤ 0`) → « — »; else the flag action —
+nothing disabled-but-visible, and no request fires that a 403 would answer
+(the list GET answers 200 self-filtered for every role, so the earner's own
+badge and bell work). The flag dialog parses money with `parseMoneyToCents`
+— a critic proved `parseFloat("1 375,50") === 1` and `parseFloat("500,50")
+=== 500`, a silent FR-money corruption that would have PASSED the server's
+range check — with the round-trip vectors pinned in a parse test. The
+confirm dialog restates the stored amount and says the reversal lands in the
+pay period « EN COURS » and « Cette action est définitive. » — both claims
+the code makes true.
+
+(7) **What the build's own loop caught.** The first red run: `recordEvent`
+23514'd because the activity entity-type CHECKs did not know
+`commission_clawback` — 0072 also DROP+re-ADDs both CHECKs with the live
+lists (the 0067 precedent); a build-order gap, recorded. The f10
+dead-vocabulary guard was BLIND to the drop-recordEvent mutation: `notify()`
+also carries an `entityType:` key, so the bare regex counted it as a
+producer — exactly the name-collision blind-spot class the repo's memory
+records — and the guard was STRENGTHENED (notify() call spans stripped
+before the scan; green on the unmutated tree, red under the mutation).
+The ON-CONFLICT-DO-NOTHING mutation SURVIVED the planned suite — the
+manifest's named red was false because no tested path reached the
+commissions UNIQUE — so T-A5b now drives the same-person sale+override edge
+entirely through the API (a self-override pay plan; first confirm 200;
+second confirm 422 `clawback_cap_reached`; the row stays flagged; exactly
+one negative line) and is the mutation's true red. The fr-only key-drop
+variant of the parity mutation dies at the mirror-shape typecheck and can
+never reach dist — the both-locales drop is what proves the title-keys
+lockstep and the render test. And the new activity entity conscripted the
+web ENTITY_KEYS label lockstep (one line + two locale labels) — a
+typecheck-enforced consumer the wave reports record.
+
+(8) **Rejected, with reasons:** a new f79 routes file (three module-private
+f09 helpers would be exported or duplicated; f09's header already names this
+spec as its subject); pre-formatted `amount_fr`/`amount_en` params (falsify
+bell.tsx's locale-free contract; the F-72 dual-title precedent is for
+human-authored text) and a parameterless bell (the amount IS the story — no
+existing notif key is parameterless); a permission-gated list (blinds the
+earner to a reversal of their own pay, or fires a 403-answered request);
+relaxing the UNIQUE ((2)); `ON CONFLICT DO NOTHING` on confirm ((3)); role
+names in routes (D-033); a SECURITY.md audit entry (that log's own header
+scopes entries to /security-audit runs; the isolation story is carried by
+the conscripted guards and this decision); a `flagged_at` column
+(`created_at` IS the flag moment — commented); a `store_id` column (read
+from deals at notify time); extending the long f09 e2e journey (a NEW
+self-contained test in the same file, own fixtures, measured ~14.8 s against
+the 90 s ceiling).
+
+(9) **Deferred with un-cut conditions, and the stale claims fixed.**
+Un-flag/cancelled status (un-cut: the first real mis-flag that cannot stay
+unconfirmed — also the release valve for the recorded stuck-flag edge);
+auto-suggest on lost-after-commission / funding regression (manual-first —
+nothing reacts to those transitions today; un-cut: a producer in the f02/f05
+transactions plus a UI that acts on it, one slice); the
+`commission.clawback_confirmed` webhook (§11.4/ADR-005 — no webhook infra;
+the event name would be dead on arrival); a reason taxonomy (free text until
+a reporting consumer exists); a second partial reversal per line (un-cut =
+the (2)(a) surgery, done together); §11.5 period statements; the legacy
+`store_id` list filter (no product consumer — the page maps by
+commission_id). Fixed stale claims: the f09 header's « RLS self-read
+policies in migration 0011 » (dropped by 0013 — pay privacy is
+route-enforced, and the header now says so, plus « Writing a plan needs
+pay_plan:write. »); 0011:65's funded_at story ((2)(b)). Cosmetic, recorded:
+the new fr notif key uses a plain space before « : » where a neighbour uses
+NBSP — flagged, not silently normalized. Related: D-033 (the catalogue),
+D-074/D-079 (the caption and clock laws this page inherits), D-077 (the
+guards-find-bugs discipline the loop re-confirmed); migration
+`20260902000072_commission-clawbacks.sql`.
+
 ## D-079 — 2026-09-02 — The dashboard's numbers become true: a measured GM report replaces the floor-as-total tiles
 
 F-78 (reports-analytics.md §14.1; FR-REP-003 P1 — genuinely missing at the

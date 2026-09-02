@@ -112,6 +112,8 @@ describe('permission drift', () => {
     // The ones that move money, change authority, or erase a tenant.
     const dangerous = [
       'organization:delete', 'pay_plan:write', 'commission:read_all',
+      // F-79: confirming a clawback writes a money line against someone's pay.
+      'commission:clawback',
       'member:update_roles', 'checklist:sign_safety', 'checklist:correct_delivered',
       'intake_key:manage', 'document:sign',
     ] as const;

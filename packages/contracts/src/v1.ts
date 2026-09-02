@@ -106,9 +106,12 @@ import {
   InvitationListQuery,
   InvitationPreview,
   AddMemberInput,
+  ClawbackListQuery,
   Commission,
+  CommissionClawback,
   CommissionListQuery,
   CreatePayPlanInput,
+  FlagClawbackInput,
   PayPlan,
   PayPlanListQuery,
   UpdatePayPlanInput,
@@ -1709,6 +1712,29 @@ export const apiV1 = c.router({
       path: '/api/v1/commissions',
       query: CommissionListQuery,
       responses: { 200: paginated(Commission), ...errorResponses },
+    },
+  }),
+  /** F-79 clawbacks (commissions-clawbacks.md §8, §11.4): flag → human confirm →
+   *  ONE offsetting negative commissions line, dated into the open period. */
+  commissionClawbacks: c.router({
+    flag: {
+      method: 'POST',
+      path: '/api/v1/commission-clawbacks',
+      body: FlagClawbackInput,
+      responses: { 201: CommissionClawback, ...errorResponses },
+    },
+    confirm: {
+      method: 'POST',
+      path: '/api/v1/commission-clawbacks/:id/confirm',
+      pathParams: z.object({ id: Uuid }),
+      body: z.object({}).optional(),
+      responses: { 200: CommissionClawback, ...errorResponses },
+    },
+    list: {
+      method: 'GET',
+      path: '/api/v1/commission-clawbacks',
+      query: ClawbackListQuery,
+      responses: { 200: paginated(CommissionClawback), ...errorResponses },
     },
   }),
   /** F-07 inventory: the cars a store owns; a deal points at one. */

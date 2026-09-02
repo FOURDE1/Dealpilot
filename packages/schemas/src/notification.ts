@@ -62,6 +62,10 @@ export const NOTIFICATION_TITLE_KEYS = [
   'notif_duplicate_resubmission',
   'notif_qa_compliance_flag',
   'notif_qa_weekly_low',
+  /** F-79 §11.4: a confirmed clawback → the salesperson whose line is reversed,
+   *  and the store's GMs (owner fallback); the confirming actor is dropped from
+   *  the MANAGER set only — the earner always receives, even confirming their own. */
+  'notif_commission_clawback',
 ] as const;
 
 export type NotificationT = z.infer<typeof Notification>;

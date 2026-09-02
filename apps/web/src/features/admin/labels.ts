@@ -126,6 +126,7 @@ export const ENTITY_KEYS = {
   store: 'entity_store',
   task: 'entity_task',
   impersonation_session: 'entity_impersonation_session',
+  commission_clawback: 'entity_commission_clawback',
 } as const satisfies Record<ActivityEntityTypeT, string>;
 
 /**

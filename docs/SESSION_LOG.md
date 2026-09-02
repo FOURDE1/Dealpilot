@@ -1,3 +1,121 @@
+## 2026-09-02 (tick 33) — F-79: commission clawbacks — the « Reprise » line gets its producer
+
+**Where tick 32's CI story ended.** F-78 shipped as `51fd9ce` (run
+33584894132, green) and its docs tail `9eede0a` was green too (run
+33585461860) — seventeen consecutive greens; `develop` was clean at `9eede0a`
+when this slice started.
+
+**How the slice was chosen.** The 2026-09-02 scoping's runner-up, held
+panel-ready: `commissions.kind` has allowed `'clawback'` since 0011 with
+zero producers while the page rendered the kind and `monthTotal` subtracted
+negative lines — the strongest consumer-with-no-producer on the board; P1
+(FR-COM-004), owner-free. One scope correction carried in: F-78 consumed
+0071, so this slice's migration is 0072. The panel (three planners:
+money-truth, lifecycle-and-gates, owner-screen; a judge ruling only; four
+critics) converged unanimously on the two hard decisions — the live UNIQUE
+accepted as terminal-per-commission, the negative line in the OPEN pay
+period — and the judge (whose first run died on a session limit and was
+RESUMED from its journal) ruled the three-way splits: routes inside f09,
+the ICU currency notification over pre-formatted params, the self-filtered
+list over a permission gate, a new self-contained e2e test over extending
+the long journey.
+
+**What the critics caught before a line was written.** `parseFloat` on an
+FR-formatted amount silently corrupts money (`parseFloat("1 375,50") === 1`)
+— the dialog ships `parseMoneyToCents` with pinned vectors; the ruled e2e
+bell step contradicted the ruled actor-exclusion (the owner was the
+confirming actor AND the claimed recipient) — the bell is asserted as VICKY,
+the earner; a flag racing a confirm could mint a never-confirmable zombie
+flag the moment the reversed row left the partial index's predicate — the
+terminal check is now `SELECT … FOR UPDATE` over all the commission's
+clawback rows; and `commission:clawback` belongs in
+`IMPERSONATION_BLOCKED_PERMISSIONS` (it moves pay) and in permission-drift's
+dangerous floor-role pin — both added, both pinned.
+
+**Built in four waves.** Backend: 0072 (the table with its paired status
+CHECKs, the partial unique on flagged, forced org-keyed RLS, the
+`commission:clawback` backfill, the truthful `funded_at` COMMENT — and,
+found by the FIRST red run, the DROP+re-ADD of both activity entity-type
+CHECKs, without which every `recordEvent` 23514'd); the three routes inside
+f09 with the stale header claim fixed; `buildClawbackLine` with
+engine-derived goldens ($35,000/$30,000 + $2,000 reserve → the 137 500 ¢
+line); a 15-test API suite whose month-M/M+1 case reads its sums FROM the
+API. Web: 21 keys per locale (including the confirm dialog's « période de
+paie EN COURS » / « Cette action est définitive. », the ICU
+`::currency/CAD` bell key measured to render « Reprise de commission
+confirmée : 500,00 $. », and the conscripted `entity_commission_clawback`
+label the new activity entity forced through the typecheck); the exhaustive
+clawback column; the parse test's seven vectors. Journey: a NEW
+self-contained test beside the untouched f09 journey — flag 500 → confirm →
+the « Reprise » line and the month total 1 375,00 → 875,00 → VICKY's bell
+(`params.amount === 500`) — 14.8 s / 14.1 s over two consecutive green
+filtered runs, « Running 2 tests using 1 worker ».
+
+**Mutations, nine, each red then restored byte-identical — and twice the
+loop caught the guards themselves.** M5 (drop `recordEvent`) left the f10
+dead-vocabulary guard GREEN: `notify()`'s `entityType:` key satisfied the
+bare regex — the recorded name-collision blind-spot class — so the guard
+now strips notify() call spans before scanning (green unmutated, red under
+M5). M7 (`ON CONFLICT DO NOTHING` on the confirm INSERT) SURVIVED the
+planned suite — no tested path reached the commissions UNIQUE — so T-A5b
+now drives the same-person sale+override edge through a self-override pay
+plan: first confirm 200, second confirm 422 `clawback_cap_reached`, the row
+stays flagged, exactly one negative line; red under M7. M6's fr-only
+key-drop dies at the mirror-shape typecheck (it can never reach dist); the
+both-locales variant is what proves title-keys and the render test.
+
+**Adversarial review: six lenses, refute-biased verification.** 10 raw findings, **6 confirmed, 4 refuted**, all six finders returned (16
+agents, none died). The six deduplicate to four fixes, every one minor and
+every one a claims defect — the money math itself survived all six lenses
+untouched. (1) The flag dialog promised the negative line would land in
+« le mois en cours » — read at FLAG time; the shipped rule dates the line by
+the CONFIRMATION stamp, so a flag on the 30th confirmed on the 2nd lands in
+the next month, falsifying the sentence on the one surface where the month
+IS the statement period. Reworded in both locales to bind the month to the
+confirmation (the confirm dialog was already truthful — proof the design
+knew the right phrasing). (2) The confirm catch's comment claimed its 23505
+was reachable « by two paths », but the second — a fresh flag racing this
+confirm on the SAME commission — is foreclosed by this very slice's
+FOR-UPDATE hardening: a complete interleaving trace showed the only
+reachable configuration is the same-person sale+override sibling. The two
+amendments (the two-paths wording; the race lock) were written by different
+critics and never re-reconciled — the comment now names the single path, and
+the flag route's « no zombie flag » comment and this one no longer
+contradict each other. (3) The notification registry's comment said « never
+the confirming actor » — false for the earner-as-actor case: the route
+correctly always notifies the earner, even confirming their own line's
+reversal, and drops the actor from the MANAGER set only; the comment now
+says what the code does. (4) The sharpest catch: the confirm route's
+`requirePermission` had NO red test — a verifier deleted that one line and
+ran 20/20 GREEN (T-A3's 403 covers the flag only; every confirm caller in
+the suite held the permission). T-A3b now POSTs the confirm as a
+salesperson → 403, the row still flagged, no line written — proven red
+first against the deleted gate, then green restored (the suite is 16
+tests). Refuted, and worth keeping: the permission-drift registry's
+« two places » census was already false at the base for seven untouched
+files (pre-existing, repo-wide — not this slice's to fix); the clawback
+list's 300-row truncation cannot be silent (one clawback per line means
+any caller who could hit it necessarily sees the commissions list's own
+truncation alert — proven by arithmetic over the shared clamp); the
+`truncated` flag `useClawbacks` returns unread is the winning plan's own
+verbatim loop shape, not dead vocabulary; and the stray probe file a finder
+flagged had already been deleted by its owner, the tree byte-matching the
+gate report's recorded 19 + 4.
+
+**Gate after the fixes:** `pnpm turbo run build typecheck lint` 25/25 tasks (18 cached); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **191 files / 2135 tests, exit 0, no unhandled errors**; `node scripts/e2e.mjs` → **67 passed in 2.9 m first try against dealpilot_e2e_test rebuilt from migration zero incl. 0072 (the clawback test ~14.8 s)**, lock released, nothing left listening. Dev database untouched all build long:
+`platform_staff = 0`, `users = 962`, 0071 the newest applied — 0072 reached
+dev only at ship, via `db:migrate`, immediately before the commit:
+73 → 74 migrations, newest 20260902000072; commission_clawbacks created empty; platform_staff still 0, users 962, commissions 66 untouched.
+
+**Docs:** D-080 at the top of `DECISIONS.md`; ROUND 26 (flag → refusals →
+confirm → the negative line and the dropped total → the seller's bell —
+with its ⚠ DECISION row on the terminal-per-line rule); `TASKS.md` F-79 row;
+`PROJECT.md` how-to row. `SECURITY.md` unchanged — the audit log's own
+header scopes entries to /security-audit runs, and the ruling is recorded
+in D-080 (8).
+
+**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–32 were.**
+
 ## 2026-09-02 (tick 32) — F-78: the dashboard's numbers become true
 
 **Where tick 31's CI story ended.** F-77 shipped as `cc76139` (run

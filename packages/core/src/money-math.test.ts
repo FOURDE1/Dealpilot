@@ -10,6 +10,7 @@ import {
   leaseMonthlyBaseCents,
   computeDeal,
   calculateCommission,
+  buildClawbackLine,
 } from './index.js';
 
 /**
@@ -221,5 +222,63 @@ describe('commission engine (corrected §11 rules)', () => {
     });
     expect(r.totalGrossCents).toBe(-200_000);
     expect(r.commissionCents).toBe(0);
+  });
+});
+
+describe('clawback line builder (F-79 §11.4 — T-C1…T-C6)', () => {
+  // The canonical line is RE-DERIVED from the engine, never hand-copied:
+  // $35,000 sale on a $30,000 car with a $2,000 F&I reserve on the 25% +
+  // $1,500-pad plan → total_gross 700 000¢, gfc 550 000¢, amount 137 500¢
+  // (fiReserve ADDS into totalGross — the same inputs the A-06 golden above
+  // and deskAndFund(3_500_000, 3_000_000, 200_000) in the API suite use).
+  const canonical = calculateCommission({
+    salePriceCents: 3_500_000,
+    vehicleCostCents: 3_000_000,
+    fiReserveCents: 200_000,
+    plan: { rate: 0.25, hasPad: true, padCents: 150_000 },
+  });
+  const src = {
+    totalGrossCents: canonical.totalGrossCents,
+    grossForCommissionCents: canonical.grossForCommissionCents,
+    appliedRate: canonical.appliedRate,
+    amountCents: canonical.commissionCents,
+  };
+  const stamp = '2026-09-02T15:00:00.000Z';
+
+  it('the canonical inputs are what the engine says they are', () => {
+    expect(src.totalGrossCents).toBe(700_000);
+    expect(src.grossForCommissionCents).toBe(550_000);
+    expect(src.appliedRate).toBe(0.25);
+    expect(src.amountCents).toBe(137_500);
+  });
+
+  it('T-C1: partial reversal — negative amount, inputs copied verbatim, funded_at echoes the stamp', () => {
+    const line = buildClawbackLine(src, 50_000, stamp);
+    expect(line.kind).toBe('clawback');
+    expect(line.amount_cents).toBe(-50_000);
+    expect(line.total_gross_cents).toBe(700_000);
+    expect(line.gross_for_commission_cents).toBe(550_000);
+    expect(line.applied_rate).toBe(0.25);
+    expect(line.funded_at).toBe(stamp);
+  });
+
+  it('T-C2: full reversal', () => {
+    expect(buildClawbackLine(src, 137_500, stamp).amount_cents).toBe(-137_500);
+  });
+
+  it('T-C3: reversing more than the line throws', () => {
+    expect(() => buildClawbackLine(src, 137_501, stamp)).toThrow(RangeError);
+  });
+
+  it('T-C4: reversing zero throws', () => {
+    expect(() => buildClawbackLine(src, 0, stamp)).toThrow(RangeError);
+  });
+
+  it('T-C5: reversing a negative amount throws', () => {
+    expect(() => buildClawbackLine(src, -1, stamp)).toThrow(RangeError);
+  });
+
+  it('T-C6: a non-integer cent amount throws', () => {
+    expect(() => buildClawbackLine(src, 0.5, stamp)).toThrow(RangeError);
   });
 });

@@ -81,6 +81,9 @@ export const PERMISSIONS = [
   'pay_plan:write',
   /** Everyone reads their OWN commission; this is reading everybody's. */
   'commission:read_all',
+  /** Flag a commission for clawback and confirm the reversal (F-79 §11.4).
+      Confirming WRITES MONEY (the negative line) — F&I/GM/owner by default. */
+  'commission:clawback',
 
   // --- dispatch -----------------------------------------------------------
   'dispatch:read',
@@ -153,6 +156,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
     'checklist:complete', 'checklist:waive',
     // The F&I office is who chases funding, so they see the whole pay picture.
     'pay_plan:read', 'commission:read_all',
+    // …and chases the deals that fall through after paying out (F-79 §11.4).
+    'commission:clawback',
     // F&I prepares the wet-ink file and witnesses the signatures.
     'document:prepare', 'document:sign',
     // Reads the thread before the customer sits down; the sales side answers it.

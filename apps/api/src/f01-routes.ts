@@ -106,6 +106,12 @@ const CONSTRAINT_PATHS: Record<string, string> = {
   // the field and never the holder. Without this entry the conflict reached
   // the store form with no path, and the form could not place the error.
   idx_stores_sms_number: 'sms_number',
+  // F-79's duplicate-flag gate: a partial unique INDEX (WHERE status='flagged'),
+  // whose name Postgres reports in e.constraint like a table constraint's —
+  // the idx_vehicles_org_vin precedent above. NOT the commissions UNIQUE:
+  // confirm's 23505 is caught by constraint name in-route and mapped to 422
+  // clawback_cap_reached, never through this 409 path.
+  commission_clawbacks_one_flagged: 'commission_id',
 };
 
 /**

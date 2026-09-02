@@ -47,6 +47,54 @@ export interface CommissionResult {
   overrides: OverrideLine[];
 }
 
+export interface ClawbackSource {
+  totalGrossCents: number;
+  grossForCommissionCents: number;
+  appliedRate: number;
+  /** The original line's amount (> 0). */
+  amountCents: number;
+}
+
+export interface ClawbackLine {
+  kind: 'clawback';
+  total_gross_cents: number;
+  gross_for_commission_cents: number;
+  applied_rate: number;
+  amount_cents: number;
+  funded_at: string;
+}
+
+/**
+ * The offsetting negative line for a confirmed clawback (F-79, §11.4). Copies
+ * the original's explanatory inputs VERBATIM — even on a partial reversal,
+ * where amount ≠ gfc × rate on this row: the explanatory columns tell the
+ * ORIGINAL line's story, and the clawback's own arithmetic (reason, original,
+ * reversed) lives on commission_clawbacks via commission_id — and dates the
+ * line into the OPEN period (D-080 b: funded_at = the confirmation instant).
+ * Throws on an impossible reversal; the DB CHECK is the backstop, this is the
+ * tested rule.
+ */
+export function buildClawbackLine(
+  src: ClawbackSource,
+  reversedAmountCents: number,
+  confirmedAtIso: string,
+): ClawbackLine {
+  if (!Number.isInteger(reversedAmountCents) || reversedAmountCents <= 0) {
+    throw new RangeError('reversed amount must be a positive integer of cents');
+  }
+  if (reversedAmountCents > src.amountCents) {
+    throw new RangeError('reversed amount exceeds the original line');
+  }
+  return {
+    kind: 'clawback' as const,
+    total_gross_cents: src.totalGrossCents,
+    gross_for_commission_cents: src.grossForCommissionCents,
+    applied_rate: src.appliedRate,
+    amount_cents: -reversedAmountCents,
+    funded_at: confirmedAtIso,
+  };
+}
+
 export function calculateCommission(input: CommissionInput): CommissionResult {
   const { plan } = input;
   const totalGross =
