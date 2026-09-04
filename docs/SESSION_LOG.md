@@ -188,7 +188,7 @@ expecting the worksheet to STILL name the lender, and the cleanup steps);
 money fence reads the D-082 and ROUND 28 sections and PROJECT.md's F-81
 lines and is green on the written text.
 
-**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–34 were.**
+**Pushed as FOURDE1 as `94f235b`; CI run 33861925571 green first try, both jobs (lint / typecheck / test / build, and the real-browser e2e) — twenty-two consecutive greens. This line was added in the follow-up docs commit, as ticks 29–34 did.**
 
 ## 2026-09-02 (tick 34) — F-80: the lender registry, and the deal that names its lender
 
