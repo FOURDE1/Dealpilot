@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createPool, ensureTestDatabase, reset, testAdminUrl, testAppUrl, type Pool } from '@dealpilot/db';
-import { CreateDealInput, CreateLeadInput, CreateVehicleInput } from '@dealpilot/schemas';
+import { CreateDealInput, CreateLeadInput, CreateSubmissionInput, CreateVehicleInput } from '@dealpilot/schemas';
 import { buildApp } from './app.js';
 
 /**
@@ -42,6 +42,10 @@ const NOT_ECHOED: Record<string, readonly string[]> = {
   deals: ['organization_id', 'store_id'],
   leads: ['organization_id', 'store_id'],
   vehicles: ['organization_id', 'store_id'],
+  // F-81: the route is deal-addressed, so nothing in the body is a tenant
+  // key; every accepted field echoes (expiry_date as the identical
+  // 'YYYY-MM-DD' — pg's date is a JS Date, serialized in SELECT_ROW).
+  deal_submissions: [],
 };
 
 beforeAll(async () => {
@@ -185,6 +189,27 @@ describe('what the API accepts, it stores', () => {
       // Not the column default, so a create route that dropped it would show up
       // as 'unknown' here rather than as a value that happens to match.
       trade_in_status: 'has_trade',
+    });
+  });
+
+  it('deal_submissions — every CreateSubmissionInput key, expiry_date as the same YYYY-MM-DD string (F-81)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    // Its own deal through the product surface (never admin SQL).
+    const deal = await app!.inject({
+      method: 'POST', url: '/api/v1/deals', headers: { cookie },
+      payload: {
+        organization_id: orgId, store_id: storeId, province: 'QC', deal_type: 'finance',
+        sale_price_cents: 3_000_000, interest_rate_bps: 499, term_months: 48, lender_id: lenderId,
+      },
+    });
+    expect(deal.statusCode, deal.body).toBe(201);
+    const dealId = (JSON.parse(deal.body) as { id: string }).id;
+    await check('deal_submissions', `/api/v1/deals/${dealId}/submissions`, CreateSubmissionInput, {
+      lender_id: lenderId, platform: 'dealertrack',
+      buy_rate_bps: 599, sell_rate_bps: 699, term_months: 72,
+      approval_amount_cents: 2_800_000, monthly_payment_cents: 65_000,
+      expiry_date: '2026-10-15',
+      conditions: 'Preuve de revenu', notes: 'Approbation verbale, confirmation à suivre',
     });
   });
 

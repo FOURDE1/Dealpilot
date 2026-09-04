@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatBps, formatCents, parseMoneyToCents, parsePctToBps } from './money.js';
+import { formatBps, formatCents, parseMoneyToCents, parsePctToBps, spreadBps } from './money.js';
 
 describe('parseMoneyToCents', () => {
   it.each([
@@ -54,5 +54,25 @@ describe('formatters (golden per locale)', () => {
   it('formats basis points as percent', () => {
     expect(formatBps(599, 'en-CA')).toBe('5.99%');
     expect(formatBps(599, 'fr-CA').replace(/[\s  ]/g, ' ')).toBe('5,99 %');
+  });
+});
+
+describe('spreadBps (F-81, render-derived — never a column)', () => {
+  it('is sell minus buy when both sides are on file, signed', () => {
+    expect(spreadBps(599, 799)).toBe(200);
+    expect(spreadBps(799, 599)).toBe(-200);
+    expect(spreadBps(0, 0)).toBe(0);
+  });
+
+  it('is null — not 0 — when either side is missing', () => {
+    expect(spreadBps(null, 799)).toBeNull();
+    expect(spreadBps(599, null)).toBeNull();
+    expect(spreadBps(null, null)).toBeNull();
+  });
+
+  it('renders through formatBps as « 2,00 % » and a signed « -2,00 % »', () => {
+    expect(formatBps(200, 'fr-CA')).toMatch(/2,00\s?%/);
+    expect(formatBps(-200, 'fr-CA')).toMatch(/^-2,00\s?%$/);
+    expect(formatBps(-200, 'en-CA')).toBe('-2.00%');
   });
 });

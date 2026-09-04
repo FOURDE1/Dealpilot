@@ -26,6 +26,15 @@ export const ActivityEntityType = z.enum([
    * activity:read is floor-wide and pay stays behind commission:read_all.
    */
   'commission_clawback',
+  /**
+   * F-81 (lenders-billofsale.md §2): a lender submission on a deal; parent =
+   * its deal, so the deal's timeline shows what each lender answered.
+   * Actions REUSED only — 'created' on POST, 'updated' on PATCH and on the
+   * selection flip (the chosen row AND the deselected sibling each get their
+   * own); the promotion itself lands in the DEAL's 'updated' diff with
+   * via:'submission_selected'. No new verb.
+   */
+  'deal_submission',
 ]);
 
 export const ActivityAction = z.enum([

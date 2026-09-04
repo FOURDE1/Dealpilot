@@ -127,6 +127,8 @@ export const ENTITY_KEYS = {
   task: 'entity_task',
   impersonation_session: 'entity_impersonation_session',
   commission_clawback: 'entity_commission_clawback',
+  /** F-81 — a lender's answer on a deal; parent = its deal on every event (D-082). */
+  deal_submission: 'entity_deal_submission',
 } as const satisfies Record<ActivityEntityTypeT, string>;
 
 /**

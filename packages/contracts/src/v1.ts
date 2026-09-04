@@ -18,6 +18,10 @@ import {
   CreateLenderInput,
   UpdateLenderInput,
   LenderListQuery,
+  DealSubmission,
+  CreateSubmissionInput,
+  UpdateSubmissionInput,
+  SelectSubmissionResult,
   BeBackQuery,
   BeBackQueue,
   CreateLeadInput,
@@ -890,6 +894,44 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: UpdateLenderInput,
       responses: { 200: Lender, ...errorResponses },
+    },
+  }),
+  /** F-81 lender submissions (lenders-billofsale.md §2.1–§2.3): what each
+   * lender answered on a deal, exactly ONE selected per deal. `select`
+   * promotes the chosen row's lender / sell rate / term onto the deal, the
+   * engine recomputes, and the response carries BOTH truths that moved in
+   * that one transaction. Written under deal:update (the fi-products
+   * precedent); reads are member-wide. No DELETE and no deselect endpoint —
+   * the free status machine and PATCHable lender_id/platform are the
+   * correction doors. The list is a bare array (fi-products' shape): a deal's
+   * submissions never outgrow a page. */
+  dealSubmissions: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/deals/:id/submissions',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: z.array(DealSubmission), ...errorResponses },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/deals/:id/submissions',
+      pathParams: z.object({ id: Uuid }),
+      body: CreateSubmissionInput,
+      responses: { 201: DealSubmission, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/submissions/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateSubmissionInput,
+      responses: { 200: DealSubmission, ...errorResponses },
+    },
+    select: {
+      method: 'POST',
+      path: '/api/v1/submissions/:id/select',
+      pathParams: z.object({ id: Uuid }),
+      body: z.undefined(),
+      responses: { 200: SelectSubmissionResult, ...errorResponses },
     },
   }),
   /** F-61 drip sequences (automation-notifications.md §11): client-facing

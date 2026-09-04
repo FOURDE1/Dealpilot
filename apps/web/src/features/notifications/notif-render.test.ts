@@ -27,3 +27,22 @@ describe('notif_commission_clawback ICU render (T-W2)', () => {
     expect(render('en-CA')).toMatch(/\$500\.00/);
   });
 });
+
+/**
+ * F-81 — the approval bell (D-082): params carry ONE locale-free string, the
+ * lender's name, and both locales render it. The key rides
+ * NOTIFICATION_TITLE_KEYS (title-keys.test.ts holds the lockstep).
+ */
+describe('notif_lender_submission_approved render', () => {
+  const renderApproved = (locale: Locale) =>
+    (createI18n({ locale, strictIcu: true }).t as unknown as LooseT)('notif:notif_lender_submission_approved', {
+      lender: 'TD Auto Finance',
+    });
+
+  it('fr-CA renders « Approbation reçue : TD Auto Finance »', () => {
+    expect(renderApproved('fr-CA')).toBe('Approbation reçue : TD Auto Finance');
+  });
+  it('en-CA renders "Approval received: TD Auto Finance"', () => {
+    expect(renderApproved('en-CA')).toBe('Approval received: TD Auto Finance');
+  });
+});

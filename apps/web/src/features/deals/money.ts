@@ -52,3 +52,14 @@ export function parsePctToBps(raw: string): number | null {
   const bps = Math.round(Number(s) * 100);
   return Number.isSafeInteger(bps) ? bps : null;
 }
+
+/**
+ * F-81 — the rate spread on a lender's answer, render-derived (D-082: no
+ * stored column). null unless BOTH sides are on file — a missing side renders
+ * « — », never « 0,00 % »; may be negative (a sell rate under the buy rate is
+ * a real quote, shown signed through formatBps).
+ */
+export function spreadBps(buyBps: number | null, sellBps: number | null): number | null {
+  if (buyBps === null || sellBps === null) return null;
+  return sellBps - buyBps;
+}

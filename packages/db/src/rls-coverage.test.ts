@@ -163,6 +163,16 @@ const BEHAVIOURALLY_COVERED = new Set([
   // would trip the 'vanished' branch, which only classifies BARE user-keyed
   // policies).
   'lenders',
+  // F-81: cross-tenant case in apps/api/src/f81-submissions.test.ts (T-S3),
+  // driven as the APP role — a rival's GET of our deal's list is a 404 via
+  // dealOrg, a rival's PATCH/select of our submission a 404 via the
+  // submissionOrg walk, our POST naming a rival's lender a 422, and the
+  // composite FKs refuse a mismatched (organization_id, deal|lender|store)
+  // pair with 23503 even as the app role. NO USER_KEYED_POLICIES entry (the
+  // F-80 note): deal_submissions has no member_read policy — the list runs
+  // under withTenant + requireMember and id-addressed writes resolve the
+  // org first, so the one org-keyed isolation policy is the only door.
+  'deal_submissions',
 ]);
 
 interface PolicyRow {

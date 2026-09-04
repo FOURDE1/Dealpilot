@@ -41,7 +41,7 @@ import { requirePermission } from './permissions.js';
  */
 
 /** Stored outputs + the derived payment frequencies the contract promises. */
-function withDerived(row: Record<string, unknown>): Record<string, unknown> {
+export function withDerived(row: Record<string, unknown>): Record<string, unknown> {
   const monthly = Number(row['monthly_payment_cents'] ?? 0);
   return {
     ...row,
@@ -80,7 +80,7 @@ async function requireVehicleInOrg(client: PoolClient, vehicleId: string): Promi
  * specific-code precedent) so the desking UI can say "reactivate it in the
  * registry" distinctly from "lender not found".
  */
-async function requireLenderInOrg(
+export async function requireLenderInOrg(
   client: PoolClient,
   lenderId: string,
   allowInactiveId?: string,

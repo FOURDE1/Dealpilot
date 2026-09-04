@@ -16,11 +16,13 @@ import { useLenders } from '../lenders/api.js';
 import { deskingLenderSelect } from '../lenders/options.js';
 import { CATEGORY_KEYS } from '../lenders/labels.js';
 import { DEAL_TYPE_KEYS, FI_KIND_KEYS, PROVINCE_KEYS } from './labels.js';
-import { FiProductKind } from '@dealpilot/schemas';
+import { FiProductKind, type DealT } from '@dealpilot/schemas';
+import { SubmissionsPanel } from './submissions-panel.js';
+import { applyPromotedTerms } from './submissions-model.js';
 
 /** Harmonized-tax provinces — mirrors the engine's tax tables (packages/core). */
 const HST_PROVINCES = new Set<CalculateDealInputT['province']>(['ON', 'NB', 'NL', 'NS', 'PE']);
-import { formatCents, parseMoneyToCents, parsePctToBps } from './money.js';
+import { formatBps, formatCents, parseMoneyToCents, parsePctToBps } from './money.js';
 
 
 /** Raw worksheet text state — parsed to cents/bps on every change. */
@@ -387,6 +389,9 @@ export function DeskingPage() {
   const [prefilled, setPrefilled] = useState(false);
   const [debounced, setDebounced] = useState<CalculateDealInputT | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // F-81: the aria-live line after « Choisir cette approbation » applied the
+  // lender's terms to the worksheet (the stale-form fix, D-082).
+  const [appliedLine, setAppliedLine] = useState<string | null>(null);
   const createDeal = useCreateDeal();
   const updateDeal = useUpdateDealInputs();
   const locale = i18n.language;
@@ -472,6 +477,22 @@ export function DeskingPage() {
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
+    // The applied line claims the worksheet holds the lender's terms; a hand
+    // edit of one of them makes that false, so the line goes (the panel's
+    // desk-differs chip takes over). Only a select writes it again.
+    if (key === 'rate' || key === 'term') setAppliedLine(null);
+  }
+
+  /**
+   * F-81 — the select response is the re-desked deal; rewrite ONLY the rate,
+   * term and lender the server promoted so the next save re-sends them. The
+   * `prefilled` latch is untouched (a targeted resync, never a re-prefill);
+   * every other field stays the user's.
+   */
+  function handlePromoted(deal: DealT) {
+    setDraft((d) => applyPromotedTerms(d, deal));
+    setLenderId(deal.lender_id ?? '');
+    setAppliedLine(t('submAppliedLine', { rate: formatBps(deal.interest_rate_bps, locale), term: deal.term_months }));
   }
 
   async function handleSave() {
@@ -794,7 +815,10 @@ export function DeskingPage() {
                   id="desk-lender"
                   value={lenderId}
                   disabled={lenderSelect.disabled}
-                  onChange={(e) => setLenderId(e.target.value)}
+                  onChange={(e) => {
+                    setLenderId(e.target.value);
+                    setAppliedLine(null);
+                  }}
                 >
                   <option value="">{t('lenderNone')}</option>
                   {lenderSelect.current ? (
@@ -831,7 +855,49 @@ export function DeskingPage() {
                 </div>
               ) : null}
             </div>
+            {appliedLine ? (
+              <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
+                {appliedLine}
+              </p>
+            ) : null}
           </section>
+
+          {!isEdit ? (
+            <section aria-labelledby="subm-heading" className="space-y-3 rounded-lg border border-border bg-card p-4">
+              <h2 id="subm-heading" className="text-[15px] font-semibold">
+                {t('submSection')}
+              </h2>
+              <p className="text-sm text-muted-foreground">{t('submCreateModeHint')}</p>
+            </section>
+          ) : existing.data ? (
+            <SubmissionsPanel
+              dealId={dealId}
+              orgId={lead.data.organization_id}
+              live={{
+                interest_rate_bps: (inputs ?? debounced)?.interest_rate_bps ?? null,
+                term_months: (inputs ?? debounced)?.term_months ?? null,
+                lender_id: lenderId === '' ? null : lenderId,
+              }}
+              amountFinancedCents={calc.data?.amount_financed_cents ?? existing.data.amount_financed_cents}
+              dealType={draft.deal_type}
+              onPromoted={handlePromoted}
+            />
+          ) : (
+            // A SAVED deal whose query is pending or failed: never the
+            // create-mode instruction (R8 rules that sentence for !isEdit).
+            <section aria-labelledby="subm-heading" className="space-y-3 rounded-lg border border-border bg-card p-4">
+              <h2 id="subm-heading" className="text-[15px] font-semibold">
+                {t('submSection')}
+              </h2>
+              {existing.isError ? (
+                <p role="alert" className="text-sm text-danger-text">
+                  {t('loadError')}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">{t('loading')}</p>
+              )}
+            </section>
+          )}
         </div>
 
         <aside

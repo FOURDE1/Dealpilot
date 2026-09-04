@@ -66,6 +66,10 @@ export const NOTIFICATION_TITLE_KEYS = [
    *  and the store's GMs (owner fallback); the confirming actor is dropped from
    *  the MANAGER set only — the earner always receives, even confirming their own. */
   'notif_commission_clawback',
+  /** F-81 §2.2 / FR-FIN-008: a submission ENTERS approved → the deal's
+   *  salesperson (never the acting user themself; skipped when the deal has
+   *  no salesperson). params {lender}: one locale-free string. */
+  'notif_lender_submission_approved',
 ] as const;
 
 export type NotificationT = z.infer<typeof Notification>;

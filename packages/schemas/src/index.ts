@@ -34,6 +34,7 @@ export * from './notification.js';
 export * from './connector.js';
 export * from './lost-reason.js';
 export * from './lender.js';
+export * from './submission.js';
 export * from './duplicate.js';
 export * from './analytics.js';
 export * from './drip.js';

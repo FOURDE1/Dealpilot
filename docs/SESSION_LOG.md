@@ -1,3 +1,195 @@
+## 2026-09-04 (tick 35) — F-81: the lender submissions ledger, and « Choisir cette approbation »
+
+**Where tick 34's CI story ended.** F-80 shipped as `6a7fb31` (run
+33622835928, green first try — twenty consecutive greens) and its docs tail
+`df82297` was green too (run 33623689361) — twenty-one consecutive greens;
+`develop` was clean at `df82297` when this slice started.
+
+**How the slice was chosen.** The 2026-09-02 scoping (f81_scope §6) ranked
+the ledger first on the repo's own laws: it is D-081 (9)'s NAMED follow-on
+— F-80 shipped the FK target, the registry, the seeds, the desking Select
+and the grandfather clause, and dev showed ZERO `lender_id` picks, so the
+registry's value stayed inert until submissions existed; it is the only
+verified panel-ready P1 (FR-FIN-007's remaining half and all of
+FR-FIN-008), owner-free and seed-free (Q-14 re-verified: manual tracking
+at parity, lender APIs Phase 5 — no DealerTrack / RouteOne / CreditApp
+account, no key; the dev one-shot platform-grant stays unspent). The
+scoping's risk ruling named the money path and the status enum as ONE
+risk wearing two faces — shipping spec text as product truth: §2.1's
+reserve formula, if auto-written on selection, would silently change
+commission gross and the leaderboard F-78 and F-79 just built on; §2.2's
+seven-value status union verbatim would plant three dead values. Both
+mitigations became rulings (D-082 (4), (6), (16)) and a fence.
+
+**Where the plan stands.** Re-measured at `df82297`, before F-81, by 15
+readers and 15 adversarial verifiers (41 scores overturned; the report is
+kept outside the repo): the plan is 52.3 % built effort-weighted by phase
+(55.5 % excluding Phase 5); functional-requirement rows 42.5 % plain /
+45.5 % priority-weighted over 218 rows (37 done, 111 partial); per phase —
+Phase 0 48 % (32 % of its gap owner-gated: AWS, key rotation, the legacy
+lockdown), Phase 1 73 %, Phase 2 36 % (Stripe 0 %, custom domains), Phase 3
+62 %, Phase 4 32 % (voice owner-parked), Phase 5 12 %, cross-phase 64 %;
+P0 rows 64 %, P1 43 %, P2 30 %, P3 0 %. The previous estimate after F-74
+(2026-08-31) was ~48 %. Two Phase-0 items the docs claim and the tree
+lacks are queued as riders after F-81: 0.6, the ≥ 90 % coverage gate on
+packages/core (no coverage tooling exists; PROJECT.md:109 and TASKS A-06
+claim it; `@vitest/coverage-v8` is a new dependency — owner ask-first), and
+0.3, the confidential-data scrub (real employee names with pay terms in
+packages/core/src/money-math.test.ts:159-187 and ten files under
+reference/).
+
+**What the panel and critics caught before a line was written.** Three
+plans, one judge, four critics, 13 rulings and 25 amendments. The winner
+was the only plan whose 0074 was applicable as written: it re-adds BOTH
+activity_events entity CHECKs (the 0072 precedent) that the other two
+omitted — their first recordEvent for the new entity would have died with
+a 23514 in the suite's beforeAll — and it promotes through the EXPORTED
+`recomputeDealOutputs` instead of a hand-built SET list copied from f05's
+glue. The judge overruled it where it was wrong: lender_id / platform
+became PATCHable on an unselected row (the only correction door for a
+wrong-bank mis-log in a ledger with no DELETE), the PATCH takes the deal
+lock too (one lock law, one comment that stays true), the select response
+became `{submission, deal}`, the deselected sibling got its OWN event, the
+entity became `deal_submission`, `expired` joined the schema, and the
+DATE column got its 'YYYY-MM-DD' serialization (pg hands back a JS Date; a
+plan's `RETURNING *` would have failed the contract on the first 201). The
+critics' amendments were measured, not stylistic: the lock-order comment
+was rewritten to a TRUE claim (fi-products lock the product first — 'deals
+is the first lock every deal writer takes' was false at tip); the money
+fence was split into a FUNDED and an UNFUNDED fixture because on the plan's
+fixture the reserve defaulted to 0 and commissions were 0 → 0, so its 'two
+independent reds' were one; `link: null` became no link key (`link?:
+string`); the read-only persona became « Agent BDC » invited with
+« Vendeur » UNTICKED (the team form pre-ticks it and roles union their
+permissions — the plan's persona would have been a writer); the `sub`
+prefix became `subm` (the deals namespace's `subtitle` would have leaked
+into the fence's scan); the term label became « Terme approuvé (mois) »
+(a second « Terme (mois) » label is a Playwright strict-mode violation);
+exact-name locators everywhere (the seeds carry both 'Scotiabank' and
+'Scotia Dealer Advantage', both 'TD Auto Finance' and 'TD Non-Prime');
+the ceiling chip's basis became the LIVE amount financed, finance only;
+the desk-differs chip's basis became the live worksheet including the
+lender; and the static money fence was extended to read D-082, ROUND 28
+and PROJECT.md's F-81 lines — the claim 'the formula appears in no doc
+line' had had no red.
+
+**Built in four waves.** Backend: `packages/schemas/src/submission.ts`
+(the trimmed four statuses and four platforms as literal enums so the
+enum-vocabulary guard binds them to 0074's CHECKs; `expired`; strictObject
+inputs with no `.default()`; `{submission, deal}`), migration
+`20260903000074_deal-submissions.sql` (10 685 bytes: integer cents, bps
+0..10000, term 1..120, three composite FKs to deals / stores / lenders, the
+three invariant CHECKs, the partial unique, GRANT SELECT / INSERT / UPDATE,
+FORCED RLS with one org-keyed policy, the two activity CHECK re-adds, a
+comment block naming the cuts), the contract group `dealSubmissions` (4
+endpoints), `f81-submission-routes.ts` (EXPIRED_SQL + SELECT_ROW, the
+deal-first lock, the f80 sink guard, the selected-row lock, the merged-row
+invariants, responded_at once, deselect-on-leaving-approved, the select
+ladder → promote three columns → recompute → three events → the bell on
+entering approved), `export` on two f05 helpers and nothing else, the
+migration probes (12), the rls-coverage entry, input-persistence's
+`deal_submissions` case, the dead-column exemption, the static money fence
+— verify run 15 files / 180 tests / 45 s. Web: 60 keys per locale — 58
+`subm*` in deals plus the admin entity label and the bell key — with the
+typographic apostrophe, `spreadBps` in money.ts, the pure
+`submissions-model.ts` (selectability with its reason table,
+applyPromotedTerms, bpsToRateInput, deskDiffers, ceilingExceeded — 29
+goldens), `submissions-api.ts` (select onSuccess writes the deal cache,
+calls onPromoted, invalidates the list, the deals and the activity),
+`submissions-panel.tsx` (the region, the permission gate, one form at a
+time, exact-name cards, the ★ / expired / ceiling / desk-differs chips in
+their token roles, the single-key quote, the row checkbox, the locked
+inputs, the diff PATCH body — 21 component cases), and the desking page's
+fifth section with `handlePromoted`, the aria-live applied line and the
+pending / error branch (+69/−3 at tip). Journey: `f81-submissions.e2e.ts`, 493 lines at tip, six serial tests
+on a fresh org — born empty then TD (DealerTrack) and Scotia (Manuelle) as
+« Soumise » with the « — » spread; approve TD with « Expire le … » and the
+captioned quote; « Choisir cette approbation » rewriting the worksheet
+(`6.99` / `72` / TD), the ceiling chip, the re-save + reopen holding; the
+conditional journey on iA (CreditApp) with « Preuve de revenu », the flip
+and exactly one star; « Agent BDC » reading the ledger with zero controls
+and a write counter of `[]` (calculate named out — pure math, no
+permission, no write); the pipeline card « Prêteur : iA » — 41 s for the
+six, longest test 11.0 s against the 90 s ceiling, retries 0, no timer
+waits.
+
+**Mutations: 24 rows, 26 executions, each red then restored
+byte-identical (sha256 before == after), none stayed green.** M12 and M19
+were re-run as db-suite-only captures to name their probes (P6 +
+rls-coverage's isolation check; P7) — the checkpoint's '25 rows' was an
+arithmetic slip the review caught and corrected. The reds that teach:
+promoting the BUY rate instead of the sell reds 15 tests (the fixture rows
+carry no buy rate, the deal's rate column is NOT NULL — every select 500s);
+zeroing the reserve inside the promotion reds T-S8a AND the static fence;
+writing `funded` from the promotion reds the UNFUNDED fixture; dropping
+the partial unique reds P1 ONLY — the route-level exactly-one test stays
+green because the route deselects first, and is honestly NOT that row's
+red; removing `deal_submission` from the entity enum reds the web AND api
+typecheck while f10-activity stays green by construction (it iterates the
+enum's current values — recorded so nobody names it as that red); deleting
+`handlePromoted`'s two lines reds ONLY e2e test 3 (`toHaveValue('6.99')`
+received `4.99`) — the page wiring is e2e-proven, the model and the panel
+unit-proven.
+
+**Adversarial review: six lenses, 19 agents, refute-biased verification.**
+13 raw findings → **8 confirmed (2 major, 6 minor — two the same
+rls-coverage comment reported twice, so 7 unique fixes), 5 refuted**, all
+six finders returned, no verifier died. The majors were real: (1) the
+PATCH trail diffed the RAW pg row against the read model, so the PRIOR
+`expiry_date` landed on the trail as a UTC instant of the WRONG DAY
+('2026-10-02T04:00:00.000Z' for a 2026-10-03 date in Montreal) — fixed by
+locking the prior row THROUGH the one read model (`FOR UPDATE OF s`), one
+query, same lock, red-first on a new T-S4 case; (2) the card rendered term
+and ceiling only when ceiling AND sell AND term were ALL present — an
+approved term was invisible without a ceiling — fixed with per-shape terms
+lines in both locales and a red-first panel case, e2e-asserted on the iA
+card. The minors: the rls-coverage comment cited a store-pair app-role
+probe T-S3 did not contain (the test was made true — a third mismatch
+added — rather than the comment narrowed); the applied line never cleared
+after a hand edit of rate / term / lender (it clears; the desk-differs
+chip is the standing signal — red-first in e2e test 3); edit mode showed
+the create-mode sentence while the deal loaded and forever on a failed GET
+(a new `desking-page-submissions.test.tsx` renders the page for real —
+pending and error cases red-first); the 0074 COMMENT on `selected` named
+the select route as its only writer while the status PATCH also clears it
+(a new P9 reads the catalogue comment); and the checkpoint's mutation
+arithmetic. Refuted, and worth keeping: two 'stray probe file' reports of
+a sibling reviewer's already-deleted throwaway; the fence's optional
+web-file scan ('when present' by design; the three web files and the doc
+sections are still skipped when absent — hard-requiring them now that all
+exist is an open follow-up); the aria-live mount timing; and 'responded_at is write-only'
+— it is on the contract and in the diff events. The fixes ran as their own
+workflow — one engineer red-first, then a skeptic re-reddening every fix
+by reverting it: 7/7 landed, 0 weakened, 0 disputed; the conscripted set
+20 files / 222 tests / 36 s, parity OK, eslint 0, api + web tsc 0,
+`pnpm e2e --grep submissions` 6 passed in 42.1 s.
+
+**Gate after the fixes:**
+
+**Gate after the fixes (2026-09-03T08:06Z → 08:23Z, then the e2e reruns on 2026-09-04):** `pnpm turbo run build typecheck lint` 25/25 tasks (19 cached), exit 0 — lint 0 errors, the one pre-existing warning (apps/web/src/shared/realtime.ts:94); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **204 files / 2290 tests, exit 0, 0 unhandled, 0 skipped** (the wave-4 gate had 203 / 2283; the seven review fixes added one web test file and seven cases); `node scripts/e2e.mjs` — the wave-4 gate ran the whole suite TWICE green on the pre-fix tree (78 passed both, 2.9 m each); after the seven review fixes the whole suite ran three more times on 2026-09-04 and came back **77/78 each time, with a different infrastructure-class red and never a product red** — the recorded `f75-brand-paint` request-storm bound (4 requests against ≤ 3, twice: the timing-marginal watch item of D-079 (9)), one `net::ERR_ABORTED` on `a11y-shell`'s first navigation, and one `net::ERR_CONNECTION_REFUSED` from the Vite server on `f74-console-door` T7's last navigation — with the machine carrying the owner's remote-desktop session and other tooling (runs of 6.7 m / 7.5 m / 3.4 m against 2.9 m); the six `f81-submissions` tests passed in all three runs, and `pnpm e2e --grep submissions` passed 6/6 (42.1 s) after the fixes; CI — the arbiter, twenty-one consecutive greens — runs the same suite on a clean machine. Dev database read-only before the migration: `platform_staff = 0`, `users = 962`, 75 migrations applied, `deal_submissions` absent — 0074 reached dev only at ship, via `db:migrate`, immediately before the commit (76 migrations, newest `20260903000074_deal-submissions.sql`; `deal_submissions` created empty; users 962, platform_staff 0).
+
+The dev database stayed read-only all build long: `platform_staff = 0`,
+`users = 962`, 75 migrations, newest `20260902000073_lender-registry.sql`,
+`deal_submissions` absent — 0074 reaches dev only at ship, via
+`db:migrate`, immediately before the commit; the counts after it are in the
+gate line above.
+
+**Docs:** D-082 at the top of `DECISIONS.md` (rulings, the rejected list,
+the deferred list with un-cut conditions, the deviations and the two named
+absences, the review and mutation paragraphs, the no-entry ruling for
+SECURITY.md against its header's own words); ROUND 28 (the throwaway-deal
+warning first — submissions cannot be deleted and choosing an approval
+rewrites the deal's rate / term / lender —, the real seeded lender names,
+the Vendeur as a WRITER, the « Agent BDC » invite with « Vendeur » unticked,
+the bell with a different approving account, the decline-the-chosen row
+expecting the worksheet to STILL name the lender, and the cleanup steps);
+`TASKS.md` F-81 row; `PROJECT.md`'s line-50 tail replaced and a how-to row.
+`SECURITY.md` unchanged — the ruling recorded in D-082 (13). The static
+money fence reads the D-082 and ROUND 28 sections and PROJECT.md's F-81
+lines and is green on the written text.
+
+**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–34 were.**
+
 ## 2026-09-02 (tick 34) — F-80: the lender registry, and the deal that names its lender
 
 **Where tick 33's CI story ended.** F-79 shipped as `e1bb80c` (run

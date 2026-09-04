@@ -159,6 +159,10 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // layer (F-19) writes every other column on this table.
   'send_decisions.decided_at': 'defaulted by the database at insert',
 
+  // F-81: the row is born when it is logged — the INSERT never names the
+  // column and the 'created' activity event carries the actor (D-082).
+  'deal_submissions.submitted_at': 'defaulted by the database at insert — the row is born when it is logged; the created event carries the actor',
+
   // F-33 gave the assistant a way to BOOK an appointment. Managing one after
   // the fact — assigning who takes it, cancelling with a reason — is the
   // console's, and lands with the appointments screen.

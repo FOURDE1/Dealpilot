@@ -11,6 +11,461 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-082 — 2026-09-04 — The lender submissions ledger, and « Choisir cette approbation »
+
+F-81 (lenders-billofsale.md §2.1–§2.3; FR-FIN-007's remaining half and
+FR-FIN-008, both P1; D-081 (9)'s NAMED follow-on — the slice F-80 built the
+FK target for; the 2026-09-02 scoping's pick, f81_scope §6, whose risk ruling
+named the money path and the status enum as one risk wearing two faces:
+shipping spec text as product truth). Designed by the three-planner + judge
+workflow — winner `selection-and-money` — hardened by four adversarial
+critics into a binding build document of 13 rulings and 25 amendments, built
+in four waves (backend → i18n + web → journey → mutations + gate), reviewed
+through six adversarial lenses with refute-biased verification (19 agents,
+all six finders returned: 13 raw findings → 8 confirmed — 2 major, 6 minor,
+two of the minors the same rls-coverage comment seen by two lenses, so 7
+unique fixes — and 5 refuted; every fix landed red-first and a skeptic
+re-reddened each by reverting it, 7/7 landed, 0 weakened, 0 disputed), and
+gated. Base `df82297`; migration `20260903000074_deal-submissions.sql`.
+
+**Gate after the fixes (2026-09-03T08:06Z → 08:23Z, then the e2e reruns on 2026-09-04):** `pnpm turbo run build typecheck lint` 25/25 tasks (19 cached), exit 0 — lint 0 errors, the one pre-existing warning (apps/web/src/shared/realtime.ts:94); `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` → **204 files / 2290 tests, exit 0, 0 unhandled, 0 skipped** (the wave-4 gate had 203 / 2283; the seven review fixes added one web test file and seven cases); `node scripts/e2e.mjs` — the wave-4 gate ran the whole suite TWICE green on the pre-fix tree (78 passed both, 2.9 m each); after the seven review fixes the whole suite ran three more times on 2026-09-04 and came back **77/78 each time, with a different infrastructure-class red and never a product red** — the recorded `f75-brand-paint` request-storm bound (4 requests against ≤ 3, twice: the timing-marginal watch item of D-079 (9)), one `net::ERR_ABORTED` on `a11y-shell`'s first navigation, and one `net::ERR_CONNECTION_REFUSED` from the Vite server on `f74-console-door` T7's last navigation — with the machine carrying the owner's remote-desktop session and other tooling (runs of 6.7 m / 7.5 m / 3.4 m against 2.9 m); the six `f81-submissions` tests passed in all three runs, and `pnpm e2e --grep submissions` passed 6/6 (42.1 s) after the fixes; CI — the arbiter, twenty-one consecutive greens — runs the same suite on a clean machine. Dev database read-only before the migration: `platform_staff = 0`, `users = 962`, 75 migrations applied, `deal_submissions` absent — 0074 reached dev only at ship, via `db:migrate`, immediately before the commit (76 migrations, newest `20260903000074_deal-submissions.sql`; `deal_submissions` created empty; users 962, platform_staff 0).
+
+(1) **The authority is `deal:update`, measured, not a new verb.** POST,
+PATCH and select all run `requirePermission(c, user.id, 'deal:update')`;
+the list is `requireMember`. Zero catalogue edit, zero role_permissions
+backfill, zero permission-drift entry, no impersonation block-list change —
+f13-document-routes.ts reused the same authority for fi-products with the
+words 'the same authority that edits the deal, not a new permission nobody
+has been granted', and D-079 (8) already rejected 'a second spelling of the
+same authority'. The catalogue's own comment on `deal:change_funding` is
+'Recording that the money arrived'; gating a ledger on it would have needed
+that comment rewritten, and would have refused the evidence to people who
+can already hand-type TD / 6,99 / 72 onto the deal (f05's PATCH under
+`deal:update`). Measured consequence: writers are owner, gm, sales_manager,
+used_car_manager, fi_manager, salesperson and admin_office; read-only are
+bdc_agent, logistics and wholesale_manager. So the read-only persona in the
+journey and in ROUND 28 is « Agent BDC » (invited with « Vendeur » UNTICKED
+— the team form pre-ticks it and roles union their permissions), and a
+Vendeur is a WRITER. T-S15b pins the a13 override: an fi_manager with
+`deal:update` denied through `PUT /api/v1/permissions/user` is 403 on all
+three writes and allowed again once the override is cleared.
+
+(2) **A free machine on three invariants, not a ladder.** Stored status is
+the TRIMMED four — submitted / approved / conditional / declined (CHECK) —
+and every ordered pair is a legal PATCH (T-S4 walks all 16 on fresh rows).
+A hand-typed ledger records reality: mis-clicks and lender reversals
+happen, and a terminal `declined` would leave a false decline on file
+forever with a new row as the only fix. Three path-independent invariants
+hold instead, each ONE line in 0074 and mirrored as a 422 on the MERGED row
+of every PATCH, so routing through another value dodges nothing: (i)
+`deal_submissions_selected_approved` — a chosen row is an approval; (ii)
+`deal_submissions_approved_conditions_met` — approved ⇒ conditions empty
+or met (422 `conditions_unmet`); (iii) `deal_submissions_reason_declined` —
+a reason belongs to a decline (a reason arriving with a non-declined final
+status is 422 `validation_failed` / `not_declined`; leaving declined clears
+the reason in the same UPDATE and the clearing rides the event diff, never
+silent). A same-status PATCH is a no-op for status (other fields apply; an
+empty diff writes no event). `responded_at` is stamped by `sets.push(
+'responded_at = now()')` on the FIRST entry into approved / conditional /
+declined — never re-stamped, never cleared. NO per-lender-per-deal unique:
+a re-submission after a decline may be a new row. The probes P4 / P4b / P4c
+prove the database says 23514 where the route says 422.
+
+(3) **One lock law for every f81 write, and what it costs.** Wherever one
+transaction takes BOTH `deals` and `deal_submissions`, the order is deals →
+deal_submissions: an unlocked read of the immutable `deal_id`, then
+`SELECT * FROM deals WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+then the submission row FOR UPDATE — on POST, on select, and on PATCH even
+though PATCH never writes the deal (one comment that stays true, one row
+lock's cost). The module header states the TRUE claim, not the plan's
+('deals is the first lock every deal writer takes' was false at tip:
+fi-products lock the product first and reach deals through a trigger — none
+of those touch deal_submissions, so no cycle exists). Because the deal lock
+carries `deleted_at IS NULL`, a submission of a soft-deleted deal is 404 on
+GET, POST, PATCH and select (T-S3c) — a decision, not a side effect. Two
+concurrent selects serialize on the deals row (T-S7c: `Promise.all` on two
+selects of different approved rows, both awaited, both 200, exactly one
+selected); under READ COMMITTED the partial unique
+`deal_submissions_one_selected` is unreachable through the routes, so
+there is NO 409 `selection_conflict` code (dead vocabulary) — a 23505 there
+is a 500, and P1 proves the index bites a direct second flag. The review's
+first major lives here: the PATCH diffed the RAW pg row against the read
+model, so the PRIOR `expiry_date` landed on the trail as a UTC instant of
+the wrong day ('2030-01-14T22:00:00.000Z' for a 15 January expiry east of
+UTC). Fixed by locking the prior row THROUGH the one read model —
+`${SELECT_ROW} WHERE s.id = $1 FOR UPDATE OF s` — so diff(prior, after)
+sees 'YYYY-MM-DD' on both sides: one query, the same lock, no second
+serialization path; T-S4's expiry-trail case pins it. The same class
+pre-exists in f07-vehicles-routes.ts for `acquisition_date` — outside this
+slice, recorded here as an open thread.
+
+(4) **The promotion is three columns and the EXPORTED engine glue.** Select
+eligibility runs in refusal order, each its own code: status ≠ approved →
+422 `submission_not_approved`; sell rate or term NULL → 422
+`submission_incomplete` (one detail per path); lapsed on the STORE clock →
+422 `submission_expired`; then `requireLenderInOrg(c, sub.lender_id,
+deal.lender_id ?? undefined)` — selecting IS a new pick (F-80's law) with
+F-80's exact grandfather (a deal that already names the deactivated lender
+is not punished; T-S7 proves both arms). Then: deselect the sibling
+(`RETURNING id`, at most one) → select → `UPDATE deals SET lender_id,
+interest_rate_bps ← sell_rate_bps, term_months ← term_months` → the
+exported `recomputeDealOutputs(c, dealId)` (deal-outputs.ts — 'a path that
+changes inputs and does not call this is a bug'; a hand-built SET list from
+OUTPUT_COLUMNS was rejected as a second copy of f05's glue) → the events →
+`{ submission, deal: withDerived(dealAfter) }`, the two truths that moved in
+one transaction. f05 changed by exactly two keywords: `export` on
+`withDerived` and on `requireLenderInOrg`. T-S6's golden: after select,
+every OUTPUT column equals `computeOutputs` of the stored inputs. Nothing
+here touches the reserve, the funding track, funded_at, fi_price / fi_cost,
+the outputs by hand, or commissions — the behavioural fence T-S8a (a FUNDED
+deal with a pay-planned salesperson and a commissions row on file) and
+T-S8b (unfunded: `funding_status` stays `not_submitted`, funded_at NULL,
+zero commissions) hold across a select, and the static pin
+`f81-money-fence.test.ts` reads every F-81 source file, the `subm*` locale
+values, THIS section, ROUND 28 and PROJECT.md's F-81 lines and refuses the
+reserve's column name and §2.1's spread formula in any spelling. Recorded
+operating fact: select is ALLOWED on a funded deal (f05's PATCH already
+accepts rate/term edits on a funded deal — no funded-input lock exists) and
+never re-touches pay. Re-selecting the chosen row is a 200 that re-promotes
+(the button means 'make the deal match this offer'), with no submission
+event and a deal event only on a real diff (T-S10).
+
+(5) **A re-save carrying pre-select terms is user intent, pinned both
+ways.** Desking re-sends every field and the server cannot tell 'stale
+clobber' from 'F&I re-desked after selecting' — the second is real, so the
+server ACCEPTS it: T-S9 (i) re-sending the promoted values holds them; (ii)
+re-sending the OLD values lands them, and the deal's `updated` event
+carries `interest_rate_bps: {699 → 499}` and `term_months: {72 → 48}` (the
+accepted clobber is on the trail, never silent; the test comment names this
+decision so a future refusal is a decision, not drift). The fix belongs on
+the screen the button lives on: the select hook returns the deal,
+`applySelectResult` writes it into `['deals','one',dealId]` (a reopen agrees
+with the screen), calls `onPromoted(deal)`, and invalidates the list,
+`dealKeys.all` and `['activity']`; the page's `handlePromoted` runs the PURE
+`applyPromotedTerms(draft, deal)` (goldens: 599 → '5.99', 500 → '5', 0 →
+'', term as a string; every other draft field untouched; the `prefilled`
+latch untouched) plus `setLenderId`, and writes the role=status line
+« Modalités du prêteur appliquées à la feuille de calcul : {rate} sur
+{term} mois. » The residual — a select in ANOTHER tab followed by this
+tab's save — is accepted user data made VISIBLE before the save: the
+desk-differs chip compares the selected row's sell rate / term / lender
+against the LIVE worksheet (`inputs ?? debounced` and the lender Select's
+state — the saved deal would agree with the row exactly when the draft is
+stale), « La feuille de calcul ne correspond plus à l’approbation choisie —
+choisissez-la de nouveau pour la réappliquer. » — which also gives the
+idempotent re-select its consumer. A re-save carrying the OLD lender is
+visible too (the lender is in the comparison). The e2e proves the whole
+ladder: select → inputs `6.99` / `72` / TD → « Enregistrer les
+modifications » 200 → reopen holds; M15 (delete the two `handlePromoted`
+lines) is red ONLY there — the page wiring is e2e-proven, while the model's
+goldens and the panel's `onPromoted` case are unit/component-proven (no
+desking-page harness exists for the mutation itself).
+
+(6) **The spread is render-derived; no column, GENERATED or otherwise.**
+`spreadBps(buy, sell)` in apps/web/src/features/deals/money.ts — null unless
+BOTH sides are on file (« — », never « 0,00 % »), may be negative and renders
+signed through `formatBps`; the card line reads « Achat {buy} | Vente {sell} |
+Écart {spread} ». Never-independently-writable holds either way; the
+tie-break is surface: the sole consumer is one display line, and a stored
+money-adjacent column sitting beside §2.1's reserve formula is precisely the
+wiring surface the fence exists to deny. `CreateSubmissionInput` is a
+strictObject, so a body carrying `rate_spread` is refused at the boundary
+(P5); the fence keeps `rate_spread|spreadBps` out of f05 / f09 / f66.
+Un-cut: a consumer that must sort or filter by spread.
+
+(7) **The ceiling warns, never refuses.** `approval_amount_cents` is the
+lender's number; desk math is the single truth (deal.ts's outputs law), and
+F&I resolves an excess by re-desking or re-shopping. A role=status chip on
+the SELECTED row only, when the deal is `finance` AND a ceiling is on file
+AND the amount financed exceeds it: « Le montant financé dépasse le plafond
+approuvé ({amount}). » The basis is the LIVE amount financed
+(`calc.data?.amount_financed_cents ?? existing.data.amount_financed_cents`),
+finance only — on a cash deal that column is the total due and on a lease
+the worksheet hides it (component-proven: finance 30 000,00 $ vs 28 000,00 $
+→ chip; cash → none; lease → none; null ceiling → none; unselected row →
+none). The journey's arithmetic: 30 000 $ QC finance with no down finances
+34 492,50 $ taxes in, which exceeds 28 000 $; a down payment ≥ 6 493 $
+silences the chip by design. Selection is never refused on the ceiling and
+the ceiling never touches the deal.
+
+(8) **The bell, and the activity vocabulary learns one entity.**
+`notif_lender_submission_approved` — « Approbation reçue : {lender} » /
+'Approval received: {lender}', one locale-free param, urgency `medium` —
+fires from a PATCH whose FINAL status is approved and PRIOR was not (each
+entry fires; a same-status re-PATCH does not; T-S11 proves both and the
+re-entry). Recipient: the deal's `salesperson_id` — the one person on the
+deal who is not in the F&I office — skipped when NULL or equal to the actor
+(the f09 no-self-notify precedent). Link `/leads/{lead_id}/desk/{deal_id}`
+when the deal has a lead, else NO link key at all (`NotifyInput.link` is
+`link?: string`, apps/api/src/notifications.ts:29 — never `link: null`;
+the INSERT maps `?? null`); entity_type `deal_submission` (bare text,
+0051:20); title-keys lockstep + both locales + two notif-render cases (fr / en). NO
+notification on select (the desk actor's own act; un-cut: a consumer asks
+who needs to know). The activity entity is `deal_submission` (the
+deal_document / deal_fi_product prefix precedent, not a bare `submission`),
+parent = its deal on every event, actions REUSED only: `created` on POST
+{lender_id, platform}; `updated` on PATCH with the changed-field diff; on
+select the chosen row's `updated` {selected: false → true}, the deselected
+sibling's OWN `updated` {selected: true → false} (it is that row's state
+change and the deal's timeline must show it), and the deal's `updated` with
+the promoted from → to plus `via: 'submission_selected'` (f05's via
+precedent). No new verb — a verb would have needed the action CHECK
+re-added too. 0074 DROPs and re-ADDs BOTH `activity_events_entity_type_check`
+and `activity_events_parent_entity_type_check` with 0072:93-111's lists
+verbatim plus the new value; two of three plans omitted this and their first
+recordEvent would have died with a 23514 — P7 reads both constraint
+definitions and is the only static red for a forgotten re-add (M19: P7 plus
+the whole f81 suite from T-S1 on). `labels.ts` carries
+`deal_submission: 'entity_deal_submission'` under its `satisfies` clause, so
+removing the value from `ActivityEntityType` is a web AND api typecheck red
+(M17) — and f10-activity STAYS GREEN under M17 by construction (it iterates
+the schema's current list), which is recorded so nobody names it as that
+mutation's red.
+
+(9) **No DELETE, no deselect endpoint — and four correction doors that
+are walkable.** The grant is exactly SELECT / INSERT / UPDATE (P6b), no
+route, no contract entry (F-80 / 0073's posture; a deselected row is kept
+'for records', §2.3.1 — negotiation evidence). A ledger with no DELETE and
+no door strands every typo as history, so the doors exist by name: (1) the
+free machine — a mis-clicked status is moved back, a reason cleared on the
+trail; (2) `lender_id` and `platform` are PATCHable on an UNSELECTED row —
+a wrong-bank mis-log is corrected in place, the lender change runs
+`requireLenderInOrg` with NO grandfather (a change is a new pick; the check
+runs only when the id differs from the stored one), and is refused by the
+selected-row lock while selected; (3) every recordable field is PATCHable
+(the f80 PATCHABLE sink guard covers status, lender_id, platform, both
+rates, approval_amount_cents, term_months, monthly_payment_cents,
+conditions, conditions_met, decline_reason, expiry_date, notes — never
+`selected` or a stamp); (4) notes. Deselection-to-none has NO endpoint: the
+doors are a PATCH of the selected row off approved (deselects in the same
+UPDATE; the deal KEEPS lender_id / rate / term as ordinary desk inputs —
+D-081's history-keeps-its-name law; NEVER a NULLing of `deals.lender_id`
+from a status PATCH) and selecting another row. The review's P9 minor: the
+0074 COMMENT on `selected` claimed the select route as its only writer —
+the status PATCH also clears it — so the comment now names both writers
+and P9 reads `col_description` for both.
+
+(10) **The selected row's promoted fields are locked, exactly three.** A
+PATCH carrying `sell_rate_bps`, `term_months` or `lender_id` while
+`prior.selected` → 422 `selected_terms_locked`, one detail per key; buy
+rate, ceiling, quoted payment, conditions, conditions_met, expiry_date and
+notes stay editable (T-S12). Only those three have an invariant behind
+them (deal.interest_rate_bps = selected.sell_rate_bps, term_months =
+term_months, lender_id = lender_id); a silent re-promotion from a row edit
+would have re-created the stale-form hazard from the other side, and a free
+edit would let the chosen row and the deal disagree silently. The panel
+disables the three inputs with « Les modalités de l’approbation choisie
+sont verrouillées — modifiez la feuille de calcul, ou repassez la
+soumission à « Soumise » pour la corriger. », and the PATCH body is a DIFF
+(`updateBody`: nothing changed → `{}`), so the locked three are never
+re-sent by accident.
+
+(11) **Expired is derived on the store clock, once, for chip and gate.**
+No stored status. ONE SQL fragment — `EXPIRED_SQL = (s.expiry_date IS NOT
+NULL AND s.expiry_date < (now() AT TIME ZONE st.timezone)::date)` — joined
+to the deal's store inside the one read model `SELECT_ROW` (an explicit
+column list, never `s.*`) serves BOTH the list (a boolean `expired` on every
+`DealSubmission`) and the select gate; the panel renders « Expirée » from
+the API's boolean and never computes it from the browser clock
+(component-proven: a past date with `expired:false` renders « Expire le … »).
+Boundary pinned: expiry today → 200, yesterday → 422 `submission_expired`;
+the fixture stores sit in Pacific/Pago_Pago (UTC−11) and Pacific/Kiritimati
+(UTC+14) — 25 hours apart, so the outcome is independent of the hour the
+suite runs (assertKnownTimezone refuses Etc/*; the plan's
+America/Vancouver-vs-UTC pair was replaced for that reason). `expiry_date`
+is a `date` column and pg has no DATE parser (the f07 `localDate` lesson),
+so every read serializes `s.expiry_date::text` and the contract's
+`z.iso.date()` accepts the row; input-persistence's new `deal_submissions`
+case sends EVERY `CreateSubmissionInput` key and asserts the identical
+'YYYY-MM-DD' comes back (NOT_ECHOED: none).
+
+(12) **The screen.** A FIFTH section in the desking page's left column,
+after Financement and beneath the rate / term / Prêteur fields the
+promotion lands in — `<section aria-labelledby="subm-heading">` « Soumissions
+aux prêteurs », so it is a region the journey scopes every assertion to.
+Create mode (`!isEdit`) renders only « Enregistrez la transaction pour
+consigner les réponses des prêteurs. »; edit mode with the deal resolved
+mounts the panel; a SAVED deal whose query is pending or failed shows the
+heading with « Chargement… » or the deals namespace's `loadError` as
+role=alert — the review's fifth finding was the create-mode sentence
+showing while the deal loaded, and forever on a failed GET, now pinned by
+`desking-page-submissions.test.tsx` rendering the page for real (4 cases).
+The panel owns `usePermissionsMine(orgId)` and `can('deal:update')`: the
+read-only sentence « Vous pouvez consulter les soumissions ; votre rôle ne
+permet pas de les consigner. » renders on `isSuccess && !canWrite` and
+write controls on `canWrite` (writers never see it flash); readers see
+conditions as text, never a disabled checkbox. Writers with zero rows get
+« Aucune soumission — consignez la première réponse d’un prêteur. » and the
+add form; readers « Aucune soumission. » — never a blank card. ONE form at a
+time (« Ajouter une soumission » / « Modification — {lender} »), so no label
+appears twice. Cards are `<li>` with an `<h3>` of the lender's FULL name
+(+ « (inactif) »), exact-name locators throughout — the seeds carry both
+'Scotiabank' and 'Scotia Dealer Advantage', both 'TD Auto Finance' and 'TD
+Non-Prime (TD Auto Finance Special)'. The select button's accessible name is
+« Choisir cette approbation — {lender} » (it exists on every approved row,
+the chosen one included) with the disabled reason in `aria-describedby`;
+the ★ chip reads « Approbation choisie » in the accent pair. The add form's
+lender is « Prêteur sollicité » (active lenders only, grouped by category)
+and the term « Terme approuvé (mois) » — never the desk's own « Prêteur » /
+« Terme (mois) » (a second label with the same text is a strict-mode
+violation); « Plateforme » offers all four with no per-store caption. The
+lender's quoted payment renders ONLY inside one key — « Paiement cité par le
+prêteur : {amount} — la feuille de calcul calcule celui de la transaction. »
+— never bare and never in the Résultats aside. The review's second major
+lives here: the card rendered term and ceiling only when ceiling AND sell
+AND term were all present, so an approved term was invisible without a
+ceiling; `termsLineOf(row)` now renders the full triple « {ceiling} @ {sell}
+× {term} mois », or « {sell} × {term} mois », or « Plafond {ceiling} » /
+« Terme {term} mois » fragments — three keys in both locales, e2e-asserted
+on the iA card before the flip. The applied line clears on a hand edit of
+rate, term or lender (the fourth finding: it kept claiming the worksheet
+held the lender's terms while the chip beneath said the opposite; only
+`handlePromoted` writes it). The « Conditions remplies » checkbox lives on
+the row card only (a PATCH of `conditions_met`). Under the zero-request law
+the panel adds exactly two GETs to the desking screen — the deal's
+submissions and `permissions/mine` (lenders reuse the page's own query).
+The read-only claim is the PANEL's: the desking worksheet's own controls
+are not role-gated for a bdc_agent (pre-existing — zero `can(` uses in
+desking-page.tsx; a 403 becomes the generic save error); un-cut: a
+desk-wide permission pass. Locales: 60 keys per locale (58 `subm*` in deals
++ `entity_deal_submission` in admin + the bell key in notif), parity green.
+
+(13) **Isolation, and the documents that carry it.** 0074 is a FORCED-RLS
+table with ONE org-keyed policy (`deal_submissions_isolation`, 0073's
+shape, no member_read and NO bare user-keyed policy — P6: exactly one
+policy, forced, never `true`) behind three COMPOSITE FKs — (organization_id,
+deal_id) → deals, (organization_id, store_id) → stores, (organization_id,
+lender_id) → lenders — probed as the APP role: a mismatched pair is 23503
+on each (P2 / P3 / P3b; T-S3 as the app role covers lender, deal AND store
+— the review's third finding was the rls-coverage comment citing a store
+mismatch T-S3 did not contain; the test was made true rather than the
+comment narrowed). Reads resolve the org through f13's `dealOrg`
+(deal-addressed) and f80's org walk (`submissionOrg`, id-addressed) — a
+rival's GET, PATCH or select is a 404, a rival's lender in a body a 422
+`invalid_reference`. rls-coverage's BEHAVIOURALLY_COVERED gains
+'deal_submissions' citing T-S3, NO USER_KEYED_POLICIES entry (the F-80
+note). SECURITY.md carries NO entry, decided against its ACTUAL header —
+'record audit results, threat notes, and accepted risks' — because 0074
+adds a forced-RLS table with no accepted risk; the isolation story is
+rls-coverage's entry, the rival personas, the composite-FK probes and this
+decision. PROJECT.md:50's tail « No submissions or rates ride the lender
+yet » was a true sentence this slice made false; it is replaced by the
+ledger's own description and a command-table row — rates still never ride
+the registry. No 0070-harness run: 0074 seeds nothing and backfills
+nothing, so there is nothing to prove on it.
+
+(14) **The mutation loop's own honesty (24 rows, 26 executions, each red
+then restored byte-identical).** M12 and M19 were re-run as db-suite-only
+captures to name their probes (P6 + rls-coverage's isolation check; P7);
+the checkpoint's original '25 rows' was an arithmetic slip the review
+caught. Reds worth keeping: M4 (promote the BUY rate instead of the sell)
+reds 15 tests because the fixture rows carry no buy rate and the deal's
+rate column is NOT NULL — every select 500s; M5 drops all three
+`requirePermission` calls (the F-79 precedent — leaving one keeps the drift
+guard's enforced-somewhere scan green); M13 (zero the reserve inside the
+promotion) reds T-S8a AND the static fence, two files; M14 (`funding_status
+= 'funded', funded_at = now()` in the promotion) reds T-S8b — the fixture
+was split funded / unfunded precisely because on the plan's fixture the
+reserve defaulted to 0 and commissions were 0 → 0, so the 'two independent
+reds' would have been one; M1 (drop the partial unique) is red on P1 with
+both probe rows approved — the route-level exactly-one test stays green
+under M1 because the route deselects, and is NOT its red; the three
+invariant CHECKs each red exactly one probe; the dead-column exemption
+('deal_submissions.submitted_at' DELIBERATELY_UNWRITTEN — the row is born
+when it is logged, the created event carries the actor) reds the
+every-column guard when removed.
+
+(15) **Rejected, with reasons:** a GENERATED (or any stored) `rate_spread`
+column; create-with-status (a submission is born `submitted`); a
+`submission:manage` verb, and any `deal:change_funding` gate on the ledger;
+stored `pending` / `expired` / `funded` statuses; a deselect endpoint; a
+DELETE route or grant; cursor pagination on the list (a deal's submissions
+never outgrow a page — a bare array, fi-products' shape); a lender-active
+bypass at select (a second door around F-80's law while the desk refuses
+the same pick); a notification on select; a new activity verb
+(`submission_selected` — the action CHECK would need re-adding too); a
+same-status PATCH as 422 `invalid_transition`; `declined` as terminal;
+CURRENT_DATE expiry with an accepted midnight skew; a select-time
+conditions gate (unreachable under invariant (i) — a phantom row in the
+mutation table); a five-field lock on the selected row; a bare
+`REFERENCES stores(id)` FK and `bigint` cents (the house is composite and
+integer); NULLing `deals.lender_id` from a status PATCH; a hand-built
+copy of f05's recompute glue; `link: null` in notify(); a Textarea
+primitive for one consumer; a second « lender inactive » sentence reused
+from the registry (none exists there — the ledger's own key ships instead).
+
+(16) **Deferred with un-cut conditions.** Stored `pending` (un-cut: a
+distinct meaning over `submitted` emerges); stored `expired` (un-cut: a
+sweep that ACTS on expiry — until then derive-at-read is the producer);
+stored `funded` and a submission `funded_at` (never — `deals.funding_status`
+owns the fact; two copies of the money fact will drift); the §2.3.3
+Signed-gate (un-cut, three parts together: a tested refusal path, a
+`deal_type = 'cash'` exemption, and grandfathering of the existing deals —
+374 at scoping, 99 already funded); `stores.submission_platforms` filtering
+/ FR-FIN-010 (the column exists nowhere at tip — the FR table is wrong;
+un-cut: the column with a real per-store consumer, and no caption may
+claim per-store lists before then); §3.3 deal funding timestamps (O-53's
+own un-cut); §3.4 SLA sweep and `stores.funding_overdue_days` (D-081 (9)
+stands); FR-FIN-009 lender strategy (P3); §4 Bill of Sale (ADR-018/021,
+Q-13); DealerTrack / RouteOne / CreditApp APIs, webhooks and lender events
+(Q-14, Phase 5); `avg_turnaround_days` (un-cut: an expected-decision
+display that also edits it in the registry); `rate_sheet_url` (un-cut: a
+screen that renders AND edits it); `submitted_by` (the created event owns
+actorship); deselection-to-none (un-cut: a consumer that needs 'no lender'
+after a selection — today the doors are the status PATCH and selecting
+another row); DELETE (un-cut: an owner asks, with an evidence-preservation
+answer); a select notification (un-cut: a consumer asks who needs to
+know); any automation of the reserve from the spread (never without a
+money ruling shipping golden numbers, mutation tests and override
+precedence — and until then the formula appears in no comment, caption or
+doc line, which the fence enforces); a desk-wide permission pass on the
+worksheet's own controls; the f07 `acquisition_date` trail class from (3).
+
+(17) **Deviations from the build document's words, recorded rather than
+hidden.** Hygiene refusals are 422 `validation_failed` (parseOrThrow /
+AppError never emit 400), so the '400' rows assert 422; the funding
+vocabulary is not_submitted | submitted | stips_required | funded — there
+is no `pending`, so T-S8b pins `not_submitted`; the expiry fixtures are
+Pacific/Pago_Pago vs Pacific/Kiritimati (assertKnownTimezone refuses Etc/*);
+the a13 override route is `PUT /api/v1/permissions/user`; select tolerates
+an empty `{}` body (the f79 confirm precedent) and refuses a body WITH
+fields (422 `validation_failed` / `unexpected_body`); the PATCH runs `requireLenderInOrg` only
+when `lender_id` DIFFERS from the stored one; SUBMISSION_PLATFORMS /
+SUBMISSION_STATUSES derive from literal `z.enum([...]).options` so the
+enum-vocabulary guard binds them to 0074's CHECKs; the ★ chip reads
+« Approbation choisie »; the desk-differs chip reads `inputs ?? debounced`
+(the debounced value first would flash the chip for 250 ms after every
+same-tab select); the « Conditions remplies » checkbox is on the row card
+only; the panel is a container / presenter pair (SubmissionsPanel /
+SubmissionsPanelView) so the static harness can open the editor;
+`onPromoted` runs through `applySelectResult` in the select hook's
+onSuccess; the applied aria-live line renders at the end of the Financement
+section, not inside the panel; « Expire le {date} » formats with Intl
+dateStyle medium in UTC; the e2e's ★ locator is `/^★?\s*Approbation
+choisie$/` (the DOM text is « ★Approbation choisie »); test 4 ticks the
+controlled checkbox with click() then `toBeChecked`; no timer waits
+anywhere in the spec; eight keys beyond the build document's list (the
+conditional hint, the two PATCH error keys, the form verbs) and the
+platform / status key maps in `submissions-model.ts`, not `deals/labels.ts`;
+jsonb reorders `{from, to}`, so the trail tests assert structure, not key
+order. Two named absences (nothing may be silently absent
+from both the build and the deferred list): §2.3's card line `$approval @
+sell% × term = $payment` ships SPLIT — « {ceiling} @ {sell} × {term} mois »
+without `= $payment`, the lender's payment living only inside the captioned
+key; and §2.1's `deal_id … FK deals CASCADE` ships with NO ON DELETE action
+(deals soft-delete; the app role holds no DELETE on deals). Two operating
+facts: select is allowed on a funded deal and never re-touches pay (4);
+the worksheet's own controls are not role-gated, so the read-only claim is
+the panel's (12). The dev database stayed read-only all build long
+(platform_staff 0, users 962, 75 migrations, newest
+20260902000073_lender-registry.sql, deal_submissions absent) — 0074 reaches
+dev at ship, applied by the LEAD via `db:migrate` immediately before the
+commit. Related: D-081 (the registry, the FK target, the grandfather
+clause and (9)'s deferral this slice resolves), D-080 (the org-walk
+resolver and the no-self-notify shape), D-079 (8) (no second spelling of
+an authority; the store clock), D-033 (the catalogue); migration
+`20260903000074_deal-submissions.sql`.
+
 ## D-081 — 2026-09-02 — The lender registry, and the deal that names its lender
 
 F-80 (lenders-billofsale.md §1.1–§1.2; FR-FIN-007 P1 — the registry half;
