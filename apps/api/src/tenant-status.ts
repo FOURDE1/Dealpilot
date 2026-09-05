@@ -11,7 +11,8 @@ import { requestContext } from './request-context.js';
  *                    revoked by the transition; this covers the re-sign-in).
  * offboarding/purged → 403 tenant_offboarding.
  * read_only        → 402 payment_required on every mutating VERB except the
- *                    listed exemptions; reads, exports and DSAR stay available.
+ *                    listed exemptions; reads stay available (exports and DSAR requests do not
+ *                    exist yet — D-087 / D-089 will add them behind the same gate).
  *                    Never data deletion (ADR-024).
  * past_due, trial, active → nothing (full functionality; §4.2 grace period).
  *
@@ -51,7 +52,7 @@ export function refuseByStatus(status: string): void {
     const mutating = !ctx || !READ_METHODS.has(ctx.method);
     if (mutating && !(ctx && READ_ONLY_EXEMPT_ROUTES.has(`${ctx.method} ${ctx.path}`))) {
       throw new AppError(402, 'payment_required', 'This organization is read-only until its subscription is settled', [
-        { path: 'organization', code: 'payment_required', message: 'Reads and exports remain available' },
+        { path: 'organization', code: 'payment_required', message: 'Reads remain available' },
       ]);
     }
   }

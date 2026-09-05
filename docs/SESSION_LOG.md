@@ -137,7 +137,7 @@ for `@vitest/coverage-v8@3.2.7` (≈ 97.8 % lines / ≈ 95.7 % functions
 measured 2026-09-04 without it by the roadmap measurement, not by this
 slice; D-083 (11)).
 
-**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–35 were.**
+**Pushed as FOURDE1 as `3f4b83e`; CI run 33931882313 green on attempt 2 — attempt 1's e2e job red on the `f75-brand-paint` request-storm bound (the build job green both times); the test-only rider `c0d9dbf` that made that bound deterministic (the sign-up document left before the intercept is armed; ceiling unchanged at 3; a skeptic refuted the first explanation against the installed query-core) went green first try (run 33933657676) — twenty-five consecutive greens, three of them on re-runs. This line was added in the follow-up docs commit, as ticks 29–35 did.**
 
 ## 2026-09-04 (tick 35) — F-81: the lender submissions ledger, and « Choisir cette approbation »
 

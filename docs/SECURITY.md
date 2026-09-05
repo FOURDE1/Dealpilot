@@ -66,10 +66,15 @@ Two layers, both binding:
 
 Project-specific hard requirements (from ADR-015 and NFR-SEC/NFR-CMP):
 
-- **Field-level encryption for PII:** SIN, driver's licence number, DOB, income/credit-app
-  details, banking/void-cheque data are encrypted with AES-256-GCM envelope encryption
-  via **AWS KMS** (per-tenant data keys), with blind HMAC indexes for equality lookup;
-  decrypt paths are audited. pgsodium is banned.
+- **Field-level encryption for PII (required — NOT YET BUILT as of 2026-09-05):** SIN,
+  driver's licence number, DOB, income/credit-app details, banking/void-cheque data must be
+  encrypted with AES-256-GCM envelope encryption via **AWS KMS** (per-tenant data keys), with
+  blind HMAC indexes for equality lookup and audited decrypt paths; pgsodium is banned.
+  **Status:** no field is encrypted today — these values sit in plaintext columns under FORCED
+  RLS only. Scoped as the D-088 slice (`intake_keys.secret`, `contacts.driver_licence` and
+  `date_of_birth` first, a `tenant_data_keys` table, reveal + `pii_decrypted` events); the
+  KMS CMK and the KMS SDK dependency are owner decisions. Until it ships, this line is a
+  requirement, not a description.
 - **Tenant isolation:** RLS ENABLED + FORCED on all tenant tables; `USING(true)`
   permanently banned; cross-tenant probe suite runs in CI.
 - **Regulatory obligations:** Law 25 (Canadian residency `ca-central-1`, consent,
