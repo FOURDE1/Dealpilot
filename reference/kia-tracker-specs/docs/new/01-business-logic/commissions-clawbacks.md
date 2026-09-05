@@ -1,6 +1,6 @@
 # Commissions & Clawbacks — Exact Calculation, Pay Plans, Clawback Lifecycle
 
-This document captures the commission engine and clawback workflow **exactly as implemented** in `server/routes/deals.js` (`calculateCommission`), `server/routes/clawback.js`, `server/routes/bulk.js`, `server/routes/salespeople.js`, and `server/routes/reports.js`, including the real per-salesperson pay plans seeded in `supabase-migration.sql`. Every defect in the current math is documented, because ReadyLoans must port the *intended* rules — not the bugs — into a tested `packages/core` commission engine (ADR-001, ADR-009, ADR-026). Anything not implemented today is marked **Target**.
+This document captures the commission engine and clawback workflow **exactly as implemented** in `server/routes/deals.js` (`calculateCommission`), `server/routes/clawback.js`, `server/routes/bulk.js`, `server/routes/salespeople.js`, and `server/routes/reports.js`, including the real per-salesperson pay plans seeded by the legacy migration (that data file is not carried in this reference copy — D-083 (4)). Every defect in the current math is documented, because ReadyLoans must port the *intended* rules — not the bugs — into a tested `packages/core` commission engine (ADR-001, ADR-009, ADR-026). Anything not implemented today is marked **Target**.
 
 ## Table of Contents
 
@@ -55,24 +55,24 @@ This document captures the commission engine and clawback workflow **exactly as 
 
 ## 2. The Real Pay Plans (Seeded Production Data)
 
-These 12 plans are live business rules (seeded by `supabase-migration.sql`, editable via `SalespeopleManager` / `PUT /api/salespeople/:id`). They must survive any migration verbatim.
+These 12 plans are live business rules (seeded by the legacy migration — that data file is not carried in this reference copy, D-083 (4); editable via `SalespeopleManager` / `PUT /api/salespeople/:id`). They must survive any migration verbatim.
 
 | Salesperson | Rate | Pad | Pad $ | Tier | Override relationship |
 |---|---|---|---|---|---|
-| Jason Chahine | 30% | no | 0 | — | — |
-| Ibrahim Hussain | 20% | yes | 1,500 | — | Omar Mohamed earns 5% on his deals |
-| Hussein Alshawi | 25% | yes | 1,500 | — | Hassan Alabboudy earns 5% on his deals |
-| Hussein Hussein | 20% | yes | 1,500 | — | — |
-| Hussain Safa | 20% | yes | 1,500 | — | — |
-| Abdul-Alla Al-Ubeedi | 25% | yes | 1,500 | — | — |
-| Hassan Alabboudy | 35% | yes | 1,500 | — | receives: `override_on='Hussein Alshawi'`, `override_rate=0.05` |
-| Nicolas Sayah | 5% | yes | 1,500 | — | — |
-| Omar Mohamed | 30% | yes | 1,500 | — | receives: `override_on='Ibrahim Hussain'`, `override_rate=0.05` |
-| Muhammad Majid Hassan | 25% → 30% | yes | 1,500 | **30% when monthly gross > $60,000, else 25%** (`has_tiered_rate=true`, `tier_threshold=60000`, `tier_rate=0.30`) | — |
-| Mustafa Hafid | 20% | yes | 1,500 | — | — |
-| Michael Belway | 20% | yes | 1,500 | — | — |
+| Vendeur 01 | 30% | no | 0 | — | — |
+| Vendeur 02 | 20% | yes | 1,500 | — | Vendeur 09 earns 5% on his deals |
+| Vendeur 03 | 25% | yes | 1,500 | — | Vendeur 07 earns 5% on his deals |
+| Vendeur 04 | 20% | yes | 1,500 | — | — |
+| Vendeur 05 | 20% | yes | 1,500 | — | — |
+| Vendeur 06 | 25% | yes | 1,500 | — | — |
+| Vendeur 07 | 35% | yes | 1,500 | — | receives: `override_on='Vendeur 03'`, `override_rate=0.05` |
+| Vendeur 08 | 5% | yes | 1,500 | — | — |
+| Vendeur 09 | 30% | yes | 1,500 | — | receives: `override_on='Vendeur 02'`, `override_rate=0.05` |
+| Vendeur 10 | 25% → 30% | yes | 1,500 | **30% when monthly gross > $60,000, else 25%** (`has_tiered_rate=true`, `tier_threshold=60000`, `tier_rate=0.30`) | — |
+| Vendeur 11 | 20% | yes | 1,500 | — | — |
+| Vendeur 12 | 20% | yes | 1,500 | — | — |
 
-Note the override data direction: the **receiver** carries `override_on = <seller's name>`. Hassan Alabboudy's row says he overrides on Hussein Alshawi's deals; Hussein Alshawi's own row has no override fields. This matters for defect D5 (§10).
+Note the override data direction: the **receiver** carries `override_on = <seller's name>`. Vendeur 07's row says he overrides on Vendeur 03's deals; Vendeur 03's own row has no override fields. This matters for defect D5 (§10).
 
 ---
 
@@ -157,7 +157,7 @@ for each overrider o:                    // loop overwrites — only the LAST on
     overrideAmount      = grossForCommission × o.override_rate
 ```
 
-Intended rule (per pay plans, §2): a manager whose `override_on` names the seller earns `grossForCommission × override_rate` on that seller's deals. As-built the outer guard means the override search only runs when the **seller** also has `override_on`/`override_rate` set on their own row — with the seeded data (Hussein Alshawi and Ibrahim Hussain have none), **overrides never pay out** (defect D5).
+Intended rule (per pay plans, §2): a manager whose `override_on` names the seller earns `grossForCommission × override_rate` on that seller's deals. As-built the outer guard means the override search only runs when the **seller** also has `override_on`/`override_rate` set on their own row — with the seeded data (Vendeur 03 and Vendeur 02 have none), **overrides never pay out** (defect D5).
 
 **Step 7 — Persist:** upsert into `commissions` with `onConflict: 'deal_id'`:
 
@@ -172,7 +172,7 @@ Intended rule (per pay plans, §2): a manager whose `override_on` names the sell
 
 All figures in dollars (the units the plans were authored in — see §6 for what actually happens post-cents-migration).
 
-### 5.1 Flat rate, no pad — Jason Chahine (30%, `has_pad=false`)
+### 5.1 Flat rate, no pad — Vendeur 01 (30%, `has_pad=false`)
 
 | Input | Value |
 |---|---|
@@ -182,17 +182,17 @@ All figures in dollars (the units the plans were authored in — see §6 for wha
 
 `totalGross = (25,000 − 21,000) + 1,500 = 5,500` → no pad → `commission = 5,500 × 0.30 = 1,650.00`.
 
-### 5.2 Rate + pad + intended override — Hussein Alshawi (25%, pad 1,500; Hassan Alabboudy 5% override)
+### 5.2 Rate + pad + intended override — Vendeur 03 (25%, pad 1,500; Vendeur 07 5% override)
 
 Same deal numbers: `totalGross = 5,500` → `grossForCommission = 5,500 − 1,500 = 4,000` → `commission = 4,000 × 0.25 = 1,000.00`.
-**Intended** override: Hassan Alabboudy earns `4,000 × 0.05 = 200.00`. **As-built:** the guard in Step 6 fails (Hussein Alshawi's own `override_on` is null) → `override_amount = 0` written.
+**Intended** override: Vendeur 07 earns `4,000 × 0.05 = 200.00`. **As-built:** the guard in Step 6 fails (Vendeur 03's own `override_on` is null) → `override_amount = 0` written.
 
-### 5.3 Tier — Muhammad Majid Hassan (25% base, 30% above $60,000 monthly gross)
+### 5.3 Tier — Vendeur 10 (25% base, 30% above $60,000 monthly gross)
 
 Deal: `totalGross = 8,000`, pad 1,500 → `grossForCommission = 6,500`.
 Month-to-date deals (incl. this one) sum to `monthlyGross = 63,400` (pre-pad). `63,400 > 60,000` → `rate = 0.30` → `commission = 6,500 × 0.30 = 1,950.00`. Had `monthlyGross` been ≤ 60,000: `6,500 × 0.25 = 1,625.00`. The 30% applies to the whole deal, not just the portion above the threshold.
 
-### 5.4 Pad exceeds gross — Nicolas Sayah (5%, pad 1,500)
+### 5.4 Pad exceeds gross — Vendeur 08 (5%, pad 1,500)
 
 `totalGross = 1,200` → `grossForCommission = −300` → **no commission row written at all** (silent skip). A previously-written commission row (from when the deal had different numbers) is *not* deleted — stale rows survive.
 
@@ -206,7 +206,7 @@ Migration F-007 (`20260406_soft_delete_cents.sql`) converted `deals.sale_price`,
 |---|---|---|
 | `sale_price`, `vehicle_cost`, `fi_reserve` | cents | `totalGross` is in **cents** |
 | `salespeople.pad_amount` = 1500 | dollars (never converted) | Pad deducts 1,500 **cents = $15.00** instead of $1,500 — the "$1,500-pad-as-$15" bug class cited in ADR-009 |
-| `salespeople.tier_threshold` = 60000 | dollars | Compared against cents `monthlyGross` → tier trips at **$600** of monthly gross, so Muhammad Majid Hassan effectively always earns 30% |
+| `salespeople.tier_threshold` = 60000 | dollars | Compared against cents `monthlyGross` → tier trips at **$600** of monthly gross, so Vendeur 10 effectively always earns 30% |
 | `commissions.*` NUMERIC | receives cents values | `commission_amount` is stored in cents while the column/reporting assume dollars |
 | `clawback_log.original_amount/reversed_amount` | INTEGER cents (by design) | Consistent only by accident with the cents-valued `commissions` rows — but see clawback defect D1 (§10) |
 
@@ -288,10 +288,10 @@ Note on naming: migration `20260406_clawback_bulk.sql` contains only the clawbac
 | # | Defect | Where | Impact |
 |---|---|---|---|
 | D1 | Clawback sums `commissions.amount` but the writer writes `commission_amount` | `clawback.js` vs `deals.js` | `original_amount`/`reversed_amount` logged as **0** — clawback log financially useless |
-| D2 | Units mixed after cents migration: pad ($1,500 → deducts $15), tier threshold ($60,000 → trips at $600), `commissions` columns never converted | F-007 + `calculateCommission` | Systematic overpayment; tier always active for Muhammad Majid Hassan (§6) |
+| D2 | Units mixed after cents migration: pad ($1,500 → deducts $15), tier threshold ($60,000 → trips at $600), `commissions` columns never converted | F-007 + `calculateCommission` | Systematic overpayment; tier always active for Vendeur 10 (§6) |
 | D3 | Salesperson linkage by ILIKE name string, no FK (`deals.salesperson_name`, `commissions.salesperson_name`, `salespeople.override_on`) | schema-wide | Renames orphan history; bulk reassign reprices silently; homonyms collide |
 | D4 | Tier month window: `monthEnd = new Date(y, m+1, 0)` = last day at **00:00** — deals created on the last day after midnight fall outside; window keyed on `created_at`, not funded date; monthly gross pre-pad and includes current deal; whole-deal (non-marginal) tier | `calculateCommission` step 4 | Wrong tier decisions at month boundaries; gaming via deal-creation timing |
-| D5 | Override outer guard requires the **seller** to carry `override_on`/`override_rate`; with seeded plans this is never true → **overrides never pay**; loop keeps only the last overrider if several match | `calculateCommission` step 6 | Hassan Alabboudy and Omar Mohamed's 5% overrides silently unpaid |
+| D5 | Override outer guard requires the **seller** to carry `override_on`/`override_rate`; with seeded plans this is never true → **overrides never pay**; loop keeps only the last overrider if several match | `calculateCommission` step 6 | Vendeur 07 and Vendeur 09's 5% overrides silently unpaid |
 | D6 | Recalc on **every** `PUT` of a funded/complete deal; upsert overwrites the single row with no history | trigger | Post-funding edits silently change pay; no commission audit trail |
 | D7 | Silent skips (no salesperson match, gross ≤ 0, gross ≤ pad) with no error/log; stale rows from earlier calculations are never cleaned | `calculateCommission` | Missing commissions discovered only at payroll |
 | D8 | Hard `DELETE /api/deals/:id` cascades `commissions` and `clawback_log` | `deals.js` | Pay/audit records destroyed with the deal |

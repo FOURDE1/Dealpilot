@@ -340,6 +340,40 @@ is the version that matters to you.
 
 ---
 
+## D-083 — Rewrite this repository's history to remove the old roster's names? *(F-82a, raised 2026-09-04)*
+
+**Where it stands.** F-82a took your twelve salespeople's real names — and the
+pay plans beside them — out of the working tree: « Vendeur 01 » … « Vendeur 12 »
+everywhere, the two legacy seed files deleted, and a guard
+(`apps/api/src/real-name-leak.test.ts`) that fails the build if a name comes
+back. What it did NOT do is touch the past: every commit before F-82a still
+contains the names, on GitHub (`develop` and `main`) and in the `backup` bare
+repository. Anyone with read access can still see them with `git log -p`.
+
+**Two ways to go.**
+
+1. **Leave history as it is** — the tree is clean, the guard holds, the
+   repository is private. The names stay reachable to whoever has read access
+   today and to whoever gets it later (a contractor, an acquirer's due
+   diligence, a leaked token).
+2. **Rewrite history** (`git filter-repo` with a replacements file that is never
+   committed) and force-push `develop`, `main` and the `backup` remote. Every
+   commit hash after the first affected one changes: every clone is re-cloned,
+   every open branch rebased; the commit ids and CI run ids written in
+   `docs/SESSION_LOG.md` keep naming the old hashes (that is history too, and
+   stays as written). One person does it, once, on a quiet day; the old objects
+   leave GitHub only after its garbage collection (support can expedite).
+
+**What I need from you:** 1 or 2. If 2, say when — it should happen before
+anyone outside your team is given read access, and it costs a half-day plus a
+re-clone for everyone.
+
+My recommendation: 2, before the first outside reader — the point of 0.3 was
+that the names should not be in the repository, and « in the past commits » is
+in the repository. Until then, 1 is the state we are in, and the tree is guarded.
+
+---
+
 ## Already answered — no action needed
 
 - SES over Resend for email (D-029). Built.
@@ -430,6 +464,7 @@ is the version that matters to you.
 | O-55 | **A multi-timezone dealer group's dashboard month is its FIRST store's month**, and the caption names the timezone (F-78, D-079). Today every store is America/Montreal, measured. Un-cut: an organization-level clock producer, or an all-stores-agree rule. | First store's clock, captioned. |
 | O-56 | **A salesperson's own-figures dashboard is deferred by name** (F-78, D-079): their home page shows the greeting, response speed and the recent-prospects list — a list is honest as a list — and zero figures; a personal report needs its own figure ledger gated on the person. Un-cut: that ledger. | No figures rather than a floor. |
 | O-57 | **Attention rows name the customer as plain text** (F-78, D-079): the wire carries the deal's lead only, so no link to `/contacts/:id` is offered even where a contact exists. Un-cut: `contact_id` on the attention wire plus the link. | Plain text for now. |
+| O-58 | **Add `@vitest/coverage-v8@3.2.7` as a devDependency of `packages/core`** — vitest's own coverage provider (repo vitest-dev/vitest, trusted-publisher release of 2026-07-06, exact-pinned to the vitest already in the lockfile; nine of its thirteen direct dependencies are absent from the lockfile and their own dependencies are too, so the transitive footprint is larger than nine — to be measured with a lockfile-only dry run before any install) — so the ≥ 90 % `packages/core` coverage gate that PROJECT.md, TASKS A-06, ARCHITECTURE.md, NFR-QUAL-002 and ADR-023 claim can exist in CI. Measured 2026-09-04 without it: ≈ 97.8 % lines / ≈ 95.7 % functions; branches ≈ 88–92 % and may need ~6 tests. Until you say yes the docs say the gate is pending (F-82a, D-083 (11)). | Not installed (CLAUDE.md ask-first on dependencies); `PROJECT.md:109` and `ARCHITECTURE.md:71` say « pending O-58 ». |
 
 ## Console e2e — decided 2026-08-31 (option A, D-075)
 

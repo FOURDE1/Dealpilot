@@ -316,3 +316,10 @@ layer — is done and tested. The broad two-thirds is not.
 4. The old way — `DEALPILOT_WEB_PORT=… pnpm --filter @dealpilot/web test:e2e`
    against your dev database — is gone: the Playwright config refuses to load
    outside the runner.
+
+## 2026-09-04 — F-82a: the old roster's names are out of this repository; two things are yours
+
+| What | Why only you | Unblocks |
+|---|---|---|
+| **Scrub your upstream `kia-tracker-specs` repository the same way.** The copy in this repo (`reference/kia-tracker-specs/`) now says « Vendeur NN » in the nine files that named people — `docs/new/01-business-logic/commissions-clawbacks.md`, `discussions/PROJECT-HANDOFF.md`, `KIA-DEAL-TRACKER-COMPLETE-SPECS.md`, `discussions/lead-manager-spec.md`, `docs/new/02-product-requirements/gap-analysis.md`, `docs/new/00-overview/OPEN-QUESTIONS.md`, `docs/new/01-business-logic/platform-admin-domains.md`, `docs/new/01-business-logic/reports-analytics.md`, `client/src/components/SalespeopleManager.jsx` — and its `supabase-migration.sql` (the roster INSERT with every pay term) and `server/seed-test-deals.js` are deleted. Your upstream still has all eleven as they were. At minimum, env-guard or delete `server/seed-test-deals.js` there: it runs three `.delete()` statements against whatever `SUPABASE_URL` in its `.env` points at, with no check that it is not production. | Only you hold that repository; nothing here can push to it. | ROADMAP 0.3 closed on both copies, not one. |
+| **Decide whether this repository's history is rewritten** — `OWNER-DECISIONS-PENDING.md` D-083. The names are out of the working tree and a guard keeps them out, but every commit before F-82a still carries them, on GitHub and in the `backup` bare repository. | A rewrite changes every commit hash after the first affected one: everyone re-clones, open branches are rebased, `backup` is force-pushed. Only you can weigh that against twelve people's names in a private repository's past. | Nothing is blocked either way; until you decide, the state is « history as it is, tree guarded ». |

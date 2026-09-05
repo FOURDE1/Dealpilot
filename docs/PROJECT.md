@@ -100,13 +100,13 @@ owner's dev database (it wiped the seeded account three times).
 
 ## Boundaries
 
-- **Never touch:** `reference/kia-tracker-specs/` (and the sibling `../kia-tracker-specs/` on the desktop) — read-only reference for the plan and legacy business rules. No code lands there; legacy data is test data and is never migrated (ADR-026 clean start).
+- **Never touch:** `reference/kia-tracker-specs/` (and the sibling `../kia-tracker-specs/` on the desktop) — read-only reference for the plan and legacy business rules, except the privacy scrub of F-82a (D-083: the legacy roster's real names became « Vendeur NN » in nine files, the two seed files that carried the names beside their pay terms were removed, and `apps/api/src/real-name-leak.test.ts` keeps the names out). No code lands there; legacy data is test data and is never migrated (ADR-026 clean start).
 - **Secrets live in:** env vars locally (`.env` git-ignored, committed `.env.example`); AWS Secrets Manager injected into ECS task definitions in deployed environments; GitHub Actions environment secrets for deploy time. Never in source, git, logs, or prompts.
 - **External services:** AWS account 242626139373 (CLI profile `Dealpilot`, admin — provisioned by owner 2026-07-24 for both agents; region ca-central-1; SES for email per D-029), Twilio, Stripe, Anthropic (Claude API), Sentry, PostHog (EU), Better Stack, GitHub.
 
 ## Quality bar for this project
 
-- **Minimum test expectation:** per CLAUDE.md — every new behavior and bug fix gets a test; **90%+ coverage on money/auth/data-integrity paths** (`packages/core` carries a hard ≥90% CI gate, NFR-QUAL-002) with golden-number tests for every tax/desking/commission path.
+- **Minimum test expectation:** per CLAUDE.md — every new behavior and bug fix gets a test; **90%+ coverage on money/auth/data-integrity paths** (`packages/core`'s hard ≥90% CI gate is PENDING the owner's dependency decision — O-58, `@vitest/coverage-v8`; no coverage tooling exists in the repo yet; measured 2026-09-04 without it ≈ 97.8 % lines / 95.7 % functions — NFR-QUAL-002) with golden-number tests for every tax/desking/commission path.
 - **Performance budget:** p75 LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1; API p95 < 300 ms; intake ACK p99 < 1 s; AI first touch < 60 s (NFR-PERF).
 - **Accessibility target:** WCAG 2.2 AA — both themes, both locales (FR/EN); tenant brand colors auto-validated for contrast (NFR-ACC).
 - **Browser/device support:** evergreen — last 2 major Chrome, Edge, Firefox, Safari (desktop + iOS/Android); mobile-responsive down to 360 px width, no horizontal page scroll; no IE/legacy Edge (NFR-DEV).

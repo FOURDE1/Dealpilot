@@ -140,7 +140,7 @@ Commission rows are **precomputed** by the deal-save calculator (see `commission
 
 Per person: `deals` count, `totalGrossForCommission = Σ gross_for_commission`, `totalCommission = Σ commission_amount`, `rate` and `padAmount` taken from the **first row seen** (assumed constant per person). Sorted `totalCommission` DESC.
 
-**Override second pass:** for every row with `override_salesperson` set and `override_amount > 0`, `override_amount` is credited to the **override recipient's** bucket as `totalOverrides` (a synthetic bucket with `rate=0, padAmount=0` is created if that person has no own deals in range). Business rule: a supervisor earns an override commission on another salesperson's deals (e.g., Hassan Alabboudy 5% on Hussein Alshawi's deals).
+**Override second pass:** for every row with `override_salesperson` set and `override_amount > 0`, `override_amount` is credited to the **override recipient's** bucket as `totalOverrides` (a synthetic bucket with `rate=0, padAmount=0` is created if that person has no own deals in range). Business rule: a supervisor earns an override commission on another salesperson's deals (e.g., Vendeur 07 5% on Vendeur 03's deals).
 
 **Monthly breakdown** keyed `YYYY-MM` of the joined deal's `created_at` (fallback commission `created_at`): `{total: Σ commission_amount, count}`.
 

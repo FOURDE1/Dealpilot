@@ -132,7 +132,7 @@ Fields: `name NOT NULL`, `commission_rate NUMERIC` (fraction, 0.30 = 30%), `has_
 | `PUT /:id` | Updates raw `req.body` (same risk) |
 | `DELETE /:id` | Soft: `active=false` ("Salesperson deactivated") |
 
-UI `SalespeopleManager.jsx` (`/salespeople`): rate entered as %, stored fraction (`/100`); `has_pad` default true with `pad_amount` default **$1,500** (0 when unchecked); tier editor ("X% if > threshold"); override editor (`override_on` placeholder "e.g. Hussein Alshawi", "X% on {name}"); deactivated rows at 40% opacity.
+UI `SalespeopleManager.jsx` (`/salespeople`): rate entered as %, stored fraction (`/100`); `has_pad` default true with `pad_amount` default **$1,500** (0 when unchecked); tier editor ("X% if > threshold"); override editor (`override_on` placeholder "e.g. Vendeur 03", "X% on {name}"); deactivated rows at 40% opacity.
 
 **Target (ADR-009):** `users` and `salespeople` unify — `deals.salesperson_id → users.id` real FK; pay plans become a `commission_plans` record attached to the membership; name-ILIKE matching is banned.
 

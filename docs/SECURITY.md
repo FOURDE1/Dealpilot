@@ -4,6 +4,21 @@
 > secrets, working exploits against this project, or unpatched vulnerability details
 > beyond what's needed to track the fix.
 
+## 2026-09-04 — F-82a confidential-data scrub: accepted risk, history not rewritten
+
+ROADMAP 0.3. The legacy roster — twelve real salespeople with their pay
+terms — is out of the working tree (« Vendeur NN », D-083) and the guard
+`apps/api/src/real-name-leak.test.ts` fails the build if a name returns; it
+bans SHA-256 digests, never plaintext. Accepted risks, both on file as owner
+items: (1) every commit before F-82a still carries the names — on GitHub and
+in the `backup` bare repository — and a history rewrite is
+OWNER-DECISIONS-PENDING D-083; (2) the owner's upstream `kia-tracker-specs`
+still holds the eleven files unscrubbed, including `server/seed-test-deals.js`,
+whose three `.delete()` calls run against whatever `SUPABASE_URL` names —
+OWNER-ACTIONS 2026-09-04. Known limit of the guard: unsalted digests are
+confirmable by someone who already suspects a name; the goal is « not in the
+tree, not grep-able », not secrecy against a guess.
+
 ## 2026-08-21 — F-61 drip engine: accepted risk on the due-scan definer
 
 `drip_due_enrollments()` (0060) is SECURITY DEFINER and EXECUTE-granted to

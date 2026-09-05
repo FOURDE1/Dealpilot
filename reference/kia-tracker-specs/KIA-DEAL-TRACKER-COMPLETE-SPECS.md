@@ -4441,7 +4441,7 @@ META ADS — Total Budget: $5,000
 Staff Schedules
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Hussein Alshawi — F&I Agent — FR/EN
+  Vendeur 03 — F&I Agent — FR/EN
   ┌─────┬─────┬─────┬─────┬─────┬─────┬─────┐
   │ Sun │ Mon │ Tue │ Wed │ Thu │ Fri │ Sat │
   │ OFF │ 9-5 │ 9-5 │ 9-5 │ 9-5 │ 9-5 │ OFF │
@@ -7642,18 +7642,18 @@ This is a full-stack dealership CRM/deal tracking system for Kia Mont-Laurier. I
 
 | Salesperson | Rate | Pad | Special |
 |---|---|---|---|
-| Jason Chahine | 30% | None | — |
-| Ibrahim Hussain | 20% | $1,500 | Omar gets 5% override |
-| Hussein Alshawi | 25% | $1,500 | Hassan A. gets 5% override |
-| Hussein Hussein | 20% | $1,500 | — |
-| Hussain Safa | 20% | $1,500 | — |
-| Abdul-Alla Al-Ubeedi | 25% | $1,500 | — |
-| Hassan Alabboudy | 35% | $1,500 | +5% override on Hussein Alshawi |
-| Nicolas Sayah | 5% | $1,500 | — |
-| Omar Mohamed | 30% | $1,500 | +5% override on Ibrahim Hussain |
-| Muhammad Majid Hassan | 25%/30% | $1,500 | 30% if monthly gross >$60k |
-| Mustafa Hafid | 20% | $1,500 | — |
-| Michael Belway | 20% | $1,500 | — |
+| Vendeur 01 | 30% | None | — |
+| Vendeur 02 | 20% | $1,500 | Vendeur 09 gets 5% override |
+| Vendeur 03 | 25% | $1,500 | Vendeur 07 gets 5% override |
+| Vendeur 04 | 20% | $1,500 | — |
+| Vendeur 05 | 20% | $1,500 | — |
+| Vendeur 06 | 25% | $1,500 | — |
+| Vendeur 07 | 35% | $1,500 | +5% override on Vendeur 03 |
+| Vendeur 08 | 5% | $1,500 | — |
+| Vendeur 09 | 30% | $1,500 | +5% override on Vendeur 02 |
+| Vendeur 10 | 25%/30% | $1,500 | 30% if monthly gross >$60k |
+| Vendeur 11 | 20% | $1,500 | — |
+| Vendeur 12 | 20% | $1,500 | — |
 
 ---
 

@@ -179,7 +179,7 @@ export default function SalespeopleManager() {
             )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">{t('salespeople.overrideOn')}</label>
-              <input name="override_on" value={form.override_on} onChange={handleChange} placeholder="e.g. Hussein Alshawi"
+              <input name="override_on" value={form.override_on} onChange={handleChange} placeholder="e.g. Vendeur 03"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm" />
             </div>
             {form.override_on && (

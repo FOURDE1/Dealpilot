@@ -221,7 +221,7 @@ These are product rules the documentation asserts (mostly inherited from legacy 
 
 ### Q-18 — Commission plans and F&I compensation
 
-- **Context:** the 12 real pay plans (rates 5–35%, $1,500 pads, Muhammad Majid Hassan's $60k monthly tier, three supervisor-override pairings) are ground truth and survive migration; the corrected engine enforces pad-before-rate, monthly tiers across all period deals, overrides paid to the supervisor, clawback-before-payout.
+- **Context:** the 12 real pay plans (rates 5–35%, $1,500 pads, Vendeur 10's $60k monthly tier, three supervisor-override pairings) are ground truth and survive migration; the corrected engine enforces pad-before-rate, monthly tiers across all period deals, overrides paid to the supervisor, clawback-before-payout.
 - **Confirm:** 1) each plan's current rate/pad/override at migration date (people change); 2) F&I manager compensation model — **default: `fi_manager` role on the membership + a per-store F&I plan record**, not a separate commissions table; 3) whether historical mispayments surfaced by the reconciliation (Q-10) are corrected or grandfathered — **default: grandfathered, corrected go-forward.**
 - **✅ Decision (2026-07-23):** ratified as documented — the pay-plan engine rules stand. Note: with the Q-10 clean-start decision there are **no historical corrections at all** — commission plans are entered fresh at onboarding; item 3 is moot.
 

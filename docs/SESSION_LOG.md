@@ -1,3 +1,144 @@
+## 2026-09-05 (tick 36) — F-82a: the confidential-data scrub — « Vendeur NN », and a guard that bans digests
+
+**Where tick 35's CI story ended.** F-81 shipped as `94f235b` (run
+33861925571, green first try — twenty-two consecutive greens); its docs tail
+`6e594af` went green on attempt 2 (run 33863077864 — attempt 1's « e2e (real
+browser, real worker process) » job was cancelled at its 20-minute ceiling,
+10:24:31Z → 10:44:49Z, with the lint / typecheck / test / build job green at
+10:35:53Z; on attempt 2 both jobs green, the e2e in 9 m 32 s) — twenty-three
+greens, this one on a re-run, the first since F-69's `a52477a` (tick 26). A
+docs-only tail whose e2e hits the ceiling once and passes in under ten
+minutes on the re-run is a runner stall, not a product red — the
+infrastructure-class red D-082's gate paragraph records — but it belongs in
+this story, not behind a « green ». `develop` was clean at `6e594af` when
+this slice started.
+
+**How the slice was chosen.** Tick 35 queued ROADMAP 0.3 as a rider after
+F-81, beside 0.6: of the Phase-0 gap (48 % built, 32 % of the gap
+owner-gated — AWS, key rotation, the legacy lockdown), 0.3 is the item that
+needs no owner, no key and no dependency, and the read-only investigation of
+2026-09-04 gave it an exact shape: the legacy twelve-person roster with every
+pay term in exactly twelve tracked files — one in the new tree
+(`packages/core/src/money-math.test.ts`) and eleven under `reference/`. The
+laws were set before a line was written: the money numbers are the executable
+spec and only identities may move; the pseudonym is « Vendeur NN » with NN the
+legacy seed order, mapped nowhere in git; the guard hashes, never spells;
+`reference/` is read-only and this is its one sanctioned edit.
+
+**What was built, red first.** The guard came first —
+`apps/api/src/real-name-leak.test.ts`, modelled on brand-leak's walk but over
+seven areas including tests, docs, SQL, JS, JSX and `reference/` (a hand-kept
+list the review replaced, below) — with fifteen SHA-256 digests (six
+surnames, seven full-name pairs, two sentinels; seventeen after the review)
+produced by the new `scripts/hash-banned-names.mjs` from the roster parsed out
+of the SQL by row index, so no name was ever typed. On the unscrubbed tree it
+went red on exactly the twelve files the investigation named and on no other,
+and the sentinel case passed. Then the scrub: nine identity-only lines in
+`money-math.test.ts` (`PLAN_V03`, `'vendeur-07'`, `'vendeur-09'`, two titles —
+the non-identity bytes proven identical, 334 / 334 before and after); the
+nine reference files by a run-time substitution driven by the roster read
+from git, plus three hand edits for an initial and two bare first names in
+override columns; the two data files deleted (`supabase-migration.sql`, the
+roster INSERT; `server/seed-test-deals.js`, ten seeded deals and three
+un-guarded `.delete()` calls against whatever `SUPABASE_URL` says) and the
+dangling citation at commissions-clawbacks.md:58 re-pointed (the review found
+two more, below). Guard green;
+one surname planted at the end of `docs/PROJECT.md` (again read from git)
+re-reddened it at `docs/PROJECT.md:114:12` with the name unprinted; the file
+went back byte-identical (sha256
+`f6d085a36542f1cb3ccbd7165a2fd2cea25348d0878bb0aa385ff0610f7af0fb` before and
+after, `git status` empty). `@dealpilot/core` rebuilt and its `dist` scanned
+by digest → 0.
+
+**What the red-first order caught.** Four things, none of them a name in the
+product. The specified tokeniser reads `'Surname'` inside a seed string as
+`surname'` and « Surname's » as `surname's`, so the SQL and JS seeds were
+invisible to the naive form — the guard trims a possessive and edge
+punctuation, and the lockstep test keeps the script's normaliser identical.
+The first green run was red: 5 064 ms against vitest's default 5 s
+`testTimeout`, with a build running beside it — reads went parallel (1 089
+files: 6 s warm / 39 s cold one by one on this machine's scanner, 44 ms
+together), the digest became the one-shot `crypto.hash`, and the test carries
+a 60 s ceiling. My own positive test asserted that the two halves of a pair
+separated by an em dash are not flagged — they are, because punctuation is
+not a token and pairs run over the token stream; the test's premise was
+wrong, not the guard's, and it now separates them with a word. A crude
+plaintext needle scan of `dist` reported four hits that were the owner's own
+name in `branding.*` — two roster surnames coincide with the owner's and a
+persona's names, which is exactly why those are banned only as pairs; the
+digest scan, the guard's real logic, reported none.
+
+**What the adversarial review caught before the push.** Eighteen confirmed
+findings, none of them a name in the tree, thirteen fixes red-first. The
+big one: the guard's surface was a hand-kept list of seven areas under a
+comment claiming « everything a clone contains », and 29 tracked files sat
+outside it — `CLAUDE.md`, the reviewer agent's memory under `.claude/`,
+`.github/`, the root configs — the exact prose an agent writes names into;
+the review also ran the guard green with its surface pointed at a directory
+that does not exist. The surface is now `git ls-files` filtered by extension
+(what a clone contains by construction; ignored output never enters, so the
+answer still cannot depend on what last ran here), and the tree test asserts
+a 500-file floor and six anchors before it asserts absence. Three guard blind
+spots beside the recorded ones: the one hyphenated surname written with a
+space, a period or no hyphen; the three-token name as given + surname with
+the middle dropped; an « Al- » hyphen inserted in an unhyphenated surname.
+The normaliser now drops every hyphen, the surname's body and the skip-middle
+pair have digests (seventeen), and the space-split « Al X » form is recorded
+as a limit in D-083 (3). Proof: eight files planted from the roster read in
+memory (the forward-spelled sentinel in `.claude/agent-memory/`, `.github/`
+and the root; the row-06 variants; row 10 given + surname; row 03 with an
+inserted hyphen) — the old guard green on all eight, the new one red on
+exactly those eight lines and nothing else, green again once they were
+deleted, `git status` showing none; the empty-enumeration and dropped-
+dot-directory mutations red on the floor and on `.github/workflows/ci.yml`,
+the file restored byte-identical each time. Claims fixed to match the tree:
+D-083's « one dangling citation » was three (commissions-clawbacks.md:3 and
+schema-design.md:3 still cited the deleted SQL — reworded, and :58's
+« entered at onboarding » was Dealpilot's onboarding rule stated as legacy
+fact, now « seeded by the legacy migration — not carried in this copy »);
+(9)(c)'s « nine of its 318 files » is eleven; the TASKS row's « nine
+reference docs / one JSX » read as ten; O-58's « 9 transitive packages » was
+the direct-dependency gap; ROUND 29.2 promised zero hits for a surname grep
+when two roster surnames are also the owner's and a persona's name and one is
+a piece of « Safari » (now a full-name grep, zero for all twelve, measured);
+ROUND 29.4 asked the owner to plant a bare surname, green by design for the
+six pair-only rows (now a full name); this tick's opener said the docs tail's
+verdict was « the lead's to record, as every tail's has been » when every
+opener since tick 28 records it — it is above, with its attempt 2;
+`docs/ARCHITECTURE.md` had come back as a whole-file CRLF rewrite for a
+one-line edit and is LF again. After the fixes: `RLS_REQUIRED=1
+REDIS_URL=redis://localhost:6381 npx vitest run` on the guard, brand-leak,
+f81-money-fence and `packages/core` → 23 files / 343 tests green in 7.7 s,
+the guard's tree scan 1.7–3.5 s over ≈ 1 120 files (3.4 s wall alone);
+eslint 0 / 0 on the two new files; api `tsc --noEmit` clean; `git status`
+24 paths (schema-design.md joins the twenty-three), no stray, no plant.
+
+**Gate.** `pnpm turbo run build typecheck lint` 25 / 25 (16 cached), 1 m 06 s,
+exit 0, lint 0 errors and the one pre-existing warning;
+`RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` →
+**205 files / 2294 tests, exit 0, 0 unhandled errors, 0 skipped, 842 s on a quiet machine after the review fixes — D-082's gate had 204 / 2290; this slice adds one file and four cases** (a first post-fix run under heavy contention took 30 minutes and logged seven unhandled ioredis `write EPIPE` rejections from `apps/api/src/api.test.ts` — gone on the quiet run; a watch item on the test harness, recorded in D-083's gate line); the guard alone 4 / 4 in 3.4 s wall; eslint 0 / 0 on the
+two new files; api `tsc --noEmit` clean; brand-leak green (no pseudonym names
+the banned legacy project). `node scripts/e2e.mjs` ran three times after the fixes: once under heavy machine contention (74 / 78 in 9.3 m — three first-navigation / first-click timeouts, all timing) and twice on a quiet machine — 74 / 78 in 3.2 m (one 15-second wait for the store form's timezone refusal message in `f76-store-settings` T2, which then skipped its three serial siblings; it did not reproduce on the next run — a new entry on the watch list beside the recorded T3 occurrence) and 77 / 78 in 3.4 m (the recorded `f75-brand-paint` request-storm bound, the timing-marginal watch item of D-079 (9)) — every red a recorded timing class in a spec this slice does not touch; no product code changed; CI runs the same suite on a clean runner. The dev database was never opened.
+
+**Docs:** D-083 at the top of `DECISIONS.md` (the convention, the hashed
+guard and its honest limit, the two deletions, the one sanctioned
+`reference/` edit, the timeout ruling, the out-of-scope list, the rejected
+list with reasons, the deviations); ROUND 29 (three commands and one file;
+the plant-and-revert row; the two owner items); `TASKS.md` F-82a row;
+`PROJECT.md:103` amended; `OWNER-ACTIONS.md` 2026-09-04 (scrub the upstream
+repository's eleven files and guard or delete its seed script; decide on
+history); `OWNER-DECISIONS-PENDING.md` D-083 (rewrite history or not —
+recommended before the first outside reader); `SECURITY.md` entry (accepted
+risks: history not rewritten, upstream unscrubbed — the header's contract
+fits this time, unlike D-082 (13)). In the same pass, `PROJECT.md:109` and
+`ARCHITECTURE.md:71` stop claiming a ≥ 90 % `packages/core` coverage gate the
+tree does not have — both now say « pending O-58 », the new owner row asking
+for `@vitest/coverage-v8@3.2.7` (≈ 97.8 % lines / ≈ 95.7 % functions
+measured 2026-09-04 without it by the roadmap measurement, not by this
+slice; D-083 (11)).
+
+**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–35 were.**
+
 ## 2026-09-04 (tick 35) — F-81: the lender submissions ledger, and « Choisir cette approbation »
 
 **Where tick 34's CI story ended.** F-80 shipped as `6a7fb31` (run

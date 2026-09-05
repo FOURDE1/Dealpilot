@@ -68,7 +68,7 @@ graph LR
 | `packages/db` | Schema, SQL migrations, generated types, RLS policies | — |
 | `packages/schemas` | Zod 4 domain schemas + the single enum/status vocabulary source | — |
 | `packages/contracts` | ts-rest API contracts → OpenAPI 3.1 + typed client | schemas |
-| `packages/core` | Pure domain math: desking, tax tables, commissions, pipeline gates, money utils (≥90% coverage) | schemas |
+| `packages/core` | Pure domain math: desking, tax tables, commissions, pipeline gates, money utils (≥90% coverage — the CI gate is pending O-58; ≈ 97.8 % lines measured 2026-09-04 without tooling) | schemas |
 | `packages/ui` | shadcn/Base UI design system + tenant theming tokens | — |
 | `packages/i18n` | Shared EN/FR resources for SPA, API, workers (emails/PDFs/SMS) | — |
 | `packages/ai` | Prompts, 7-tool set, extraction, compliance guards, model eval/A-B harness | schemas, core |

@@ -76,7 +76,7 @@ The 7/10 product value that ADR-026 mandates preserving. These are ported to `pa
 | Asset | Detail worth preserving verbatim |
 |---|---|
 | Provincial tax structure | QC GST 5% + QST 9.975% on correct bases; ON HST 13%; trade-in tax credit; Section 87 (Indian Status) exemption; correct amortization `M = P·r(1+r)^n/((1+r)^n−1)` |
-| Commission pay plans | 12 real plans: rates 5%–35%, $1,500 pads, monthly tier (Muhammad Majid Hassan: 30% if monthly gross > $60k else 25%), supervisor overrides (Omar +5% on Ibrahim; Hassan A. +5% on Hussein Alshawi) |
+| Commission pay plans | 12 real plans: rates 5%–35%, $1,500 pads, monthly tier (Vendeur 10: 30% if monthly gross > $60k else 25%), supervisor overrides (Vendeur 09 +5% on Vendeur 02; Vendeur 07 +5% on Vendeur 03) |
 | Commission rule set (guardrails) | Money in cents; rates NUMERIC(5,4); **pad subtracted before rate**; tier check across ALL the salesperson's deals in the period; override paid to the supervisor; clawback checked before payout |
 | Deal pipeline | 10 stages (new → submitted → approved → signed → sourcing → pending_delivery → scheduled → delivered → complete → lost) with stage colors, parallel funding badge, complete = delivered AND funded |
 | Lead engines | Scoring (12 operators, 20+ fields, cached), assignment (round-robin / load-balanced / source-based with caps and history), duplicate detection + merge |

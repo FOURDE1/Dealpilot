@@ -500,7 +500,7 @@ META ADS — Total Budget: $5,000
 Staff Schedules
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Hussein Alshawi — F&I Agent — FR/EN
+  Vendeur 03 — F&I Agent — FR/EN
   ┌─────┬─────┬─────┬─────┬─────┬─────┬─────┐
   │ Sun │ Mon │ Tue │ Wed │ Thu │ Fri │ Sat │
   │ OFF │ 9-5 │ 9-5 │ 9-5 │ 9-5 │ 9-5 │ OFF │

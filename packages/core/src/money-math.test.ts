@@ -156,20 +156,20 @@ describe('desking (computeDeal, cents)', () => {
 });
 
 describe('commission engine (corrected §11 rules)', () => {
-  const husseinPlan = { rate: 0.25, hasPad: true, padCents: 150_000 };
+  const PLAN_V03 = { rate: 0.25, hasPad: true, padCents: 150_000 };
 
-  it('golden: Hussein Alshawi deal with Hassan Alabboudy override', () => {
+  it('golden: Vendeur 03 deal with Vendeur 07 override', () => {
     const r = calculateCommission({
       salePriceCents: 3_500_000,
       vehicleCostCents: 3_000_000,
       fiReserveCents: 200_000,
-      plan: husseinPlan,
-      overriders: [{ salespersonId: 'hassan-a', overrideRate: 0.05 }],
+      plan: PLAN_V03,
+      overriders: [{ salespersonId: 'vendeur-07', overrideRate: 0.05 }],
     });
     expect(r.totalGrossCents).toBe(700_000);
     expect(r.grossForCommissionCents).toBe(550_000); // pad BEFORE rate
     expect(r.commissionCents).toBe(137_500);
-    expect(r.overrides).toEqual([{ salespersonId: 'hassan-a', amountCents: 27_500 }]);
+    expect(r.overrides).toEqual([{ salespersonId: 'vendeur-07', amountCents: 27_500 }]);
   });
 
   it('F2 CORRECTED: the pad is $1,500 in cents — never $15', () => {
@@ -177,14 +177,14 @@ describe('commission engine (corrected §11 rules)', () => {
       salePriceCents: 2_000_000,
       vehicleCostCents: 1_900_000,
       fiReserveCents: 0,
-      plan: husseinPlan,
+      plan: PLAN_V03,
     });
     // gross $1,000 − pad $1,500 → floors at 0, not (100,000 − 1,500)
     expect(r.grossForCommissionCents).toBe(0);
     expect(r.commissionCents).toBe(0);
   });
 
-  it('tier: Muhammad jumps 25%→30% only above $60,000 funded monthly gross', () => {
+  it('tier: Vendeur 10 jumps 25%→30% only above $60,000 funded monthly gross', () => {
     const plan = {
       rate: 0.25, hasPad: true, padCents: 150_000,
       hasTieredRate: true, tierThresholdCents: 6_000_000, tierRate: 0.3,
@@ -204,8 +204,8 @@ describe('commission engine (corrected §11 rules)', () => {
       fiReserveCents: 100_000,
       plan: { rate: 0.2, hasPad: false, padCents: 0 },
       overriders: [
-        { salespersonId: 'omar', overrideRate: 0.05 },
-        { salespersonId: 'hassan-a', overrideRate: 0.05 },
+        { salespersonId: 'vendeur-09', overrideRate: 0.05 },
+        { salespersonId: 'vendeur-07', overrideRate: 0.05 },
       ],
     });
     expect(r.grossForCommissionCents).toBe(600_000); // no pad
