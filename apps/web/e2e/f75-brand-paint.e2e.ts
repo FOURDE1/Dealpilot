@@ -446,14 +446,26 @@ test('dark_mode disabled locks light over a stored dark preference, never erases
 test('an errored GET /api/v1/branding renders the platform shell once — no skeleton loop, no request storm', async ({ page }) => {
   await signUp(page, 'Patron Panne', `f75c-${stamp}@1dealer.test`);
 
+  // Leave the post-sign-up document before arming the intercept. `signUp`
+  // returns on the `/` URL while that document is still booting: its
+  // RequireAuth prefetch went to the real API, and if the shell mounted while
+  // that prefetch was in flight, StrictMode's replay cancels it and re-issues
+  // one more — a fetch that lands AFTER `page.route` below is armed and was
+  // counted as a fourth cold-load request on loaded runners (CI run
+  // 33931882313 attempt 1, and three local runs). On a blank page nothing can
+  // fetch, so the count below is the cold load's alone.
+  await page.goto('about:blank');
+
   // From here the endpoint fails. A 5xx, the client timeout and a snapshot
   // that fails `PublishedBranding.parse` all reach the shell the same way: one
   // errored, data-less query (retry: false).
   let requests = 0;
+  const seenAt: number[] = [];
   await page.route(
     (url) => url.pathname === '/api/v1/branding',
     (route) => {
       requests += 1;
+      seenAt.push(Date.now());
       return route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: 'e2e: branding down' }) });
     },
   );
@@ -471,12 +483,15 @@ test('an errored GET /api/v1/branding renders the platform shell once — no ske
     await expect(page).toHaveTitle(/1Dealer/);
 
     // The cold load itself is bounded by the mount, not by the error:
-    // RequireAuth's prefetch, the shell observer's retry-on-mount of the
-    // already-errored entry, and — under the dev server's StrictMode — one
-    // replayed subscription (the replay unsubscribes, which cancels the
-    // in-flight fetch because the queryFn consumed its abort signal, then
-    // subscribes again and re-issues it). Measured: 3 on the fixed tree, 1215
-    // in 15.6 s under the loop this test exists for.
+    // RequireAuth's prefetch (1); the shell observer's retry-on-mount fetch of
+    // the already-errored entry, dispatched and then cancelled by the dev
+    // build's StrictMode replay of the subscription (2); the replay's re-issue
+    // (3). Cancel-with-revert is synchronous in query-core 5.101 (query.js
+    // onCancel reverts the state, then aborts), so the whole replay is one JS
+    // task and the mount cannot exceed 3; it is 2 when the prefetch is still
+    // in flight at mount and the replay cancels that one instead. 1215 in
+    // 15.6 s under the loop this test exists for. The `seenAt` offsets in the
+    // report say where any extra request sits relative to `page.goto('/')`.
     await securityLink(page).click();
     await expect(page).toHaveURL('/security');
     const settled = requests;
@@ -493,7 +508,8 @@ test('an errored GET /api/v1/branding renders the platform shell once — no ske
     await expect(page.getByTestId('brand-style')).toHaveCount(0);
     expect(requests, 'GET /api/v1/branding requests after two more navigations — none since the shell settled').toBe(settled);
   } finally {
-    const line = `GET /api/v1/branding requests while the endpoint answered 500: ${requests} in ${Date.now() - startedAt} ms`;
+    const offsets = seenAt.map((t) => `${t - startedAt} ms`).join(', ');
+    const line = `GET /api/v1/branding requests while the endpoint answered 500: ${requests} in ${Date.now() - startedAt} ms (at ${offsets || 'none'} after page.goto)`;
     test.info().annotations.push({ type: 'branding-requests', description: line });
     console.log(line);
   }
