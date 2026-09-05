@@ -173,6 +173,18 @@ const BEHAVIOURALLY_COVERED = new Set([
   // under withTenant + requireMember and id-addressed writes resolve the
   // org first, so the one org-keyed isolation policy is the only door.
   'deal_submissions',
+  // F-82: cross-tenant case in apps/api/src/f82-expenses.test.ts (T-X6),
+  // driven as the APP role — a rival's GET/POST on our vehicle's ledger is a
+  // 404 via vehicleOrg, a rival's PATCH / receipt POST / receipt GET on our
+  // expense a 404 via the expenseOrg walk, our POST naming a rival's vehicle
+  // a 404, and the composite FKs refuse a mismatched (organization_id,
+  // vehicle_id | store_id) pair with 23503 even as the app role. NO
+  // USER_KEYED_POLICIES entry (the F-80 note): vehicle_expenses has no
+  // member_read policy — reads run under withTenant + requireMember after
+  // the org walk, so the one org-keyed isolation policy is the only door.
+  // The grant shape (no DELETE) is pinned by migration-0075-expenses P6b;
+  // the no-DELETE list below stays its closed 3-table immutable set.
+  'vehicle_expenses',
 ]);
 
 interface PolicyRow {

@@ -51,6 +51,13 @@ export const PERMISSIONS = [
       carries it: an org-wide grant sees every store, a store membership only
       its own. Money data — that scoping lives in the vehicle serializer. */
   'vehicle:read_costs',
+  /** Approve, reject, pay or void a logged vehicle expense (F-82). Releases
+      dealer money against a unit — a manager gate (expenses-accounting.md
+      §1 #2); the defaults are roles that also hold vehicle:read_costs (an
+      approver reads what it approves — the drift guard's lockstep case), and
+      the route additionally requires the actor's cost view to cover the
+      vehicle's store. Logging stays under vehicle:update. */
+  'expense:approve',
 
   // --- deals & desking ----------------------------------------------------
   'deal:create',
@@ -149,6 +156,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, readonly PermissionT[]> = 
   used_car_manager: [
     'member:read',
     'vehicle:create', 'vehicle:update', 'vehicle:delete', 'vehicle:read_costs',
+    // F-82: the manager of the lot's spend approves what the lot cost.
+    'expense:approve',
     'deal:update',
     'checklist:complete',
     'dispatch:read',

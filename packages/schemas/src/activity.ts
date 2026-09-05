@@ -35,6 +35,15 @@ export const ActivityEntityType = z.enum([
    * via:'submission_selected'. No new verb.
    */
   'deal_submission',
+  /**
+   * F-82 (expenses-accounting.md §2): a logged vehicle expense; parent = its
+   * vehicle, so the car's timeline shows what was spent on it. Actions REUSED
+   * only — 'created' on log, 'updated' on the ladder, a field edit and a
+   * receipt. Events carry STATUS and facts ONLY, never an amount (F-79's
+   * rule: activity:read is floor-wide and cost is masked) — amounts are
+   * immutable after INSERT, so no diff can ever carry one.
+   */
+  'vehicle_expense',
 ]);
 
 export const ActivityAction = z.enum([

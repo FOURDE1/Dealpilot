@@ -307,4 +307,109 @@ describe('FR-TEN-006 — the cost build-up belongs to the store that paid it', (
     const items = await listCosts(cookieOwner);
     for (const v of items) expect(v['total_cost_cents']).toBeDefined();
   });
+
+  // Review rider R3 (D-084): the cost view obeys the SAME precedence as
+  // has_permission (0067:185-209) — a per-user override written through
+  // PUT /api/v1/permissions/user (A-13) wins over the role. Red at tip:
+  // costViewOf read role_permissions only, so a DENY was invisible and an
+  // ALLOW was dead vocabulary for costs.
+  const userIdOf = async (cookie: string) => {
+    const me = await app!.inject({ method: 'GET', url: '/api/v1/me', headers: { cookie } });
+    expect(me.statusCode, me.body).toBe(200);
+    return (JSON.parse(me.body) as { user: { id: string } }).user.id;
+  };
+  const override = async (userId: string, allowed: boolean | null) => {
+    const res = await app!.inject({
+      method: 'PUT', url: '/api/v1/permissions/user', headers: { cookie: cookieOwner },
+      payload: { organization_id: orgId, user_id: userId, permission: 'vehicle:read_costs', allowed, ...(allowed === null ? {} : { reason: 'Revue du contrôleur' }) },
+    });
+    expect(res.statusCode, res.body).toBe(204);
+  };
+
+  it('R3 (rider, red at tip): a per-user DENY of vehicle:read_costs masks a GM whose role grants it — list and single read alike', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const cookie = await persona(`f07-gm-deny-${run}@dealpilot.test`, ['gm'], storeId);
+    const userId = await userIdOf(cookie);
+    const mine = (await listCosts(cookie)).find((v) => v['store_id'] === storeId)!;
+    expect(mine['total_cost_cents']).toBeDefined(); // the role grants it
+    await override(userId, false);
+    for (const v of await listCosts(cookie)) {
+      expect('acquisition_cost_cents' in v).toBe(false);
+      expect('total_cost_cents' in v).toBe(false);
+    }
+    const one = await app!.inject({ method: 'GET', url: `/api/v1/vehicles/${vehicleId}`, headers: { cookie } });
+    expect(one.statusCode, one.body).toBe(200);
+    expect('total_cost_cents' in (JSON.parse(one.body) as Record<string, unknown>)).toBe(false);
+  });
+
+  it('R3b (rider, red at tip): a per-user ALLOW unmasks a store-scoped salesperson for THEIR store only; clearing it restores the role default', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const cookie = await persona(`f07-sales-allow-${run}@dealpilot.test`, ['salesperson'], storeId);
+    const userId = await userIdOf(cookie);
+    for (const v of await listCosts(cookie)) expect('total_cost_cents' in v).toBe(false);
+    await override(userId, true);
+    const items = await listCosts(cookie);
+    const own = items.filter((v) => v['store_id'] === storeId);
+    expect(own.length).toBeGreaterThan(0);
+    for (const v of own) expect(v['total_cost_cents']).toBeDefined();
+    for (const v of items.filter((x) => x['store_id'] !== storeId)) expect('total_cost_cents' in v).toBe(false);
+    await override(userId, null);
+    for (const v of await listCosts(cookie)) expect('total_cost_cents' in v).toBe(false);
+  });
+});
+
+describe('F-82 rider — the acquisition_date trail (D-082 (3)\'s class, D-084)', () => {
+  const eventsOf = async (entityId: string) => {
+    const res = await app!.inject({
+      method: 'GET', url: `/api/v1/activity?organization_id=${orgId}&entity_id=${entityId}&limit=100`,
+      headers: { cookie: cookieOwner },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    return (JSON.parse(res.body) as { items: { action: string; changes: Record<string, unknown> }[] }).items;
+  };
+
+  it('R1: a PATCH of acquisition_date lands on the trail as YYYY-MM-DD on BOTH sides (red at tip: `from` was a UTC instant)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const car = await app!.inject({
+      method: 'POST', url: '/api/v1/vehicles', headers: { cookie: cookieOwner },
+      payload: {
+        ...CAR, vin: undefined, stock_number: `R1-${run.slice(-6)}`,
+        organization_id: orgId, store_id: storeId, acquisition_date: '2026-07-01',
+      },
+    });
+    expect(car.statusCode, car.body).toBe(201);
+    const id = (JSON.parse(car.body) as { id: string }).id;
+    const moved = await app!.inject({
+      method: 'PATCH', url: `/api/v1/vehicles/${id}`, headers: { cookie: cookieOwner },
+      payload: { acquisition_date: '2026-07-15' },
+    });
+    expect(moved.statusCode, moved.body).toBe(200);
+    expect((JSON.parse(moved.body) as { acquisition_date: string }).acquisition_date).toBe('2026-07-15');
+    const updated = (await eventsOf(id)).filter((e) => e.action === 'updated');
+    expect(updated).toHaveLength(1);
+    // The prior row is locked THROUGH the read model, so the diff sees a
+    // calendar day on both sides — never a pg Date serialized as an instant.
+    expect(updated[0]!.changes).toEqual({ acquisition_date: { from: '2026-07-01', to: '2026-07-15' } });
+  });
+
+  it('R2 (regression pin, green at tip): a same-date PATCH writes no event', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    const car = await app!.inject({
+      method: 'POST', url: '/api/v1/vehicles', headers: { cookie: cookieOwner },
+      payload: {
+        ...CAR, vin: undefined, stock_number: `R2-${run.slice(-6)}`,
+        organization_id: orgId, store_id: storeId, acquisition_date: '2026-07-01',
+      },
+    });
+    expect(car.statusCode, car.body).toBe(201);
+    const id = (JSON.parse(car.body) as { id: string }).id;
+    const same = await app!.inject({
+      method: 'PATCH', url: `/api/v1/vehicles/${id}`, headers: { cookie: cookieOwner },
+      payload: { acquisition_date: '2026-07-01' },
+    });
+    expect(same.statusCode, same.body).toBe(200);
+    // activity.ts' same() compares a Date against 'YYYY-MM-DD' by calendar
+    // day; the rider must never regress that rule into a phantom event.
+    expect((await eventsOf(id)).filter((e) => e.action === 'updated')).toEqual([]);
+  });
 });

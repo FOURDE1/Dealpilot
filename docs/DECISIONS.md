@@ -11,6 +11,896 @@
 > the whole build. Entries below either adopt them or record owner decisions on
 > top of them; on conflict, a newer entry here supersedes.
 
+## D-084 — 2026-09-05 — The vehicle expenses ledger: a record and a report input, never a desk input
+
+F-82 (expenses-accounting.md §1–§5, §7, §8; FR-ACC-002 / 003 / 004, all
+P1, and FR-ACC-001's category half; the 2026-09-04 scoping's pick,
+f82_scope §8, whose risk ruling named the spec's own arithmetic — the cost
+strip's « Total » that includes added expenses (:214) and FR-INV-005's
+`total_invested` — as one risk wearing two faces: the formula and the
+caption). Designed by the three-planner + judge workflow — winner
+`money-fence-and-costs` — hardened by four adversarial critics into a
+binding build document of 19 rulings, 7 grafts, 15 corrections, 20 cuts
+with un-cut conditions, 18 adds and 39 amendments, built in four waves
+(backend → i18n + web → journey → mutations + gate), reviewed through six
+adversarial lenses with refute-biased verification (12 raw findings → 3
+confirmed by the review's own verifiers and 2 refuted before the verifiers
+died on the session usage limit; the 7 left unsettled were verified by the
+lead against the tree — 3 confirmed (u1 major, u2 minor, u3 major, a rider
+on f07), 2 duplicates of confirmed findings, 1 verifiable only by rendering
+(u4 — rendered by the review tail and confirmed minor), 1 a docs-wording
+rule — so 7 unique fixes, every one landed red-first, and a skeptic
+re-reddened each of the six lead fixes from the backups: 6/6 landed, 0
+weakened), and gated. Base `3f4b83e` (wave 1); the lead committed the
+F-82a rider `c0d9dbf` and its docs tail `37ddc1b` under wave 2, so waves
+2–4, the review and this record sit on `37ddc1b`. Migration
+`20260904000075_vehicle-expenses.sql`.
+
+**Gate (2026-09-05):** the whole-suite run before the review fixes came back 2429 / 2431 on a machine under another project's load — two f44 rate-limit 5 s timeouts and two f28b Redis « Connection is closed » errors, the contention class D-077's bar names, no rider — and 212 files / 2431 tests, 0 unhandled, exit 0 in 787 s on the quiet re-run (D-083's gate had 205 / 2294: this slice adds seven test files; the review fixes then added P11, R3 and R3b); `node scripts/e2e.mjs` 83 / 84 then 84 / 84 (the suite grows by the six f82 tests; they were green both runs, and the one red was `f08-checklist` T1 — a 15 s heading `toBeVisible` timeout on « Liste de livraison (politique de la succursale) » right after the « Succursale F08 » link (f08-checklist.e2e.ts:141), a navigation-timing class in a spec this slice does not touch, the family D-083's gate paragraph records as first-navigation timeouts; both `a11y-shell` tests passed in that run — green on the immediate re-run, 84 / 84). FINAL gate after the review fixes: `pnpm turbo run build typecheck lint` 25/25; `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` 212 files / 2434 tests passed, 0 unhandled, 604 s; the fence with `F82_DOCS_REQUIRED=1` 9/9 (D-084, ROUND 30 and the PROJECT.md row hard-required); `node scripts/e2e.mjs` twice — 84/84 both runs, 3.0 min each, the six f82 tests 4.8 / 3.8 / 4.4 / 3.4 / 6.5 / 6.6 s then 5.3 / 3.0 / 3.9 / 4.0 / 6.3 / 7.2 s (2026-09-05 15:34–15:51Z, one runner, nothing else heavy, C: 26 GB free). Dev database read-only all build long: migrations 0001–0074 applied (76 ledger rows), `platform_staff = 0`, `users = 962`, `organizations = 888`, `vehicle_expenses` absent, zero `expense:approve` rows — 0075 reaches dev only at ship, via `pnpm --filter @dealpilot/db db:migrate`, run by the LEAD immediately before the commit, never by an agent; the one-shot platform grant stays unspent.
+
+(1) **The authority is one existing verb and ONE new one, measured, with
+its whole chain in the slice.** Logging, editing while pending and
+attaching a receipt run under `vehicle:update` (permissions.ts:139-228's
+defaults: owner, gm, sales_manager, used_car_manager, wholesale_manager —
+the recon field's own authority); no `expense:log`. Approve, reject, pay
+and void — every transition, pending → void included — run under the NEW
+`expense:approve` (defaults: owner, gm, used_car_manager). Spec §1 #2 and
+§4 say « manager approval required »: a new authority, not a second
+spelling of one (D-079 (8)); `vehicle:update` is held by a sales manager
+who cannot read costs, `vehicle:read_costs` is a read by its own comment,
+and spec §4's fi_manager / admin_office approvers hold no
+`vehicle:read_costs` (0052's matrix: 888 orgs × exactly owner / gm / ucm /
+wholesale), so they stay one matrix click away — an approver must read
+what it approves. wholesale_manager reads costs but is a floor role in the
+drift guard's `dangerous` list, so it does not default to a dangerous
+verb. The chain, file by file: the catalogue entry under `// ---
+inventory` after `vehicle:read_costs` (packages/schemas/src/permissions.ts,
+comment « releases dealer money against a unit »);
+`DEFAULT_ROLE_PERMISSIONS.used_car_manager` gains it (owner and gm derive);
+0075's backfill in 0073's exact shape — three `VALUES` rows, `ON CONFLICT
+DO NOTHING`, spelled byte-for-byte for the 0073 extraction regex —
+proven by `packages/db/src/migration-0075-backfill.test.ts` (stage pre-0075,
+two orgs, migrate, each org holds `['gm','owner','used_car_manager']`, the
+extracted INSERT re-run changes nothing); new orgs get it at both births
+through `org-seeds.ts`, which builds `role_permissions` from the same
+constant; the literal `requirePermission(c, user.id, 'expense:approve')`
+line in the PATCH (the drift guard reads literals); `'expense:approve'` in
+permission-drift.test.ts' `dangerous` list and a NEW lockstep case there —
+every role defaulting to `expense:approve` also defaults to
+`vehicle:read_costs`; `'expense:'` in `GROUPS` group_inventory's prefixes
+(permissions-page.tsx — groups-coverage reds without it, and two of three
+plans missed it); `perm_expense_approve` « Approuver, refuser, payer et
+annuler les dépenses des véhicules » / 'Approve, reject, pay and void
+vehicle expenses' beside `perm_lender_manage`; the admin label
+`entity_vehicle_expense` « Dépense du véhicule » / 'Vehicle expense'. T-X9
+pins the a13 override: a used-car manager with `expense:approve` DENIED
+through `PUT /api/v1/permissions/user` is 403 on approve and 200 once the
+override is cleared. Measured consequence: the read-only roles are
+fi_manager, salesperson, logistics, admin_office and bdc_agent, so the
+read-only persona in the journey and in ROUND 30 is « Agent BDC » (invited
+with « Vendeur » UNTICKED — f81's proven recipe; a Vendeur is ALSO
+read-only here, and the exact-cell roster assertion rules the union out).
+
+(2) **`expense:approve` is NOT impersonation-blocked.**
+`IMPERSONATION_BLOCKED_PERMISSIONS` (packages/schemas/src/platform.ts:82-95)
+is the « change authority / mint credentials / move pay / sign / answer
+customers » class; `deal:change_funding`, which writes commissions at
+funding (f05-deals-routes.ts:493), is not in it, so an approval that moves
+no money in the product — (3)'s fence proves commissions untouched — is a
+fortiori not in it. The fence's S7 pins the ABSENCE (and the presence in
+the drift guard's `dangerous` list). Un-cut: a support-session policy that
+classes ledger approvals as money movement.
+
+(3) **THE MONEY RULING — the ledger is a record and a report input, jamais
+un intrant de la feuille de calcul (never a desk input).** The chain a
+car's cost rides today was measured hop by hop before a line was written:
+f07-vehicles-routes.ts:42 derives `total_cost_cents` from the three cost
+columns at read; desking-page.tsx:626 copies that derived total into the
+worksheet's « Coût du véhicule » prefill and nothing else; from there
+`deals.vehicle_cost_cents` (an INPUT column, deal.ts) feeds the engine's
+front gross (packages/core/src/desking.ts:187) and the stored outputs
+(apps/api/src/deal-outputs.ts), the tier gross of pay
+(packages/core/src/commission.ts:100-101, f09-commissions-routes.ts:85), the
+leaderboard (f66-leaderboard-routes.ts:70) and the GM dashboard
+(f78-gm-dashboard-routes.ts:136-138); at scoping, 34 / 34 vehicle-linked
+deals in dev carried the triplet exactly. The spec pulls the other way twice — the strip's
+« Total » includes added expenses and FR-INV-005 / FR-FIN-012 define
+`total_invested` as the three columns and front gross as sale price minus
+it — and the spec's own P&L (§9.2 :231, §9.5 :245) subtracts expenses AFTER
+vehicle cost. Ruling: `f07:42` is byte-identical; no expense ever writes
+`vehicles.acquisition_cost_cents / transport_cost_cents /
+recon_cost_cents`, `deals.vehicle_cost_cents` or `deals.fees_cents`; the
+`recon_mech` / `recon_body` lines never touch the hand-typed recon column
+(two doors to one number otherwise — the page's recon input now carries
+`expReconCaption` « Les lignes de reconditionnement du registre ne
+modifient jamais ce champ. »); FR-INV-005's `total_invested` is ruled
+display-only and already IS f07:42's derived total; a stored or
+API-emitted cost-with-expenses never exists (un-cut: a report route that
+must SORT by cost-with-expenses derives it in SQL from the same three
+columns plus the ledger, still never a column and never a desk input).
+The named risk this fence forbids is exactly the §2.1-style arithmetic
+that would pull the ledger into the derived vehicle total, from there into
+the desk's cost input, the gross, the tier gross and the commissions —
+and it appears in these documents only as this named risk. Two fences.
+STATIC, `apps/api/src/f82-money-fence.test.ts` (S0–S8, all six F-82
+files REQUIRED — the route file, `packages/schemas/src/expense.ts`, 0075,
+`expenses-api.ts`, `expenses-model.ts`, `expenses-panel.tsx`; no « when
+present », the F-81 follow-up closed for this slice; comments stripped
+first by enum-vocabulary.test.ts:133-138's two regexes copied locally plus
+the SQL `--` strip, so 0075's header is free to NAME the columns it
+fences): S1 no F-82 file names a desk input, an engine output, a cost
+column, a commission, `OUTPUT_COLUMNS`, `recomputeDealOutputs`,
+`deal_id`, `useUpdateVehicle` or `vehicleKeys` — for the migration the bare
+`commission` token is replaced by the write and column shapes a
+commission could ride (`INSERT INTO commissions | UPDATE commissions |
+\bcommissions\b | commission_rate | commission_sales | commission_fi`),
+because 0075 must restate both activity CHECK lists verbatim and those
+carry the literal `'commission_clawback'` — so S1 also asserts that
+literal appears exactly twice in 0075, proof the scan runs over the real
+lists (A1); the write-shape ban (`UPDATE vehicles|deals`, `INSERT INTO
+deals|commissions`, `CREATE FUNCTION|TRIGGER`) except the exact
+`vehicle_expenses_updated_at` trigger line; S2 the route file never
+`UPDATE`s an amount, `PATCHABLE` is exactly the six names, `MONEY_FIELDS`
+the six masked ones, `withTenant(` ×6 and `costViewOf(` ×5 with no
+`costViewOf(` inside any `withTenant(` body, the two literal gate lines,
+no `notify(`, no `conflictFrom(`, no `FOR NO KEY UPDATE`, no `FOR UPDATE`
+but `OF e`; S3 f07 keeps the exact formula line, the `COST_FIELDS` block
+verbatim, the four exports, the `FOR UPDATE` prior read through
+`withTotalCost`, `withTotalCost` NOT exported, and never names the ledger
+— every positive pin over comment-stripped code, so a comment quoting the
+old line cannot satisfy it (review u2, mutation-proven); S4
+desking-page.tsx:626's prefill string verbatim, no `expense | vexp |
+approved_cents | ExpenseSummary` token in the desk, desking.ts,
+commission.ts, deal-outputs.ts, f05, f09, f66 or f78, the three web files
+never carry `total_cost_cents`, and vehicle-detail-page.tsx keeps its
+`<dt>{t('totalCost')}</dt>` line byte-identical, has exactly ONE
+`withExpenses(v.total_cost_cents, …)` call and no `patch(` naming the
+ledger; S5 the locale pins of (4); S6 the docs pins — THIS section,
+ROUND 30 and PROJECT.md's F-82 row exist, say the fence in words, carry
+no formula in any spelling and never present `total_invested` as a
+column — hard-required at ship under `F82_DOCS_REQUIRED=1` (the third,
+PROJECT.md, added by the review: a docs pin that could pass on an absent
+row was vacuous); S7 (2); S8 no notification. enum-vocabulary binds
+`category` and `status` automatically through its any-column-superset
+rule (enum-vocabulary.test.ts:185-199): 0075's CHECKs are the superset
+homes; `lenders.category` (0073:38 — PRIME / NEAR_PRIME / SUBPRIME /
+CAPTIVE) shares the name and is not a home, and the earlier sentence
+« category is a new column name » was false and is struck (A34).
+BEHAVIOURAL, in `apps/api/src/f82-expenses.test.ts`: T-F1 on a FUNDED
+fixture — a pay plan for salesperson S, vehicle VA at 2 600 000 / 50 000 /
+115 000 (derived total 2 765 000), deal D {vehicle_cost_cents 2 765 000,
+sale_price_cents 3 500 000, fees_cents 49 900, fi_reserve_cents 25 000,
+fi_price_cents 100 000, fi_cost_cents 40 000, salesperson S}, funded →
+commissions n ≥ 1 (T-S8a's own assertion — f09 has two INSERT sites, so
+« = 1 » would be a measurement the harness does not make); `snapshot()` =
+the deals row minus `updated_at` (every INPUT and OUTPUT column,
+`fees_cents` and `funded_at` included) + the commissions rows `ORDER BY id`
++ the vehicle triplet + `GET /api/v1/vehicles/VA` minus `updated_at` + the
+f66 leaderboard body + the f78 gm-dashboard body with its clock-relative
+keys deleted recursively (`over_30_days`, the aging buckets,
+`days_in_stage`, `days_since_delivery` — built from now(), stable within a
+day, flaky across midnight; every money field stays; the test header
+records the accepted assumption); then the whole ladder walks on VA — E1
+34 000 + 5 092 approved → paid → receipted, E2 voided, E3 rejected, E4
+pending 5 000, and E5 a `recon_mech` line approved then voided (added by
+wave 4's M4, below) — and `snapshot()` equals the first byte-for-byte
+while `GET /vehicles/VA` still reads 2 765 000 and the ledger's summary
+reads {approved_cents 39 092, pending_cents 5 000}; T-F2 a NEW desk on VA
+after the walk copies the triplet — `vehicle_cost_cents` 2 765 000 and
+`front_gross_cents` = `computeOutputs` of the stored inputs (golden
+735 000), never 2 804 092 / 695 908; T-F3 the UNFUNDED twin — `funding_status`
+stays `not_submitted`, `funded_at` null, zero commissions before and
+after — so the commissions assertion is not a 0 → 0. The web half:
+`expenses-api.ts` never imports `useUpdateVehicle` or `vehicleKeys` and
+invalidates only the ledger's own key and `['activity']` — a logged,
+moved or receipted row never refetches the car on the ledger's account
+(M26 red on S1).
+
+(4) **The two DISPLAY rows, and the caption that is the claim.**
+« Dépenses ajoutées » = Σ `total_cents` WHERE status IN ('approved','paid')
+(spec §2 :86), computed by the list route in one SQL `FILTER` beside
+`pending_cents`; « Coût avec dépenses » = the derived vehicle total the API
+already emitted plus that approved sum, computed on the WEB in ONE pure
+function — `withExpenses(totalCostCents, approvedCents)` in
+`expenses-model.ts`, golden 2 765 000 and 39 092 → 2 804 092 — so the API
+keeps exactly one vehicle-cost formula site (f07:42), no column, no SQL,
+nothing to copy. Both rows sit INSIDE the existing masked block of
+vehicle-detail-page.tsx, after the « Coût total » `<div>` and before « Prix
+affiché », as `<dt>/<dd>` groups like their siblings, and are rendered only
+when `summary` is present: a granted viewer of a zero-expense car reads a
+REAL « 0,00 $ » and « Coût avec dépenses » = « Coût total »; a masked
+viewer sees neither row and never a « 0,00 $ ». The SHIPPED caption sits
+inside the « Coût avec dépenses » `<dd>` as a second span (`#exp-with-caption`)
+under the number — never a bare `<p>` inside the `<dl>`, never inside the
+`<dt>`, so the term stays exact-matchable: `expWithCostCaption` « Coût total
+plus les dépenses approuvées et payées du registre. La feuille de calcul
+copie le coût total, jamais ce montant. » / 'Total cost plus the ledger’s
+approved and paid expenses. The desking worksheet copies the total cost,
+never this figure.' — pinned exactly by S5 (fr contains « jamais ce
+montant », en 'never this figure'), rendered-string-tested on the page
+(`vehicle-detail-page-expenses.test.tsx`, 7 cases: with summary
+{39 092, 5 000} on a 2 765 000 car the rows read 390,92 $ and 28 040,92 $
+with « Coût total » 27 650,00 $ untouched; without summary neither row
+and no « 0,00 $ »; with {0, 0} both rows at 0,00 $; a masked vehicle
+renders no cost block and the panel still mounts; never a bare « Total »
+`<dt>`; the recon caption describes `#veh-recon`; the third block after
+the grid), and proven on the product surface by e2e test 5, which desks a
+NEW deal on the car and reads « Coût du véhicule » 27650.00 — never
+28040.92 — then confirms the saved deal's `vehicle_cost_cents` is
+2 765 000 through `/api/v1/deals`. The caption is verified true on that
+surface: desking-page.tsx:626 copies `car.total_cost_cents` and nothing
+else. S5 also pins `expWithCost` « Coût avec dépenses » / 'Cost with
+expenses' exactly, that no `exp*` value is a bare « Total » and no `exp*`
+key other than the caption contains the word (the ruled EN caption begins
+'Total cost plus…', so the predicate is over `exp*` keys only; the
+existing `totalCost` key is out of scope by construction — A5), and that
+the ledger has ONE name — « le registre » everywhere, « grand livre »
+nowhere (A25). Pending money is NOT a strip row: the panel header shows
+« En attente d’approbation : {amount} » only while `pending_cents > 0`
+(the brief fixes two rows; a third would be a third). The review's u4:
+the term « Coût avec dépenses » sat on THREE line boxes at 320 / 375 / 768
+/ 1280 px — the captioned `<dd>` (flex-basis = the caption's max-content)
+squeezed the `<dt>` to its 58 px min-content — rendered through the real
+e2e stack and confirmed minor; fixed with one attribute
+(`<dd className="min-w-0 flex-1 text-right">`; the caption span and its
+class string, which the unit test pins, untouched; layout utilities only,
+token-roles 54 / 54), so the term renders on one line at all four widths.
+Trade-off recorded: the caption now wraps as a five-line right-aligned
+paragraph in a ~155–170 px column (six lines at 320 px); the full-width
+alternative — a flex-wrap row with a second `basis-full` `<dd>` — was NOT
+applied because it reshapes A22's markup and reds both the unit test's
+caption pin and the e2e's first-span locator. Pinned red-able in e2e test
+1: a `Range` line-box count of the term === 1 (never a `boundingBox`
+height — the flex stretch inflates the box), red against the pre-fix page
+and green on the fixed one.
+
+(5) **A LADDER, amounts INSERT-only, and the mechanism behind
+« immutable ».** Legal pairs: pending → approved | rejected | void;
+approved → paid | void; paid → void; rejected and void are TERMINAL (no
+re-open from rejected — un-cut: the owner reports mis-click counts; today
+the line is re-logged). Void ≠ rejected: rejected is the manager's « no »
+on a pending line; void is the record's cancellation from any open state.
+A same-status PATCH is a 200 no-op for status — nothing to SET, no event
+(an idempotent double-click); any other pair is 422 `invalid_transition`
+with ONE detail `{ path: 'status', code: 'invalid_transition', message:
+'<prior> → <next>' }` — f11-dispatch-routes.ts:553 / f13-document-routes.ts:377's
+422 spelling, state before actor, never 409 (409 is reserved for
+uniqueness and content conflicts; f11:548's 409 `run_ended` terminal door
+is NOT copied). T-X2 walks all 25 cells on FRESH rows: 6 legal (200 under
+gmA with an `updated` {status: {from, to}} event), 14 illegal (422 with
+the detail message — 5 × 5 minus the diagonal minus 6; the plans' 13 and
+15 were miscounts), 5 same-status (200, no event). Field edits —
+`category`, `vendor_name`, `invoice_number`, `expense_date`,
+`description` — only while pending: 422 `expense_not_pending` with
+`message: prior.status`. ONE PATCH route carries fields and/or status
+(five routes in all): fields → the literal `requirePermission(c, user.id,
+'vehicle:update')` line plus the pending check; ANY `status` key — the
+same status included — → the literal `requirePermission(c, user.id,
+'expense:approve')` line, then the ladder, then (6)'s cost check; two
+literal gate lines, no ternary, no `mixed_patch` code — money cannot ride
+a mixed body, so the « approves a number nobody saw » hazard does not
+exist, and a mixed body simply runs both gates in order (T-X3). The plan
+evaluated the verb only when the status differed, so a verb-less member
+could PATCH `{status: prior.status}` and get 200; T-X2 now pins the 403
+(A7; M30 red). `PATCHABLE = new Set(['status','category','vendor_name',
+'invoice_number','expense_date','description'])` with f81's sink guard
+(`throw new Error('unpatchable column reached the SQL sink')`) — NO
+amounts, NO `receipt_*`, NO stamps; `UpdateExpenseInput` is a
+`strictObject` over `status` (the full five-value enum, `.optional()`) and
+the five facts with `.refine` non-empty, so `amount_cents` in a PATCH body
+is 422 at the boundary and `{}` is 422 too; `CreateExpenseInput` is strict
+so `total_cents`, `status`, `deal_id` or an `amount` typo is 422. Amounts
+are therefore never in an input, never in `PATCHABLE`, never in a `SET`: a
+wrong amount is voided and logged again — the correction door — so the
+approver always approves the number that was logged. The review's u1
+found the claim route-only: 0075 granted `SELECT, INSERT, UPDATE` on the
+whole table while the `amount_cents` COMMENT claimed immutability, and
+P11 as `dealpilot_app` under `withTenant` resolved an `UPDATE … SET
+amount_cents = 1`. Now 0075 grants `SELECT, INSERT` on the table and
+`UPDATE` on exactly ten columns — `status, category, vendor_name,
+invoice_number, expense_date, description, receipt_storage_key,
+receipt_content_sha256, receipt_content_type, receipt_size_bytes` — so
+`amount_cents`, `tax_cents`, `vehicle_id`, `store_id` and
+`organization_id` are not updatable by the app role at all (42501; P11,
+with the ten as positive controls and the trigger still filling
+`updated_at`), P6b pins the exact table + column grant shape
+(`role_column_grants`), the COMMENT names the mechanism, and every route
+UPDATE stays inside the ten. Events: `created` = {category, vendor_name,
+expense_date} exactly; `updated` = `diff(prior, after, [...PATCHABLE])` or
+the receipt hash — never an amount; T-X8's oracle reads EVERY
+`vehicle_expense` event the suite wrote and asserts no key ∈
+{amount_cents, tax_cents, total_cents}, the union of keys ⊆ {category,
+vendor_name, invoice_number, expense_date, description, status,
+receipt_content_sha256, receipt_size_bytes}, and parent = the row's
+vehicle on every event (F-79's rule, activity.ts:25-27, D-080 (4): events
+carry STATUS ONLY because `activity:read` is floor-wide and cost is masked
+— immutable amounts make it true by construction). Sums with a positive
+case: T-X4 (39 092 approved + 10 000 paid → 49 092; a pending 5 000 feeds
+`pending_cents`; a rejected and a void move neither, 49 092 before and
+after) and T-X4b's five-row walk (110 / 210 / 310 / 410 / 510: approve #1,
+approve + pay #2, #3 pending, #4 rejected, #5 void → {320, 310}; void #2 →
+{110, 310}; approve #3 → {420, 0} — pending → approved moving BOTH sums).
+Two operating facts: a PAID line may be voided (the void is the record;
+money already out is the office's matter), and a masked writer's 201
+carries no money (6).
+
+(6) **The MASKING law, the receipt asymmetry, and the f07 rider the
+review forced.** f07 exports `costViewOf`, `type CostView` and
+`vehicleOrg`, and `costAllowed(storeId, view)` is extracted from
+`maskCosts` (which now calls it) — ONE implementation of FR-TEN-006 /
+D-052, never a second. `maskExpense(row, view)` DELETES (never nulls)
+`amount_cents, tax_cents, total_cents, receipt_content_sha256,
+receipt_content_type, receipt_size_bytes` when the view does not cover
+the row's store; `summary` is ABSENT (never {0, 0}) when the vehicle's
+store is masked; the rows themselves stay visible to every member —
+category, vendor, date, invoice, description and status are facts, not
+numbers. Reads are `requireMember`; a masked HOLDER of `vehicle:update`
+(sales_manager by default) may log and edit while pending and gets a
+masked 201 — the shipped recon asymmetry (the same role types
+`recon_cost_cents` blind on the vehicle page), write authority ≠ read
+authority; plan 1's `requireCostView` on POST was overruled (a 403 for the
+sales manager contradicts spec #2 and that asymmetry), and so was plan
+2's hidden ledger. Approve / reject / pay / void additionally require
+`costAllowed(prior.store_id, view)` → 403 `forbidden` with detail `{ path:
+'store_id', code: 'cost_masked', message: storeId }` — a store-B GM cannot
+release store A's money (T-X2c; M8 red); the lockstep default of (1) is a
+default, not a gate — the matrix is editable. The receipt IS the amount:
+its download is 404 for a masked caller. T-X5 pins all of it (sp and gmB
+read rows with none of the six money keys and no `summary`; the owner and
+gmA read both; a granted viewer of a zero-expense car reads a real {0, 0};
+sp and gmB GET a store-A receipt → 404). The web renders the amount line,
+the receipt link and upload, the pending header line and the two strip
+rows only when `summary` is present, so a masked reader never sees a
+« 0,00 $ ». Recorded asymmetry (A33): a masked holder of `vehicle:update`
+may log (masked 201) and edit while pending, and the API accepts a receipt
+upload under `vehicle:update` (T-X7: sm uploads → 201 with the receipt
+fields ABSENT), but the SCREEN offers no receipt input to a masked viewer
+— deliberate, because a receipt is the amount; the panel's masked-writer
+case pins « Modifier — » present and no `input[type=file]`. Un-cut: a
+store clerk role that files invoices without reading costs. The rider the
+review forced (u3, major): `costViewOf` read `role_permissions` only,
+while `has_permission` (0067:185-209) lets a `user_permissions` row win
+through `COALESCE` and the producer exists (a13-permission-routes.ts:169,
+`PUT /api/v1/permissions/user`) — so a per-user DENY of
+`vehicle:read_costs` left a GM's costs visible and a per-user ALLOW left a
+salesperson's masked. `costViewOf` now selects the override beside the
+role grant and applies `granted = override ?? (is_owner || granted)` — a
+DENY masks an owner too (as `has_permission` would refuse the owner), an
+ALLOW unmasks scoped by the membership's store — proven red-first in
+f07-vehicles.test.ts R3 (a GM's DENY masks list and single read) and R3b
+(a store-scoped salesperson's ALLOW unmasks THEIR store only; clearing it
+restores the default), written through the A-13 producer. A pre-existing
+f07 gap that F-82 inherited at its five `costViewOf` sites; an
+authorization correction, recorded here rather than in SECURITY.md (12).
+
+(7) **The cost view is resolved BEFORE the transaction; one row is the
+whole lock law; the refusal order is stated as it is.** `costViewOf`
+opens its OWN `withContext` transaction (f07:99-137, the `withContext(`
+call at :108) and the pool is
+`max 10` with `connectionTimeoutMillis 5 000` (packages/db/src/index.ts:25-27):
+nested under a row lock, ten concurrent approvals would each hold one
+connection while waiting for a second — a pool self-deadlock that fails
+after 5 s. So `const view = await costViewOf(pool, user.id, orgId)` is
+computed OUTSIDE and BEFORE `withTenant` at all five sites — after
+`vehicleOrg` on the list and the POST, after the `expenseOrg` walk on the
+PATCH, the receipt POST and the receipt GET — and inside the transaction
+`costAllowed` is a pure Set lookup (S2's pin; M29 red). No f82 transaction
+writes a second table, so the uniform law is ONE row: every id-addressed
+write locks its own expense THROUGH the read model — `${SELECT_ROW} WHERE
+e.id = $1 FOR UPDATE OF e` — after `requirePermission`; `FOR UPDATE` is the
+house's only lock mode (`FOR NO KEY UPDATE` appears nowhere in apps or
+packages — plan 1's mode was an invented idiom), it conflicts only briefly
+with a desk INSERT's KEY SHARE, and no cycle exists (f05 locks deals then
+key-shares vehicles; f07 locks vehicles alone; f82 locks `vehicle_expenses`
+alone). POST takes no vehicle lock: the composite FK's KEY SHARE is the
+only lock the INSERT needs. Every write first proves the car is live:
+POST via `vehicleOrg` (already `deleted_at IS NULL`) plus `liveVehicle`
+(`SELECT store_id FROM vehicles WHERE id = $1 AND deleted_at IS NULL` →
+404, and the store it returns is what the row copies); PATCH and the
+receipt via `liveVehicle` after the row lock. The header claims only the
+non-race case (A15): a soft-deleted car refuses new ledger writes; an
+overlapping DELETE is tolerated — the orphan row is inert and unreachable
+through the vehicle, whose `vehicleOrg` is already 404 — and no vehicle
+lock is added for it (the DELETE's tuple lock does not conflict with the
+INSERT's KEY SHARE and `liveVehicle` is an unlocked SELECT; the race is
+real, benign, and the header must not claim it closed). Refusal order,
+corrected by the review to what the routes do: the two body routes (POST,
+PATCH) parse the body FIRST — a stranger with a malformed payload learns
+422 about their own body, nothing about the row — then 404 (org walk) →
+403 → 422 state; the body-less routes 404 → 403 → 422 state; the receipt
+POST checks content-type (415) and the empty body (422 `empty_file`)
+BEFORE the org walk, f13-document-routes.ts:129-143's order copied
+verbatim, so a stranger learns 415 before 404 on that one route.
+`conflictFrom` is called nowhere (A14): 0075 has no unique constraint,
+and `organization_id` / `store_id` are copied from the live vehicle inside
+the tenant transaction, so no 23503 is reachable through a route — the
+composite-FK probes drive the database directly as the app role (12).
+Org resolution: `vehicleOrg` for the vehicle-addressed pair, the
+`expenseOrg` walk (f80's `lenderOrg` shape — the caller's active orgs
+iterated under `withTenant`) for the id-addressed three; a rival's or an
+unknown id is a 404 (the review's two cite corrections landed here: the
+0075 comment names `expenseOrg`, not « the lenderOrg iteration », and
+P6b cites rls-coverage.test.ts:344-350, the real no-DELETE test).
+
+(8) **`expense_date` is a calendar day through the one read model — no
+clock decides it.** The column is `date NOT NULL` with NO `CURRENT_DATE`
+and no store-clock default (F-78's clock law: no server clock decides a
+business day; plan 2's Kiritimati fixture bought nothing); the input
+requires it (`z.iso.date()`), and the form ALWAYS sends today's date from
+LOCAL calendar parts (`todayLocal()` — never `toISOString()`, which is the
+UTC day and is yesterday every evening east of Greenwich, D-082 (3)'s
+class; golden-tested). pg has no DATE parser (the f07 `localDate` / F-81
+`expiry_date` lesson), so `SELECT_ROW` — an explicit column list, never
+`e.*`, and the storage key never travels on the wire — serializes
+`e.expense_date::text AS expense_date`, and every read (the list, the POST
+echo, the PATCH `after`, the receipt `after`) goes through it: the echo,
+the trail's `from` and `to` all carry the same 'YYYY-MM-DD'.
+input-persistence.test.ts gains `NOT_ECHOED.vehicle_expenses = []` and one
+case POSTing every `CreateExpenseInput` key (`detail`, Lave-Auto Express,
+34 000, 5 092, LAE-1042, '2026-08-15', a description) and expecting the
+identical string back; T-X8 pins an `expense_date` edit as 'YYYY-MM-DD'
+on both sides (M21 — dropping `::text` — red on both, the stored value
+landing as `2026-08-14T21:00:00.000Z`).
+
+(9) **Receipts: four columns, f13's pair, the hash on record.** Columns
+on the row in 0026's shape under a `receipt_` prefix —
+`receipt_storage_key`, `receipt_content_sha256` (CHECK `^[0-9a-f]{64}$`),
+`receipt_content_type` (CHECK IN pdf / jpeg / png), `receipt_size_bytes`
+(> 0) — with the all-or-nothing CHECK `vehicle_expenses_receipt_complete`
+(P4 / P4b); no `receipt_uploaded_at` (consumer-less — the `updated` event
+owns the time) and no sibling table (the spec has one `receipt_url`; no
+consumer for a second file). `POST /api/v1/expenses/:id/receipt` — raw
+body through the existing 20 MB raw parser (app.ts:264-268; no new
+parser); content-type outside `ALLOWED_CONTENT_TYPES` → 415
+`unsupported_media_type`; empty → 422 `empty_file`;
+`requirePermission('vehicle:update')`; the row `FOR UPDATE OF e`;
+`liveVehicle`; status ∈ {rejected, void} → 422 `expense_closed` with
+`message: prior.status` (a closed line takes no paper; a PAID line may —
+invoices arrive late); `storage.put` BEFORE the UPDATE (f13's order — a row
+pointing at a file that was never stored is worse than an orphan object);
+key `receiptKey(orgId, vehicleId, expenseId, sha, ext)` =
+`org/{org}/vehicles/{vehicleId}/expenses/{expenseId}/{sha}.{ext}`, exported
+from storage.ts beside `documentKey`, server-built and content-addressed
+so a re-upload lands beside the old scan (T-X7 asserts the old object
+survives in the driver); the `updated` event `{receipt_content_sha256:
+{from, to}, receipt_size_bytes}` skipped when the hash is unchanged; 201
+with the masked row (f13-document-routes.ts:199). `GET
+/api/v1/expenses/:id/receipt` — `requireMember`; masked store → 404; no
+key → 404; the bytes' sha256 recomputed against the record → 409
+`content_mismatch` (f13:229; the recheck is the whole difference between
+stored and verifiable — T-X7 tampers the object through the in-memory
+driver); the content-type header from the row. PDF, JPEG and PNG only; NO
+magic-byte sniff — parity with f13, deferred as one shared helper. The
+web's `useUploadReceipt` is the one call that goes to `fetch` directly
+(documents/api.ts' idiom — the shared client speaks JSON) and refuses
+anything but the route's 201; « Voir le reçu — {vendor} » opens the
+stored bytes in a new tab through `fetchReceipt` (the tab opened inside
+the click gesture). Storage is the same gate as documents: the local
+driver in dev and CI, `storage.ts:106-111` throwing on `s3` until the
+bucket of OWNER-ACTIONS.md:178 exists — this slice adds no owner action.
+
+(10) **The screen.** A THIRD block, full width, after the grid's closing
+`</div>`: `<section aria-labelledby="exp-heading">` « Dépenses du
+véhicule » — the container `ExpensesPanel({ vehicleId, orgId, list })`
+owning `usePermissionsMine(orgId)`, `canLog = can('vehicle:update')` and
+`canApprove = can('expense:approve')`, and the presenter
+`ExpensesPanelView` (F-81's pair, so the static harness can open the
+form). ONE list GET — `useVehicleExpenses(vehicleId)`, key
+`['vehicle-expenses', id]` — declared once in the page ABOVE its early
+returns (React's hook order) and shared by the strip rows and the panel;
+under the zero-request law the page adds exactly two GETs (the list;
+`permissions/mine`) and no write control without the verb. Per persona
+with zero rows: owner / gm / ucm / wholesale → the two strip rows at
+0,00 $ / = « Coût total », the caption, « Aucune dépense — consignez la
+première facture. » with the add form OPEN; sales_manager → no strip rows
+(masked), the form open, the same CTA; fi_manager / salesperson /
+admin_office / logistics / bdc → no strip rows, « Aucune dépense. », the
+read-only sentence « Vous pouvez consulter les dépenses ; votre rôle ne
+permet pas de les consigner. » rendered only once `mine.isSuccess &&
+!canLog && !canApprove` (a writer never sees it flash), zero controls,
+mutation hooks idle. Cards are `<li>` with an `<h3>` « {catégorie} —
+{fournisseur} », a text chip with the F-75 token pairs (pending
+`bg-muted`, approved / paid `bg-success-bg text-success-text`, rejected /
+void `bg-danger-bg text-danger-text` — the text carries, colour
+underlines), the money line « {amount} + taxes {tax} = {sum} » (ICU arg
+`{sum}`, never `{total}` — S5 would red it), the date line with
+« · Facture {invoice} » appended when one is on file, dates through Intl
+`dateStyle: medium` in UTC on 'YYYY-MM-DD' (D-082 (17)), money through
+`formatCents`. Controls carry
+the vendor in their accessible name — the visible short label
+(`expApproveAction` « Approuver » …) with `aria-label` = « Approuver —
+{vendor} », « Refuser — », « Marquer payée — », « Annuler la dépense — »,
+« Modifier — », « Joindre un reçu — », « Voir le reçu — » — so no name
+repeats on a page with two cards; `legalMoves(status, canApprove)` mirrors
+the ladder with ONE flag (every transition, the pending retract included,
+is the manager's door — a masked writer with `vehicle:update` alone is
+shown no status button and never clicks into a 403; `MoveTarget`
+excludes `pending`, so a row never moves back by type); the partition
+test pins that every status appears exactly once as a key. Void is the
+house's inline two-step (checklist-dialog.tsx:122-138's shape, A21): the
+SAME button relabels from « Annuler la dépense — {vendor} » (ghost) to
+« Confirmer l’annulation — {vendor} » (destructive) on the first click,
+`onBlur` resets it, the second click sends `{status: 'void'}` — focus
+never leaves the element, so WCAG 2.4.3 holds by construction (e2e test 4
+asserts `toBeFocused()` on the relabelled button before clicking it; the
+pure `voidStep()` carries the click / click / blur rule). The receipt
+input is a label-wrapped `sr-only` `<input type=file accept="application/pdf,image/jpeg,image/png">`
+named « Joindre un reçu — {vendor} », offered only when `canLog &&
+summary !== undefined` on an open line. ONE form at a time —
+« Consigner une dépense » (the heading AND the closed-state button; the
+form opens itself on an empty ledger) or « Modification — {vendor} » —
+with the seven fields `exp-category`, `exp-vendor`, `exp-amount`,
+`exp-tax`, `exp-date`, `exp-invoice`, `exp-description`; the two money
+inputs use the vehicle page's own recon-input idiom (`inputMode=decimal`,
+`aria-invalid`, `aria-describedby="exp-amount-error"`, a `role=alert`
+« Montant invalide » reusing `inventory:invalidAmount`; `MoneyField` is
+module-private to the desk and S4 keeps the desk out of the ledger's
+files); the form is controlled, so typed values survive a failed save;
+edit mode prefills the five facts and REPLACES the money inputs with
+`expMoneyFixed` « Montant fixé à la saisie — annulez la dépense et
+consignez-la de nouveau pour corriger le montant. », and `draftToBody`
+makes the PATCH a DIFF (nothing changed → nothing sent; an amount typed
+in the draft never travels). Refusals render as `role=alert` sentences
+under their row through `expenseErrorKey`, exhaustive over the six codes
+(`invalid_transition`, `expense_not_pending`, `cost_masked` — read from
+the DETAIL code under the top-level `forbidden` —, `expense_closed`,
+`content_mismatch`, `unsupported_media_type`) with `genericError` as the
+fallback; a refused move also resyncs the list, so the buttons stop
+offering yesterday's transitions. `warranty_cost` ships labelled
+« Garantie achetée pour l’unité » / 'Warranty bought for the unit' so it
+cannot be read as `deals.fi_cost_cents`. Locales: 64 keys per locale (45
+`exp*` in inventory, 12 `cat_*`, 5 `status_*`, `perm_expense_approve`,
+`entity_vehicle_expense`), identical key sets, `check:parity` green, the
+existing `invalidAmount` / `loading` / `loadError` / `genericError` /
+`saving` keys reused rather than duplicated, every fr apostrophe typed as
+’ (a review rule made a test, since parity gates keys and ICU args only).
+Component-proven: `expenses-panel.test.tsx` (30 cases: the reader, the
+reader-empty, the masked writer, the control set per status, the chips,
+the receipt line, the pending header line, the two refusal sentences, edit
+mode, one form, the void relabel with blur reset, the invalid amount, the
+list states, the region's name) and `expenses-model.test.ts` (35: the
+transitions partition, `legalMoves` per status × flag, the `withExpenses`
+golden, `draftToBody` create × 4 and edit × 4, `expenseErrorKey` × 9,
+`todayLocal` × 2, `voidStep`, the locale partition × 3).
+
+(11) **The activity vocabulary learns one entity, no verb, no bell.**
+Entity `vehicle_expense` (parent = its vehicle on every event, so the
+car's timeline shows what was spent on it), actions REUSED only —
+`created` on log, `updated` on every later change — no new verb (a verb
+would have needed the action CHECK re-added too). 0075 DROPs and re-ADDs
+BOTH `activity_events_entity_type_check` and
+`activity_events_parent_entity_type_check` with 0074:149-165's lists
+verbatim plus the new value; P7 reads both constraint definitions and
+asserts `vehicle_expense` AND `deal_submission` AND `commission_clawback`
+survive (M12a — skipping the PARENT re-ADD — reds P7 alone, the f82 suite
+staying green as predicted because no event has a `vehicle_expense`
+parent; M12b — the ENTITY re-ADD — reds P7 and the suite's first 23514 as
+a POST → 500). `labels.ts` carries `vehicle_expense:
+'entity_vehicle_expense'` under its `satisfies` clause, so removing the
+value from `ActivityEntityType` is a web AND api typecheck red (M17); f10's
+no-dead-vocabulary guard STAYS GREEN under M17 by construction (it
+iterates the schema's current list), recorded as D-082 (8) did so nobody
+names it as that mutation's red. No notification: the spec names no
+recipient (13 keys today); S8 pins `expense.ts` free of `notif_`,
+`notification.ts` free of any F-82 key and the route file free of
+`notify(`.
+
+(12) **Isolation, and the documents that carry it — no SECURITY.md
+entry.** 0075 is a FORCED-RLS table with ONE org-keyed policy
+(`vehicle_expenses_isolation`, 0073 / 0074's exact shape: `USING` and
+`WITH CHECK` both `organization_id = NULLIF(current_setting('app.org_id',
+true), '')::uuid`, no `member_read`, NO bare user-keyed policy, never
+`true`, no `app.user_id` — P6) behind two COMPOSITE FKs — `(organization_id,
+vehicle_id)` → `vehicles (organization_id, id)` (0010's UNIQUE, :53) and
+`(organization_id, store_id)` → `stores (organization_id, id)` (0001) —
+with NO `ON DELETE` action (vehicles soft-delete; the app role holds no
+DELETE on either target); no new UNIQUE was needed (measured before
+writing). Probed as the APP role: a mismatched pair is 23503 on each
+(P3 / P3b, and again inside T-X6 under `withTenant`). Reads resolve the
+org first — `vehicleOrg` or the `expenseOrg` walk — so a rival owner's
+GET / POST on our vehicle, a rival's PATCH / receipt POST / receipt GET on
+our expense and our POST naming a rival's vehicle are all 404 (T-X6).
+rls-coverage's `BEHAVIOURALLY_COVERED` gains `'vehicle_expenses'` citing
+T-X6, NO `USER_KEYED_POLICIES` entry (the F-80 note), and the no-DELETE
+grant list STAYS its closed three-table immutable set (A17 — the ruling's
+« :337 edit » was a line-number slip against a recorded convention;
+f79-clawbacks.test.ts and 0074's test pinned their tables the same way;
+the grant shape lives in P6b alone). dead-column's `DELIBERATELY_UNWRITTEN`
+gains `'vehicle_expenses.total_cents'` — « generated column (amount_cents +
+tax_cents), maintained by Postgres », the `contacts.search_vector`
+precedent — as the ONLY exemption: `status` and the four `receipt_*`
+columns are route-written. Wave 4's M31 finding: replacing the policy with
+`USING (true) WITH CHECK (true)` reddened P6 and rls-coverage as
+predicted but T-X6 stayed green — the route-level 404s were the vehicles
+policy and the cost view doing the work — so T-X6 gained a direct
+app-role probe under the rival tenant (SELECT → [], UPDATE → 0 rows, with
+a positive control) and is red under M31 now. SECURITY.md carries NO
+entry, decided against its ACTUAL header — « record audit results, threat
+notes, and accepted risks »: 0075 adds a forced-RLS table with composite
+FKs and no accepted risk, the receipt door inherits F-13c's trust model
+unchanged and adds no risk class, and the cost-mask story is already the
+2026-08-20 entry — D-082 (13)'s reading of the same header for the same
+shape (D-083 (8) went the other way because it accepted risks; this slice
+accepts none). The two authorization facts the review produced — the
+column-level grant behind « immutable after insert » (5) and the R3 rider
+(6) — are recorded here as this decision's, not as an accepted risk.
+
+(13) **The `acquisition_date` rider on f07 — D-082 (3)'s open thread
+closed.** f07's PATCH diffed the RAW pg row against the read model, so a
+prior `acquisition_date` landed on the trail as a UTC instant of the wrong
+day (the class F-81 fixed in its own ledger). The prior read is now
+`SELECT * FROM vehicles WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`
+and `const prior = withTotalCost(beforeRow.rows[0]!)` — locked THROUGH the
+read model, one query, the house's lock mode — with the comment naming
+D-082 (3); nothing else in f07 moves (:42 and `COST_FIELDS` byte-identical,
+S3). Red-first in R1: POST a car with `acquisition_date` '2026-07-01',
+PATCH '2026-07-15' → the vehicle's `updated` event carries exactly
+`{ acquisition_date: { from: '2026-07-01', to: '2026-07-15' } }` — red at
+tip with `from` = `2026-06-30T21:00:00.000Z`. R2 (a same-date PATCH writes
+no event) is a POSITIVE regression pin, green at tip and kept so the rider
+cannot regress `same()`'s calendar-day rule (activity.ts:89-101 already
+compares a Date against the string through `calendarDay`; only `diff`'s
+`alignType` returned the raw Date — A13). M22 (revert the rider) reds R1
+only, as ruled. f07-vehicles.test.ts runs 16 cases after the slice — R1,
+R2, then R3 and R3b from (6), all new.
+
+(14) **The mutation loop's own honesty (39 executions over the
+checklist's rows — M12, M23 and M32 split into lettered sub-rows — each
+row red in a NAMED test that exists, then restored; the restored tree
+passed the full gate).** Every row cites a real test id (R18: the F-80 /
+F-81 lesson — no phantom reds; A18 struck three). Reds worth keeping: M1
+(fold the approved sum into `withTotalCost` and let `GET /vehicles/:id`
+sum the ledger) reds S3's formula line AND T-F1's snapshot AND T-F2
+(2 804 092 ≠ 2 765 000); M2 / M3 (write `deals.vehicle_cost_cents` /
+`deals.fees_cents` on approve) red S1 by token and T-F1 by snapshot — the
+snapshot carries `fees_cents` precisely because `pack` was cut; M5
+(`amount_cents` into `PATCHABLE` and the schema, schemas rebuilt) reds S2,
+T-X3 (`{amount_cents: 1}` → 200) and T-X8's oracle; M6 / M7 (pending or
+rejected counted into the approved sum) red T-X4b (630 ≠ 320) and T-X4's
+positive case (119 092 ≠ 49 092); M9 drops EVERY `requirePermission` (the
+F-79 precedent — leaving one keeps the drift guard's enforced-somewhere
+scan green) and reds the drift guard's « never enforced: expense:approve »
+plus T-X1 / T-X2; M10 (drop FORCE) reds rls-coverage and P6; M11 (GRANT
+DELETE) reds P6b alone; M13 / M38 (legalise paid → approved, rejected →
+approved) red the ladder walk; M14 / M15 red T-X7 (201 ≠ 422; 200 ≠ 409);
+M16 (drop the backfill VALUES) reds both backfill cases; M19 (« jamais ce
+montant » → « jamais cette somme », i18n rebuilt) reds S5 and the page
+test; M20 (drop the GROUPS prefix) reds groups-coverage; M23a / M23b
+(`summary {0, 0}` for a masked viewer, route and page) red T-X5 and the
+page test's « without summary »; M24 (`legalMoves` ignoring the flag) reds
+the panel's reader case, the model × 3 and e2e test 6 (one « Annuler la
+dépense — » button for the reader); M25 (fund the deal in the pay branch)
+reds T-F3; M27 (`'pack'` in the enum) reds P1, the partition test and web
+tsc × 4; M28 reds S7; M36 (`perm_expense_approve` off en-CA) reds
+`check:parity`. Two findings, both a test strengthened and never a guard
+weakened: M4 (write `recon_cost_cents` on a `recon_mech` approve) reddened
+S1 but T-F1 stayed GREEN — the ledger walk had no `recon_mech` row, so the
+recon write never fired — and the walk gained E5 (a `recon_mech` 10 000
+approved → void, goldens intact) before M4 was re-run red; M31 is (12)'s.
+Wave 1's own plant (`fees_cents` in the route file → S1 red, restored)
+and wave 2's S0 (red on the three absent web files until they existed —
+ruled, no stubs) were the fence's first two reds.
+
+(15) **The adversarial review, and what the red-first order caught
+before it.** Wave 1: the fence's S6 line filter had a bug (fixed before
+any F-82 docs existed — the filter is `F-82(?![0-9a-z])` now, so
+PROJECT.md:104's F-82a boundary line is never read as an F-82 row — :103
+at the build's tip, one lower since this slice's how-to row landed at
+PROJECT.md:52); web
+tsc red on `tenant-detail-page.tsx` until the admin label landed (wave
+2's first task). Wave 3: run 1 red on test 1
+because `costValue` read the whole `<dd>` (« 27 650,00 $Coût total
+plus… ») — the number is the `<dd>`'s first span now (`costMoney`); run 2
+red on test 3 because Chromium exposes `<input type=file>` with role
+`button`, so the paid card's control count is by TAG; run 3 6 / 6 in
+35.2 s. The review (six lenses, 12 raw findings): confirmed by its
+verifiers and fixed — S6 hard-requires the PROJECT.md row at ship
+(`F82_DOCS_REQUIRED=1`; red proven by planting a D-084 and a ROUND 30
+section, the docs restored), the route header states the TRUE refusal
+order (7), and two cites corrected (7); refuted — a « stray untracked API
+test file » that does not exist, and the `lenderOrg` cite as a separate
+finding (folded into the cites fix). The seven the verifiers left when
+they died on the session usage limit, verified by the lead against the
+tree: u1 CONFIRMED major — the immutability claim was route-only (5's
+column-level grant, P11, P6b reshaped; a NARROWING of the build document's
+« SELECT / INSERT / UPDATE » wording); u2 CONFIRMED minor — S3 / S4 pinned
+RAW source, so a formula line moved into a comment with a wrong formula
+beneath it satisfied the old pin (mutation-proven; the pins read
+comment-stripped code now); u3 CONFIRMED major — (6)'s rider; u4 PLAUSIBLE
+from a layout reading, then CONFIRMED minor by the review tail's render
+and fixed (4); u5 / u6 duplicates of the header and S6 fixes; u7 a
+docs-wording rule — the wave-4 checkpoint claimed sha256 / cmp
+verification it never logged, so every line of this record about the
+mutation loop says « each row red, then restored; the restored tree passed
+the full gate » and nothing more. Every fix red-first (P11 « promise
+resolved instead of rejecting », R3 « expected true to be false », R3b
+« expected undefined to be defined », S6 « PROJECT.md carries no F-82 row »,
+the e2e line-box pin red on the pre-fix page); after the fixes the guard
+batch — migration-0075-expenses (15), migration-0075-backfill,
+rls-coverage, enum-vocabulary, dead-column, input-persistence,
+permission-drift, contract-coverage, real-name-leak, brand-leak, a13-rbac,
+f05-deals — 12 files / 78 tests green, f07 (16) + the fence (9) + f82 (36)
+61 green, `tsc --noEmit` clean in apps/api and packages/db, eslint clean on
+every touched file, `pnpm e2e --grep expenses` 6 / 6 (34.3 s). The skeptic's
+tail: every one of the six lead fixes re-reddened from the backups
+(restored by `cp`, never `git checkout`), nothing weakened — P6b narrowed is
+stronger, S3 / S4 raw → stripped is stronger, f07 R1–R3b purely additive.
+
+(16) **Rejected, with reasons:** `pack` in the category list (a near-name
+of the desk's « Frais » input, `deals.fees_cents` — the fence can pin the
+column but not a clerk reading « Frais » and « Pack » as one number; two
+of three plans and the scope's default said cut); `purchase` / `transport`
+codes (the vehicle columns own those numbers); `commission_sales` /
+`commission_fi` (F-09 is the ledger of pay); `expense:log` (a second
+spelling); owner + gm-only defaults (the used-car manager IS the manager
+of the lot's spend); `requireCostView` on POST; the ledger hidden from
+masked readers; a `rejection_reason` column with its two CHECKs and codes;
+`created_by`, `uploaded_by`, `receipt_uploaded_at`, `approved_by`,
+`approved_at`, `paid_at`, `payment_method` (the events own actorship and
+time — 0074's `submitted_by` precedent); PATCHable `amount_cents` /
+`tax_cents`; `total_cents` (or any amount) in any event's `changes`;
+`summary.count` and the spec's `expenses_paid_cents` / `expense_count`
+(no consumer); `idx_vehicle_expenses_status` (no measured need — the
+vehicle index covers the sums); `expense:approve` in the impersonation
+block-list; pending → void under `vehicle:update`; the `mixed_patch` 422
+and the per-pair verb ternary; a `CURRENT_DATE` or store-clock default on
+`expense_date`; a vehicle row lock on f82 writes and the `FOR NO KEY
+UPDATE` idiom; 409 for transitions (422 — f11 / f13's spelling); a 200 on
+upload (201 — f13's); a `receipt_sha256` name (0026's names under the
+prefix); a sixth route `POST /expenses/:id/status`; magic-byte sniffing;
+the « En attente d’approbation » STRIP row (the panel-header line
+replaces it); the « Directeur des ventes » e2e persona (proven in vitest,
+deferred from the journey for the budget); « Ajouter une dépense » (a
+string the slice never ships — a count-0 on it is vacuous); the two-button
+« Confirmer » / « Conserver » void pair (no house precedent, an unprovable
+focus move); an `ExpenseStatusInput` four-value subset; an `expSaving`
+duplicate of `saving`; « grand livre » beside « le registre »;
+`{total}` as the money line's ICU arg; a SECURITY.md entry; any
+notification key; `deal_id`, `stock_number` + trigger, suppliers /
+`supplier_id`, `notes`, `is_cogs`, a DB view, cursor pagination, a DELETE
+grant or route, the ledger's CSV, accounting tabs, a per-unit P&L, tax
+reports, a GM-dashboard expense stat, the S3 driver and the render
+foundation; a throwaway car for ROUND 30 (the owner's real car); a
+`conflictFrom` mapping of 23503 / 23514 to 422 (`conflictFrom` returns null
+unless 23505 — the claim would have named a mapping that does not exist);
+stripping the two `ALTER TABLE activity_events` statements out of the
+fence's input (the F-80 blind-spot class — a mutation hidden inside a
+stripped statement passes).
+
+(17) **Deferred with un-cut conditions.** `pack` (un-cut: FR-REP-004's
+per-unit P&L, where pack is a report line, never a car-page entry);
+`commission_sales` / `commission_fi` (only if F-09 stops being the ledger
+of pay); `purchase` / `transport` (never — the columns); `is_cogs` (the
+P&L consumer); `rejection_reason` (the owner asks why a line was refused);
+the approver / payment stamps (a card or report line that renders the
+approver or « payé le »); re-open from `rejected` (the owner reports
+mis-click counts; today re-log); pending → void under `vehicle:update` (a
+logger's retract door — the owner reports pending typos piling up);
+`summary.count` and the spec's two summary fields (a consumer); a status
+index (a measured slow query on a cross-vehicle report); the
+impersonation block (2); magic-byte sniffing (one shared helper with
+f13); the masked writer's receipt door (a store clerk role that files
+invoices without reading costs — 6); a stored or API-emitted
+cost-with-expenses (never — a sorting report derives it in SQL, 3); a
+notification (the spec names no recipient; a consumer asks who needs to
+know); `deal_id` (a deal-page consumer that asks for its car's ledger,
+rendered through `deals.vehicle_id`, never a second key); `stock_number` +
+trigger (never — unique only per store, 0010:52, and ROADMAP:100 bans
+name joins; a deal's expenses are its vehicle's); suppliers /
+`supplier_id` (FR-ACC-001's supplier / category registry slice; free-text
+`vendor_name` is the spec's own fallback); `notes` (a consumer); a DB
+view (computed at read); cursor pagination (one car's ledger never
+outgrows a page); DELETE (an owner asks, with an evidence-preservation
+answer); the ledger's CSV (F-83's exports); accounting tabs (FR-ACC-005);
+the per-unit P&L (FR-REP-004); tax reports (FR-ACC-007 / 008); a
+GM-dashboard expense stat (analytics.ts carries counts only); the S3
+driver (the bucket of OWNER-ACTIONS.md:178, shared with documents); the
+render foundation (19); the « Directeur des ventes » journey persona (the
+e2e budget); the spec's six items named by the review of the build
+document (A29) — §8 :213 the batch-entry modal (the owner logs a supplier
+statement with several lines); §5 :167 list filters by status / category
+/ date range with a 500 limit (the accounting tab, FR-ACC-005 — one car's
+list needs none); §5 :168 `GET /categories` (the enum ships in the bundle
+through packages/schemas; un-cut: tenant-extensible categories); §2 :73
+indexes on category / date / status / supplier (only
+`idx_vehicle_expenses_vehicle` ships; un-cut: a measured slow query); §3
+:130 tenant-extensible custom categories over the global seed
+(FR-ACC-001's registry slice); §8 :211 the panel embedded on the deal
+page (folded into the `deal_id` cut). Not this slice's, carried forward
+as they were: a desk-wide permission pass on the worksheet's own controls
+(D-082 (12)).
+
+(18) **Deviations from the build document's words, and the spec's — named
+so that nothing is silently absent.** Three spec divergences (A28): (a)
+spec §1 #2 / §4 « anyone authenticated may ADD » → only `vehicle:update`
+holders log (fi_manager, salesperson, logistics, admin_office and bdc_agent
+cannot by default, permissions.ts:139-228; one matrix click grants it);
+(b) spec §2 :52 `store_id` nullable → NOT NULL, copied from the live
+vehicle inside the tenant transaction (the cost view keys on it); (c)
+spec §4 / §5 :142-144 / :175 `DELETE /:id` soft-void → `PATCH {status:
+'void'}` under `expense:approve`; there is NO DELETE route and no DELETE
+grant, and the spec's endpoint has no successor. From the build document:
+0075's grant is `SELECT, INSERT` plus a ten-column `UPDATE`, not the
+« SELECT / INSERT / UPDATE » it named — a narrowing the review forced
+(u1), with P6b reshaped to the exact shape; S3 / S4's positive pins read
+comment-stripped code (u2); `costViewOf` applies the per-user override
+(u3 — the build document did not know the gap); the « Coût avec
+dépenses » `<dd>` is `min-w-0 flex-1 text-right`, not the bare
+`text-right` of A22 (u4); the route header's refusal order (7) and the
+two cites (A35) read as the routes do; `ExpensesPanel` takes `{ vehicleId,
+orgId, list }` — R13's `storeId` had no consumer in the panel and is
+omitted; the container owns three states (`mode`, the controlled `draft`,
+`confirmVoidId`) and the view takes them as props, so the static harness
+renders an invalid draft for the invalid-amount case; `EXPENSE_TRANSITIONS`
+values are `readonly MoveTarget[]` (no cast in the view); the locale
+partition test lives in `expenses-model.test.ts` beside
+`EXPENSE_CATEGORY_KEYS`, with the ’ rule as a test; the page test mounts
+under `MemoryRouter` + `Routes` (desking-page-submissions.test.tsx's proven
+shape), not A27's literal `createMemoryRouter`; the buttons carry F-81's
+shape — a visible short label plus the ruled « Verb — {vendor} »
+`aria-label` (the void relabel swaps both); the e2e's `<dt>` locator is
+`getByRole('term').filter({ hasText: exact })`, not A23's `getByRole('term',
+{ name, exact })` — measured on playwright 1.61.1, `term` computes NO name
+for a `<dt>` (name-from-content is allowed only as a descendant role), so
+the literal form matches nothing and every count-0 on it would pass
+vacuously; `costMoney` reads the `<dd>`'s first span; the paid card's
+control count is by tag; the T-F1 walk carries E5 (M4's finding); T-X6
+carries the app-role probe (M31's); ROUND 30 walks A-1001 in Groupe
+Hassan as the owner account (A31 — the brief's « all 66 cars carry costs »
+was measured false: 66 live cars across 66 organizations, one per org, and
+the salesperson membership the brief named is revoked); the runner accepts
+`pnpm e2e --grep expenses` with or without the leading `--`. Recorded
+absences beyond (17): the e2e does not walk edit mode (A39 — T-X3 and the
+panel's case 9 prove it); T-F1's commissions count is `n ≥ 1`, not
+« = 1 » (A9); the f78 body is compared minus its clock-relative keys (3).
+Two operating facts: a paid line may be voided, and a masked writer's 201
+carries no money (5). The dev database stayed read-only all build long
+(the gate paragraph's counts) — 0075 reaches dev at ship, applied by the
+LEAD via `db:migrate` immediately before the commit.
+
+(19) **The render foundation is NOT F-82 and NOT F-83, and the ask is
+put to the owner now.** ADR-021's queue + `deal_renders` + the worksheet
+PDF waits for a counsel-reviewed, store-opted-in consumer: the only P0 /
+P1 consumers are legal documents the owner keeps in Merlin / CAMS (the
+dev registry: 664 CAMS stores, 37 Merlin, 0 other), English-only and
+counsel-unreviewed (lenders-billofsale.md:224) — rendering them ships
+invented wording as a claim in the product, and the honest first
+template (the desking worksheet) has no FR row. What it will need is
+recorded so the first consumer does not stall on it: `playwright-core` as
+a dependency of `apps/workers` — a dependency in a deployable app, ask-first
+(CLAUDE.md:20-24; D-043's precedent) — and Chrome on the CI `checks` job
+(only the e2e job installs it today, ci.yml:159-163); `storage.ts:106-111`
+throws on `s3` and is the same gate as documents and receipts. Filed as
+OWNER-DECISIONS-PENDING O-59 and its D-084 entry beside D-083's; ROUND 30
+does not send the owner there — no action is needed to walk the round.
+Placement: this record sits ABOVE D-083, tick 37 above tick 36, ROUND 30
+after ROUND 29. Files touched: NEW
+`packages/db/migrations/20260904000075_vehicle-expenses.sql`,
+`packages/schemas/src/expense.ts`, `apps/api/src/f82-expense-routes.ts`,
+`apps/api/src/f82-expenses.test.ts`, `apps/api/src/f82-money-fence.test.ts`,
+`packages/db/src/migration-0075-expenses.test.ts`,
+`packages/db/src/migration-0075-backfill.test.ts`,
+`apps/web/src/features/inventory/expenses-api.ts`, `expenses-model.ts`
+(+ test), `expenses-panel.tsx` (+ test),
+`vehicle-detail-page-expenses.test.tsx`, `apps/web/e2e/f82-expenses.e2e.ts`;
+EDITED `apps/api/src/app.ts`, `f07-vehicles-routes.ts` (+ test),
+`storage.ts`, `dead-column.test.ts`, `input-persistence.test.ts`,
+`permission-drift.test.ts`, `packages/contracts/src/v1.ts`,
+`packages/db/src/rls-coverage.test.ts`, `packages/i18n/src/locales/fr-CA.ts`
+and `en-CA.ts`, `packages/schemas/src/activity.ts`, `index.ts`,
+`permissions.ts`, `apps/web/src/features/admin/labels.ts`,
+`inventory/vehicle-detail-page.tsx`, `permissions/permissions-page.tsx`,
+and the six documents of this wave (`docs/DECISIONS.md`,
+`docs/SESSION_LOG.md`, `docs/OWNER-TEST-MASTER.md`, `docs/TASKS.md`,
+`docs/PROJECT.md`, `docs/OWNER-DECISIONS-PENDING.md`). Related: D-082
+(the ledger precedents this slice copies — the fence shape, the read-model
+lock, the deviations discipline, and (3)'s open thread closed by (13)),
+D-081 (the org-walk resolver), D-080 (4) (events carry status only),
+D-079 (8) (no second spelling of an authority), D-052 / FR-TEN-006 (absent,
+never null), D-077 (the contention class), D-043 (ask-first on a
+dependency), D-033 (the catalogue), ADR-021 (the render foundation),
+ADR-013 (private storage); migration `20260904000075_vehicle-expenses.sql`.
+
 ## D-083 — 2026-09-05 — The confidential-data scrub: the legacy roster becomes « Vendeur NN », and a guard that bans digests, not names
 
 F-82a (ROADMAP Phase 0 item 0.3 — « Real employee names + commission

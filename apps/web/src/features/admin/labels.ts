@@ -129,6 +129,8 @@ export const ENTITY_KEYS = {
   commission_clawback: 'entity_commission_clawback',
   /** F-81 — a lender's answer on a deal; parent = its deal on every event (D-082). */
   deal_submission: 'entity_deal_submission',
+  /** F-82 — a logged vehicle expense; parent = its vehicle on every event (D-084). */
+  vehicle_expense: 'entity_vehicle_expense',
 } as const satisfies Record<ActivityEntityTypeT, string>;
 
 /**

@@ -163,6 +163,11 @@ const DELIBERATELY_UNWRITTEN: Record<string, string> = {
   // column and the 'created' activity event carries the actor (D-082).
   'deal_submissions.submitted_at': 'defaulted by the database at insert — the row is born when it is logged; the created event carries the actor',
 
+  // F-82: GENERATED ALWAYS AS (amount_cents + tax_cents) STORED — Postgres
+  // maintains it, a write would be an error (the contacts.search_vector
+  // precedent). The only F-82 exemption: status and receipt_* are route-written.
+  'vehicle_expenses.total_cents': 'generated column (amount_cents + tax_cents), maintained by Postgres',
+
   // F-33 gave the assistant a way to BOOK an appointment. Managing one after
   // the fact — assigning who takes it, cancelling with a reason — is the
   // console's, and lands with the appointments screen.

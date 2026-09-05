@@ -1,3 +1,199 @@
+## 2026-09-05 (tick 37) — F-82: the vehicle expenses ledger, and the cost the worksheet copies
+
+**Where tick 36's CI story ended.** F-82a shipped as `3f4b83e` (run
+33931882313, green on attempt 2 — the `f75-brand-paint` request-storm
+bound on attempt 1's e2e job), its test-only rider `c0d9dbf` went green
+first try (run 33933657676) and its docs tail `37ddc1b` did too (run
+33934140182) — twenty-six consecutive greens, three of them on re-runs.
+This slice's first wave started on a clean `3f4b83e`; the lead landed the
+rider and the tail while wave 2 was building, so waves 2–4, the review and
+these documents sit on `37ddc1b`.
+
+**How the slice was chosen.** The 2026-09-04 scoping (f82_scope §8)
+ranked the ledger first on the repo's own laws: whole P1 rows
+(FR-ACC-002 / 003 / 004 and FR-ACC-001's category half — the FR table's
+« best-designed module — port as-is »), owner-free (receipts ride the local
+storage driver in dev and CI; the S3 gate is the one documents already
+share), seed-free, one migration, and the only candidate whose consumer
+surface already existed — three POSITIVE consumer-with-no-producer
+closures: the vehicle page's cost list missing exactly the « Added
+expenses » row, the `StorageDriver` with f13's upload / download pair,
+and `vehicle:read_costs` with one field family to mask. Its single
+biggest risk was named before code: the spec's own arithmetic becoming
+product truth — the strip's « Total » and FR-INV-005's `total_invested`
+pulling the ledger into the derived vehicle total, from there into the
+desk's cost input, front gross, the F-09 tier gross, the F-66 leaderboard
+and the F-78 dashboard — one risk wearing two faces, the formula and the
+caption. The ruling that became D-084's spine: a record and a report
+input, never a desk input. The render foundation (ADR-021) was judged in
+the same scoping as not F-82 and not F-83, with its `playwright-core` /
+Chrome ask to be put to the owner now.
+
+**How it was designed.** Three planners (money-fence-and-costs,
+ledger-and-ladder, screen-permission-evidence), a judge and four
+adversarial critics produced a binding build document: 19 rulings —
+`vehicle:update` logs and ONE new `expense:approve` gates every
+transition, pending → void included, held by owner / GM / used-car
+manager (an approver reads what it approves — the lockstep drift case);
+NOT impersonation-blocked; twelve category codes with `pack` cut by name
+(a near-name of the desk's « Frais » input); the ladder with terminal
+rejected / void, a same-status 200 no-op and 422 `invalid_transition` (not
+409); amounts INSERT-only so the trail is money-free by construction;
+receipts as four columns on the row through f13's pair; the masking law
+(absent, never null; `summary` absent, never {0, 0}; a masked writer's
+201; 403 `cost_masked` on approve); the two display rows with the caption
+as the shipped claim; the static + behavioural fence; the f07
+`acquisition_date` rider; the one-row lock law; the screen's third block;
+a six-test journey; ROUND 30 on the owner's real car; no SECURITY.md
+entry; the guard conscriptions; a realistic mutation checklist; the
+render-foundation record — plus 7 grafts, 15 corrections, 20 cuts with
+un-cut conditions, 18 adds and 39 amendments (the migration's token split
+so the fence cannot red its own restated CHECK lists; the cost view
+resolved BEFORE the transaction because a nested checkout under a row lock
+self-deadlocks a pool of ten; the 25-cell ladder walk; strict-mode-safe
+locators; the inline two-step void; the caption inside the `<dd>`; one
+name for the ledger — « le registre »; the owner's real car A-1001 and
+its numbers).
+
+**What was built, red first — four waves on the shared worktree, the dev
+database never opened.** Wave 1 (backend): `packages/schemas/src/expense.ts`
+(the 12-code enum, the five statuses, the read model with optional money,
+strict inputs — `tax_cents` optional with no default, `expense_date`
+required), the catalogue verb and its default, the activity entity, the
+contract group (list 200 / create 201 / update 200 / uploadReceipt 201 /
+downloadReceipt 200), `20260904000075_vehicle-expenses.sql` (the table with
+its CHECKs, composite FKs, the vehicle index, the `updated_at` trigger,
+grants, FORCED RLS, one policy, the comments, both activity CHECKs
+re-added, the backfill spelled for 0073's extraction regex), `receiptKey`
+beside `documentKey`, f07's four exports and the rider (R1 red at tip —
+`from` = `2026-06-30T21:00:00.000Z` — then green; R2 the regression pin),
+the five routes in `f82-expense-routes.ts` wired after F-81, the five guard
+conscriptions, and 36 route tests + the fence + 14 migration probes + 2
+backfill cases: f07 14 / 14, the db batch 27 / 27, f82-expenses 36 / 36
+(28.4 s; the ladder {legal 6, same 5, illegal 14}), the guard batch 108
+passed; the fence's S0 stayed red on the three absent web files — ruled,
+no stubs. Wave 2 (i18n + web): 64 keys per locale with parity green, the
+GROUPS prefix, `expenses-api.ts`, `expenses-model.ts` (+ 35),
+`expenses-panel.tsx` (+ 30), the page's two rows, recon caption and third
+block (+ 7); the fence 9 / 9 once all six files existed; web + i18n +
+token-roles 53 files / 529 tests / 43.1 s; web tsc and eslint clean.
+Wave 3 (journey): `apps/web/e2e/f82-expenses.e2e.ts`, six serial tests on
+a fresh `f82-${stamp}` organization and a 27 650,00 $ car — born empty;
+two lines logged; approve + pay with « Coût total » STILL 27 650,00 $ and
+« Coût avec dépenses » 28 040,92 $; void through the relabelled button
+plus a PNG receipt; THE DESK COPIES THE TRIPLET (« Coût du véhicule »
+27650.00, never 28040.92, and the saved deal's `vehicle_cost_cents`
+2 765 000 through `/api/v1/deals`); the « Agent BDC » zero-request walk —
+6 / 6 in 35.2 s on the third run. Wave 4 (mutations + gate): 39 executions
+over the checklist's rows, each red in a NAMED test, then restored; the
+restored tree passed the full gate.
+
+**What the red-first order and the mutation loop caught.** Two Playwright
+facts, measured rather than assumed: `getByRole('term', { name })`
+computes NO name for a `<dt>` on 1.61.1 (name-from-content is allowed
+only as a descendant role), so the ruled literal locator matched nothing
+and every count-0 on it would have passed vacuously — the helper filters
+the role by exact text; and Chromium exposes `<input type=file>` with role
+`button`, so the paid card's control count is by tag. Run 1's red: the
+« Coût avec dépenses » `<dd>` read « 27 650,00 $Coût total plus… », so the
+number is its first span. Two mutations found tests that could not see
+them, and both tests got stronger: M4 (write `recon_cost_cents` on a
+`recon_mech` approve) reddened the static fence but the behavioural walk
+stayed green — it had no `recon_mech` row — so T-F1's walk gained E5, a
+recon line approved then voided; M31 (the isolation policy as `true` /
+`true`) reddened P6 and rls-coverage but T-X6 stayed green — the route
+404s were the vehicles policy and the cost view — so T-X6 gained a direct
+app-role probe under the rival tenant. M12a (skip the PARENT CHECK
+re-ADD) reddened P7 alone, the suite staying green exactly as predicted —
+no event has a `vehicle_expense` parent. The dev database's read-only
+probe at the end: 76 migrations, newest 0074, `vehicle_expenses` absent,
+zero `expense:approve` rows, `platform_staff` 0, `users` 962.
+
+**What the adversarial review caught.** Six lenses, refute-biased
+verification, 12 raw findings — 3 confirmed and 2 refuted by the review's
+verifiers before they died on the session usage limit; the lead verified
+the seven left unsettled against the tree and applied six fixes red-first
+in the usage-limit window, and the review tail rendered the seventh. The
+big one (u1, major): « immutable after insert » was route-only — 0075
+granted `UPDATE` on the whole table while the `amount_cents` COMMENT
+claimed immutability, and P11 as `dealpilot_app` resolved `UPDATE … SET
+amount_cents = 1`. 0075 now grants `SELECT, INSERT` on the table and
+`UPDATE` on exactly ten columns; `amount_cents`, `tax_cents`,
+`vehicle_id`, `store_id` and `organization_id` are 42501 for the app role
+(P11), and P6b pins the exact table + column grant shape — a narrowing of
+the build document's wording, recorded. u3 (major, a rider on f07):
+`costViewOf` read `role_permissions` only, while `has_permission` lets a
+per-user override written through `PUT /api/v1/permissions/user` win — a
+DENY of `vehicle:read_costs` left a GM's costs visible and an ALLOW left a
+salesperson's masked; fixed in f07 (R3 / R3b red-first), inherited by the
+ledger at its five `costViewOf` sites. u2 (minor): the fence's S3 / S4
+positive pins read raw source, so a formula line moved into a comment
+with a wrong formula beneath it satisfied them — they read
+comment-stripped code now, mutation-proven. The verifiers' three: S6
+hard-requires the PROJECT.md row at ship (a docs pin that could pass on
+an absent row), the route header states the true refusal order (the body
+routes parse the body first), and two cites corrected (the 0075 comment
+named « the lenderOrg iteration » for the `expenseOrg` walk; P6b cited
+the wrong rls-coverage lines). Refuted: a « stray untracked API test
+file » that does not exist; the `lenderOrg` cite as a standalone finding.
+u4, plausible from a layout reading, was CONFIRMED by rendering through
+the real e2e stack at 320 / 375 / 768 / 1280 px — « Coût avec dépenses »
+sat on three line boxes at every width because the captioned `<dd>`
+squeezed the `<dt>` to its 58 px min-content — and fixed with one
+attribute (`min-w-0 flex-1 text-right` on the `<dd>`), the caption span
+untouched, pinned red-able in e2e test 1 by a `Range` line-box count of
+the term (red on the pre-fix page, green on the fixed one; the trade-off,
+a five-line caption in a narrow column, is in D-084 (4)). u7 became a
+rule for these documents: the wave-4 checkpoint claimed sha256 / cmp
+verification it never logged, so every line here says « each row red,
+then restored; the restored tree passed the full gate » and nothing more.
+A skeptic re-reddened every lead fix from the backups (restored by `cp`,
+never `git checkout` — one restore through `git checkout --` reverted
+f07-vehicles-routes.ts to HEAD mid-window and the file was rebuilt from
+the recorded edits, verified byte-identical): 6 / 6 landed, 0 weakened.
+After the fixes: the guard batch 12 files / 78 tests, f07 (16) + the
+fence (9) + f82 (36) 61 green, `tsc --noEmit` clean in apps/api and
+packages/db, eslint clean on every touched file, `pnpm e2e --grep
+expenses` 6 / 6 (34.3 s).
+
+**Gate.** Before the review fixes: the whole vitest suite 2429 / 2431 on
+a machine under another project's load (two f44 rate-limit 5 s timeouts,
+two f28b Redis « Connection is closed » — the contention class, no rider)
+and **212 files / 2431 tests, 0 unhandled, exit 0, 787 s on the quiet
+re-run** (D-083's gate had 205 / 2294; seven new test files); `node
+scripts/e2e.mjs` 83 / 84 then 84 / 84 — the six f82 tests green both runs,
+the one red `f08-checklist` T1, a 15 s heading `toBeVisible` timeout after
+the « Succursale F08 » store-page navigation (a timing class in a spec
+this slice does not touch; D-083's gate paragraph records the same
+first-navigation timeout family), green on the re-run. FINAL gate after
+the review fixes: `pnpm turbo run build typecheck lint` 25/25; `RLS_REQUIRED=1 REDIS_URL=redis://localhost:6381 npx vitest run` 212 files / 2434 tests passed, 0 unhandled, 604 s; the fence with `F82_DOCS_REQUIRED=1` 9/9 (D-084, ROUND 30 and the PROJECT.md row hard-required); `node scripts/e2e.mjs` twice — 84/84 both runs, 3.0 min each, the six f82 tests 4.8 / 3.8 / 4.4 / 3.4 / 6.5 / 6.6 s then 5.3 / 3.0 / 3.9 / 4.0 / 6.3 / 7.2 s (2026-09-05 15:34–15:51Z, one runner, nothing else heavy, C: 26 GB free). The dev database stayed read-only all
+build long (76 migrations, `vehicle_expenses` absent, `platform_staff` 0,
+`users` 962, `organizations` 888) — 0075 reaches dev at ship, applied by
+the LEAD via `pnpm --filter @dealpilot/db db:migrate` immediately before
+the commit; the one-shot platform grant stays unspent.
+
+**Docs:** D-084 at the top of `DECISIONS.md` (the authority chain, the
+impersonation ruling, THE MONEY RULING and its two fences, the two rows
+and the caption, the ladder and the column-level grant behind
+« immutable », the masking law with the receipt asymmetry and the R3
+rider, the pre-transaction view and the one-row lock, `expense_date`
+through the read model, receipts, the screen, the activity vocabulary,
+isolation with no SECURITY.md entry, the f07 rider, the mutation loop's
+honesty, the review, the rejected list, the deferred list with every cut
+by name and the six spec items, the deviations with the three spec
+divergences, the render-foundation ruling and the owner ask); ROUND 30
+(eleven rows on the owner's real A-1001 — the desk-prefill row is his own
+proof of the money ruling — with cleanup); `TASKS.md` F-82 row;
+`PROJECT.md` command-table row « Log what a car cost after purchase, and
+approve it » carrying the fence in words (S6 reads it);
+`OWNER-DECISIONS-PENDING.md` O-59 and its D-084 entry (`playwright-core`
+into `apps/workers` and Chrome on the CI `checks` job — recommended: wait
+for a counsel-reviewed, store-opted-in consumer). No SECURITY.md entry
+(D-084 (12)). OWNER-ACTIONS.md:178's S3 row now names the expense receipts
+beside the bill of sale (the lead's edit, in this commit).
+
+**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–36 were.**
+
 ## 2026-09-05 (tick 36) — F-82a: the confidential-data scrub — « Vendeur NN », and a guard that bans digests
 
 **Where tick 35's CI story ended.** F-81 shipped as `94f235b` (run

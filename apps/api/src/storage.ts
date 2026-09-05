@@ -58,6 +58,21 @@ export function documentKey(
   return `org/${orgId}/deals/${dealId}/documents/${documentId}/${hash}.${extension}`;
 }
 
+/**
+ * F-82: a vehicle expense's receipt — the same rules as documents (server-
+ * built, per-tenant prefix, content-addressed so a re-upload lands beside
+ * the old scan rather than over it).
+ */
+export function receiptKey(
+  orgId: string,
+  vehicleId: string,
+  expenseId: string,
+  hash: string,
+  extension: string,
+): string {
+  return `org/${orgId}/vehicles/${vehicleId}/expenses/${expenseId}/${hash}.${extension}`;
+}
+
 class LocalStorage implements StorageDriver {
   readonly kind = 'local' as const;
   constructor(private readonly root: string) {}

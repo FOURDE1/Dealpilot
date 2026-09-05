@@ -374,6 +374,43 @@ in the repository. Until then, 1 is the state we are in, and the tree is guarded
 
 ---
 
+## D-084 — Add `playwright-core` to `apps/workers` and Chrome to the CI `checks` job for the render foundation? *(F-82, raised 2026-09-04)*
+
+**Where it stands.** Nothing in Dealpilot renders a PDF or a spreadsheet
+yet. The foundation the plan names (ADR-021: a render queue, a
+`deal_renders` table, the desking worksheet as the first template) was
+judged during F-82's scoping to be NOT F-82 and NOT F-83, because its only
+P0 / P1 consumers are the legal documents you keep in Merlin and CAMS
+today (the dev registry holds 664 stores on CAMS and 37 on Merlin), whose wording is
+English-only and has not been reviewed by counsel — rendering them would
+ship invented wording as a claim in the product — and the honest first
+template, the worksheet, has no requirement row of its own. When that
+consumer arrives, two things it needs are yours to say yes to, and both
+are outside what I decide alone: `playwright-core` as a dependency of
+`apps/workers` (a new dependency in a deployable app — the ask-first rule),
+and Google Chrome installed on the CI `checks` job (today only the e2e job
+installs it). The receipts F-82 stores and the documents F-13 files share
+the same S3 gate (`storage.ts` throws on `s3` until the bucket exists) —
+that is on OWNER-ACTIONS already and is not this question.
+
+**Two ways to go.**
+
+1. **Say yes in principle now** — the dependency and the Chrome step land
+   with the first counsel-reviewed, store-opted-in consumer, without a
+   second round-trip to you.
+2. **Hold** — the foundation waits for the consumer AND for this answer;
+   the first render slice starts with the ask instead of the work.
+
+**What I need from you:** 1 or 2. Nothing is installed either way until a
+consumer exists; ROUND 30 needs no answer here.
+
+My recommendation: wait for the consumer (a counsel-reviewed document a
+store has opted into), and answer 1 so that consumer does not stall on a
+dependency question. Filed as O-59 below; the full ruling is
+`docs/DECISIONS.md` D-084 (19).
+
+---
+
 ## Already answered — no action needed
 
 - SES over Resend for email (D-029). Built.
@@ -465,6 +502,7 @@ in the repository. Until then, 1 is the state we are in, and the tree is guarded
 | O-56 | **A salesperson's own-figures dashboard is deferred by name** (F-78, D-079): their home page shows the greeting, response speed and the recent-prospects list — a list is honest as a list — and zero figures; a personal report needs its own figure ledger gated on the person. Un-cut: that ledger. | No figures rather than a floor. |
 | O-57 | **Attention rows name the customer as plain text** (F-78, D-079): the wire carries the deal's lead only, so no link to `/contacts/:id` is offered even where a contact exists. Un-cut: `contact_id` on the attention wire plus the link. | Plain text for now. |
 | O-58 | **Add `@vitest/coverage-v8@3.2.7` as a devDependency of `packages/core`** — vitest's own coverage provider (repo vitest-dev/vitest, trusted-publisher release of 2026-07-06, exact-pinned to the vitest already in the lockfile; nine of its thirteen direct dependencies are absent from the lockfile and their own dependencies are too, so the transitive footprint is larger than nine — to be measured with a lockfile-only dry run before any install) — so the ≥ 90 % `packages/core` coverage gate that PROJECT.md, TASKS A-06, ARCHITECTURE.md, NFR-QUAL-002 and ADR-023 claim can exist in CI. Measured 2026-09-04 without it: ≈ 97.8 % lines / ≈ 95.7 % functions; branches ≈ 88–92 % and may need ~6 tests. Until you say yes the docs say the gate is pending (F-82a, D-083 (11)). | Not installed (CLAUDE.md ask-first on dependencies); `PROJECT.md:109` and `ARCHITECTURE.md:71` say « pending O-58 ». |
+| O-59 | **Add `playwright-core` as a dependency of `apps/workers` and Google Chrome to the CI `checks` job** — what the render foundation (ADR-021: a render queue, `deal_renders`, the desking worksheet as the first PDF) will need, recorded now so its first consumer does not stall on it (F-82's scoping judged the foundation not F-82 and not F-83: its only P0 / P1 consumers are counsel-unreviewed, English-only legal documents you keep in Merlin / CAMS). A dependency in a deployable app is ask-first; only the e2e job installs Chrome today. The receipts and documents share the existing S3 gate (OWNER-ACTIONS). Details and the two options: the D-084 entry above (F-82, D-084 (19)). | Nothing installed; the foundation waits for a counsel-reviewed, store-opted-in consumer. Recommended: yes in principle now. |
 
 ## Console e2e — decided 2026-08-31 (option A, D-075)
 

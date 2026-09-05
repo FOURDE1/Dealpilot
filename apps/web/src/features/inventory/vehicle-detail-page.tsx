@@ -8,6 +8,9 @@ import { LocationStatus, VehicleDealStatus, type VehicleT } from '@dealpilot/sch
 import { ApiError } from '../../shared/api/client.js';
 import { formatCents, parseMoneyToCents } from '../deals/money.js';
 import { useUpdateVehicle, useVehicle } from './api.js';
+import { useVehicleExpenses } from './expenses-api.js';
+import { withExpenses } from './expenses-model.js';
+import { ExpensesPanel } from './expenses-panel.js';
 import {
   ACQUISITION_KEYS,
   LOCATION_STATUS_KEYS,
@@ -16,11 +19,20 @@ import {
   vehicleDisplayName,
 } from './labels.js';
 
-/** Status moves + the money facts that change after purchase (recon, list price). */
+/**
+ * Status moves + the money facts that change after purchase (recon, list
+ * price), and — F-82 — the expenses ledger as a third block. The ledger's ONE
+ * list GET is declared here and shared by the strip rows and the panel; the
+ * two new strip rows are captioned derived numbers (« Coût avec dépenses » =
+ * the derived total plus the ledger's approved sum, computed by
+ * `withExpenses` at render) — never a column, never what the desk copies.
+ */
 export function VehicleDetailPage() {
   const { t, i18n } = useTranslation('inventory');
   const { vehicleId = '' } = useParams();
   const vehicle = useVehicle(vehicleId);
+  // Above the early returns: React's hook order (A27).
+  const expenses = useVehicleExpenses(vehicleId);
   const update = useUpdateVehicle(vehicleId);
   usePageTitle(vehicle.data ? vehicleDisplayName(vehicle.data) : undefined);
   const [reconDraft, setReconDraft] = useState<string | null>(null);
@@ -61,6 +73,8 @@ export function VehicleDetailPage() {
   const list = listDraft ?? (v.list_price_cents === null || v.list_price_cents === undefined ? '' : (v.list_price_cents / 100).toFixed(2));
   const reconInvalid = recon.trim() !== '' && parseMoneyToCents(recon) === null;
   const listInvalid = list.trim() !== '' && parseMoneyToCents(list) === null;
+  // ABSENT (never {0, 0}) when the store is masked — the two rows follow it.
+  const summary = expenses.data?.summary;
 
   return (
     <div className="space-y-6">
@@ -100,6 +114,21 @@ export function VehicleDetailPage() {
             <dt>{t('totalCost')}</dt>
             <dd className="font-mono tabular-nums">{v.total_cost_cents === undefined ? '—' : formatCents(v.total_cost_cents, locale)}</dd>
           </div>
+          {/* F-82: the ledger's rows — a real « 0,00 $ » for a granted viewer of
+              a zero-expense car, absent with the summary for a masked one. */}
+          {summary === undefined ? null : (<>
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">{t('expAdded')}</dt>
+            <dd className="font-mono tabular-nums">{formatCents(summary.approved_cents, locale)}</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted-foreground">{t('expWithCost')}</dt>
+            <dd className="min-w-0 flex-1 text-right">
+              <span className="font-mono tabular-nums">{formatCents(withExpenses(v.total_cost_cents, summary.approved_cents), locale)}</span>
+              <span id="exp-with-caption" className="block text-xs font-normal text-muted-foreground">{t('expWithCostCaption')}</span>
+            </dd>
+          </div>
+          </>)}
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">{t('listPrice')}</dt>
             <dd className="font-mono tabular-nums">
@@ -147,7 +176,7 @@ export function VehicleDetailPage() {
               inputMode="decimal"
               value={recon}
               aria-invalid={reconInvalid || undefined}
-              aria-describedby={reconInvalid ? 'veh-recon-error' : undefined}
+              aria-describedby={reconInvalid ? 'veh-recon-error' : 'veh-recon-hint'}
               className={reconInvalid ? 'border-danger-border' : undefined}
               onChange={(e) => setReconDraft(e.target.value)}
             />
@@ -156,6 +185,10 @@ export function VehicleDetailPage() {
                 {t('invalidAmount')}
               </p>
             ) : null}
+            {/* F-82: this hand-typed column and the ledger's recon lines are two records. */}
+            <p id="veh-recon-hint" className="text-xs text-muted-foreground">
+              {t('expReconCaption')}
+            </p>
           </div>
           <div className="space-y-1">
             <Label htmlFor="veh-list">{t('listPrice')}</Label>
@@ -206,6 +239,9 @@ export function VehicleDetailPage() {
           ) : null}
         </div>
       </div>
+
+      {/* F-82: the third block, full width — the ledger of what the car cost after purchase. */}
+      <ExpensesPanel vehicleId={vehicleId} orgId={v.organization_id} list={expenses} />
     </div>
   );
 }

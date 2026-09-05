@@ -175,7 +175,7 @@ deliberately not done. The envelope is roughly **$750–1,100/month at launch**
 |---|---|
 | RDS PostgreSQL 16, `ca-central-1` | The database. Canadian residency is a requirement, not a preference |
 | ECS Fargate + ALB (min 2 tasks) | The API. Two tasks is why the Redis realtime adapter exists |
-| S3 bucket + CloudFront | Documents and the SPA. **`storage.ts` throws today on `DOCUMENT_STORAGE_DRIVER=s3` because no bucket is provisioned** — the bill of sale cannot be filed until it is |
+| S3 bucket + CloudFront | Documents (the bill of sale and, since F-82, the expense receipts) and the SPA. **`storage.ts` throws today on `DOCUMENT_STORAGE_DRIVER=s3` because no bucket is provisioned** — neither can be filed until it is |
 | ElastiCache Valkey | Cache, rate limiting, BullMQ, the Socket.IO adapter |
 | WAF, Secrets Manager, KMS, Route 53 | Security baseline and DNS |
 

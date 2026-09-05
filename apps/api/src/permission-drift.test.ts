@@ -116,6 +116,8 @@ describe('permission drift', () => {
       'commission:clawback',
       'member:update_roles', 'checklist:sign_safety', 'checklist:correct_delivered',
       'intake_key:manage', 'document:sign',
+      // F-82: approving a vehicle expense releases dealer money against a unit.
+      'expense:approve',
     ] as const;
     const floorRoles = ['salesperson', 'bdc_agent', 'logistics', 'wholesale_manager'] as const;
     for (const role of floorRoles) {
@@ -126,5 +128,16 @@ describe('permission drift', () => {
         ).toBeFalsy();
       }
     }
+  });
+
+  it('every role defaulting to expense:approve also defaults to vehicle:read_costs (an approver reads what it approves — F-82)', async () => {
+    // The route refuses an approval the actor's cost view does not cover
+    // (403 cost_masked), so a default that granted the verb without the read
+    // would be a permission whose default can only ever 403. The matrix
+    // stays editable; this pins the CATALOGUE's defaults in lockstep.
+    const approvers = ROLES.filter((r) => DEFAULT_ROLE_PERMISSIONS[r]?.includes('expense:approve'));
+    expect(approvers.length, 'nobody defaults to expense:approve').toBeGreaterThan(0);
+    const blind = approvers.filter((r) => !DEFAULT_ROLE_PERMISSIONS[r]?.includes('vehicle:read_costs'));
+    expect(blind, `these roles default to expense:approve without vehicle:read_costs: ${blind.join(', ')}`).toEqual([]);
   });
 });

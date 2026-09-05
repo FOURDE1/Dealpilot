@@ -22,6 +22,10 @@ import {
   CreateSubmissionInput,
   UpdateSubmissionInput,
   SelectSubmissionResult,
+  VehicleExpense,
+  VehicleExpensesResult,
+  CreateExpenseInput,
+  UpdateExpenseInput,
   BeBackQuery,
   BeBackQueue,
   CreateLeadInput,
@@ -932,6 +936,53 @@ export const apiV1 = c.router({
       pathParams: z.object({ id: Uuid }),
       body: z.undefined(),
       responses: { 200: SelectSubmissionResult, ...errorResponses },
+    },
+  }),
+  /** F-82 vehicle expenses (expenses-accounting.md §1–§5, §7, §8): what a
+   * car cost AFTER purchase, one ledger per vehicle. A record and a report
+   * input only — the ledger never feeds the derived vehicle total, the desk
+   * or pay; the car page shows the approved sum beside the total, captioned.
+   * Logged, edited while pending and receipted under vehicle:update;
+   * approved / rejected / paid / voided under expense:approve (one PATCH
+   * carries fields and/or status). Amounts are INSERT-only (void + re-log
+   * corrects). Money and receipt metadata are ABSENT for a masked caller and
+   * `summary` is absent when the store is masked. No DELETE — void is a
+   * status. The receipt rides f13's raw-bytes pair (201 on upload, the hash
+   * rechecked on download, 404 for a masked caller). */
+  vehicleExpenses: c.router({
+    list: {
+      method: 'GET',
+      path: '/api/v1/vehicles/:id/expenses',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: VehicleExpensesResult, ...errorResponses },
+    },
+    create: {
+      method: 'POST',
+      path: '/api/v1/vehicles/:id/expenses',
+      pathParams: z.object({ id: Uuid }),
+      body: CreateExpenseInput,
+      responses: { 201: VehicleExpense, ...errorResponses },
+    },
+    update: {
+      method: 'PATCH',
+      path: '/api/v1/expenses/:id',
+      pathParams: z.object({ id: Uuid }),
+      body: UpdateExpenseInput,
+      responses: { 200: VehicleExpense, ...errorResponses },
+    },
+    /** Raw bytes with a real content-type (pdf/jpeg/png) — f13's uploadFile shape. */
+    uploadReceipt: {
+      method: 'POST',
+      path: '/api/v1/expenses/:id/receipt',
+      pathParams: z.object({ id: Uuid }),
+      body: z.any(),
+      responses: { 201: VehicleExpense, ...errorResponses },
+    },
+    downloadReceipt: {
+      method: 'GET',
+      path: '/api/v1/expenses/:id/receipt',
+      pathParams: z.object({ id: Uuid }),
+      responses: { 200: z.any(), ...errorResponses },
     },
   }),
   /** F-61 drip sequences (automation-notifications.md §11): client-facing

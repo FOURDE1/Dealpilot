@@ -55,7 +55,8 @@ async function requireLiveStore(client: PoolClient, storeId: string): Promise<vo
   }
 }
 
-async function vehicleOrg(pool: Pool, userId: string, vehicleId: string): Promise<string> {
+/** Exported for the F-82 ledger's vehicle-addressed routes (D-084): a rival's or a soft-deleted car is a 404. */
+export async function vehicleOrg(pool: Pool, userId: string, vehicleId: string): Promise<string> {
   return withUser(pool, userId, async (c) => {
     const r = await c.query<{ organization_id: string }>(
       `SELECT v.organization_id FROM vehicles v
@@ -87,20 +88,30 @@ const COST_FIELDS = [
   'list_price_cents', 'total_cost_cents',
 ] as const;
 
-type CostView = { kind: 'all' } | { kind: 'stores'; stores: Set<string> } | { kind: 'none' };
+export type CostView = { kind: 'all' } | { kind: 'stores'; stores: Set<string> } | { kind: 'none' };
 
-async function costViewOf(pool: Pool, userId: string, organizationId: string): Promise<CostView> {
+/**
+ * Exported (F-82, D-084) so the ledger masks its amounts by the SAME view —
+ * one implementation of FR-TEN-006, never a second. It opens its OWN
+ * transaction: callers resolve it OUTSIDE any withTenant they hold (this
+ * file's order at every site), never under a row lock.
+ */
+export async function costViewOf(pool: Pool, userId: string, organizationId: string): Promise<CostView> {
   // WHO comes from the MATRIX (vehicle:read_costs — the A-13 drift guard
-  // refused a hardcoded role list, correctly); WHERE comes from the
+  // refused a hardcoded role list, correctly) with the per-user override on
+  // top, in has_permission's precedence; WHERE comes from the
   // membership that carries it. Its OWN dual context, because the callers
   // vary: role_permissions' isolation policy needs the org GUC, and the
   // vehicle list runs under user context alone — a first draft computed the
   // view there and the matrix was simply invisible (every GM masked).
   // Org-filtered EXPLICITLY besides: a hat in org A must not unmask org B.
   return withContext(pool, { orgId: organizationId, userId }, async (c) => {
-  const r = await c.query<{ store_id: string | null; is_owner: boolean; granted: boolean }>(
+  const r = await c.query<{ store_id: string | null; is_owner: boolean; override: boolean | null; granted: boolean }>(
     `SELECT m.store_id,
             'owner' = ANY(m.roles) AS is_owner,
+            (SELECT up.allowed FROM user_permissions up
+              WHERE up.organization_id = m.organization_id AND up.user_id = m.user_id
+                AND up.permission = 'vehicle:read_costs') AS override,
             EXISTS (
               SELECT 1 FROM role_permissions rp
               WHERE rp.organization_id = m.organization_id
@@ -113,21 +124,25 @@ async function costViewOf(pool: Pool, userId: string, organizationId: string): P
   );
   const stores = new Set<string>();
   for (const m of r.rows) {
-    if (m.is_owner) return { kind: 'all' } as CostView;
-    if (m.granted) {
-      if (m.store_id === null) return { kind: 'all' } as CostView;
-      stores.add(m.store_id);
-    }
+    // has_permission's precedence (0067:185-209): a per-user override written
+    // through PUT /api/v1/permissions/user wins over every role — for an owner
+    // too — so a DENY masks and an ALLOW unmasks (f07 R3 / R3b, D-084 rider).
+    const granted = m.override ?? (m.is_owner || m.granted);
+    if (!granted) continue;
+    if (m.is_owner || m.store_id === null) return { kind: 'all' } as CostView;
+    stores.add(m.store_id);
   }
   return stores.size > 0 ? { kind: 'stores', stores } : ({ kind: 'none' } as CostView);
   });
 }
 
+/** Does this view cover the store that paid? A pure Set lookup — shared with the F-82 ledger (D-084). */
+export function costAllowed(storeId: string, view: CostView): boolean {
+  return view.kind === 'all' || (view.kind === 'stores' && view.stores.has(storeId));
+}
+
 function maskCosts(row: Record<string, unknown>, view: CostView): Record<string, unknown> {
-  const allowed =
-    view.kind === 'all' ||
-    (view.kind === 'stores' && view.stores.has(String(row['store_id'])));
-  if (allowed) return row;
+  if (costAllowed(String(row['store_id']), view)) return row;
   const out = { ...row };
   for (const f of COST_FIELDS) delete out[f];
   return out;
@@ -239,11 +254,14 @@ export function registerF07Routes(app: FastifyInstance, pool: Pool): void {
       const vehicle = await withTenant(pool, orgId, async (c) => {
         await requirePermission(c, user.id, 'vehicle:update');
         const beforeRow = await c.query<Record<string, unknown>>(
-          `SELECT * FROM vehicles WHERE id = $1 AND deleted_at IS NULL`,
+          `SELECT * FROM vehicles WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
           [vehicleId],
         );
         if (beforeRow.rows.length === 0) throw notFound();
-        const prior = beforeRow.rows[0]!;
+        // Locked THROUGH the read model so acquisition_date diffs as
+        // YYYY-MM-DD on both sides — D-082 (3)'s class: the raw pg Date was
+        // landing on the trail as a UTC instant of the wrong day (F-82 rider).
+        const prior = withTotalCost(beforeRow.rows[0]!);
 
         const fields = Object.entries(input);
         if (fields.length === 0) return prior;

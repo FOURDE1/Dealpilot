@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createPool, ensureTestDatabase, reset, testAdminUrl, testAppUrl, type Pool } from '@dealpilot/db';
-import { CreateDealInput, CreateLeadInput, CreateSubmissionInput, CreateVehicleInput } from '@dealpilot/schemas';
+import { CreateDealInput, CreateExpenseInput, CreateLeadInput, CreateSubmissionInput, CreateVehicleInput } from '@dealpilot/schemas';
 import { buildApp } from './app.js';
 
 /**
@@ -46,6 +46,10 @@ const NOT_ECHOED: Record<string, readonly string[]> = {
   // key; every accepted field echoes (expiry_date as the identical
   // 'YYYY-MM-DD' — pg's date is a JS Date, serialized in SELECT_ROW).
   deal_submissions: [],
+  // F-82: the route is vehicle-addressed (organization_id and store_id are
+  // copied from the live car), so every accepted field echoes — expense_date
+  // as the identical 'YYYY-MM-DD' (SELECT_ROW serializes the date column).
+  vehicle_expenses: [],
 };
 
 beforeAll(async () => {
@@ -210,6 +214,15 @@ describe('what the API accepts, it stores', () => {
       approval_amount_cents: 2_800_000, monthly_payment_cents: 65_000,
       expiry_date: '2026-10-15',
       conditions: 'Preuve de revenu', notes: 'Approbation verbale, confirmation à suivre',
+    });
+  });
+
+  it('vehicle_expenses — every CreateExpenseInput key, expense_date as the same YYYY-MM-DD string (F-82)', async (ctx) => {
+    if (!dbUp) return ctx.skip();
+    await check('vehicle_expenses', `/api/v1/vehicles/${vehicleId}/expenses`, CreateExpenseInput, {
+      category: 'detail', vendor_name: 'Lave-Auto Express',
+      amount_cents: 34_000, tax_cents: 5_092, invoice_number: 'LAE-1042',
+      expense_date: '2026-08-15', description: 'Lavage complet',
     });
   });
 
