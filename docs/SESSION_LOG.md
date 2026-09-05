@@ -192,7 +192,7 @@ for a counsel-reviewed, store-opted-in consumer). No SECURITY.md entry
 (D-084 (12)). OWNER-ACTIONS.md:178's S3 row now names the expense receipts
 beside the bill of sale (the lead's edit, in this commit).
 
-**Pushed as FOURDE1; the CI run id is recorded in the follow-up docs commit, as ticks 29–36 were.**
+**Pushed as FOURDE1 as `af8f34a`; CI run 33976313920 green first try, both jobs (lint / typecheck / test / build, and the real-browser e2e) — twenty-seven consecutive greens, three of them on re-runs. This line was added in the follow-up docs commit, as ticks 29–36 did.**
 
 ## 2026-09-05 (tick 36) — F-82a: the confidential-data scrub — « Vendeur NN », and a guard that bans digests
 
